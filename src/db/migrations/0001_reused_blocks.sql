@@ -1,0 +1,1 @@
+ALTER TABLE "price_lists" ADD COLUMN "reused_blocks" integer DEFAULT 0 NOT NULL;

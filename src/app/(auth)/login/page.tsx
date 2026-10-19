@@ -1,0 +1,12 @@
+import { LoginForm } from "./login-form";
+
+export const metadata = { title: "Sign in · Zeronix Procurement" };
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
+  return (
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+      <LoginForm next={next} />
+    </main>
+  );
+}

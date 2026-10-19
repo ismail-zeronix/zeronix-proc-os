@@ -1,0 +1,104 @@
+# Zeronix Procurement
+#   docker compose up -d                      -> db + web (uses Ollama already running on the host)
+#   docker compose --profile ollama up -d     -> also runs Ollama in Docker and pulls the model
+# Copy .env.example to .env first.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zeronix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zeronix}
+      POSTGRES_DB: ${POSTGRES_DB:-procurement}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-zeronix}:${POSTGRES_PASSWORD:-zeronix}@db:5432/${POSTGRES_DB:-procurement}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@zeronix.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
+      # host.docker.internal = Ollama on the host machine; use http://ollama:11434 with the "ollama" profile
+      OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-4096}
+      LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-5m}
+      RUN_WORKER: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${WEB_PORT:-3100}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # Nightly database dump, kept BACKUP_KEEP_DAYS days in ./backups
+  #   docker compose --profile backup up -d
+  # Restore: gunzip -c backups/<file>.sql.gz | docker compose exec -T db psql -U zeronix procurement
+  backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-zeronix}
+      PGUSER: ${POSTGRES_USER:-zeronix}
+      PGDATABASE: ${POSTGRES_DB:-procurement}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        while true; do
+        f=/backups/procurement-$$(date +%Y%m%d-%H%M).sql.gz;
+        pg_dump -h db | gzip > $$f.tmp && mv $$f.tmp $$f &&
+        find /backups -name 'procurement-*.sql.gz' -mtime +$$KEEP_DAYS -delete;
+        sleep 86400; done
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    restart: unless-stopped
+    environment:
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-5m}
+    mem_limit: ${OLLAMA_MEM_LIMIT:-6g}
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11435}:11434"
+
+  ollama-init:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    depends_on: [ollama]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull ${LLM_MODEL:-qwen3.5:4b}"]
+    restart: "no"
+
+volumes:
+  pgdata:
+  ollama:
