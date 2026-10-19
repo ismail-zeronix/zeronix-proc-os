@@ -102,7 +102,7 @@ export function ReviewClient({ id }: { id: number }) {
   if (data.status === "queued" || data.status === "parsing") {
     const pct = data.progressTotal ? Math.round((data.progressDone / data.progressTotal) * 100) : 0;
     return (
-      <div className="grid gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         {header}
         <Card>
           <CardHeader>
@@ -133,7 +133,7 @@ export function ReviewClient({ id }: { id: number }) {
 
   if (data.status === "failed") {
     return (
-      <div className="grid gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         {header}
         <Card>
           <CardHeader>
@@ -158,7 +158,7 @@ export function ReviewClient({ id }: { id: number }) {
   if (data.status === "saved") {
     const saved = data.drafts.filter((d) => d.include);
     return (
-      <div className="grid gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
         {header}
         <Card>
           <CardHeader>
@@ -203,7 +203,7 @@ export function ReviewClient({ id }: { id: number }) {
 
   const rows = drafts ?? data.drafts;
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       {header}
       <ReviewGrid
         id={id}

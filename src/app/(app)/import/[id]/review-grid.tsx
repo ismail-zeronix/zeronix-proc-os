@@ -249,8 +249,8 @@ export function ReviewGrid({
   const noPrice = rows.filter((r) => r.include && r.price == null).length;
 
   return (
-    <Card>
-      <CardContent className="grid gap-3">
+    <Card className="min-w-0">
+      <CardContent className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{rows.length} rows</Badge>
           {flagged > 0 && (
