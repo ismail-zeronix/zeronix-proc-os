@@ -14,12 +14,12 @@ export class StopRequested extends Error {
 }
 
 /** Reads one queued price list with the local model. Called by the AI scheduler, never directly on paste. */
-export async function runParse(priceListId: number) {
+export async function runParse(priceListId: number, signal?: AbortSignal) {
   const [pl] = await db.select().from(schema.priceLists).where(eq(schema.priceLists.id, priceListId));
   if (!pl || pl.status === "saved") return;
 
   const model = await getSetting("llm_model");
-  const llm = getLlm(model);
+  const llm = getLlm(model, signal);
   const fewShots = (
     await db
       .select()

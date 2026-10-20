@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { setSetting } from "@/lib/settings";
-import { runAiCycle, unloadModel } from "@/worker/ai";
+import { abortCurrentRead, runAiCycle, unloadModel } from "@/worker/ai";
 
 const userSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -78,6 +78,8 @@ export async function stopAi() {
   await requireAdmin();
   await setSetting("ai_running", "false");
   await setSetting("ai_stop_at", new Date().toISOString());
+  // cancel the batch that is generating, then free the model
+  abortCurrentRead();
   void unloadModel();
   revalidatePath("/admin");
 }
