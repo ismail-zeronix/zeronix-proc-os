@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { getSession } from "@/lib/auth/session";
+import { hasApp } from "@/lib/auth/session";
 
 /** Filter options for the compare page. */
 export async function GET() {
-  if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await hasApp("procurement"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const [suppliers, brands, categories, rams, counts] = await Promise.all([
     db.execute<{ id: number; name: string; type: string }>(sql`SELECT id, name, type FROM suppliers WHERE is_active ORDER BY name`),
     db.execute<{ brand: string }>(sql`SELECT DISTINCT brand FROM offers WHERE brand <> '' ORDER BY brand`),

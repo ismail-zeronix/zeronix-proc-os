@@ -1,6 +1,6 @@
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Sign in · Zeronix Procurement" };
+export const metadata = { title: "Sign in · Zeronix" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;

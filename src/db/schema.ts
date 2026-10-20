@@ -21,6 +21,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role", { enum: ["admin", "sales"] }).notNull().default("sales"),
   isActive: boolean("is_active").notNull().default(true),
+  /** Apps this user may open (keys from lib/apps.ts). NULL = the role's defaults. Admins always see everything. */
+  apps: text("apps").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

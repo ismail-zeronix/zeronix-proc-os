@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { GRANTABLE_APPS } from "@/lib/apps";
 import { requireAdmin } from "@/lib/auth/session";
 import { setSetting } from "@/lib/settings";
 import { abortCurrentRead, runAiCycle, unloadModel } from "@/worker/ai";
@@ -30,7 +31,11 @@ export async function createUser(input: z.input<typeof userSchema>) {
   revalidatePath("/admin");
 }
 
-export async function updateUser(id: number, patch: { role?: "admin" | "sales"; isActive?: boolean; password?: string }) {
+/** `apps: null` = use the role's defaults; an array = exactly these apps. */
+export async function updateUser(
+  id: number,
+  patch: { role?: "admin" | "sales"; isActive?: boolean; password?: string; apps?: string[] | null },
+) {
   const me = await requireAdmin();
   if (id === me.id && (patch.role === "sales" || patch.isActive === false)) {
     throw new Error("You cannot demote or deactivate yourself.");
@@ -38,6 +43,10 @@ export async function updateUser(id: number, patch: { role?: "admin" | "sales"; 
   const set: Partial<typeof schema.users.$inferInsert> = {};
   if (patch.role) set.role = patch.role;
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
+  if (patch.apps !== undefined) {
+    const valid = new Set<string>(GRANTABLE_APPS.map((a) => a.key));
+    set.apps = patch.apps === null ? null : [...new Set(patch.apps)].filter((k) => valid.has(k));
+  }
   if (patch.password) {
     if (patch.password.length < 8) throw new Error("Password must be at least 8 characters");
     set.passwordHash = await bcrypt.hash(patch.password, 10);
@@ -109,7 +118,7 @@ export async function setFeedSchedule(supplierId: number, patch: { intervalMinut
   if (patch.enabled === true) set.lastCheckedAt = null;
   await db.update(schema.supplierFeeds).set(set).where(eq(schema.supplierFeeds.supplierId, supplierId));
   revalidatePath("/admin");
-  revalidatePath(`/suppliers/${supplierId}`);
+  revalidatePath(`/procurement/suppliers/${supplierId}`);
 }
 
 /** Puts lists back in the queue that are marked "being read" but whose reader died (e.g. the server was restarted mid-read). */
@@ -120,5 +129,5 @@ export async function requeueStuckLists() {
     .set({ status: "queued", error: null, progressDone: 0 })
     .where(eq(schema.priceLists.status, "parsing"));
   revalidatePath("/admin");
-  revalidatePath("/price-lists");
+  revalidatePath("/procurement/price-lists");
 }

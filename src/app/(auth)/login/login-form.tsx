@@ -16,8 +16,8 @@ export function LoginForm({ next }: { next?: string }) {
         <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <PackageSearch className="size-5" />
         </div>
-        <CardTitle className="text-xl">Zeronix Procurement</CardTitle>
-        <CardDescription>Sign in to compare supplier prices.</CardDescription>
+        <CardTitle className="text-xl">Zeronix Portal</CardTitle>
+        <CardDescription>Sign in to continue.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={action} className="grid gap-4">

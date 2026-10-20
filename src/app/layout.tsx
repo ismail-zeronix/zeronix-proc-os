@@ -7,8 +7,8 @@ const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Zeronix Procurement",
-  description: "Paste supplier WhatsApp price lists and compare prices across suppliers.",
+  title: "Zeronix",
+  description: "Zeronix portal: procurement, sales and more.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

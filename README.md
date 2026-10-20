@@ -1,14 +1,22 @@
-# Zeronix Procurement
+# Zeronix Portal
+
+A small company portal. The home screen (`/`) shows one tile per app; each app has its own sidebar. Plan: [PLATFORM-PLAN.md](PLATFORM-PLAN.md), progress: [TASKS.md](TASKS.md).
+
+## Apps and access
+
+Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder under `src/app/(app)/`). Roles are `admin` and `sales`: admins see every app; for a sales user an admin can pick the apps on **Admin > Users > Apps**, or leave "Use role defaults". Access is checked on the server for pages, server actions and API routes (`requireApp` / `assertApp` / `hasApp` in `src/lib/auth/session.ts`), against the database, so changes and deactivation apply immediately.
+
+## Procurement
 
 Paste supplier WhatsApp price lists, let a **local AI model** turn them into structured rows, review, and compare prices across suppliers.
 
-- **Dashboard** (`/`): what needs you today (lists to review, failed, being read), suppliers that went quiet, and this week's price moves.
-- **Add a price list** (`/import`): two ways in. **Excel price list** for distributors (see below), and **Paste WhatsApp text** for everyone else: paste the message as-is (emojis, `*bold*`, `@2850/-`), or upload / drop a WhatsApp **chat export** (`.txt`) and pick the message that is the price list. The supplier is auto-detected from signatures like `Supplier : Aman Star IT DXB` (or the chat sender), and the received date from the chat. `[10:32, 19/10/2026] Name:` prefixes from copy-paste are stripped.
-- **Review** (`/import/[id]`): editable grid with a sticky header. Rows the rules doubt (price not in text, `512TB` storage, missing CPU) are highlighted. Products already known are matched automatically, similar ones are suggested ("Accept all matches", "Skip rows without price").
-- **Compare** (`/compare`): search by model, part number or spec (`FM0013DX`, `probook 440`, `i5 13420h 16gb`, `ultra 7`). Each product lists every supplier's latest offer, with the best price highlighted, a trend arrow against that supplier's previous quote, and "saves up to X vs dearest". Filter by supplier category, ready stock only, price, brand and more; sort by suppliers, cheapest, biggest saving or newest. **Export CSV** (opens in Excel) and **Copy quote** (WhatsApp-ready text). Offers without a price show "Price on request". Old offers are greyed out.
-- **Product** (`/products/[id]`): best / lowest-ever / average price and a price-over-time chart per supplier.
-- **Price alerts** (`/alerts`): price drops (with "now the cheapest" flag), price rises, and suppliers that stopped sending lists. A badge in the sidebar counts this week's changes.
-- **Suppliers** (`/suppliers`, `/suppliers/[id]`): each supplier has a **category** from the UAE IT trade, with filter chips and a badge everywhere (Compare, product, supplier page): Distributor, Big stockist, Market trader, DAFZA, JAFZA, SAIF Zone, Other free zone, Brand/OEM direct, Other. The detail page shows contact, how often they are the cheapest, their offers against the market best, and list history. Add or rename categories in `src/lib/supplier-types.ts`.
+- **Overview** (`/procurement`): what needs you today (lists to review, failed, being read), suppliers that went quiet, and this week's price moves.
+- **Add a price list** (`/procurement/import`): two ways in. **Excel price list** for distributors (see below), and **Paste WhatsApp text** for everyone else: paste the message as-is (emojis, `*bold*`, `@2850/-`), or upload / drop a WhatsApp **chat export** (`.txt`) and pick the message that is the price list. The supplier is auto-detected from signatures like `Supplier : Aman Star IT DXB` (or the chat sender), and the received date from the chat. `[10:32, 19/10/2026] Name:` prefixes from copy-paste are stripped.
+- **Review** (`/procurement/import/[id]`): editable grid with a sticky header. Rows the rules doubt (price not in text, `512TB` storage, missing CPU) are highlighted. Products already known are matched automatically, similar ones are suggested ("Accept all matches", "Skip rows without price").
+- **Compare** (`/procurement/compare`): search by model, part number or spec (`FM0013DX`, `probook 440`, `i5 13420h 16gb`, `ultra 7`). Each product lists every supplier's latest offer, with the best price highlighted, a trend arrow against that supplier's previous quote, and "saves up to X vs dearest". Filter by supplier category, ready stock only, price, brand and more; sort by suppliers, cheapest, biggest saving or newest. **Export CSV** (opens in Excel) and **Copy quote** (WhatsApp-ready text). Offers without a price show "Price on request". Old offers are greyed out.
+- **Product** (`/procurement/products/[id]`): best / lowest-ever / average price and a price-over-time chart per supplier.
+- **Price alerts** (`/procurement/alerts`): price drops (with "now the cheapest" flag), price rises, and suppliers that stopped sending lists. A badge in the sidebar counts this week's changes.
+- **Suppliers** (`/procurement/suppliers`, `/procurement/suppliers/[id]`): each supplier has a **category** from the UAE IT trade, with filter chips and a badge everywhere (Compare, product, supplier page): Distributor, Big stockist, Market trader, DAFZA, JAFZA, SAIF Zone, Other free zone, Brand/OEM direct, Other. The detail page shows contact, how often they are the cheapest, their offers against the market best, and list history. Add or rename categories in `src/lib/supplier-types.ts`.
 - **Search anywhere**: press `Ctrl K` (or `/`) to jump to a product or page.
 - Also: price list history with filters and the original text, and an admin page for users, AI model and the "old offer" age.
 
@@ -119,6 +127,8 @@ src/lib/search.ts  compare query, trend (previous quote), sort
 src/lib/alerts.ts  price moves, quiet suppliers, list counts
 src/lib/export.ts  CSV export and pasteable quote text
 src/worker/        schedulers: AI queue (admin Start/Stop), live feeds
-src/app/(app)/     dashboard, compare, import, alerts, products, price-lists, suppliers, admin
+src/app/(app)/(home)/ home screen          src/app/(app)/admin/  users, apps, AI, settings
+src/app/(app)/procurement/   overview, compare, import, alerts, products, price-lists, suppliers
+src/lib/apps.ts, app-nav.ts  app registry + access rules, per-app sidebar pages
 src/db/            Drizzle schema + migrations
 ```

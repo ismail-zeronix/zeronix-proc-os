@@ -1,13 +1,12 @@
 import { asc, eq, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
-import { getSession } from "@/lib/auth/session";
+import { requireApp } from "@/lib/auth/session";
 import { getLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { AdminSettings, AdminUsers } from "./admin-ui";
 import { AiControl, FeedSchedules } from "./automation-ui";
 
-export const metadata = { title: "Admin · Zeronix Procurement" };
+export const metadata = { title: "Admin · Zeronix" };
 
 async function ollamaModels(): Promise<string[]> {
   try {
@@ -30,8 +29,7 @@ function nextLook(s: { ai_running: string; ai_last_run_at: string; ai_interval_m
 }
 
 export default async function AdminPage() {
-  const me = await getSession();
-  if (me?.role !== "admin") redirect("/compare");
+  const me = (await requireApp("admin")).user;
   const [users, settings, models, queue, feeds] = await Promise.all([
     db
       .select({
@@ -40,6 +38,7 @@ export default async function AdminPage() {
         email: schema.users.email,
         role: schema.users.role,
         isActive: schema.users.isActive,
+        apps: schema.users.apps,
       })
       .from(schema.users)
       .orderBy(asc(schema.users.name)),

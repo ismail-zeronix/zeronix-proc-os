@@ -13,7 +13,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AI_INTERVALS, FEED_INTERVALS } from "@/lib/feed/intervals";
 import { ago } from "@/lib/format";
-import { syncFeedNow } from "../suppliers/feed-actions";
+import { syncFeedNow } from "../procurement/suppliers/feed-actions";
 import { requeueStuckLists, runAiNow, setAiInterval, setFeedSchedule, startAi, stopAi } from "./actions";
 
 function useAction() {
@@ -189,7 +189,7 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
                 {feeds.map((f) => (
                   <TableRow key={f.supplierId}>
                     <TableCell className="max-w-[260px]">
-                      <Link href={`/suppliers/${f.supplierId}`} className="block truncate font-medium hover:underline">
+                      <Link href={`/procurement/suppliers/${f.supplierId}`} className="block truncate font-medium hover:underline">
                         {f.supplier}
                       </Link>
                       {!f.enabled && <Badge variant="outline">Stopped</Badge>}

@@ -4,26 +4,26 @@ Status key: [ ] todo, [~] in progress, [x] done. Update this file when a task is
 Plan: see PLATFORM-PLAN.md.
 
 ## Phase 0: Housekeeping
-- [ ] 0.1 Commit/stash current uncommitted changes (admin/actions, llm, worker)
-- [ ] 0.2 Create branch `portal`
+- [x] 0.1 Commit current uncommitted changes (admin/actions, llm, worker) [2026-10-21]
+- [x] 0.2 Create branch `portal` [2026-10-21]
 
 ## Phase 1: Portal shell
-- [ ] 1.1 Add `src/lib/apps.ts` registry + `allowedApps()` (+ unit tests)
-- [ ] 1.2 Add `users.apps text[]` column + migration
-- [ ] 1.3 Add `requireApp(key)` in `lib/auth/session.ts` (DB check, also rejects inactive users)
-- [ ] 1.4 Move procurement pages under `src/app/(app)/procurement/` and add `procurement/layout.tsx`
-- [ ] 1.5 Add redirects for old URLs in `next.config.ts` (keep query strings)
-- [ ] 1.6 Fix internal links, `redirect()` calls, global search and `/api/search` result URLs
-- [ ] 1.7 Generic sidebar from per-app nav config (`lib/app-nav.ts`), "All apps" link on top
-- [ ] 1.8 `AppHeader`: brand, apps switcher, search, theme toggle, user menu (sign out)
-- [ ] 1.9 Thin `(app)/layout.tsx`; `(home)` group layout without sidebar
-- [ ] 1.10 Admin: per-user Apps checkboxes + save action; non-admin redirect to `/`
-- [ ] 1.11 `requireApp("procurement")` on procurement pages, server actions, `api/export`, `api/import/excel`
-- [ ] 1.12 Branding text (login, metadata titles, sidebar title) and README update
-- [ ] 1.13 Verify: typecheck, lint, tests, manual role check, old-URL redirects
+- [x] 1.1 Add `src/lib/apps.ts` registry + `allowedApps()` (+ unit tests) [2026-10-21]
+- [x] 1.2 Add `users.apps text[]` column + migration [2026-10-21]
+- [x] 1.3 Add `requireApp(key)` in `lib/auth/session.ts` (DB check, also rejects inactive users) [2026-10-21]
+- [x] 1.4 Move procurement pages under `src/app/(app)/procurement/` and add `procurement/layout.tsx` [2026-10-21]
+- [x] 1.5 Add redirects for old URLs in `next.config.ts` (keep query strings) [2026-10-21]
+- [x] 1.6 Fix internal links, `redirect()` calls, global search and `/api/search` result URLs [2026-10-21]
+- [x] 1.7 Generic sidebar from per-app nav config (`lib/app-nav.ts`), "All apps" link on top [2026-10-21]
+- [x] 1.8 `AppHeader`: brand, apps switcher, search, theme toggle, user menu (sign out) [2026-10-21]
+- [x] 1.9 Thin `(app)/layout.tsx`; `(home)` group layout without sidebar [2026-10-21]
+- [x] 1.10 Admin: per-user Apps checkboxes + save action; non-admin redirect to `/` [2026-10-21]
+- [x] 1.11 `requireApp("procurement")` on procurement pages, server actions, `api/export`, `api/import/excel` [2026-10-21]
+- [x] 1.12 Branding text (login, metadata titles, sidebar title) and README update [2026-10-21]
+- [x] 1.13 Verify: typecheck, lint, tests, manual role check, old-URL redirects [2026-10-21]
 
 ## Phase 2: Home screen
-- [ ] 2.1 `app-tile.tsx` + tiles grid from registry (allowed apps only, soon tiles admin-only)
+- [x] 2.1 `app-tile.tsx` + tiles grid from registry (allowed apps only, soon tiles admin-only) [2026-10-21]
 - [ ] 2.2 Greeting + date + daily quote (`lib/quotes.ts`, ~60 lines, day-of-year pick)
 - [ ] 2.3 "This week" tiles: procurement numbers live; sales numbers when Sales exists
 - [ ] 2.4 Widget slots with empty states: My tasks, Latest emails, Pipeline, Price moves, Needs attention

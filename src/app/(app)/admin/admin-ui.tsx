@@ -1,15 +1,18 @@
 "use client";
 
-import { CheckCircle2, KeyRound, UserPlus, XCircle } from "lucide-react";
+import { CheckCircle2, KeyRound, LayoutGrid, UserPlus, XCircle } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { allowedApps, GRANTABLE_APPS } from "@/lib/apps";
 import { createUser, saveSettings, updateUser } from "./actions";
 
 function useAction() {
@@ -101,6 +104,52 @@ interface UserRow {
   email: string;
   role: "admin" | "sales";
   isActive: boolean;
+  /** null = the role's default apps */
+  apps: string[] | null;
+}
+
+/** Which apps one user can open: the role's defaults, or a list the admin picks. Admins always see every app. */
+function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; run: ReturnType<typeof useAction>[1] }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState(user.apps !== null);
+  const [picked, setPicked] = useState<string[]>(user.apps ?? allowedApps({ role: user.role }));
+  if (user.role === "admin") return <span className="text-sm text-muted-foreground">All apps</span>;
+  const count = user.apps === null ? "Role defaults" : `${user.apps.length} app${user.apps.length === 1 ? "" : "s"}`;
+  const toggle = (key: string, on: boolean) => setPicked(on ? [...picked, key] : picked.filter((k) => k !== key));
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={<Button variant="outline" size="sm" disabled={disabled} />}>
+        <LayoutGrid /> {count}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Checkbox checked={!custom} onCheckedChange={(v) => setCustom(!v)} /> Use role defaults
+        </label>
+        <div className="grid gap-1.5 border-t pt-2">
+          {GRANTABLE_APPS.map((a) => (
+            <label key={a.key} className="flex items-center gap-2 text-sm aria-disabled:opacity-50" aria-disabled={!custom}>
+              <Checkbox
+                disabled={!custom}
+                checked={custom ? picked.includes(a.key) : allowedApps({ role: user.role }).includes(a.key)}
+                onCheckedChange={(v) => toggle(a.key, !!v)}
+              />
+              {a.label}
+              {a.status === "soon" && <span className="text-xs text-muted-foreground">(coming soon)</span>}
+            </label>
+          ))}
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            run(() => updateUser(user.id, { apps: custom ? picked : null }), "Apps saved");
+            setOpen(false);
+          }}
+        >
+          Save
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function AdminUsers({ users, meId }: { users: UserRow[]; meId: number }) {
@@ -111,7 +160,9 @@ export function AdminUsers({ users, meId }: { users: UserRow[]; meId: number }) 
     <Card>
       <CardHeader>
         <CardTitle>Users</CardTitle>
-        <CardDescription>Sales users can paste, review and compare. Admins also manage users and settings.</CardDescription>
+        <CardDescription>
+          Admins see every app and manage users and settings. For sales users, pick which apps they can open.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_140px_auto] md:items-end">
@@ -157,6 +208,7 @@ export function AdminUsers({ users, meId }: { users: UserRow[]; meId: number }) 
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Apps</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -178,6 +230,9 @@ export function AdminUsers({ users, meId }: { users: UserRow[]; meId: number }) 
                     <NativeSelectOption value="sales">Sales</NativeSelectOption>
                     <NativeSelectOption value="admin">Admin</NativeSelectOption>
                   </NativeSelect>
+                </TableCell>
+                <TableCell>
+                  <UserApps key={`${u.id}-${u.role}-${u.apps?.join(",") ?? "-"}`} user={u} disabled={pending} run={run} />
                 </TableCell>
                 <TableCell>
                   <Badge variant={u.isActive ? "secondary" : "outline"}>{u.isActive ? "Active" : "Disabled"}</Badge>
