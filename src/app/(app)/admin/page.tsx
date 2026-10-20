@@ -3,7 +3,9 @@ import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
 import { getLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
+import { getBrand } from "@/lib/brand";
 import { AdminSettings, AdminUsers } from "./admin-ui";
+import { BrandCard } from "./brand-ui";
 import { AiControl, FeedSchedules } from "./automation-ui";
 
 export const metadata = { title: "Admin · Zeronix" };
@@ -63,6 +65,7 @@ export default async function AdminPage() {
       .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.supplierFeeds.supplierId))
       .orderBy(asc(schema.suppliers.name)),
   ]);
+  const { version, ...brand } = await getBrand();
   const llm = getLlm(settings.llm_model);
   // both only ask Ollama what it has: neither loads the model
   const [health, modelLoaded] = await Promise.all([llm.health(), llm.isLoaded()]);
@@ -89,6 +92,7 @@ export default async function AdminPage() {
       />
       <FeedSchedules feeds={feeds.map((f) => ({ ...f, lastCheckedAt: f.lastCheckedAt?.toISOString() ?? null }))} />
       <AdminSettings settings={settings} models={models} health={health} />
+      <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} />
       <AdminUsers users={users} meId={me.id} />
     </div>
   );

@@ -203,6 +203,7 @@ anti-spam rules apply to cold email). Sending goes through the Hostinger SMTP ac
 | **3. Tasks** | Tasks app + "My tasks today" widget, add-task from anywhere, overdue highlight, admin can assign to others. | Home needs tasks; Sales activity uses them. |
 | **4. Knowledge** | Hardware, Sales playbook, UAE customers pages with search. | Pure content, no dependencies. |
 | **5. Email widget** | IMAP job + `mail_accounts` setup screen under the user menu + latest-emails widget. | Needs worker pattern and secret handling. |
+| **5b. Mail app** | Read the inbox, compose / reply / forward inside the portal, per-user signature with the Zeronix logo (decided with the owner: light client, no folder management; webmail stays for the rest). Mail is attached by CID so the logo shows outside the company network. | Asked for after the email widget worked. Linking to deals comes with Sales. |
 | **6. Sales basic** | Companies, contacts, deals with board + list, activities, genuine-lead checklist, follow-up tasks, home pipeline widget. | Core CRM. |
 | **7. Quotes** | Deal lines, Find price from procurement, margin, quote number, printable page, WhatsApp text, Won/Lost. | Connects procurement to closing. |
 | **Later** | Accounts (invoices, receivables), Prospecting (licence feeds + cold email), email-to-deal matching, admin-editable knowledge. | After 1-7 are in daily use. |

@@ -20,6 +20,20 @@ const connectSchema = z.object({
   password: z.string().min(1, "Enter the mailbox password").max(200),
 });
 
+const profileSchema = z.object({
+  jobTitle: z.string().trim().max(80).default(""),
+  phone: z.string().trim().max(40).default(""),
+  mobile: z.string().trim().max(40).default(""),
+});
+
+/** Job title and phone numbers printed in this user's email signature. */
+export async function saveMyProfile(input: z.input<typeof profileSchema>) {
+  const user = await me();
+  const d = profileSchema.parse(input);
+  await db.update(schema.users).set(d).where(eq(schema.users.id, user.id));
+  revalidatePath("/account");
+}
+
 function refresh() {
   revalidatePath("/account");
   revalidatePath("/");

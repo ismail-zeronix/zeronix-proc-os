@@ -6,7 +6,9 @@ import { db, schema } from "@/db";
 import { requireAccess } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { mailServer } from "@/lib/mail/config";
+import { getBrand } from "@/lib/brand";
 import { MailForm } from "./mail-form";
+import { SignatureCard } from "./signature-card";
 
 export const metadata = { title: "My account · Zeronix" };
 
@@ -23,6 +25,13 @@ export default async function AccountPage() {
     .from(schema.mailAccounts)
     .where(eq(schema.mailAccounts.userId, user.id));
   const { host } = mailServer();
+  const [{ version, ...brand }, [profile]] = await Promise.all([
+    getBrand(),
+    db
+      .select({ jobTitle: schema.users.jobTitle, phone: schema.users.phone, mobile: schema.users.mobile })
+      .from(schema.users)
+      .where(eq(schema.users.id, user.id)),
+  ]);
 
   return (
     <div className="grid gap-6">
@@ -58,6 +67,21 @@ export default async function AccountPage() {
             </div>
           )}
           <MailForm connected={!!acc} imapUser={acc?.imapUser ?? ""} defaultEmail={user.email} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>My email signature</CardTitle>
+          <CardDescription>Added automatically to every email you write in the portal.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SignatureCard
+            brand={brand}
+            version={version}
+            name={user.name}
+            email={acc?.imapUser ?? user.email}
+            initial={profile ?? { jobTitle: "", phone: "", mobile: "" }}
+          />
         </CardContent>
       </Card>
     </div>

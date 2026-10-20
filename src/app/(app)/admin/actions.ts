@@ -7,6 +7,8 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { GRANTABLE_APPS } from "@/lib/apps";
 import { requireAdmin } from "@/lib/auth/session";
+import { parseLogoDataUrl } from "@/lib/logo";
+import { safeColor } from "@/lib/signature";
 import { setSetting } from "@/lib/settings";
 import { abortCurrentRead, runAiCycle, unloadModel } from "@/worker/ai";
 
@@ -53,6 +55,41 @@ export async function updateUser(
   }
   await db.update(schema.users).set(set).where(eq(schema.users.id, id));
   revalidatePath("/admin");
+}
+
+// ---------- Company branding for email signatures ----------
+
+const brandSchema = z.object({
+  company: z.string().trim().min(1, "Enter the company name").max(80),
+  tagline: z.string().trim().max(120).default(""),
+  address: z.string().trim().max(300).default(""),
+  website: z.string().trim().max(200).default(""),
+  mainPhone: z.string().trim().max(40).default(""),
+  layout: z.enum(["left", "right", "top", "below"]),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/, "Colour must look like #2a78d6"),
+  disclaimer: z.string().trim().max(600).default(""),
+});
+
+/** `logo`: a data URL to replace the logo, "remove" to delete it, or leave out to keep the current one. */
+export async function saveBrand(input: z.input<typeof brandSchema> & { logo?: string }) {
+  await requireAdmin();
+  const { logo, ...rest } = input;
+  const d = brandSchema.parse(rest);
+  const set: Partial<typeof schema.brandProfile.$inferInsert> = { ...d, color: safeColor(d.color), updatedAt: new Date() };
+  if (logo === "remove") {
+    set.logoB64 = "";
+    set.logoMime = "";
+  } else if (logo) {
+    const parsed = parseLogoDataUrl(logo);
+    set.logoB64 = parsed.b64;
+    set.logoMime = parsed.mime;
+  }
+  await db
+    .insert(schema.brandProfile)
+    .values({ id: 1, ...set })
+    .onConflictDoUpdate({ target: schema.brandProfile.id, set });
+  revalidatePath("/admin");
+  revalidatePath("/account");
 }
 
 const settingsSchema = z.object({

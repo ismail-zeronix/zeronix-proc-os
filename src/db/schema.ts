@@ -24,6 +24,10 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true),
   /** Apps this user may open (keys from lib/apps.ts). NULL = the role's defaults. Admins always see everything. */
   apps: text("apps").array(),
+  /** Shown in the email signature. */
+  jobTitle: text("job_title").notNull().default(""),
+  phone: text("phone").notNull().default(""),
+  mobile: text("mobile").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -262,3 +266,21 @@ export const mailMessages = pgTable(
   },
   (t) => [uniqueIndex("mail_messages_user_uid_idx").on(t.userId, t.uid), index("mail_messages_recent_idx").on(t.userId, t.receivedAt)],
 );
+
+/** Company branding used in email signatures. One row (id = 1), edited by an admin. */
+export const brandProfile = pgTable("brand_profile", {
+  id: integer("id").primaryKey(),
+  company: text("company").notNull().default("Zeronix"),
+  tagline: text("tagline").notNull().default(""),
+  address: text("address").notNull().default(""),
+  website: text("website").notNull().default(""),
+  mainPhone: text("main_phone").notNull().default(""),
+  /** Where the logo sits in the signature. */
+  layout: text("layout", { enum: ["left", "right", "top", "below"] }).notNull().default("left"),
+  color: text("color").notNull().default("#2a78d6"),
+  disclaimer: text("disclaimer").notNull().default(""),
+  /** Logo as base64 (PNG, JPG or WebP, small). Empty = text mark. */
+  logoB64: text("logo_b64").notNull().default(""),
+  logoMime: text("logo_mime").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
