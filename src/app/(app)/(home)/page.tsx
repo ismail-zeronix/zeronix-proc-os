@@ -6,8 +6,9 @@ import { listCounts } from "@/lib/alerts";
 import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
+import { dueTasksFor } from "@/lib/tasks";
 import { quoteOfTheDay } from "@/lib/quotes";
-import { AttentionCard, PriceMovesCard, SoonCard, ThisWeekProcurement, WidgetSkeleton } from "./widgets";
+import { AttentionCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, WidgetSkeleton } from "./widgets";
 
 export const metadata = { title: "Home · Zeronix" };
 
@@ -18,6 +19,9 @@ export default async function HomePage() {
   const hasProcurement = apps.includes("procurement");
   // one cheap count query: the number on the Procurement tile
   const toReview = hasProcurement ? await listCounts().then((c) => c.review + c.failed) : 0;
+
+  const hasTasks = apps.includes("tasks");
+  const dueTasks = hasTasks ? await dueTasksFor(user.id).then((d) => d.tasks.length) : 0;
 
   return (
     <div className="grid gap-6">
@@ -36,8 +40,8 @@ export default async function HomePage() {
           <AppTile
             key={a.key}
             app={a}
-            badge={a.key === "procurement" ? toReview : undefined}
-            badgeLabel={a.key === "procurement" ? `${toReview} to review` : undefined}
+            badge={a.key === "procurement" ? toReview : a.key === "tasks" ? dueTasks : undefined}
+            badgeLabel={a.key === "procurement" ? `${toReview} to review` : a.key === "tasks" ? `${dueTasks} due today` : undefined}
           />
         ))}
       </section>
@@ -52,7 +56,11 @@ export default async function HomePage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {isAdmin && <SoonCard kind="tasks" />}
+        {hasTasks && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <MyTasksCard userId={user.id} />
+          </Suspense>
+        )}
         {isAdmin && <SoonCard kind="emails" />}
         {hasProcurement && (
           <Suspense fallback={<WidgetSkeleton />}>

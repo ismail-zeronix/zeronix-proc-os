@@ -1,12 +1,14 @@
 import { AlertTriangle, ArrowRight, Bell, Inbox, ListChecks, Target, TrendingDown, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { Empty, Kpi } from "@/components/stat-tile";
+import { TaskItem } from "@/components/task-ui";
 import { Trend } from "@/components/trend";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ago, money } from "@/lib/format";
 import { procurementPulse } from "@/lib/home";
+import { dueTasksFor } from "@/lib/tasks";
 
 /** Placeholder while a widget's data loads. */
 export function WidgetSkeleton({ className = "h-40" }: { className?: string }) {
@@ -35,6 +37,47 @@ export async function ThisWeekProcurement() {
         href="/procurement/suppliers"
       />
     </div>
+  );
+}
+
+/** Open tasks assigned to me that are due today or overdue. */
+export async function MyTasksCard({ userId }: { userId: number }) {
+  const { tasks, overdue } = await dueTasksFor(userId);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ListChecks className="size-4" /> My tasks today
+        </CardTitle>
+        <CardDescription>
+          {tasks.length === 0 ? "Nothing due today." : overdue ? `${tasks.length} due, ${overdue} overdue` : `${tasks.length} due today`}
+        </CardDescription>
+        <CardAction>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/tasks" />}>
+            All tasks <ArrowRight />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="grid gap-0.5">
+        {tasks.slice(0, 6).map((t) => (
+          <TaskItem key={t.id} task={t} compact />
+        ))}
+        {tasks.length > 6 && (
+          <Link href="/tasks" className="px-2 py-1 text-xs text-muted-foreground hover:underline">
+            + {tasks.length - 6} more
+          </Link>
+        )}
+        {!tasks.length && (
+          <Empty>
+            You are clear.{" "}
+            <Link href="/tasks" className="underline">
+              Add a task
+            </Link>{" "}
+            to plan the day.
+          </Empty>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -128,7 +171,6 @@ export async function AttentionCard() {
 }
 
 const SOON = {
-  tasks: { icon: ListChecks, title: "My tasks today", text: "Tasks assigned to you will show here." },
   emails: { icon: Inbox, title: "Latest emails", text: "Your newest emails will show here." },
   pipeline: { icon: Target, title: "Pipeline", text: "Deals by stage will show here." },
   tip: { icon: Lightbulb, title: "Tip of the day", text: "A sales or hardware tip will show here." },

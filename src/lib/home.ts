@@ -1,10 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { listCounts, priceMoves, quietSuppliers } from "@/lib/alerts";
+import { TZ } from "@/lib/dates";
 import { getSetting } from "@/lib/settings";
-
-/** The company works on UAE time whatever time zone the server runs in. */
-const TZ = "Asia/Dubai";
 
 export function dubaiGreeting(now = new Date()) {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: TZ }).format(now)) % 24;

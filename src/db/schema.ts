@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -199,3 +200,28 @@ export const settings = pgTable("settings", {
     .notNull()
     .default(sql`now()`),
 });
+
+/** A to-do for one person. `relatedType`/`relatedId` link it to a deal or company once Sales exists. */
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    notes: text("notes").notNull().default(""),
+    /** Calendar day (UAE) it is due; null = no date. */
+    dueDate: date("due_date"),
+    priority: text("priority", { enum: ["normal", "high"] }).notNull().default("normal"),
+    status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
+    assignedTo: integer("assigned_to")
+      .notNull()
+      .references(() => users.id),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    relatedType: text("related_type"),
+    relatedId: integer("related_id"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tasks_assignee_idx").on(t.assignedTo, t.status, t.dueDate)],
+);

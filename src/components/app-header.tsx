@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { QuickAddTask } from "@/components/task-ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { APPS, type AppKey, type Role } from "@/lib/apps";
 
@@ -91,6 +92,7 @@ export function AppHeader({
 
       <GlobalSearch apps={apps} />
       <div className="flex-1" />
+      {apps.includes("tasks") && <QuickAddTask />}
       <ThemeToggle />
 
       <DropdownMenu>

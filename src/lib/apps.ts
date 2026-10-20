@@ -55,7 +55,7 @@ export const APPS = [
     icon: ListChecks,
     blurb: "What to do today",
     defaultFor: ["admin", "sales"],
-    status: "soon",
+    status: "live",
     color: "var(--series-4)",
   },
   {

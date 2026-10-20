@@ -32,10 +32,10 @@ Plan: see PLATFORM-PLAN.md.
 - [x] 2.7 Tip of the day slot (wired to Knowledge in Phase 4) (placeholder card; real tip in 4.6) [2026-10-21]
 
 ## Phase 3: Tasks
-- [ ] 3.1 `tasks` table + migration
-- [ ] 3.2 Tasks app: My tasks, Team tasks (admin), add/edit/complete, assign to user
-- [ ] 3.3 Quick "Add task" in header and from deal/company pages
-- [ ] 3.4 Home "My tasks today" widget + overdue highlight + tile badge
+- [x] 3.1 `tasks` table + migration [2026-10-21]
+- [x] 3.2 Tasks app: My tasks, Team tasks (admin), add/edit/complete, assign to user [2026-10-21]
+- [x] 3.3 Quick "Add task" in header and from deal/company pages (header shortcut done; deal/company buttons in Phase 6) [2026-10-21]
+- [x] 3.4 Home "My tasks today" widget + overdue highlight + tile badge [2026-10-21]
 
 ## Phase 4: Knowledge
 - [ ] 4.1 Knowledge layout + index + search box
