@@ -1,4 +1,6 @@
-/** Short lines for the home screen. One per day, the same for everybody (picked by day of the year). */
+import { dubaiDayNumber } from "@/lib/dates";
+
+/** Short lines for the home screen. One per day (UAE time), the same for everybody. */
 export const QUOTES = [
   "Every no brings you closer to a yes.",
   "Be quick to answer, slow to give up.",
@@ -62,12 +64,6 @@ export const QUOTES = [
   "Dream big, call often.",
 ] as const;
 
-/** Day of the year, 1-366, in the server's local time. */
-function dayOfYear(d: Date) {
-  const start = new Date(d.getFullYear(), 0, 0);
-  return Math.floor((d.getTime() - start.getTime()) / 86400_000);
-}
-
 export function quoteOfTheDay(d = new Date()): string {
-  return QUOTES[dayOfYear(d) % QUOTES.length];
+  return QUOTES[dubaiDayNumber(d) % QUOTES.length];
 }

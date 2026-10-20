@@ -38,12 +38,12 @@ Plan: see PLATFORM-PLAN.md.
 - [x] 3.4 Home "My tasks today" widget + overdue highlight + tile badge [2026-10-21]
 
 ## Phase 4: Knowledge
-- [ ] 4.1 Knowledge layout + index + search box
-- [ ] 4.2 Hardware: laptops, corporate preferences, workstations, servers, processor cheat-sheet
-- [ ] 4.3 Sales playbook: corporates, how to talk, objections, genuine-lead check, mindset
-- [ ] 4.4 Finding customers in UAE (incl. Meydan announcements, future Prospecting note)
-- [ ] 4.5 "Last reviewed" dates + team review of content
-- [ ] 4.6 Tip of the day on Home
+- [x] 4.1 Knowledge layout + index + search box [2026-10-21]
+- [x] 4.2 Hardware: laptops, corporate preferences, workstations, servers, processor cheat-sheet [2026-10-21]
+- [x] 4.3 Sales playbook: corporates, how to talk, objections, genuine-lead check, mindset [2026-10-21]
+- [x] 4.4 Finding customers in UAE (incl. Meydan announcements, future Prospecting note) [2026-10-21]
+- [~] 4.5 "Last reviewed" dates + team review of content (dates are set; content is drafted by Claude and still needs the team's review)
+- [x] 4.6 Tip of the day on Home [2026-10-21]
 
 ## Phase 5: Email widget
 - [ ] 5.1 `mail_accounts` / `mail_messages` tables + AES-GCM helper

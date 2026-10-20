@@ -65,7 +65,7 @@ export const APPS = [
     icon: BookOpen,
     blurb: "Hardware guide and sales playbook",
     defaultFor: ["admin", "sales"],
-    status: "soon",
+    status: "live",
     color: "var(--series-7)",
   },
   {

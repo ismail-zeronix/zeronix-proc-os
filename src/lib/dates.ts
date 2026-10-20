@@ -6,6 +6,11 @@ export function dubaiToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/** Whole days since 1970-01-01 for the UAE calendar day: changes at midnight in Dubai, whatever the server's time zone. */
+export function dubaiDayNumber(now = new Date()): number {
+  return Math.floor(Date.parse(dubaiToday(now) + "T00:00:00Z") / 86400_000);
+}
+
 /** "Today", "Tomorrow", "Yesterday", "Mon 26 Oct" for a YYYY-MM-DD day, relative to the UAE today. */
 export function dayLabel(day: string, today = dubaiToday()): string {
   const diff = Math.round((Date.parse(day + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400_000);

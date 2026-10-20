@@ -8,7 +8,7 @@ import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
 import { quoteOfTheDay } from "@/lib/quotes";
-import { AttentionCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, WidgetSkeleton } from "./widgets";
+import { AttentionCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, TipCard, WidgetSkeleton } from "./widgets";
 
 export const metadata = { title: "Home · Zeronix" };
 
@@ -73,7 +73,7 @@ export default async function HomePage() {
           </Suspense>
         )}
         {isAdmin && <SoonCard kind="pipeline" />}
-        {isAdmin && <SoonCard kind="tip" />}
+        {apps.includes("knowledge") && <TipCard />}
       </div>
     </div>
   );

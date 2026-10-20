@@ -6,6 +6,7 @@ import { Trend } from "@/components/trend";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { articleBySlug, tipOfTheDay } from "@/content/knowledge";
 import { ago, money } from "@/lib/format";
 import { procurementPulse } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
@@ -37,6 +38,29 @@ export async function ThisWeekProcurement() {
         href="/procurement/suppliers"
       />
     </div>
+  );
+}
+
+/** One tip from the Knowledge articles, the same for everybody today. */
+export function TipCard() {
+  const tip = tipOfTheDay();
+  const article = articleBySlug(tip.slug);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Lightbulb className="size-4" /> Tip of the day
+        </CardTitle>
+        <CardDescription>{tip.text}</CardDescription>
+        {article && (
+          <CardAction>
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/knowledge/${article.slug}`} />}>
+              Read more <ArrowRight />
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -173,7 +197,6 @@ export async function AttentionCard() {
 const SOON = {
   emails: { icon: Inbox, title: "Latest emails", text: "Your newest emails will show here." },
   pipeline: { icon: Target, title: "Pipeline", text: "Deals by stage will show here." },
-  tip: { icon: Lightbulb, title: "Tip of the day", text: "A sales or hardware tip will show here." },
 } as const;
 
 /** A widget whose app is not built yet. Shown to admins only, so everyone can see where it will go. */
