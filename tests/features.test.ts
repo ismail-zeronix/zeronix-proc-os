@@ -97,6 +97,7 @@ describe("reusing reviewed rows", () => {
     const calls: string[] = [];
     const llm: LlmProvider = {
       name: "fake", model: "fake", health: async () => ({ ok: true, detail: "" }),
+      isLoaded: async () => false, unload: async () => {},
       extractJson: async (req) => {
         const user = req.messages.at(-1)!.content;
         calls.push(user);

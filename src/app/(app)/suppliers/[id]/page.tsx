@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { db, schema } from "@/db";
-import { requireUser } from "@/lib/auth/session";
+import { getSession, requireUser } from "@/lib/auth/session";
 import { ago, money } from "@/lib/format";
 import { getSetting } from "@/lib/settings";
 import { supplierOffers } from "@/lib/supplier-stats";
 import { cn } from "@/lib/utils";
+import { FeedCard } from "../feed-card";
 import { SupplierDialog } from "../supplier-ui";
 
 const STATUS = { queued: "Queued", parsing: "Reading", review: "Needs review", saved: "Saved", failed: "Failed" } as const;
@@ -27,6 +28,8 @@ export default async function SupplierPage({ params }: PageProps<"/suppliers/[id
   if (!supplier) notFound();
   const staleDays = Number(await getSetting("stale_days")) || 14;
 
+  const session = await getSession();
+  const [feedRow] = await db.select().from(schema.supplierFeeds).where(eq(schema.supplierFeeds.supplierId, id));
   const [offers, lists] = await Promise.all([
     supplierOffers(id, staleDays),
     db
@@ -102,6 +105,28 @@ export default async function SupplierPage({ params }: PageProps<"/suppliers/[id
           hint="stock lists with no price"
         />
       </div>
+
+      {(feedRow || session?.role === "admin") && (
+        <FeedCard
+          supplierId={id}
+          canEdit={session?.role === "admin"}
+          feed={
+            feedRow
+              ? {
+                  url: feedRow.url,
+                  currency: feedRow.currency,
+                  intervalMinutes: feedRow.intervalMinutes,
+                  enabled: feedRow.enabled,
+                  lastCheckedAt: feedRow.lastCheckedAt?.toISOString() ?? null,
+                  lastChangedAt: feedRow.lastChangedAt?.toISOString() ?? null,
+                  lastRows: feedRow.lastRows,
+                  lastStatus: feedRow.lastStatus,
+                  lastMessage: feedRow.lastMessage,
+                }
+              : null
+          }
+        />
+      )}
 
       <Card>
         <CardHeader>

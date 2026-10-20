@@ -6,6 +6,14 @@ export const SETTING_DEFAULTS = {
   stale_days: "14",
   /** AED per 1 USD. The dirham is pegged at 3.6725; change it only if you price on a different rate. */
   fx_usd: "3.6725",
+  /** "true" while an admin has started AI reading; pasted lists wait in the queue otherwise. */
+  ai_running: "false",
+  /** How often (minutes) a running AI checks the queue for waiting lists. */
+  ai_interval_minutes: "5",
+  /** ISO time of the last queue check; empty = check on the next tick. */
+  ai_last_run_at: "",
+  /** ISO time an admin pressed Stop; a list being read when this is newer than its start is put back in the queue. */
+  ai_stop_at: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

@@ -22,6 +22,13 @@
       "when": 1792432772058,
       "tag": "0002_supplier_types_excel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792486394148,
+      "tag": "0003_supplier_feeds",
+      "breakpoints": true
     }
   ]
 }

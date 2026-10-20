@@ -15,7 +15,8 @@
     "test": "vitest run",
     "try-parse": "tsx scripts/try-parse.ts",
     "typecheck": "tsc --noEmit",
-    "try-excel": "tsx scripts/try-excel.ts"
+    "try-excel": "tsx scripts/try-excel.ts",
+    "try-feed": "tsx scripts/try-feed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -32,7 +33,6 @@
     "next": "16.4.2",
     "next-themes": "^0.4.6",
     "pg": "^8.23.1",
-    "pg-boss": "^12.38.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",

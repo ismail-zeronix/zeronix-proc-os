@@ -10,7 +10,7 @@ import { CATEGORIES, offerDraftSchema, type OfferDraft } from "@/lib/llm/schema"
 import { attachMatches } from "@/lib/products";
 import { SUPPLIER_TYPE_KEYS, supplierType } from "@/lib/supplier-types";
 import { searchNormFor, upsertProductFor } from "@/lib/products";
-import { enqueueParse } from "@/worker/jobs";
+import { getSetting } from "@/lib/settings";
 
 const createSchema = z.object({
   supplierId: z.coerce.number().int().positive().optional(),
@@ -58,9 +58,9 @@ export async function createPriceList(input: z.input<typeof createSchema>) {
     })
     .returning({ id: schema.priceLists.id });
 
-  await enqueueParse(pl.id);
   revalidatePath("/price-lists");
-  return { id: pl.id };
+  // the list waits in the queue until an admin has started AI reading (Admin page)
+  return { id: pl.id, aiRunning: (await getSetting("ai_running")) === "true" };
 }
 
 export async function reparsePriceList(id: number) {
@@ -69,7 +69,7 @@ export async function reparsePriceList(id: number) {
     .update(schema.priceLists)
     .set({ status: "queued", error: null, progressDone: 0, drafts: null })
     .where(and(eq(schema.priceLists.id, id), ne(schema.priceLists.status, "saved")));
-  await enqueueParse(id);
+  revalidatePath("/price-lists");
 }
 
 export async function deletePriceList(id: number) {

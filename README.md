@@ -14,7 +14,7 @@ Paste supplier WhatsApp price lists, let a **local AI model** turn them into str
 
 ## Stack
 
-Next.js 16 (App Router), React 19, shadcn/ui (Base UI) + Tailwind CSS 4, Zustand, TanStack Query + Table 9, PostgreSQL 16 + `pg_trgm`, Drizzle ORM, pg-boss (Postgres job queue), Ollama, Docker Compose.
+Next.js 16 (App Router), React 19, shadcn/ui (Base UI) + Tailwind CSS 4, Zustand, TanStack Query + Table 9, PostgreSQL 16 + `pg_trgm`, Drizzle ORM, Ollama, Docker Compose.
 
 ## Distributor Excel price lists
 
@@ -25,6 +25,7 @@ Upload the distributor's `.xlsx` (for example the Mitsumi Lenovo sheet with one 
 - **You confirm:** supplier (or create one with its category), **currency**, **price basis** (such as `FOB JA`, read from the price column header), price list date, and which sheets to include. The category of each sheet can be changed. Then you review the rows and save, like any other list.
 - **Currency:** these sheets usually do not state one (the Mitsumi sheet says only "LIST PRICE FOB JA"), so you are asked. USD prices are converted at the rate on the Admin page (default 3.6725, the dirham peg) whenever prices are ranked, so a USD distributor price and an AED market price compare fairly. The price is always shown in its own currency, with "about AED x" and its basis beside it. Other currencies are only compared with themselves.
 - **Basis matters:** "FOB Jebel Ali" or "ex-VAT" is not the same as a delivered price with VAT. The basis is stored per offer and shown next to the price so nobody compares them blindly.
+- **Live feeds:** a supplier who publishes their stock sheet at a link (e.g. a published Google Sheet) can be connected on their Suppliers page (admin). The background scheduler re-reads it every N minutes with rules only (the local AI is not used), saves a new price list only when the sheet changed, and marks products that vanished from the sheet as out of stock. Try a link without saving: `npm run try-feed -- <link>`.
 - Try a file without saving anything: `npm run try-excel -- "C:\path\list.xlsx"`.
 - Only `.xlsx` is supported (not old `.xls`), up to 15 MB and 5,000 rows.
 
@@ -63,7 +64,7 @@ npm run db:seed                 # creates ADMIN_EMAIL / ADMIN_PASSWORD from .env
 npm run dev                     # http://localhost:3100
 ```
 
-The parse worker runs inside the Next.js server (`RUN_WORKER=true`). To run it as its own process, set `RUN_WORKER=false` and start `npm run worker`.
+The background schedulers (AI queue and live feeds) run inside the Next.js server (`RUN_WORKER=true`). The local model only runs after an admin presses **Start** on the Admin page (or "Read waiting lists now"); until then pasted WhatsApp lists wait in the queue and the model stays unloaded. To run it as its own process, set `RUN_WORKER=false` and start `npm run worker`.
 
 ## Run with Docker
 
@@ -100,6 +101,7 @@ Copy `./backups` off the machine as well; a backup on the same disk does not sur
 | `npm test` | Unit tests (parsing rules, chunking, matching, search) |
 | `RUN_LLM_TESTS=true npx vitest run tests/llm-accuracy.test.ts` | Accuracy test against the real local model |
 | `npm run try-parse -- <file> [model]` | Parse a text file and print the rows |
+| `npm run try-feed -- <link-or-csv> [currency]` | Read a supplier's live feed and print what a sync would create |
 | `npm run try-excel -- <file.xlsx> [rows] [currency]` | Read a distributor Excel file and print what would be imported |
 | `npm run db:generate` | New migration after changing `src/db/schema.ts` |
 | `npm run db:migrate` / `db:seed` / `db:studio` | Database tasks |
@@ -116,7 +118,7 @@ src/lib/products.ts product matching / creation
 src/lib/search.ts  compare query, trend (previous quote), sort
 src/lib/alerts.ts  price moves, quiet suppliers, list counts
 src/lib/export.ts  CSV export and pasteable quote text
-src/worker/        pg-boss queue + parse job
+src/worker/        schedulers: AI queue (admin Start/Stop), live feeds
 src/app/(app)/     dashboard, compare, import, alerts, products, price-lists, suppliers, admin
 src/db/            Drizzle schema + migrations
 ```

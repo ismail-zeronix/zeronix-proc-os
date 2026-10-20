@@ -58,6 +58,34 @@ export class OllamaProvider implements LlmProvider {
     }
   }
 
+  /** Names of the models Ollama holds in memory right now. /api/ps only reports; it never loads anything. */
+  private async loadedNames(): Promise<string[]> {
+    try {
+      const res = await fetch(`${this.opts.baseUrl}/api/ps`, { signal: AbortSignal.timeout(3000), cache: "no-store" });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { models?: { name: string }[] };
+      return (data.models ?? []).map((m) => m.name);
+    } catch {
+      return [];
+    }
+  }
+
+  async isLoaded() {
+    return (await this.loadedNames()).length > 0;
+  }
+
+  async unload() {
+    // only models that are really loaded: a keep_alive 0 request for an unloaded model could load it first
+    for (const name of await this.loadedNames()) {
+      await fetch(`${this.opts.baseUrl}/api/generate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: AbortSignal.timeout(10_000),
+        body: JSON.stringify({ model: name, keep_alive: 0 }),
+      }).catch(() => undefined);
+    }
+  }
+
   async health() {
     try {
       const res = await fetch(`${this.opts.baseUrl}/api/tags`, { signal: AbortSignal.timeout(5000) });

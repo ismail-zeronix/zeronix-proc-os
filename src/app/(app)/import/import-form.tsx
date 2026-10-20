@@ -85,7 +85,7 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
   const submit = () =>
     start(async () => {
       try {
-        const { id } = await createPriceList({
+        const { id, aiRunning } = await createPriceList({
           supplierId: s.supplierId && s.supplierId !== NEW ? Number(s.supplierId) : undefined,
           newSupplierName: s.supplierId === NEW ? s.newSupplierName : undefined,
           newSupplierType: s.supplierId === NEW ? newType : undefined,
@@ -93,7 +93,11 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
           rawText: s.rawText,
         });
         s.reset();
-        toast.success("Price list queued for AI reading");
+        toast.success(
+          aiRunning
+            ? "Price list queued: the AI reads it at its next look"
+            : "Price list saved and waiting: AI reading is stopped (an admin can start it in Admin)",
+        );
         router.push(`/import/${id}`);
       } catch (e) {
         toast.error((e as Error).message);

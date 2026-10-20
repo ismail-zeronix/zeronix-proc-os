@@ -23,7 +23,9 @@ export interface PriceListDto {
   progressDone: number;
   progressTotal: number;
   reusedBlocks: number;
-  source: "paste" | "excel";
+  /** Has an admin started AI reading? When not, queued lists wait. */
+  aiRunning?: boolean;
+  source: "paste" | "excel" | "feed";
   sourceName: string;
   error: string | null;
   model: string | null;
@@ -72,8 +74,8 @@ export function ReviewClient({ id }: { id: number }) {
       description={
         <>
           Received {new Date(data.receivedAt).toLocaleString()} · price list #{data.id}
-          {data.source === "excel" ? ` · Excel: ${data.sourceName}` : data.model ? ` · read by ${data.model}` : ""}
-          {data.source !== "excel" && data.parseMs ? ` in ${Math.round(data.parseMs / 1000)}s` : ""}
+          {data.source === "excel" ? ` · Excel: ${data.sourceName}` : data.source === "feed" ? " · Live feed" : data.model ? ` · read by ${data.model}` : ""}
+          {data.source === "paste" && data.parseMs ? ` in ${Math.round(data.parseMs / 1000)}s` : ""}
           {data.reusedBlocks > 0 ? ` · ${data.reusedBlocks} item${data.reusedBlocks === 1 ? "" : "s"} already known, AI skipped` : ""}
         </>
       }
@@ -111,8 +113,9 @@ export function ReviewClient({ id }: { id: number }) {
               {data.status === "queued" ? "Waiting in queue…" : "AI is reading the message…"}
             </CardTitle>
             <CardDescription>
-              Runs on the local model in the background. You can leave this page and come back from
-              Price lists. A long list can take several minutes on a CPU-only server.
+              {data.status === "queued" && data.aiRunning === false
+                ? "AI reading is stopped, so this list waits. An admin can start it from the Admin page. You can leave this page and come back from Price lists."
+                : "Runs on the local model in the background. You can leave this page and come back from Price lists. A long list can take several minutes on a CPU-only server."}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { setSetting } from "@/lib/settings";
+import { runAiCycle, unloadModel } from "@/worker/ai";
 
 const userSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -59,4 +60,63 @@ export async function saveSettings(input: z.input<typeof settingsSchema>) {
   await setSetting("fx_usd", String(d.fx_usd));
   revalidatePath("/", "layout");
   revalidatePath("/admin");
+}
+
+// ---------- AI reading: start / stop / interval ----------
+
+/** Starts AI reading: waiting lists are read now, then again on every interval until Stop. */
+export async function startAi() {
+  await requireAdmin();
+  await setSetting("ai_running", "true");
+  await setSetting("ai_last_run_at", "");
+  void runAiCycle().catch((e) => console.error("[ai] cycle failed", e));
+  revalidatePath("/admin");
+}
+
+/** Stops AI reading. A list being read goes back to the queue after its current step, and the model is unloaded. */
+export async function stopAi() {
+  await requireAdmin();
+  await setSetting("ai_running", "false");
+  await setSetting("ai_stop_at", new Date().toISOString());
+  void unloadModel();
+  revalidatePath("/admin");
+}
+
+/** One pass over the waiting lists right now, whether or not AI reading is started. */
+export async function runAiNow() {
+  await requireAdmin();
+  void runAiCycle({ manual: true }).catch((e) => console.error("[ai] cycle failed", e));
+  revalidatePath("/admin");
+}
+
+export async function setAiInterval(minutes: number) {
+  await requireAdmin();
+  const m = z.coerce.number().int().min(1).max(1440).parse(minutes);
+  await setSetting("ai_interval_minutes", String(m));
+  revalidatePath("/admin");
+}
+
+// ---------- live feeds: interval and pause / resume ----------
+
+export async function setFeedSchedule(supplierId: number, patch: { intervalMinutes?: number; enabled?: boolean }) {
+  await requireAdmin();
+  const set: Partial<typeof schema.supplierFeeds.$inferInsert> = {};
+  if (patch.intervalMinutes !== undefined) set.intervalMinutes = z.coerce.number().int().min(5).max(60 * 24 * 7).parse(patch.intervalMinutes);
+  if (patch.enabled !== undefined) set.enabled = patch.enabled;
+  // resuming (or a new interval) is checked on the next minute tick rather than waiting out the old timer
+  if (patch.enabled === true) set.lastCheckedAt = null;
+  await db.update(schema.supplierFeeds).set(set).where(eq(schema.supplierFeeds.supplierId, supplierId));
+  revalidatePath("/admin");
+  revalidatePath(`/suppliers/${supplierId}`);
+}
+
+/** Puts lists back in the queue that are marked "being read" but whose reader died (e.g. the server was restarted mid-read). */
+export async function requeueStuckLists() {
+  await requireAdmin();
+  await db
+    .update(schema.priceLists)
+    .set({ status: "queued", error: null, progressDone: 0 })
+    .where(eq(schema.priceLists.status, "parsing"));
+  revalidatePath("/admin");
+  revalidatePath("/price-lists");
 }

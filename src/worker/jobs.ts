@@ -1,5 +1,4 @@
 import { and, desc, eq } from "drizzle-orm";
-import { PgBoss } from "pg-boss";
 import { db, schema } from "@/db";
 import { getLlm } from "@/lib/llm";
 import type { OfferDraft } from "@/lib/llm/schema";
@@ -7,35 +6,14 @@ import { blockCacheKey, parsePriceList } from "@/lib/parse/pipeline";
 import { attachMatches } from "@/lib/products";
 import { getSetting } from "@/lib/settings";
 
-export const PARSE_QUEUE = "parse-price-list";
-
-interface ParseJob {
-  priceListId: number;
+/** Thrown inside a running parse when an admin pressed Stop: the list goes back to the queue, not to "failed". */
+export class StopRequested extends Error {
+  constructor() {
+    super("Stopped by an admin");
+  }
 }
 
-const g = globalThis as unknown as { __boss?: Promise<PgBoss>; __workerStarted?: boolean };
-
-export function getBoss(): Promise<PgBoss> {
-  g.__boss ??= (async () => {
-    const boss = new PgBoss({ connectionString: process.env.DATABASE_URL!, schema: "pgboss" });
-    boss.on("error", (e) => console.error("[pg-boss]", e));
-    await boss.start();
-    await boss.createQueue(PARSE_QUEUE, {
-      retryLimit: 1,
-      retryDelay: 10,
-      // a long list on a CPU-only server can take several minutes
-      expireInSeconds: 60 * 60,
-    });
-    return boss;
-  })();
-  return g.__boss;
-}
-
-export async function enqueueParse(priceListId: number) {
-  const boss = await getBoss();
-  await boss.send(PARSE_QUEUE, { priceListId } satisfies ParseJob);
-}
-
+/** Reads one queued price list with the local model. Called by the AI scheduler, never directly on paste. */
 export async function runParse(priceListId: number) {
   const [pl] = await db.select().from(schema.priceLists).where(eq(schema.priceLists.id, priceListId));
   if (!pl || pl.status === "saved") return;
@@ -83,6 +61,8 @@ export async function runParse(priceListId: number) {
         await db.update(schema.priceLists).set({ reusedBlocks: n }).where(eq(schema.priceLists.id, priceListId));
       },
       onProgress: async ({ done, total }) => {
+        const stopAt = Date.parse(await getSetting("ai_stop_at"));
+        if (stopAt > started) throw new StopRequested();
         await db
           .update(schema.priceLists)
           .set({ progressDone: done, progressTotal: total })
@@ -95,23 +75,17 @@ export async function runParse(priceListId: number) {
       .set({ status: "review", drafts: matched, parseMs: Date.now() - started })
       .where(eq(schema.priceLists.id, priceListId));
   } catch (e) {
+    if (e instanceof StopRequested) {
+      await db
+        .update(schema.priceLists)
+        .set({ status: "queued", error: null, progressDone: 0, reusedBlocks: 0 })
+        .where(eq(schema.priceLists.id, priceListId));
+      throw e;
+    }
     await db
       .update(schema.priceLists)
       .set({ status: "failed", error: (e as Error).message.slice(0, 500), parseMs: Date.now() - started })
       .where(eq(schema.priceLists.id, priceListId));
     throw e;
   }
-}
-
-export async function startWorker() {
-  if (g.__workerStarted) return;
-  g.__workerStarted = true;
-  const boss = await getBoss();
-  // one job at a time: the LLM is the bottleneck and parallel jobs would only multiply RAM use
-  await boss.work<ParseJob>(PARSE_QUEUE, { batchSize: 1, pollingIntervalSeconds: 2 }, async ([job]) => {
-    console.log(`[worker] parsing price list ${job.data.priceListId}`);
-    await runParse(job.data.priceListId);
-    console.log(`[worker] done ${job.data.priceListId}`);
-  });
-  console.log("[worker] listening on", PARSE_QUEUE);
 }

@@ -39,6 +39,35 @@ export const suppliers = pgTable("suppliers", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * A supplier who publishes their stock sheet at a link (e.g. a published Google Sheet). The background
+ * scheduler re-reads it every `intervalMinutes` and saves a new price list only when the sheet changed.
+ */
+export const supplierFeeds = pgTable("supplier_feeds", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id")
+    .notNull()
+    .unique()
+    .references(() => suppliers.id, { onDelete: "cascade" }),
+  /** The link the user pasted (a web page or the sheet itself). */
+  url: text("url").notNull(),
+  /** The CSV address found behind `url`; empty until the first successful read. */
+  resolvedUrl: text("resolved_url").notNull().default(""),
+  /** Used when the sheet shows no currency symbol. */
+  currency: text("currency").notNull().default("USD"),
+  intervalMinutes: integer("interval_minutes").notNull().default(60),
+  enabled: boolean("enabled").notNull().default(true),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  lastChangedAt: timestamp("last_changed_at", { withTimezone: true }),
+  /** Hash of the sheet text at the last successful sync; same hash = nothing to do. */
+  lastHash: text("last_hash").notNull().default(""),
+  lastRows: integer("last_rows").notNull().default(0),
+  lastStatus: text("last_status", { enum: ["never", "unchanged", "updated", "error"] }).notNull().default("never"),
+  lastMessage: text("last_message").notNull().default(""),
+  lastPriceListId: integer("last_price_list_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const priceLists = pgTable(
   "price_lists",
   {
@@ -46,9 +75,9 @@ export const priceLists = pgTable(
     supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
     rawText: text("raw_text").notNull(),
-    /** How the list arrived: pasted WhatsApp text, or an uploaded Excel sheet. */
-    source: text("source", { enum: ["paste", "excel"] }).notNull().default("paste"),
-    /** Original file name for Excel imports. */
+    /** How the list arrived: pasted WhatsApp text, an uploaded Excel sheet, or a supplier's live feed link. */
+    source: text("source", { enum: ["paste", "excel", "feed"] }).notNull().default("paste"),
+    /** Original file name for Excel imports; the feed link for live-feed syncs. */
     sourceName: text("source_name").notNull().default(""),
     status: text("status", { enum: ["queued", "parsing", "review", "saved", "failed"] })
       .notNull()

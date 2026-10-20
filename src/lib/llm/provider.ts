@@ -16,4 +16,8 @@ export interface LlmProvider {
   model: string;
   extractJson(req: ExtractRequest): Promise<unknown>;
   health(): Promise<{ ok: boolean; detail: string }>;
+  /** Is the model currently held in memory? Never loads it. */
+  isLoaded(): Promise<boolean>;
+  /** Frees the model's memory right away (no-op when it is not loaded). */
+  unload(): Promise<void>;
 }

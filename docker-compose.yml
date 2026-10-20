@@ -36,7 +36,7 @@ services:
       OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-4096}
-      LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-5m}
+      LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-1m}
       RUN_WORKER: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -83,7 +83,7 @@ services:
     environment:
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_NUM_PARALLEL: "1"
-      OLLAMA_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-5m}
+      OLLAMA_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-1m}
     mem_limit: ${OLLAMA_MEM_LIMIT:-6g}
     volumes:
       - ollama:/root/.ollama
