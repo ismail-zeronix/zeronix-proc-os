@@ -60,10 +60,10 @@ Decided with the owner: light client, no folder management. Inbox list + reading
 - [x] 5b.4 Live inbox list over IMAP (newest 50, older page), unread state [2026-10-21]
 - [x] 5b.5 Read a message: HTML sanitised and shown in a locked iframe, remote images off until "Load images", inline images, mark as read [2026-10-21]
 - [x] 5b.6 Attachment download (own mailbox only, size limit) [2026-10-21]
-- [ ] 5b.7 Compose, reply, reply-all, forward over SMTP, signature added, logo attached inline (CID)
-- [ ] 5b.8 Copy saved to the Sent folder; send log and daily send limit per user
+- [x] 5b.7 Compose, reply, reply-all, forward over SMTP, signature added, logo attached inline (CID) [2026-10-21]
+- [x] 5b.8 Copy saved to the Sent folder; send log and daily send limit per user [2026-10-21]
 - [x] 5b.9 Home "Latest emails" rows open inside the portal; webmail link kept as fallback [2026-10-21]
-- [ ] 5b.10 Try with a real mailbox (send to yourself, reply, attachment both ways)
+- [ ] 5b.10 Try with a real mailbox (send to yourself, reply, forward, attachment both ways, check the Sent folder and the logo in Gmail/Outlook). Everything is tested up to the mail server, not against a live one
 
 ## Phase 6: Sales basic
 - [ ] 6.1 Tables: companies, contacts, deals, activities + migration

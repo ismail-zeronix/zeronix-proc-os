@@ -284,3 +284,20 @@ export const brandProfile = pgTable("brand_profile", {
   logoMime: text("logo_mime").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Every email sent from the portal: who, to how many people, and when. Used for the daily send limit and, later, the CRM timeline. */
+export const mailSentLog = pgTable(
+  "mail_sent_log",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toAddresses: text("to_addresses").notNull().default(""),
+    subject: text("subject").notNull().default(""),
+    messageId: text("message_id").notNull().default(""),
+    recipients: integer("recipients").notNull().default(1),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("mail_sent_user_idx").on(t.userId, t.sentAt)],
+);

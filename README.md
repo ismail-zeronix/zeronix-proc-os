@@ -6,7 +6,13 @@ A small company portal. The home screen (`/`) shows one tile per app; each app h
 
 Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder under `src/app/(app)/`). Roles are `admin` and `sales`: admins see every app; for a sales user an admin can pick the apps on **Admin > Users > Apps**, or leave "Use role defaults". Access is checked on the server for pages, server actions and API routes (`requireApp` / `assertApp` / `hasApp` in `src/lib/auth/session.ts`), against the database, so changes and deactivation apply immediately.
 
-## Mailbox on the home screen
+## Mail app and mailbox
+
+**Mail** (`/mail`) is a light mail client: the inbox (newest first, read live from the mail server), a reading pane, attachments to download, and Write / Reply / Reply all / Forward with attachments. Incoming HTML is sanitised on the server and shown in a locked-down iframe (no scripts; pictures from the internet stay hidden until "Load images"). Sending uses the user's own mailbox over SMTP (Hostinger by default), saves a copy in the Sent folder, and is limited to `MAIL_DAILY_LIMIT` recipients per person per 24 hours. Folder management, spam rules and searching other folders stay in webmail (link in the Mail header).
+
+**Signatures:** an admin sets the company branding on **Admin > Email branding** (logo upload, address, website, accent colour, logo position, confidentiality line). Each user adds their job title and phone numbers under **My account**. The signature is added to every email, with the logo attached inside the email so it shows outside the company network.
+
+### Connecting a mailbox
 
 Each user connects their own mailbox under **user menu > My account** (the login is tested first, then stored encrypted with a key made from `AUTH_SECRET`; changing `AUTH_SECRET` means re-entering it). The background worker reads the newest 20 inbox messages every 5 minutes (30 after an error; a wrong password pauses the mailbox so it cannot lock) and keeps only sender, subject, time and read state. The server defaults to Hostinger (`MAIL_IMAP_HOST`, `MAIL_IMAP_PORT`, `MAIL_WEBMAIL_URL` in `.env`).
 

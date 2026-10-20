@@ -5,6 +5,9 @@ const MOVED_TO_PROCUREMENT = ["compare", "import", "alerts", "price-lists", "sup
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg", "pg-boss", "bcryptjs"],
+  // The login gate (proxy.ts) buffers request bodies, 10 MB by default and silently cut off beyond that.
+  // Email attachments (15 MB) and Excel price lists (15 MB) need more room.
+  experimental: { proxyClientMaxBodySize: "20mb" },
   async redirects() {
     return MOVED_TO_PROCUREMENT.flatMap((p) => [
       { source: `/${p}`, destination: `/procurement/${p}`, permanent: false },
