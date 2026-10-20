@@ -9,7 +9,6 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Skeleton } from "@/components/ui/skeleton";
 import { articleBySlug, tipOfTheDay } from "@/content/knowledge";
 import { db, schema } from "@/db";
-import { mailServer } from "@/lib/mail/config";
 import { ago, money } from "@/lib/format";
 import { procurementPulse } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
@@ -56,7 +55,6 @@ export async function LatestEmailsCard({ userId }: { userId: number }) {
         .limit(5)
     : [];
   const unread = messages.filter((m) => !m.seen).length;
-  const { webmailUrl } = mailServer();
   const problem = acc && (!acc.enabled || acc.lastStatus === "error");
   return (
     <Card>
@@ -75,8 +73,8 @@ export async function LatestEmailsCard({ userId }: { userId: number }) {
         </CardDescription>
         <CardAction>
           {acc && !problem ? (
-            <Button variant="ghost" size="sm" nativeButton={false} render={<a href={webmailUrl} target="_blank" rel="noreferrer" />}>
-              Open webmail <ArrowRight />
+            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/mail" />}>
+              Open inbox <ArrowRight />
             </Button>
           ) : (
             <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/account" />}>
@@ -89,11 +87,9 @@ export async function LatestEmailsCard({ userId }: { userId: number }) {
         {problem && <Empty>{acc.lastError || "Paused."} Open My account to reconnect.</Empty>}
         {!problem &&
           messages.map((m) => (
-            <a
+            <Link
               key={m.id}
-              href={webmailUrl}
-              target="_blank"
-              rel="noreferrer"
+              href={`/mail/${m.uid}`}
               className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -104,7 +100,7 @@ export async function LatestEmailsCard({ userId }: { userId: number }) {
                 </div>
               </div>
               <span className="text-xs whitespace-nowrap text-muted-foreground">{ago(m.receivedAt)}</span>
-            </a>
+            </Link>
           ))}
         {acc && !problem && !messages.length && <Empty>The inbox is empty, or the first check has not run yet.</Empty>}
       </CardContent>

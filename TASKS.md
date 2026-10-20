@@ -56,13 +56,13 @@ Plan: see PLATFORM-PLAN.md.
 Decided with the owner: light client, no folder management. Inbox list + reading pane, compose / reply / reply-all / forward, per-user signature with the Zeronix logo. Webmail stays for rules, spam and searching other folders.
 - [x] 5b.1 Branding profile in Admin (logo upload, company, address, website, layout, colour, confidentiality line) + users get job title / phone / mobile [2026-10-21]
 - [x] 5b.2 Signature generator (email-safe HTML + plain text, 4 layouts) with live preview in Admin and on My account [2026-10-21]
-- [ ] 5b.3 `mail` app in the registry (tile with unread badge) and Mail layout (list + reading pane, mobile friendly)
-- [ ] 5b.4 Live inbox list over IMAP (newest 50, older page), unread state
-- [ ] 5b.5 Read a message: HTML sanitised and shown in a locked iframe, remote images off until "Load images", inline images, mark as read
-- [ ] 5b.6 Attachment download (own mailbox only, size limit)
+- [x] 5b.3 `mail` app in the registry (tile with unread badge) and Mail layout (list + reading pane, mobile friendly) [2026-10-21]
+- [x] 5b.4 Live inbox list over IMAP (newest 50, older page), unread state [2026-10-21]
+- [x] 5b.5 Read a message: HTML sanitised and shown in a locked iframe, remote images off until "Load images", inline images, mark as read [2026-10-21]
+- [x] 5b.6 Attachment download (own mailbox only, size limit) [2026-10-21]
 - [ ] 5b.7 Compose, reply, reply-all, forward over SMTP, signature added, logo attached inline (CID)
 - [ ] 5b.8 Copy saved to the Sent folder; send log and daily send limit per user
-- [ ] 5b.9 Home "Latest emails" rows open inside the portal; webmail link kept as fallback
+- [x] 5b.9 Home "Latest emails" rows open inside the portal; webmail link kept as fallback [2026-10-21]
 - [ ] 5b.10 Try with a real mailbox (send to yourself, reply, attachment both ways)
 
 ## Phase 6: Sales basic

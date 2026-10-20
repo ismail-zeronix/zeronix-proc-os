@@ -7,6 +7,7 @@ import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
+import { unreadCount } from "@/lib/mail/unread";
 import { quoteOfTheDay } from "@/lib/quotes";
 import { AttentionCard, LatestEmailsCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, TipCard, WidgetSkeleton } from "./widgets";
 
@@ -20,6 +21,8 @@ export default async function HomePage() {
   // one cheap count query: the number on the Procurement tile
   const toReview = hasProcurement ? await listCounts().then((c) => c.review + c.failed) : 0;
 
+  const hasMail = apps.includes("mail");
+  const mailUnread = hasMail ? await unreadCount(user.id) : 0;
   const hasTasks = apps.includes("tasks");
   const dueTasks = hasTasks ? await dueTasksFor(user.id).then((d) => d.tasks.length) : 0;
 
@@ -40,8 +43,8 @@ export default async function HomePage() {
           <AppTile
             key={a.key}
             app={a}
-            badge={a.key === "procurement" ? toReview : a.key === "tasks" ? dueTasks : undefined}
-            badgeLabel={a.key === "procurement" ? `${toReview} to review` : a.key === "tasks" ? `${dueTasks} due today` : undefined}
+            badge={a.key === "procurement" ? toReview : a.key === "tasks" ? dueTasks : a.key === "mail" ? mailUnread : undefined}
+            badgeLabel={a.key === "procurement" ? `${toReview} to review` : a.key === "tasks" ? `${dueTasks} due today` : a.key === "mail" ? `${mailUnread} unread` : undefined}
           />
         ))}
       </section>
