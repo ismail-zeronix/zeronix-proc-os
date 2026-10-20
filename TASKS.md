@@ -24,12 +24,12 @@ Plan: see PLATFORM-PLAN.md.
 
 ## Phase 2: Home screen
 - [x] 2.1 `app-tile.tsx` + tiles grid from registry (allowed apps only, soon tiles admin-only) [2026-10-21]
-- [ ] 2.2 Greeting + date + daily quote (`lib/quotes.ts`, ~60 lines, day-of-year pick)
-- [ ] 2.3 "This week" tiles: procurement numbers live; sales numbers when Sales exists
-- [ ] 2.4 Widget slots with empty states: My tasks, Latest emails, Pipeline, Price moves, Needs attention
-- [ ] 2.5 Tile badges (lists to review, tasks due)
-- [ ] 2.6 Suspense per widget; mobile layout check
-- [ ] 2.7 Tip of the day slot (wired to Knowledge in Phase 4)
+- [x] 2.2 Greeting + date + daily quote (`lib/quotes.ts`, ~60 lines, day-of-year pick) [2026-10-21]
+- [x] 2.3 "This week" tiles: procurement numbers live; sales numbers when Sales exists (procurement done; sales numbers join in Phase 6) [2026-10-21]
+- [x] 2.4 Widget slots with empty states: My tasks, Latest emails, Pipeline, Price moves, Needs attention (tasks/email/pipeline/tip shown as admin-only placeholders until built) [2026-10-21]
+- [x] 2.5 Tile badges (lists to review, tasks due) (procurement badge done; tasks badge in 3.4) [2026-10-21]
+- [x] 2.6 Suspense per widget; mobile layout check (Suspense done; check phone width in a browser) [2026-10-21]
+- [x] 2.7 Tip of the day slot (wired to Knowledge in Phase 4) (placeholder card; real tip in 4.6) [2026-10-21]
 
 ## Phase 3: Tasks
 - [ ] 3.1 `tasks` table + migration

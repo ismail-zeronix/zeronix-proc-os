@@ -2,6 +2,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { AlertTriangle, ArrowRight, Bell, ClipboardPaste, Loader2, Search } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
+import { Empty, Kpi } from "@/components/stat-tile";
 import { Trend } from "@/components/trend";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -223,27 +224,4 @@ export default async function DashboardPage() {
       </Card>
     </div>
   );
-}
-
-function Kpi({ label, value, hint, href }: { label: string; value: number; hint: string; href?: string }) {
-  const body = (
-    <Card className="h-full gap-1 py-4">
-      <CardContent className="grid gap-0.5">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold tracking-tight">{value.toLocaleString("en-US")}</div>
-        <div className="text-xs text-muted-foreground">{hint}</div>
-      </CardContent>
-    </Card>
-  );
-  return href ? (
-    <Link href={href} className="rounded-xl transition-shadow hover:shadow-md">
-      {body}
-    </Link>
-  ) : (
-    body
-  );
-}
-
-function Empty({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <p className={`px-2 py-3 text-sm text-muted-foreground ${className ?? ""}`}>{children}</p>;
 }

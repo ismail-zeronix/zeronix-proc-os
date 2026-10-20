@@ -1,0 +1,73 @@
+/** Short lines for the home screen. One per day, the same for everybody (picked by day of the year). */
+export const QUOTES = [
+  "Every no brings you closer to a yes.",
+  "Be quick to answer, slow to give up.",
+  "A fast quote beats a perfect quote.",
+  "People buy from people who follow up.",
+  "Today's call is next month's order.",
+  "Listen first. The customer will tell you how to sell to them.",
+  "Ask one more question before you quote.",
+  "Know your price, know your stock, know your customer.",
+  "A small order handled well becomes a big account.",
+  "Do what you said you would do, when you said you would do it.",
+  "The follow-up is where most deals are won.",
+  "Sell the solution, not the box.",
+  "Your reputation is built one delivery at a time.",
+  "Be easy to buy from.",
+  "Don't chase the price. Earn the trust.",
+  "Every customer you serve well sends you another.",
+  "Prepare for the call like it is your biggest deal of the year.",
+  "Stay curious about the customer's business.",
+  "A clear next step ends every good conversation.",
+  "Honest answers close more deals than clever ones.",
+  "Say \"I'll find out\" instead of guessing, then come back fast.",
+  "The best time to call was yesterday. The next best is now.",
+  "Little by little, calls become customers.",
+  "Win the small moments: reply fast, quote clearly, deliver on time.",
+  "Rejection is information. Learn from it and make the next call.",
+  "Be the supplier they do not have to chase.",
+  "Discipline beats mood. Make the calls anyway.",
+  "A genuine lead has a need, a budget and a date. Ask for all three.",
+  "Show up every day and the results will follow.",
+  "Treat a small customer like a big one and they will grow with you.",
+  "Confidence comes from knowing the product.",
+  "Your next customer is one conversation away.",
+  "Under-promise, over-deliver, every time.",
+  "Make it simple for the customer to say yes.",
+  "Numbers follow habits. Fix the habit.",
+  "Reply to every enquiry today, even if the answer is \"tomorrow\".",
+  "Be helpful first. The sale follows.",
+  "Every quote is a promise. Make it one you can keep.",
+  "Decision makers have little time. Be brief and be clear.",
+  "Push for the next meeting, not only the next order.",
+  "Great salespeople ask great questions.",
+  "If the customer is silent, call. Silence is not a no.",
+  "Know why you are different, and say it in one sentence.",
+  "The customer remembers how you made their job easier.",
+  "A good week starts with a clear list of calls on Sunday night.",
+  "Stock changes, prices change, trust stays. Protect it.",
+  "Be patient with customers and impatient with excuses.",
+  "Take notes on every call. Your memory is not a CRM.",
+  "Ask for the order. Many deals are lost by not asking.",
+  "Curiosity builds relationships, and relationships build revenue.",
+  "Solve the customer's problem and the price conversation gets easier.",
+  "Never stop learning the products. The market moves every week.",
+  "Make one more call before you finish the day.",
+  "A lost deal is a lesson. Write it down and move on.",
+  "Win-win or no deal.",
+  "Corporates buy from suppliers they trust, so be reliable.",
+  "Good service is the best discount you can offer.",
+  "Treat every enquiry as a possible long-term account.",
+  "Be proud of what you sell, and proud of how you sell it.",
+  "Dream big, call often.",
+] as const;
+
+/** Day of the year, 1-366, in the server's local time. */
+function dayOfYear(d: Date) {
+  const start = new Date(d.getFullYear(), 0, 0);
+  return Math.floor((d.getTime() - start.getTime()) / 86400_000);
+}
+
+export function quoteOfTheDay(d = new Date()): string {
+  return QUOTES[dayOfYear(d) % QUOTES.length];
+}
