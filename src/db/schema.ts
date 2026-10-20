@@ -225,3 +225,40 @@ export const tasks = pgTable(
   },
   (t) => [index("tasks_assignee_idx").on(t.assignedTo, t.status, t.dueDate)],
 );
+
+/** One user's mailbox, read over IMAP by the background worker. The password is encrypted (see lib/crypto.ts). */
+export const mailAccounts = pgTable("mail_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** Login name for the mailbox, normally the full address. */
+  imapUser: text("imap_user").notNull(),
+  passwordEnc: text("password_enc").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  lastStatus: text("last_status", { enum: ["never", "ok", "error"] }).notNull().default("never"),
+  lastError: text("last_error").notNull().default(""),
+  /** Mailbox "UIDVALIDITY": when it changes the mailbox was rebuilt and the saved list is dropped. */
+  uidValidity: text("uid_validity").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The newest messages in a user's inbox: sender, subject, time and read state only (no message body is stored). */
+export const mailMessages = pgTable(
+  "mail_messages",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    uid: integer("uid").notNull(),
+    fromName: text("from_name").notNull().default(""),
+    fromEmail: text("from_email").notNull().default(""),
+    subject: text("subject").notNull().default(""),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+    seen: boolean("seen").notNull().default(false),
+  },
+  (t) => [uniqueIndex("mail_messages_user_uid_idx").on(t.userId, t.uid), index("mail_messages_recent_idx").on(t.userId, t.receivedAt)],
+);

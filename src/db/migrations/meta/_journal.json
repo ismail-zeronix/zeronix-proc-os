@@ -43,6 +43,13 @@
       "when": 1792536386653,
       "tag": "0005_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792537801136,
+      "tag": "0006_mail",
+      "breakpoints": true
     }
   ]
 }

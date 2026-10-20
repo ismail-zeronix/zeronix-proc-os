@@ -37,6 +37,9 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-4096}
       LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-1m}
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_WEBMAIL_URL: ${MAIL_WEBMAIL_URL:-https://mail.hostinger.com}
       RUN_WORKER: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"

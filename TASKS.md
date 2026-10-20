@@ -46,10 +46,11 @@ Plan: see PLATFORM-PLAN.md.
 - [x] 4.6 Tip of the day on Home [2026-10-21]
 
 ## Phase 5: Email widget
-- [ ] 5.1 `mail_accounts` / `mail_messages` tables + AES-GCM helper
-- [ ] 5.2 "Connect mailbox" screen (user menu) with test connection
-- [ ] 5.3 Worker job: IMAP poll every ~5 min (headers + snippet only)
-- [ ] 5.4 Home "Latest emails" widget + Open webmail link
+- [x] 5.1 `mail_accounts` / `mail_messages` tables + AES-GCM helper [2026-10-21]
+- [x] 5.2 "Connect mailbox" screen (user menu > My account) with test connection [2026-10-21]
+- [x] 5.3 Worker job: IMAP poll every ~5 min (sender, subject, date and read flag only; no message text kept) [2026-10-21]
+- [x] 5.4 Home "Latest emails" widget + Open webmail link [2026-10-21]
+- [ ] 5.5 Try it against a real mailbox (code is tested up to the mail server, not against a live one)
 
 ## Phase 6: Sales basic
 - [ ] 6.1 Tables: companies, contacts, deals, activities + migration

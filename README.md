@@ -6,6 +6,10 @@ A small company portal. The home screen (`/`) shows one tile per app; each app h
 
 Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder under `src/app/(app)/`). Roles are `admin` and `sales`: admins see every app; for a sales user an admin can pick the apps on **Admin > Users > Apps**, or leave "Use role defaults". Access is checked on the server for pages, server actions and API routes (`requireApp` / `assertApp` / `hasApp` in `src/lib/auth/session.ts`), against the database, so changes and deactivation apply immediately.
 
+## Mailbox on the home screen
+
+Each user connects their own mailbox under **user menu > My account** (the login is tested first, then stored encrypted with a key made from `AUTH_SECRET`; changing `AUTH_SECRET` means re-entering it). The background worker reads the newest 20 inbox messages every 5 minutes (30 after an error; a wrong password pauses the mailbox so it cannot lock) and keeps only sender, subject, time and read state. The server defaults to Hostinger (`MAIL_IMAP_HOST`, `MAIL_IMAP_PORT`, `MAIL_WEBMAIL_URL` in `.env`).
+
 ## Procurement
 
 Paste supplier WhatsApp price lists, let a **local AI model** turn them into structured rows, review, and compare prices across suppliers.

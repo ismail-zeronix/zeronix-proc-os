@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LayoutGrid, LogOut } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, UserCog } from "lucide-react";
 import Link from "next/link";
 import { logout } from "@/app/(auth)/login/actions";
 import { GlobalSearch } from "@/components/global-search";
@@ -112,6 +112,9 @@ export function AppHeader({
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href="/account" />}>
+            <UserCog /> My account and mailbox
+          </DropdownMenuItem>
           <form action={logout}>
             <DropdownMenuItem render={<button type="submit" className="w-full" />}>
               <LogOut /> Sign out

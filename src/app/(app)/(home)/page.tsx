@@ -8,7 +8,7 @@ import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
 import { quoteOfTheDay } from "@/lib/quotes";
-import { AttentionCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, TipCard, WidgetSkeleton } from "./widgets";
+import { AttentionCard, LatestEmailsCard, MyTasksCard, PriceMovesCard, SoonCard, ThisWeekProcurement, TipCard, WidgetSkeleton } from "./widgets";
 
 export const metadata = { title: "Home · Zeronix" };
 
@@ -61,7 +61,9 @@ export default async function HomePage() {
             <MyTasksCard userId={user.id} />
           </Suspense>
         )}
-        {isAdmin && <SoonCard kind="emails" />}
+        <Suspense fallback={<WidgetSkeleton />}>
+          <LatestEmailsCard userId={user.id} />
+        </Suspense>
         {hasProcurement && (
           <Suspense fallback={<WidgetSkeleton />}>
             <PriceMovesCard />
