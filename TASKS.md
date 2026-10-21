@@ -78,6 +78,16 @@ Design: one record per opportunity (a lead is a deal at stage "New enquiry"). Ev
 - [x] 6.9 Search (Ctrl K) finds companies, contacts and deals [2026-10-21]
 - [x] 6.10 Tests: domain rules, and access checks over HTTP (a user without Sales is blocked on pages and APIs) [2026-10-21]
 
+## Phase 6b: Sales UI pass (owner review, see UI-GUIDELINES.md)
+- [x] 6b.1 Pipeline: one compact toolbar, list by default, icon toggle for list / board, no search box, "+" on every board column opens the enquiry dialog at that stage [2026-10-21]
+- [x] 6b.2 Several people per deal: avatars (DiceBear) stacked in list, board and deal page, assign popover, avatar picker in the enquiry form; "Mine" means assigned to me [2026-10-21]
+- [x] 6b.3 Sidebar collapsed by default (choice remembered), "All apps" row removed from every app [2026-10-21]
+- [x] 6b.4 Sales Overview dashboard (Recharts): KPI tiles with change vs previous period, pipeline by stage, lead quality, won by owner, new vs won trend, sources / lost reasons, needs-attention tabs; 30d / 90d / 12m and Team / Mine [2026-10-21]
+- [x] 6b.5 Compact deal page (tabs: timeline, requirement, lead check, details), company page (tabs), companies and contacts lists, phone layout for the pipeline list [2026-10-21]
+- [x] 6b.6 Screens checked in a real browser (headless Edge) at laptop and phone width, light and dark [2026-10-21]
+- [ ] 6b.7 UI pass for the other apps: Procurement, Tasks, Knowledge, Mail, Admin, Account (apply UI-GUIDELINES.md)
+- [ ] 6b.8 Drag and drop on the board
+
 ## Phase 7: Quotes
 - [ ] 7.1 `deal_items`, `quotes`, `quote_items` tables
 - [ ] 7.2 Requirement lines on a deal

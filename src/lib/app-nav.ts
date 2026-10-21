@@ -22,7 +22,8 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
     {
       label: "Work",
       items: [
-        { href: "/sales", label: "Pipeline", icon: Kanban, exact: true },
+        { href: "/sales", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/sales/pipeline", label: "Pipeline", icon: Kanban },
         { href: "/sales/new", label: "New enquiry", icon: PlusCircle },
       ],
     },

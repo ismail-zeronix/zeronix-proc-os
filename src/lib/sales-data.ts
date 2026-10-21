@@ -3,6 +3,7 @@ import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
+import { allowedApps } from "@/lib/apps";
 import { temperature, type Checks, type StageKey, type Temperature } from "@/lib/sales";
 
 const owner = alias(schema.users, "owner");
@@ -17,6 +18,8 @@ export interface DealRow {
   contactName: string;
   ownerId: number | null;
   ownerName: string;
+  /** Everyone working on the deal, main owner first. */
+  assignees: { id: number; name: string }[];
   valueAed: number | null;
   expectedClose: string | null;
   checks: Checks;
@@ -39,6 +42,7 @@ const dealColumns = {
   contactName: sql<string>`coalesce(${schema.contacts.name}, '')`,
   ownerId: schema.deals.ownerId,
   ownerName: sql<string>`coalesce(${owner.name}, '')`,
+  assignees: sql<{ id: number; name: string }[]>`(SELECT coalesce(json_agg(json_build_object('id', u.id, 'name', u.name) ORDER BY a.position, u.name), '[]'::json) FROM deal_assignees a JOIN users u ON u.id = a.user_id WHERE a.deal_id = ${schema.deals.id})`,
   valueAed: schema.deals.valueAed,
   expectedClose: schema.deals.expectedClose,
   checks: schema.deals.checks,
@@ -70,10 +74,12 @@ function toRow(r: Awaited<ReturnType<typeof dealQuery>>[number]): DealRow {
 
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-/** Deals for the board and list. `ownerId` limits to one person's deals. */
-export async function listDeals(opts: { ownerId?: number; q?: string } = {}): Promise<DealRow[]> {
+/** Deals for the board and list. `memberId` limits to the deals one person is assigned to. */
+export async function listDeals(opts: { memberId?: number; q?: string } = {}): Promise<DealRow[]> {
   const where: (SQL | undefined)[] = [];
-  if (opts.ownerId) where.push(eq(schema.deals.ownerId, opts.ownerId));
+  if (opts.memberId) {
+    where.push(sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = ${schema.deals.id} AND a.user_id = ${opts.memberId})`);
+  }
   const q = opts.q?.trim();
   if (q) {
     where.push(
@@ -260,12 +266,14 @@ export async function dealTasks(dealId: number) {
     .orderBy(asc(schema.tasks.status), sql`${schema.tasks.dueDate} NULLS LAST`);
 }
 
-export async function activeUsers() {
-  return db
-    .select({ id: schema.users.id, name: schema.users.name })
+/** Active people who can use the Sales app, so a deal is only ever given to someone who can open it. */
+export async function salesUsers() {
+  const rows = await db
+    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, apps: schema.users.apps })
     .from(schema.users)
     .where(eq(schema.users.isActive, true))
     .orderBy(asc(schema.users.name));
+  return rows.filter((u) => allowedApps(u).includes("sales")).map((u) => ({ id: u.id, name: u.name }));
 }
 
 
@@ -287,7 +295,7 @@ export interface Attention {
  * Cached per request so the tiles and the widgets share one set of queries.
  */
 export const salesPulse = cache(async (userId: number, isAdmin: boolean) => {
-  const mine = isAdmin ? sql`TRUE` : sql`d.owner_id = ${userId}`;
+  const mine = isAdmin ? sql`TRUE` : sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = d.id AND a.user_id = ${userId})`;
   const week = sql`now() - interval '7 days'`;
   const [totals, byStage, stale] = await Promise.all([
     db.execute<{ new_week: number; open_n: number; open_value: number; won_n: number; won_value: number; quoted_n: number; new_n: number }>(sql`

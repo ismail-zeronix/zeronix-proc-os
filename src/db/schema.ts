@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   numeric,
+  primaryKey,
   pgTable,
   real,
   serial,
@@ -390,4 +391,19 @@ export const activities = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at)],
+);
+
+/** Everyone working on a deal, in display order. The first one is also stored as deals.owner_id (the main owner). */
+export const dealAssignees = pgTable(
+  "deal_assignees",
+  {
+    dealId: integer("deal_id")
+      .notNull()
+      .references(() => deals.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.dealId, t.userId] }), index("deal_assignees_user_idx").on(t.userId)],
 );

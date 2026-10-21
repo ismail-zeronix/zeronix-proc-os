@@ -48,7 +48,7 @@ function Select({ id, label, value, onChange, options }: { id: string; label: st
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect className="w-full" id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         <NativeSelectOption value="">Not sure</NativeSelectOption>
         {options.map((o) => (
           <NativeSelectOption key={o} value={o}>

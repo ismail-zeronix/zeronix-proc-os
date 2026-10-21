@@ -10,12 +10,15 @@ Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder unde
 
 **Sales** (`/sales`) tracks every opportunity as one *deal*; a lead is just a deal at stage **New enquiry**. Stages: New enquiry, Contacted, Requirement confirmed, Sourcing, Quote sent, Negotiation, Won, Lost (Lost asks for a reason). Everyone with the Sales app sees all companies, contacts and deals; "My deals" is the default filter. Values are in AED.
 
-- **Pipeline**: board by stage, or a list; search; the stage menu on each card moves a deal and writes it to the timeline.
+- **Overview** (`/sales`): charts and numbers for the team or just you, over 30 days, 90 days or 12 months.
+- **Pipeline** (`/sales/pipeline`): a dense list by default, or a board by stage (icon toggle). "+" on a board column adds a deal at that stage. A deal can have several people; their avatars are stacked, and clicking them changes the team. The stage menu moves a deal and writes it to the timeline.
 - **New enquiry**: one screen creates (or reuses) the company, the person, the deal and a follow-up task for today. A company with the same name (ignoring LLC, spaces, punctuation) is never added twice.
 - **Deal page**: what they asked for, the **genuine-lead checklist** (need, authority, budget, timing, three ways to verify the company, and a warning flag) that gives a Hot / Warm / Cold label, a timeline for calls, WhatsApp, emails, meetings and notes, and follow-up tasks (they also show in Tasks and on Home). Logging a call or message on a brand-new enquiry moves it to Contacted.
 - **Write email** on a contact or deal opens Mail pre-filled; the sent email is logged on the deal.
 - **Home** shows this week's sales numbers, the pipeline by stage and deals with no activity for 3 days. Ctrl K finds companies, people and deals.
 - Rules live in `src/lib/sales.ts` (stages, sources, checklist, label); data queries in `src/lib/sales-data.ts`; changes in `src/app/(app)/sales/actions.ts`.
+
+UI rules for every screen are in [UI-GUIDELINES.md](UI-GUIDELINES.md).
 
 ## Mail app and mailbox
 

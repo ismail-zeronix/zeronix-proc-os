@@ -1,13 +1,14 @@
 "use server";
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
-import { ACTIVITY_TYPES, CHECKS, isOpen, isStage, normName, stageLabel } from "@/lib/sales";
+import { salesUsers } from "@/lib/sales-data";
+import { ACTIVITY_TYPES, CHECKS, isOpen, isStage, normName, stageLabel, type StageKey } from "@/lib/sales";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 const id = z.number().int().positive();
@@ -126,6 +127,15 @@ export async function deleteContact(contactId: number) {
 
 // ---------- deals ----------
 
+/** Keeps only people who exist, are active and can open Sales (so a deal is never given to someone who cannot see it). */
+async function checkedAssignees(ids: number[]): Promise<number[]> {
+  const unique = [...new Set(ids)];
+  const ok = new Set((await salesUsers()).map((u) => u.id));
+  const bad = unique.filter((i) => !ok.has(i));
+  if (bad.length) throw new Error("One of the people you picked cannot work on Sales deals.");
+  return unique;
+}
+
 const enquirySchema = z.object({
   /** An existing company, or leave out and give `companyName` to create one. */
   companyId: id.optional(),
@@ -142,7 +152,10 @@ const enquirySchema = z.object({
   source: text(60),
   requirement: text(4000),
   valueAed: z.number().min(0).max(1e10).nullable().optional(),
-  ownerId: id.optional(),
+  /** Everyone who works on it; the first is the main owner. Leave out for yourself. */
+  ownerIds: z.array(id).max(10).optional(),
+  /** Starting stage (an open one); "New enquiry" when left out. */
+  stage: z.string().optional(),
 });
 export type EnquiryInput = z.input<typeof enquirySchema>;
 
@@ -151,7 +164,9 @@ export async function createEnquiry(input: EnquiryInput) {
   const me = await assertApp("sales");
   const d = enquirySchema.parse(input);
   if (!d.companyId && d.companyName.length < 2) throw new Error("Pick a company or type its name.");
-  const ownerId = d.ownerId ?? me.id;
+  const ownerIds = await checkedAssignees(d.ownerIds?.length ? d.ownerIds : [me.id]);
+  const ownerId = ownerIds[0] ?? me.id;
+  const startStage: StageKey = d.stage && isStage(d.stage) && isOpen(d.stage) ? d.stage : "new";
 
   const result = await db.transaction(async (tx) => {
     let companyId = d.companyId;
@@ -197,25 +212,28 @@ export async function createEnquiry(input: EnquiryInput) {
     const title = (d.title || `${companyName}${firstLine ? ` - ${firstLine}` : " - enquiry"}`).slice(0, 160);
     const [deal] = await tx
       .insert(schema.deals)
-      .values({ title, companyId: companyId!, contactId, source: d.source, requirement: d.requirement, valueAed: d.valueAed ?? null, ownerId })
+      .values({ title, companyId: companyId!, contactId, stage: startStage, source: d.source, requirement: d.requirement, valueAed: d.valueAed ?? null, ownerId })
       .returning({ id: schema.deals.id });
+    await tx.insert(schema.dealAssignees).values(ownerIds.map((userId, position) => ({ dealId: deal.id, userId, position })));
 
     await tx.insert(schema.activities).values({
       type: "created",
-      body: `Enquiry added${d.source ? ` (source: ${d.source})` : ""}.`,
+      body: `Enquiry added${startStage !== "new" ? ` at ${stageLabel(startStage)}` : ""}${d.source ? ` (source: ${d.source})` : ""}.`,
       dealId: deal.id,
       companyId: companyId!,
       userId: me.id,
     });
-    await tx.insert(schema.tasks).values({
-      title: `Contact ${contactName || companyName} about the enquiry`,
-      dueDate: dubaiToday(),
-      priority: "high",
-      assignedTo: ownerId,
-      createdBy: me.id,
-      relatedType: "deal",
-      relatedId: deal.id,
-    });
+    if (startStage === "new") {
+      await tx.insert(schema.tasks).values({
+        title: `Contact ${contactName || companyName} about the enquiry`,
+        dueDate: dubaiToday(),
+        priority: "high",
+        assignedTo: ownerId,
+        createdBy: me.id,
+        relatedType: "deal",
+        relatedId: deal.id,
+      });
+    }
     return { id: deal.id, reusedCompany: reused };
   });
   refresh();
@@ -228,7 +246,6 @@ const dealPatch = z.object({
   source: text(60).optional(),
   valueAed: z.number().min(0).max(1e10).nullable().optional(),
   expectedClose: day.optional(),
-  ownerId: id.nullable().optional(),
   contactId: id.nullable().optional(),
 });
 export type DealPatch = z.input<typeof dealPatch>;
@@ -242,10 +259,33 @@ export async function updateDeal(dealId: number, patch: DealPatch) {
   if (d.source !== undefined) set.source = d.source;
   if (d.valueAed !== undefined) set.valueAed = d.valueAed;
   if (d.expectedClose !== undefined) set.expectedClose = d.expectedClose || null;
-  if (d.ownerId !== undefined) set.ownerId = d.ownerId;
   if (d.contactId !== undefined) set.contactId = d.contactId;
   if (!Object.keys(set).length) return;
   await db.update(schema.deals).set(set).where(eq(schema.deals.id, dealId));
+  refresh();
+}
+
+/** Sets who works on a deal. The first person is the main owner. Writes the change to the timeline. */
+export async function setAssignees(dealId: number, userIds: number[]) {
+  const me = await assertApp("sales");
+  const ids = await checkedAssignees(z.array(id).max(10).parse(userIds));
+  const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
+  if (!deal) throw new Error("That deal no longer exists.");
+  const names = ids.length
+    ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, ids))
+    : [];
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, dealId));
+    if (ids.length) await tx.insert(schema.dealAssignees).values(ids.map((userId, position) => ({ dealId, userId, position })));
+    await tx.update(schema.deals).set({ ownerId: ids[0] ?? null }).where(eq(schema.deals.id, dealId));
+    await tx.insert(schema.activities).values({
+      type: "note",
+      body: ids.length ? `Assigned to ${ids.map((i) => names.find((n) => n.id === i)?.name ?? "?").join(", ")}.` : "Unassigned.",
+      dealId,
+      companyId: deal.companyId,
+      userId: me.id,
+    });
+  });
   refresh();
 }
 
@@ -332,9 +372,13 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
 
 export async function deleteDeal(dealId: number) {
   const me = await assertApp("sales");
-  const [deal] = await db.select({ ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, dealId));
+  const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, dealId));
   if (!deal) return;
-  if (me.role !== "admin" && deal.ownerId !== me.id) throw new Error("Only the deal owner or an admin can delete a deal.");
+  const [member] = await db
+    .select({ userId: schema.dealAssignees.userId })
+    .from(schema.dealAssignees)
+    .where(and(eq(schema.dealAssignees.dealId, dealId), eq(schema.dealAssignees.userId, me.id)));
+  if (me.role !== "admin" && !member) throw new Error("Only the people on the deal or an admin can delete it.");
   await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), eq(schema.tasks.relatedId, dealId)));
   await db.delete(schema.deals).where(eq(schema.deals.id, dealId));
   refresh();

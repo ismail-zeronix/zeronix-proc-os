@@ -117,6 +117,28 @@ export function aed(value: number | null | undefined): string {
   return `AED ${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+/** Short money for tight spaces: AED 950, AED 12.5k, AED 1.2M. */
+export function aedShort(value: number | null | undefined): string {
+  if (value == null) return "-";
+  const abs = Math.abs(value);
+  const trim = (n: number, digits: number) => n.toFixed(digits).replace(/\.0$/, "");
+  if (abs >= 1_000_000) return `AED ${trim(value / 1_000_000, abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `AED ${trim(value / 1_000, abs >= 100_000 ? 0 : 1)}k`;
+  return `AED ${Math.round(value)}`;
+}
+
+/** Short labels for tabs. */
+export const STAGE_SHORT: Record<string, string> = {
+  new: "New",
+  contacted: "Contacted",
+  requirement: "Confirmed",
+  sourcing: "Sourcing",
+  quoted: "Quoted",
+  negotiation: "Negotiating",
+  won: "Won",
+  lost: "Lost",
+};
+
 /** Whole days since a date (0 = today). */
 export function daysSince(d: Date | string, now = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(d).getTime()) / 86400_000));

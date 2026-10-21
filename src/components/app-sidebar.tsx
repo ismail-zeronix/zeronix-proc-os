@@ -1,6 +1,5 @@
 "use client";
 
-import { LayoutGrid } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -45,12 +44,6 @@ export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<
                 <span className="font-semibold">{def.label}</span>
                 <span className="text-xs text-muted-foreground">Zeronix</span>
               </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="All apps" render={<Link href="/" onClick={close} />}>
-              <LayoutGrid />
-              <span>All apps</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

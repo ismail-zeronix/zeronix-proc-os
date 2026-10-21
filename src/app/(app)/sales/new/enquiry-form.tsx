@@ -5,13 +5,12 @@ import { Check, Loader2, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { AvatarPicker } from "@/components/avatar-picker";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { EMIRATES, INDUSTRIES, SOURCES } from "@/lib/sales";
+import { EMIRATES, INDUSTRIES, SOURCES, stageLabel } from "@/lib/sales";
 import { createEnquiry } from "../actions";
 
 interface Co {
@@ -28,13 +27,30 @@ interface Person {
   phone: string;
 }
 
-export function EnquiryForm({ users, meId, preset }: { users: { id: number; name: string }[]; meId: number; preset: { id: number; name: string } | null }) {
+/**
+ * One compact form for a new enquiry: company, person and the request side by side.
+ * Used as a page (opens the new deal afterwards) and inside the "+" dialog on a board column (stays on the board).
+ */
+export function EnquiryForm({
+  users,
+  meId,
+  preset,
+  stage = "new",
+  onCreated,
+}: {
+  users: { id: number; name: string }[];
+  meId: number;
+  preset: { id: number; name: string } | null;
+  stage?: string;
+  onCreated?: (dealId: number) => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [company, setCompany] = useState<Co | null>(preset ? { ...preset, emirate: "", industry: "" } : null);
   const [typed, setTyped] = useState("");
   const [debounced, setDebounced] = useState("");
   const [contactId, setContactId] = useState<number | "new">("new");
+  const [team, setTeam] = useState<number[]>([meId]);
   const [f, setF] = useState({
     emirate: "",
     industry: "",
@@ -46,7 +62,6 @@ export function EnquiryForm({ users, meId, preset }: { users: { id: number; name
     requirement: "",
     value: "",
     title: "",
-    ownerId: meId,
   });
 
   useEffect(() => {
@@ -91,63 +106,60 @@ export function EnquiryForm({ users, meId, preset }: { users: { id: number; name
           source: f.source,
           requirement: f.requirement,
           valueAed: value,
-          ownerId: f.ownerId,
+          ownerIds: team.length ? team : [meId],
+          stage,
         });
-        toast.success(res.reusedCompany ? `Added to the existing company "${res.reusedCompany}"` : "Enquiry added. A follow-up task is set for today.");
-        router.push(`/sales/deals/${res.id}`);
+        toast.success(res.reusedCompany ? `Added to the existing company "${res.reusedCompany}"` : "Enquiry added", {
+          action: onCreated ? { label: "Open deal", onClick: () => router.push(`/sales/deals/${res.id}`) } : undefined,
+        });
+        if (onCreated) onCreated(res.id);
+        else router.push(`/sales/deals/${res.id}`);
       } catch (e) {
         toast.error((e as Error).message);
       }
     });
 
+  const heading = "text-xs font-medium tracking-wide text-muted-foreground uppercase";
   return (
     <form
-      className="grid gap-5"
+      className="grid gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSave) save();
       }}
     >
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">1. Company</CardTitle>
-          <CardDescription>Search first, so the same company is not added twice.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="grid content-start gap-2">
+          <h3 className={heading}>Company</h3>
           {company ? (
-            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2">
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-1.5">
               <span className="flex items-center gap-2 text-sm font-medium">
                 <Check className="size-4 text-emerald-600" /> {company.name}
               </span>
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                aria-label="Choose another company"
                 onClick={() => {
                   setCompany(null);
                   setContactId("new");
                 }}
               >
-                <X /> Change
+                <X />
               </Button>
             </div>
           ) : (
             <>
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type the company name" className="pl-8" aria-label="Company name" />
+                <Input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search or type a new company" className="pl-8" aria-label="Company name" />
                 {found.isFetching && <Loader2 className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
               </div>
               {found.data?.companies.length ? (
-                <div className="grid gap-1 rounded-lg border p-1">
-                  <p className="px-2 pt-1 text-xs text-muted-foreground">Already in the system. Pick one, or keep typing to add a new company.</p>
+                <div className="grid gap-0.5 rounded-lg border p-1">
                   {found.data.companies.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-                      onClick={() => setCompany(c)}
-                    >
+                    <button key={c.id} type="button" className="flex items-center justify-between rounded-md px-2 py-1 text-left text-sm hover:bg-muted" onClick={() => setCompany(c)}>
                       <span className="font-medium">{c.name}</span>
                       <span className="text-xs text-muted-foreground">{[c.emirate, c.industry].filter(Boolean).join(" · ")}</span>
                     </button>
@@ -155,129 +167,90 @@ export function EnquiryForm({ users, meId, preset }: { users: { id: number; name
                 </div>
               ) : null}
               {typed.trim().length >= 2 && !exact && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <p className="text-xs text-muted-foreground sm:col-span-2">A new company &quot;{typed.trim()}&quot; will be created.</p>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="enq-emirate">Emirate</Label>
-                    <NativeSelect id="enq-emirate" value={f.emirate} onChange={set("emirate")}>
-                      <NativeSelectOption value="">Not sure</NativeSelectOption>
-                      {EMIRATES.map((x) => (
-                        <NativeSelectOption key={x} value={x}>
-                          {x}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="enq-industry">Industry</Label>
-                    <NativeSelect id="enq-industry" value={f.industry} onChange={set("industry")}>
-                      <NativeSelectOption value="">Not sure</NativeSelectOption>
-                      {INDUSTRIES.map((x) => (
-                        <NativeSelectOption key={x} value={x}>
-                          {x}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <NativeSelect className="w-full" aria-label="Emirate" value={f.emirate} onChange={set("emirate")}>
+                    <NativeSelectOption value="">Emirate</NativeSelectOption>
+                    {EMIRATES.map((x) => (
+                      <NativeSelectOption key={x} value={x}>
+                        {x}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <NativeSelect className="w-full" aria-label="Industry" value={f.industry} onChange={set("industry")}>
+                    <NativeSelectOption value="">Industry</NativeSelectOption>
+                    {INDUSTRIES.map((x) => (
+                      <NativeSelectOption key={x} value={x}>
+                        {x}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
                 </div>
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">2. Who are we dealing with?</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
+        <section className="grid content-start gap-2">
+          <h3 className={heading}>Contact person</h3>
           {existing.length > 0 && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="enq-contact">Person</Label>
-              <NativeSelect id="enq-contact" value={contactId} onChange={(e) => setContactId(e.target.value === "new" ? "new" : Number(e.target.value))}>
-                {existing.map((p) => (
-                  <NativeSelectOption key={p.id} value={p.id}>
-                    {p.name}
-                    {p.jobTitle ? ` (${p.jobTitle})` : ""}
-                  </NativeSelectOption>
-                ))}
-                <NativeSelectOption value="new">A new person…</NativeSelectOption>
-              </NativeSelect>
-            </div>
+            <NativeSelect className="w-full" aria-label="Person" value={contactId} onChange={(e) => setContactId(e.target.value === "new" ? "new" : Number(e.target.value))}>
+              {existing.map((p) => (
+                <NativeSelectOption key={p.id} value={p.id}>
+                  {p.name}
+                  {p.jobTitle ? ` (${p.jobTitle})` : ""}
+                </NativeSelectOption>
+              ))}
+              <NativeSelectOption value="new">A new person…</NativeSelectOption>
+            </NativeSelect>
           )}
           {contactId === "new" && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="enq-name">Name</Label>
-                <Input id="enq-name" value={f.contactName} onChange={set("contactName")} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="enq-job">Job title</Label>
-                <Input id="enq-job" value={f.contactJobTitle} onChange={set("contactJobTitle")} placeholder="IT Manager" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="enq-phone">Phone / WhatsApp</Label>
-                <Input id="enq-phone" value={f.contactPhone} onChange={set("contactPhone")} placeholder="+971 50 000 0000" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="enq-email">Email</Label>
-                <Input id="enq-email" type="email" value={f.contactEmail} onChange={set("contactEmail")} />
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input aria-label="Name" placeholder="Name" value={f.contactName} onChange={set("contactName")} />
+              <Input aria-label="Job title" placeholder="Job title" value={f.contactJobTitle} onChange={set("contactJobTitle")} />
+              <Input aria-label="Phone or WhatsApp" placeholder="Phone / WhatsApp" value={f.contactPhone} onChange={set("contactPhone")} />
+              <Input aria-label="Email" type="email" placeholder="Email" value={f.contactEmail} onChange={set("contactEmail")} />
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">3. The enquiry</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="enq-req">What do they want?</Label>
-            <Textarea id="enq-req" rows={4} value={f.requirement} onChange={set("requirement")} placeholder="20 x 14-inch laptops, i5, 16 GB, 512 GB, Windows 11 Pro, 3-year warranty. Needed by end of month." />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="enq-source">Where did it come from?</Label>
-              <NativeSelect id="enq-source" value={f.source} onChange={set("source")}>
-                <NativeSelectOption value="">Not sure</NativeSelectOption>
-                {SOURCES.map((x) => (
-                  <NativeSelectOption key={x} value={x}>
-                    {x}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="enq-value">Estimated value (AED)</Label>
-              <Input id="enq-value" inputMode="decimal" value={f.value} onChange={set("value")} placeholder="optional" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="enq-owner">Owner</Label>
-              <NativeSelect id="enq-owner" value={f.ownerId} onChange={(e) => setF({ ...f, ownerId: Number(e.target.value) })}>
-                {users.map((u) => (
-                  <NativeSelectOption key={u.id} value={u.id}>
-                    {u.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="enq-title">Deal title (optional)</Label>
-            <Input id="enq-title" value={f.title} onChange={set("title")} placeholder="Made from the company and the request if you leave it empty" />
-          </div>
-        </CardContent>
-      </Card>
+      <section className="grid gap-2">
+        <h3 className={heading}>Enquiry{stage !== "new" && <span className="ml-2 font-normal normal-case">starts at {stageLabel(stage)}</span>}</h3>
+        <Textarea
+          aria-label="What do they want?"
+          rows={3}
+          value={f.requirement}
+          onChange={set("requirement")}
+          placeholder="What do they want? e.g. 20 x 14-inch laptops, i5, 16 GB, 512 GB, 3-year warranty, needed by month end"
+        />
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1.2fr]">
+          <NativeSelect className="w-full" aria-label="Source" value={f.source} onChange={set("source")}>
+            <NativeSelectOption value="">Source…</NativeSelectOption>
+            {SOURCES.map((x) => (
+              <NativeSelectOption key={x} value={x}>
+                {x}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <Input aria-label="Estimated value in AED" inputMode="decimal" placeholder="Value (AED)" value={f.value} onChange={set("value")} />
+          <Input aria-label="Deal title (optional)" placeholder="Title (optional)" value={f.title} onChange={set("title")} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">Assigned to</span>
+          <AvatarPicker users={users} value={team} onChange={setTeam} />
+        </div>
+      </section>
 
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Button type="submit" disabled={!canSave}>
           {pending ? "Saving…" : "Add enquiry"}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => router.push("/sales")}>
-          Cancel
-        </Button>
+        {!onCreated && (
+          <Button type="button" variant="ghost" onClick={() => router.push("/sales/pipeline")}>
+            Cancel
+          </Button>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">Creates the company, person, deal and a follow-up for today.</span>
       </div>
     </form>
   );

@@ -1,6 +1,5 @@
 import { Mail, MessageCircle, Phone, Search } from "lucide-react";
 import Link from "next/link";
-import { PageHeader } from "@/components/page-header";
 import { Empty } from "@/components/stat-tile";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,63 +14,66 @@ export default async function ContactsPage({ searchParams }: PageProps<"/sales/c
   const q = String((Array.isArray(sp.q) ? sp.q[0] : sp.q) ?? "").trim();
   const rows = await listContacts(q);
   const canMail = apps.includes("mail");
+  const icon = "inline-flex size-7 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-3.5";
   return (
-    <div className="grid gap-5">
-      <PageHeader title="Contacts" description={`${rows.length} ${q ? "match" : "people"}. Add people from their company page.`} />
-      <form action="/sales/contacts" className="relative max-w-sm">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input name="q" defaultValue={q} placeholder="Search by name, email, phone or company" className="pl-8" aria-label="Search contacts" />
-      </form>
-      <div className="overflow-x-auto rounded-lg border">
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="text-sm font-semibold">Contacts</h1>
+        <span className="text-xs text-muted-foreground">{rows.length} {q ? "match" : "people"} · add people from a company page</span>
+        <form action="/sales/contacts" className="relative ml-auto w-64 max-w-full">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={q} placeholder="Name, email, phone, company" className="h-8 pl-8" aria-label="Search contacts" />
+        </form>
+      </div>
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="text-xs">
               <TableHead>Name</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Job title</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Reach</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((p) => (
               <TableRow key={p.id}>
-                <TableCell className="font-medium">
+                <TableCell className="py-1.5 font-medium">
                   {p.name}
                   {p.isDecisionMaker && <span className="ml-2 text-xs font-normal text-muted-foreground">decision maker</span>}
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-1.5">
                   <Link href={`/sales/companies/${p.companyId}`} className="hover:underline">
                     {p.companyName}
                   </Link>
                 </TableCell>
-                <TableCell>{p.jobTitle || "-"}</TableCell>
-                <TableCell>
-                  <span className="flex flex-wrap gap-x-4 gap-y-1">
+                <TableCell className="py-1.5">{p.jobTitle || "-"}</TableCell>
+                <TableCell className="py-1.5 text-xs text-muted-foreground">{p.email || "-"}</TableCell>
+                <TableCell className="py-1.5">
+                  <span className="flex gap-1.5">
                     {p.phone && (
-                      <a href={`tel:${p.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1.5 hover:underline">
-                        <Phone className="size-3.5 text-muted-foreground" /> {p.phone}
+                      <a href={`tel:${p.phone.replace(/[^\d+]/g, "")}`} className={icon} title={p.phone} aria-label={`Call ${p.name}`}>
+                        <Phone />
                       </a>
                     )}
                     {(p.whatsapp || p.phone) && (
-                      <a href={`https://wa.me/${(p.whatsapp || p.phone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">
-                        <MessageCircle className="size-3.5 text-muted-foreground" /> WhatsApp
+                      <a href={`https://wa.me/${(p.whatsapp || p.phone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className={icon} title="Open WhatsApp" aria-label={`WhatsApp ${p.name}`}>
+                        <MessageCircle />
                       </a>
                     )}
-                    {p.email &&
-                      (canMail ? (
-                        <Link href={`/mail/compose?to=${encodeURIComponent(p.email)}`} className="inline-flex items-center gap-1.5 hover:underline">
-                          <Mail className="size-3.5 text-muted-foreground" /> {p.email}
-                        </Link>
-                      ) : (
-                        <span>{p.email}</span>
-                      ))}
+                    {p.email && canMail && (
+                      <Link href={`/mail/compose?to=${encodeURIComponent(p.email)}`} className={icon} title={`Write to ${p.email}`} aria-label={`Email ${p.name}`}>
+                        <Mail />
+                      </Link>
+                    )}
                   </span>
                 </TableCell>
               </TableRow>
             ))}
             {!rows.length && (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Empty>{q ? "Nobody matches." : "No contacts yet."}</Empty>
                 </TableCell>
               </TableRow>

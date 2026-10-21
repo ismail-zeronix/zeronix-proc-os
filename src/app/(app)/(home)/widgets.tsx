@@ -268,10 +268,10 @@ export async function ThisWeekSales({ userId, isAdmin }: { userId: number; isAdm
   const p = await salesPulse(userId, isAdmin);
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Kpi label="New enquiries" value={p.newThisWeek} hint={`this week · ${p.scope}`} href="/sales" />
-      <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href="/sales" />
-      <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href="/sales" />
-      <Kpi label="Won this week" value={p.wonCount} hint={aed(p.wonValue)} href="/sales?view=list&stage=won" />
+      <Kpi label="New enquiries" value={p.newThisWeek} hint={`this week · ${p.scope}`} href="/sales/pipeline" />
+      <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href="/sales/pipeline" />
+      <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href="/sales/pipeline?stage=quoted" />
+      <Kpi label="Won this week" value={p.wonCount} hint={aed(p.wonValue)} href="/sales/pipeline?stage=won" />
     </div>
   );
 }
@@ -291,7 +291,7 @@ export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmi
         </CardDescription>
         <CardAction>
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/sales" />}>
-            Open <ArrowRight />
+            Overview <ArrowRight />
           </Button>
         </CardAction>
       </CardHeader>

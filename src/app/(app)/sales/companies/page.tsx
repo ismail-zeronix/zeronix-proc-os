@@ -1,6 +1,5 @@
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { PageHeader } from "@/components/page-header";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,28 +16,26 @@ export default async function CompaniesPage({ searchParams }: PageProps<"/sales/
   const q = String((Array.isArray(sp.q) ? sp.q[0] : sp.q) ?? "").trim();
   const rows = await listCompanies(q);
   return (
-    <div className="grid gap-5">
-      <PageHeader
-        title="Companies"
-        description={`${rows.length} ${q ? "match" : "in the system"}`}
-        actions={
-          <CompanyDialog
-            trigger={
-              <Button>
-                <Plus /> Add company
-              </Button>
-            }
-          />
-        }
-      />
-      <form action="/sales/companies" className="relative max-w-sm">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input name="q" defaultValue={q} placeholder="Search by name, website or phone" className="pl-8" aria-label="Search companies" />
-      </form>
-      <div className="overflow-x-auto rounded-lg border">
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="text-sm font-semibold">Companies</h1>
+        <span className="text-xs text-muted-foreground">{rows.length} {q ? "match" : "in total"}</span>
+        <form action="/sales/companies" className="relative ml-auto w-64 max-w-full">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={q} placeholder="Search name, website, phone" className="h-8 pl-8" aria-label="Search companies" />
+        </form>
+        <CompanyDialog
+          trigger={
+            <Button variant="outline" size="icon-sm" aria-label="Add a company" title="Add a company">
+              <Plus />
+            </Button>
+          }
+        />
+      </div>
+      <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="text-xs">
               <TableHead>Company</TableHead>
               <TableHead>Industry</TableHead>
               <TableHead>Emirate</TableHead>
@@ -50,22 +47,22 @@ export default async function CompaniesPage({ searchParams }: PageProps<"/sales/
           <TableBody>
             {rows.map((c) => (
               <TableRow key={c.id}>
-                <TableCell className="font-medium">
+                <TableCell className="py-1.5 font-medium">
                   <Link href={`/sales/companies/${c.id}`} className="hover:underline">
                     {c.name}
                   </Link>
                 </TableCell>
-                <TableCell>{c.industry || "-"}</TableCell>
-                <TableCell>{c.emirate || "-"}</TableCell>
-                <TableCell className="text-right tabular-nums">{c.contacts}</TableCell>
-                <TableCell className="text-right tabular-nums">{c.openDeals}</TableCell>
-                <TableCell>{c.ownerName || "-"}</TableCell>
+                <TableCell className="py-1.5">{c.industry || "-"}</TableCell>
+                <TableCell className="py-1.5">{c.emirate || "-"}</TableCell>
+                <TableCell className="py-1.5 text-right tabular-nums">{c.contacts}</TableCell>
+                <TableCell className="py-1.5 text-right tabular-nums">{c.openDeals}</TableCell>
+                <TableCell className="py-1.5">{c.ownerName || "-"}</TableCell>
               </TableRow>
             ))}
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Empty>{q ? "No company matches. Check the spelling, or add it." : "No companies yet. Add one, or start from a new enquiry."}</Empty>
+                  <Empty>{q ? "No company matches. Check the spelling, or add it with +." : "No companies yet. Add one with +, or start from an enquiry."}</Empty>
                 </TableCell>
               </TableRow>
             )}
