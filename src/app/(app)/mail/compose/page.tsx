@@ -3,7 +3,7 @@ import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
 import { getBrand } from "@/lib/brand";
 import { MailAccessError, mailCreds } from "@/lib/mail/account";
-import { formatRecipient, replyRecipients, subjectFor } from "@/lib/mail/compose";
+import { formatRecipient, parseRecipients, replyRecipients, subjectFor } from "@/lib/mail/compose";
 import { loadMessage } from "@/lib/mail/message";
 import { quoteForForward, quoteForReply } from "@/lib/mail/parse";
 import { ComposeForm } from "./compose-form";
@@ -27,7 +27,17 @@ export default async function ComposePage({ searchParams }: PageProps<"/mail/com
     throw e;
   }
 
+  const one = (k: string) => String((Array.isArray(sp[k]) ? sp[k][0] : sp[k]) ?? "");
   const initial = { to: "", cc: "", subject: "", quote: "" };
+  let dealId = 0;
+  if (mode === "new") {
+    // opened from Sales: "Write email" on a contact or deal
+    const to = parseRecipients(one("to"));
+    initial.to = to.ok.map(formatRecipient).join(", ");
+    initial.subject = one("subject").slice(0, 300);
+    const d = Number(one("deal"));
+    if (Number.isInteger(d) && d > 0) dealId = d;
+  }
   let loadError = "";
   if (mode !== "new") {
     try {
@@ -59,6 +69,7 @@ export default async function ComposePage({ searchParams }: PageProps<"/mail/com
       key={`${mode}-${uid}`}
       mode={mode}
       replyUid={mode === "new" ? 0 : uid}
+      dealId={dealId}
       initial={initial}
       loadError={loadError}
       brand={brand}

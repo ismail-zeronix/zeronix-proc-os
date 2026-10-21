@@ -66,13 +66,17 @@ Decided with the owner: light client, no folder management. Inbox list + reading
 - [ ] 5b.10 Try with a real mailbox (send to yourself, reply, forward, attachment both ways, check the Sent folder and the logo in Gmail/Outlook). Everything is tested up to the mail server, not against a live one
 
 ## Phase 6: Sales basic
-- [ ] 6.1 Tables: companies, contacts, deals, activities + migration
-- [ ] 6.2 Companies and contacts pages
-- [ ] 6.3 Deals: board + list, stage change, activity log, lost reason
-- [ ] 6.4 Genuine-lead checklist + Hot/Warm/Cold label
-- [ ] 6.5 Follow-up task from a deal; overdue follow-ups on Home
-- [ ] 6.6 Home pipeline widget and "this week" sales numbers
-- [ ] 6.7 Federated global search: companies, contacts, deals
+Design: one record per opportunity (a lead is a deal at stage "New enquiry"). Everyone with the Sales app sees all companies, contacts and deals (small team, no duplicates), with "Mine" as the default filter. Values are in AED. Stages: New enquiry, Contacted, Requirement confirmed, Sourcing, Quote sent, Negotiation, Won, Lost. Stage changes use a menu on the card (no drag and drop yet).
+- [x] 6.1 Tables: companies, contacts, deals, activities (+ closed_at) and migration [2026-10-21]
+- [x] 6.2 Sales app live: layout, sidebar (Pipeline, Companies, Contacts), access checks, domain rules (stages, sources, Hot/Warm/Cold) with unit tests [2026-10-21]
+- [x] 6.3 Companies and contacts: list + search, add/edit, company page, duplicate warning [2026-10-21]
+- [x] 6.4 New enquiry quick form: company, contact, requirement, source in one screen; creates the deal and a first follow-up task [2026-10-21]
+- [x] 6.5 Pipeline: board by stage + list view, Mine / Everyone filter, search, move stage menu, "Lost" asks for a reason [2026-10-21]
+- [x] 6.6 Deal page: details, requirement, genuine-lead checklist with Hot/Warm/Cold, activity timeline + log a call/WhatsApp/email/meeting/note, follow-up tasks linked to the deal [2026-10-21]
+- [x] 6.7 Write email from a deal or contact (Mail opens pre-filled) and the sent email is logged on the deal timeline [2026-10-21]
+- [x] 6.8 Home: sales "this week" numbers, pipeline widget, deals needing attention, Sales tile badge [2026-10-21]
+- [x] 6.9 Search (Ctrl K) finds companies, contacts and deals [2026-10-21]
+- [x] 6.10 Tests: domain rules, and access checks over HTTP (a user without Sales is blocked on pages and APIs) [2026-10-21]
 
 ## Phase 7: Quotes
 - [ ] 7.1 `deal_items`, `quotes`, `quote_items` tables

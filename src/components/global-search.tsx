@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, Search } from "lucide-react";
+import { Building2, Handshake, LayoutGrid, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,20 @@ import {
 import { searchPages } from "@/lib/app-nav";
 import { appByKey, type AppKey } from "@/lib/apps";
 import { money } from "@/lib/format";
+import { stageLabel } from "@/lib/sales";
 import type { ProductHit } from "@/lib/search";
 
-/** Ctrl/⌘+K (or "/") anywhere: jump to a page, or find a product when the user has Procurement. */
+interface SalesHits {
+  companies: { id: number; name: string; emirate: string; industry: string }[];
+  contacts: { id: number; name: string; email: string; companyId: number; companyName: string }[];
+  deals: { id: number; title: string; stage: string; companyName: string }[];
+}
+
+/** Ctrl/⌘+K (or "/") anywhere: jump to a page, a product (Procurement), or a company, person or deal (Sales). */
 export function GlobalSearch({ apps }: { apps: AppKey[] }) {
   const router = useRouter();
   const hasProducts = apps.includes("procurement");
+  const hasSales = apps.includes("sales");
   const pages = [
     { href: "/", label: "Home", icon: LayoutGrid, group: "Zeronix" },
     ...searchPages(apps).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
@@ -50,12 +58,21 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
     return () => clearTimeout(t);
   }, [q]);
 
-  const { data, isFetching } = useQuery<{ products: ProductHit[]; total: number }>({
+  const searching = debounced.length >= 2 && (hasProducts || hasSales);
+  const products = useQuery<{ products: ProductHit[]; total: number }>({
     queryKey: ["quick-search", debounced],
     queryFn: () => fetch(`/api/search?limit=8&q=${encodeURIComponent(debounced)}`).then((r) => r.json()),
     enabled: open && hasProducts && debounced.length >= 2,
     staleTime: 30_000,
   });
+  const sales = useQuery<SalesHits>({
+    queryKey: ["quick-search-sales", debounced],
+    queryFn: () => fetch(`/api/sales/search?kind=all&q=${encodeURIComponent(debounced)}`).then((r) => r.json()),
+    enabled: open && hasSales && debounced.length >= 2,
+    staleTime: 30_000,
+  });
+  const fetching = products.isFetching || sales.isFetching;
+  const nothing = !products.data?.products.length && !sales.data?.companies.length && !sales.data?.contacts.length && !sales.data?.deals.length;
   const needle = q.trim().toLowerCase();
   const shownPages = needle ? pages.filter((p) => `${p.group} ${p.label}`.toLowerCase().includes(needle)) : pages;
 
@@ -65,6 +82,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
     router.push(href);
   };
 
+  const what = [hasProducts && "product", hasSales && "company, person or deal"].filter(Boolean).join(", ");
   return (
     <>
       <Button
@@ -74,27 +92,62 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
         onClick={() => setOpen(true)}
       >
         <Search />
-        <span className="flex-1 text-left">{hasProducts ? "Find a product or page…" : "Go to a page…"}</span>
+        <span className="flex-1 text-left">{what ? "Search or go to a page…" : "Go to a page…"}</span>
         <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
       </Button>
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
-        title="Find a product or page"
-        description={hasProducts ? "Type a model, part number or spec" : "Type a page name"}
+        title="Search"
+        description={what ? `Find a ${what}, or a page` : "Type a page name"}
       >
         <Command shouldFilter={false}>
           <CommandInput
             value={q}
             onValueChange={setQ}
-            placeholder={hasProducts ? "Model, part number or spec…" : "Page name…"}
+            placeholder={hasProducts && hasSales ? "Model, company, person, deal…" : hasProducts ? "Model, part number or spec…" : hasSales ? "Company, person or deal…" : "Page name…"}
           />
           <CommandList>
-            {hasProducts && debounced.length >= 2 ? (
+            {searching ? (
               <>
-                {data?.products.length ? (
-                  <CommandGroup heading={`Products${data.total > data.products.length ? ` (${data.total} found)` : ""}`}>
-                    {data.products.map((p) => (
+                {sales.data?.deals.length ? (
+                  <CommandGroup heading="Deals">
+                    {sales.data.deals.map((d) => (
+                      <CommandItem key={`d${d.id}`} value={`d${d.id}`} onSelect={() => go(`/sales/deals/${d.id}`)}>
+                        <Handshake />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{d.title}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {d.companyName} · {stageLabel(d.stage)}
+                          </div>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+                {sales.data?.companies.length ? (
+                  <CommandGroup heading="Companies">
+                    {sales.data.companies.map((c) => (
+                      <CommandItem key={`c${c.id}`} value={`c${c.id}`} onSelect={() => go(`/sales/companies/${c.id}`)}>
+                        <Building2 /> {c.name}
+                        <span className="ml-auto text-xs text-muted-foreground">{[c.emirate, c.industry].filter(Boolean).join(" · ")}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+                {sales.data?.contacts.length ? (
+                  <CommandGroup heading="People">
+                    {sales.data.contacts.map((p) => (
+                      <CommandItem key={`p${p.id}`} value={`person${p.id}`} onSelect={() => go(`/sales/companies/${p.companyId}`)}>
+                        <User /> {p.name}
+                        <span className="ml-auto truncate text-xs text-muted-foreground">{p.companyName}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+                {products.data?.products.length ? (
+                  <CommandGroup heading={`Products${products.data.total > products.data.products.length ? ` (${products.data.total} found)` : ""}`}>
+                    {products.data.products.map((p) => (
                       <CommandItem key={p.id} value={`p${p.id}`} onSelect={() => go(`/procurement/products/${p.id}`)}>
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{p.label}</div>
@@ -111,14 +164,15 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                       </CommandItem>
                     ))}
                   </CommandGroup>
-                ) : (
-                  !isFetching && <CommandEmpty>No product matches “{debounced}”.</CommandEmpty>
+                ) : null}
+                {!fetching && nothing && <CommandEmpty>Nothing matches “{debounced}”.</CommandEmpty>}
+                {hasProducts && (
+                  <CommandGroup heading="Search">
+                    <CommandItem value="all" onSelect={() => go(`/procurement/compare?q=${encodeURIComponent(debounced)}`)}>
+                      <Search /> See all products for “{debounced}” on the Compare page
+                    </CommandItem>
+                  </CommandGroup>
                 )}
-                <CommandGroup heading="Search">
-                  <CommandItem value="all" onSelect={() => go(`/procurement/compare?q=${encodeURIComponent(debounced)}`)}>
-                    <Search /> See all results for “{debounced}” on the Compare page
-                  </CommandItem>
-                </CommandGroup>
               </>
             ) : shownPages.length ? (
               groups.map((g) => {

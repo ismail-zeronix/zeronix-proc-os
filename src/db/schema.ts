@@ -301,3 +301,93 @@ export const mailSentLog = pgTable(
   },
   (t) => [index("mail_sent_user_idx").on(t.userId, t.sentAt)],
 );
+
+// ---------- Sales ----------
+
+/** A customer or prospect company. */
+export const companies = pgTable(
+  "companies",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** Lower-case name without spaces/punctuation, to spot duplicates ("ABC Trading LLC" = "abc trading llc"). */
+    nameNorm: text("name_norm").notNull(),
+    industry: text("industry").notNull().default(""),
+    emirate: text("emirate").notNull().default(""),
+    website: text("website").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    tradeLicenseNo: text("trade_license_no").notNull().default(""),
+    trn: text("trn").notNull().default(""),
+    /** Where we first found them (see lib/sales.ts SOURCES). */
+    source: text("source").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("companies_name_norm_idx").on(t.nameNorm)],
+);
+
+/** A person at a company. */
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    jobTitle: text("job_title").notNull().default(""),
+    email: text("email").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    whatsapp: text("whatsapp").notNull().default(""),
+    isDecisionMaker: boolean("is_decision_maker").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("contacts_company_idx").on(t.companyId), index("contacts_email_idx").on(t.email)],
+);
+
+/** One opportunity. A lead is simply a deal at stage "new". */
+export const deals = pgTable(
+  "deals",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    /** Stage key from lib/sales.ts STAGES. */
+    stage: text("stage").notNull().default("new"),
+    source: text("source").notNull().default(""),
+    /** What the customer asked for, in their words. */
+    requirement: text("requirement").notNull().default(""),
+    /** Estimated value in AED. */
+    valueAed: numeric("value_aed", { precision: 14, scale: 2, mode: "number" }),
+    expectedClose: date("expected_close"),
+    ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+    lostReason: text("lost_reason").notNull().default(""),
+    /** The genuine-lead checklist (see lib/sales.ts CHECKS). */
+    checks: jsonb("checks").$type<Record<string, boolean>>().notNull().default({}),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When it was marked won or lost. */
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("deals_stage_idx").on(t.stage), index("deals_owner_idx").on(t.ownerId), index("deals_company_idx").on(t.companyId)],
+);
+
+/** The timeline of a deal: calls, messages, emails, meetings, notes and stage changes. */
+export const activities = pgTable(
+  "activities",
+  {
+    id: serial("id").primaryKey(),
+    /** call, whatsapp, email, meeting, note, stage, created */
+    type: text("type").notNull(),
+    body: text("body").notNull().default(""),
+    dealId: integer("deal_id").references(() => deals.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at)],
+);

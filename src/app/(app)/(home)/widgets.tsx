@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { articleBySlug, tipOfTheDay } from "@/content/knowledge";
 import { db, schema } from "@/db";
 import { ago, money } from "@/lib/format";
+import { aed, OPEN_STAGES } from "@/lib/sales";
+import { salesPulse } from "@/lib/sales-data";
 import { procurementPulse } from "@/lib/home";
 import { dueTasksFor } from "@/lib/tasks";
 
@@ -261,21 +263,90 @@ export async function AttentionCard() {
   );
 }
 
-const SOON = {
-  pipeline: { icon: Target, title: "Pipeline", text: "Deals by stage will show here." },
-} as const;
-
-/** A widget whose app is not built yet. Shown to admins only, so everyone can see where it will go. */
-export function SoonCard({ kind }: { kind: keyof typeof SOON }) {
-  const s = SOON[kind];
+/** Sales numbers for this week: the whole team for admins, your own deals for everybody else. */
+export async function ThisWeekSales({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
+  const p = await salesPulse(userId, isAdmin);
   return (
-    <Card className="border-dashed opacity-60">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Kpi label="New enquiries" value={p.newThisWeek} hint={`this week · ${p.scope}`} href="/sales" />
+      <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href="/sales" />
+      <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href="/sales" />
+      <Kpi label="Won this week" value={p.wonCount} hint={aed(p.wonValue)} href="/sales?view=list&stage=won" />
+    </div>
+  );
+}
+
+/** Open deals by stage as simple bars. */
+export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
+  const p = await salesPulse(userId, isAdmin);
+  const max = Math.max(1, ...p.stages.map((s) => s.count));
+  return (
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <s.icon className="size-4" /> {s.title}
+          <Target className="size-4" /> Pipeline
         </CardTitle>
-        <CardDescription>Coming soon. {s.text}</CardDescription>
+        <CardDescription>
+          {p.openCount} open deal{p.openCount === 1 ? "" : "s"} · {aed(p.openValue)} · {p.scope}
+        </CardDescription>
+        <CardAction>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/sales" />}>
+            Open <ArrowRight />
+          </Button>
+        </CardAction>
       </CardHeader>
+      <CardContent className="grid gap-2">
+        {OPEN_STAGES.map((s) => {
+          const row = p.stages.find((x) => x.stage === s.key);
+          const n = row?.count ?? 0;
+          return (
+            <div key={s.key} className="grid grid-cols-[9.5rem_1fr_auto] items-center gap-3 text-sm">
+              <span className="truncate text-muted-foreground">{s.label}</span>
+              <span className="h-2 overflow-hidden rounded-full bg-muted">
+                <span className="block h-full rounded-full bg-primary" style={{ width: `${(n / max) * 100}%` }} />
+              </span>
+              <span className="w-8 text-right tabular-nums">{n}</span>
+            </div>
+          );
+        })}
+        {p.openCount === 0 && (
+          <Empty>
+            No open deals.{" "}
+            <Link href="/sales/new" className="underline">
+              Add an enquiry
+            </Link>
+            .
+          </Empty>
+        )}
+      </CardContent>
     </Card>
   );
 }
+
+/** Open deals that have gone quiet. */
+export async function DealsAttentionCard({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
+  const p = await salesPulse(userId, isAdmin);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <AlertTriangle className="size-4" /> Deals going quiet
+        </CardTitle>
+        <CardDescription>
+          {p.attention.length ? "Nothing logged for 3 days or more. A call or a follow-up keeps them alive." : "Every open deal has had some activity in the last 3 days."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-1">
+        {p.attention.map((a) => (
+          <Link key={a.id} href={`/sales/deals/${a.id}`} className="rounded-md px-2 py-2 hover:bg-muted">
+            <div className="truncate text-sm font-medium">{a.title}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {a.companyName} · {a.reason}
+            </div>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+

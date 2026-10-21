@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Handshake, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createTask, deleteTask, setTaskDone, updateTask } from "@/app/(app)/tasks/actions";
@@ -22,10 +23,13 @@ export function TaskDialog({
   task,
   people,
   trigger,
+  related,
 }: {
   task?: TaskRow;
   people?: Person[];
   trigger: React.ReactElement;
+  /** New tasks created from here belong to this deal. */
+  related?: { type: "deal"; id: number };
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -38,7 +42,7 @@ export function TaskDialog({
     start(async () => {
       try {
         if (task) await updateTask(task.id, f);
-        else await createTask(f);
+        else await createTask({ ...f, related });
         toast.success(task ? "Task updated" : "Task added");
         setOpen(false);
         if (!task) setF(blank);
@@ -135,11 +139,14 @@ export function TaskItem({
   people,
   showAssignee,
   compact,
+  hideRelated,
 }: {
   task: TaskRow;
   people?: Person[];
   showAssignee?: boolean;
   compact?: boolean;
+  /** Do not show the deal link (used on the deal's own page). */
+  hideRelated?: boolean;
 }) {
   const [pending, start] = useTransition();
   const done = task.status === "done";
@@ -176,6 +183,11 @@ export function TaskItem({
           )}
           {task.priority === "high" && !done && <Badge variant="destructive">High</Badge>}
           {showAssignee && <span>· {task.assigneeName}</span>}
+          {!hideRelated && task.relatedType === "deal" && task.relatedId && task.relatedTitle && (
+            <Link href={`/sales/deals/${task.relatedId}`} className="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground hover:underline">
+              <Handshake className="size-3 shrink-0" /> {task.relatedTitle}
+            </Link>
+          )}
         </div>
       </div>
       {!compact && (

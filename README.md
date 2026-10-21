@@ -6,6 +6,17 @@ A small company portal. The home screen (`/`) shows one tile per app; each app h
 
 Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder under `src/app/(app)/`). Roles are `admin` and `sales`: admins see every app; for a sales user an admin can pick the apps on **Admin > Users > Apps**, or leave "Use role defaults". Access is checked on the server for pages, server actions and API routes (`requireApp` / `assertApp` / `hasApp` in `src/lib/auth/session.ts`), against the database, so changes and deactivation apply immediately.
 
+## Sales
+
+**Sales** (`/sales`) tracks every opportunity as one *deal*; a lead is just a deal at stage **New enquiry**. Stages: New enquiry, Contacted, Requirement confirmed, Sourcing, Quote sent, Negotiation, Won, Lost (Lost asks for a reason). Everyone with the Sales app sees all companies, contacts and deals; "My deals" is the default filter. Values are in AED.
+
+- **Pipeline**: board by stage, or a list; search; the stage menu on each card moves a deal and writes it to the timeline.
+- **New enquiry**: one screen creates (or reuses) the company, the person, the deal and a follow-up task for today. A company with the same name (ignoring LLC, spaces, punctuation) is never added twice.
+- **Deal page**: what they asked for, the **genuine-lead checklist** (need, authority, budget, timing, three ways to verify the company, and a warning flag) that gives a Hot / Warm / Cold label, a timeline for calls, WhatsApp, emails, meetings and notes, and follow-up tasks (they also show in Tasks and on Home). Logging a call or message on a brand-new enquiry moves it to Contacted.
+- **Write email** on a contact or deal opens Mail pre-filled; the sent email is logged on the deal.
+- **Home** shows this week's sales numbers, the pipeline by stage and deals with no activity for 3 days. Ctrl K finds companies, people and deals.
+- Rules live in `src/lib/sales.ts` (stages, sources, checklist, label); data queries in `src/lib/sales-data.ts`; changes in `src/app/(app)/sales/actions.ts`.
+
 ## Mail app and mailbox
 
 **Mail** (`/mail`) is a light mail client: the inbox (newest first, read live from the mail server), a reading pane, attachments to download, and Write / Reply / Reply all / Forward with attachments. Incoming HTML is sanitised on the server and shown in a locked-down iframe (no scripts; pictures from the internet stay hidden until "Load images"). Sending uses the user's own mailbox over SMTP (Hostinger by default), saves a copy in the Sent folder, and is limited to `MAIL_DAILY_LIMIT` recipients per person per 24 hours. Folder management, spam rules and searching other folders stay in webmail (link in the Mail header).

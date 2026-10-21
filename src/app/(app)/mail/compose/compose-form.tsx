@@ -20,6 +20,7 @@ const TITLES = { new: "New email", reply: "Reply", replyall: "Reply all", forwar
 export function ComposeForm({
   mode,
   replyUid,
+  dealId,
   initial,
   loadError,
   brand,
@@ -28,6 +29,8 @@ export function ComposeForm({
 }: {
   mode: keyof typeof TITLES;
   replyUid: number;
+  /** The deal this email belongs to (opened from Sales); the sent email is logged on its timeline. */
+  dealId: number;
   initial: { to: string; cc: string; subject: string; quote: string };
   loadError: string;
   brand: Brand;
@@ -65,6 +68,7 @@ export function ComposeForm({
       fd.set("quote", withQuote ? initial.quote : "");
       fd.set("mode", mode);
       fd.set("replyUid", String(replyUid));
+      if (dealId) fd.set("dealId", String(dealId));
       for (const file of files) fd.append("files", file);
       const res = await fetch("/api/mail/send", { method: "POST", body: fd });
       const out = await res.json().catch(() => ({}));

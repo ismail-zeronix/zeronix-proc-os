@@ -46,7 +46,7 @@ export const APPS = [
     icon: Handshake,
     blurb: "Leads, deals and quotes",
     defaultFor: ["admin", "sales"],
-    status: "soon",
+    status: "live",
     color: "var(--series-3)",
   },
   {

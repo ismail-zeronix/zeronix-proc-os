@@ -16,6 +16,10 @@ export interface TaskRow {
   assigneeName: string;
   createdBy: number;
   doneAt: string | null;
+  /** "deal" when the task belongs to a deal in Sales. */
+  relatedType: string | null;
+  relatedId: number | null;
+  relatedTitle: string | null;
 }
 
 const assignee = alias(schema.users, "assignee");
@@ -32,10 +36,14 @@ function select() {
       assignedTo: schema.tasks.assignedTo,
       assigneeName: assignee.name,
       createdBy: schema.tasks.createdBy,
+      relatedType: schema.tasks.relatedType,
+      relatedId: schema.tasks.relatedId,
+      relatedTitle: schema.deals.title,
       doneAt: sql<string | null>`to_char(${schema.tasks.doneAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
     })
     .from(schema.tasks)
-    .innerJoin(assignee, eq(assignee.id, schema.tasks.assignedTo));
+    .innerJoin(assignee, eq(assignee.id, schema.tasks.assignedTo))
+    .leftJoin(schema.deals, and(eq(schema.tasks.relatedType, "deal"), eq(schema.deals.id, schema.tasks.relatedId)));
 }
 
 /** Open tasks, optionally for one person, plus the ones finished in the last 14 days. */

@@ -18,12 +18,15 @@ const taskSchema = z.object({
   priority: z.enum(["normal", "high"]).default("normal"),
   /** Only admins can give a task to someone else. */
   assignedTo: z.number().int().positive().optional(),
+  /** Attach the task to a deal (needs the Sales app). */
+  related: z.object({ type: z.literal("deal"), id: z.number().int().positive() }).optional(),
 });
 
 export type TaskInput = z.input<typeof taskSchema>;
 
 function refresh() {
   revalidatePath("/tasks");
+  revalidatePath("/sales", "layout");
   revalidatePath("/");
 }
 
@@ -33,6 +36,11 @@ export async function createTask(input: TaskInput) {
   if (d.assignedTo && d.assignedTo !== me.id && me.role !== "admin") {
     throw new Error("Only an admin can give a task to someone else.");
   }
+  if (d.related) {
+    await assertApp("sales");
+    const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, d.related.id));
+    if (!deal) throw new Error("That deal no longer exists.");
+  }
   await db.insert(schema.tasks).values({
     title: d.title,
     notes: d.notes,
@@ -40,6 +48,8 @@ export async function createTask(input: TaskInput) {
     priority: d.priority,
     assignedTo: d.assignedTo ?? me.id,
     createdBy: me.id,
+    relatedType: d.related?.type ?? null,
+    relatedId: d.related?.id ?? null,
   });
   refresh();
 }

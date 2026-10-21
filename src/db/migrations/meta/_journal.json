@@ -64,6 +64,13 @@
       "when": 1792539348471,
       "tag": "0008_mail_sent_log",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792540104267,
+      "tag": "0009_sales",
+      "breakpoints": true
     }
   ]
 }

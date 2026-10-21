@@ -1,4 +1,4 @@
-import { Bell, ClipboardPaste, History, LayoutDashboard, Search, Truck, type LucideIcon } from "lucide-react";
+import { Bell, Building2, ClipboardPaste, History, Kanban, LayoutDashboard, PlusCircle, Search, Truck, Users, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -18,6 +18,22 @@ export interface NavGroup {
 
 /** Sidebar pages per app. Apps without an entry have no sidebar (single-page apps). */
 export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
+  sales: [
+    {
+      label: "Work",
+      items: [
+        { href: "/sales", label: "Pipeline", icon: Kanban, exact: true },
+        { href: "/sales/new", label: "New enquiry", icon: PlusCircle },
+      ],
+    },
+    {
+      label: "Customers",
+      items: [
+        { href: "/sales/companies", label: "Companies", icon: Building2 },
+        { href: "/sales/contacts", label: "Contacts", icon: Users },
+      ],
+    },
+  ],
   procurement: [
     {
       label: "Work",
