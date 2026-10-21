@@ -1,7 +1,5 @@
 import { asc, sql } from "drizzle-orm";
 import Link from "next/link";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
 import { SUPPLIER_TYPES } from "@/lib/supplier-types";
@@ -43,30 +41,28 @@ export default async function SuppliersPage({ searchParams }: PageProps<"/procur
       key={key || "all"}
       href={key ? `/procurement/suppliers?type=${key}` : "/procurement/suppliers"}
       className={cn(
-        "rounded-full border px-3 py-1 text-sm",
-        typeFilter === key ? "border-primary bg-primary/10 font-medium" : "hover:bg-muted",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
+        typeFilter === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      {label} <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">{n}</span>
+      {label}
+      <span className={cn("rounded-full px-1.5 text-[10px] tabular-nums", typeFilter === key ? "bg-primary/15" : "bg-muted")}>{n}</span>
     </Link>
   );
 
   return (
-    <div className="grid gap-4">
-      <PageHeader
-        title="Suppliers"
-        description="Grouped by how they sell in the UAE market. New suppliers are also created when you paste or import a list."
-        actions={<SupplierDialog />}
-      />
-      <div className="flex flex-wrap gap-2">
-        {chip("", "All", all.length)}
-        {SUPPLIER_TYPES.filter((t) => counts.get(t.key)).map((t) => chip(t.key, t.label, counts.get(t.key)!))}
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="text-sm font-semibold">Suppliers</h1>
+        <nav aria-label="Category" className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto sm:basis-0 sm:flex-1">
+          {chip("", "All", all.length)}
+          {SUPPLIER_TYPES.filter((t) => counts.get(t.key)).map((t) => chip(t.key, t.label, counts.get(t.key)!))}
+        </nav>
+        <SupplierDialog />
       </div>
-      <Card>
-        <CardContent className="overflow-x-auto">
-          <SupplierTable rows={rows} />
-        </CardContent>
-      </Card>
+      <div className="overflow-x-auto rounded-lg border bg-card">
+        <SupplierTable rows={rows} />
+      </div>
     </div>
   );
 }

@@ -67,10 +67,14 @@ export function SupplierDialog({ supplier }: { supplier?: SupplierRow }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          supplier ? <Button variant="ghost" size="icon-sm" aria-label="Edit supplier" /> : <Button />
+          supplier ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Edit supplier" title="Edit supplier" />
+          ) : (
+            <Button variant="outline" size="icon-sm" aria-label="Add a supplier" title="Add a supplier" />
+          )
         }
       >
-        {supplier ? <Pencil /> : (<><Plus /> Add supplier</>)}
+        {supplier ? <Pencil /> : <Plus />}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -148,7 +152,7 @@ export function SupplierTable({ rows }: { rows: SupplierRow[] }) {
   return (
     <Table>
       <TableHeader>
-        <TableRow>
+        <TableRow className="text-xs">
           <TableHead>Name</TableHead>
           <TableHead>Category</TableHead>
           <TableHead>Contact</TableHead>
@@ -162,22 +166,22 @@ export function SupplierTable({ rows }: { rows: SupplierRow[] }) {
       <TableBody>
         {rows.map((s) => (
           <TableRow key={s.id} className={s.isActive ? "" : "opacity-50"}>
-            <TableCell className="font-medium">
+            <TableCell className="py-1.5 font-medium">
               <Link href={`/procurement/suppliers/${s.id}`} className="hover:underline">
                 {s.name}
               </Link>
               {!s.isActive && <Badge variant="outline" className="ml-2">inactive</Badge>}
               {s.notes && <p className="max-w-xs truncate text-xs font-normal text-muted-foreground">{s.notes}</p>}
             </TableCell>
-            <TableCell>
+            <TableCell className="py-1.5">
               <SupplierTypeBadge type={s.type} />
             </TableCell>
-            <TableCell className="text-sm">{[s.contactName, s.phone].filter(Boolean).join(" · ")}</TableCell>
-            <TableCell className="text-sm">{s.location}</TableCell>
-            <TableCell className="text-right tabular-nums">{s.lists}</TableCell>
-            <TableCell className="text-right tabular-nums">{s.products}</TableCell>
-            <TableCell className="text-right text-xs">{s.lastList ? ago(s.lastList) : "—"}</TableCell>
-            <TableCell>
+            <TableCell className="py-1.5 text-sm">{[s.contactName, s.phone].filter(Boolean).join(" · ")}</TableCell>
+            <TableCell className="py-1.5 text-sm">{s.location}</TableCell>
+            <TableCell className="py-1.5 text-right tabular-nums">{s.lists}</TableCell>
+            <TableCell className="py-1.5 text-right tabular-nums">{s.products}</TableCell>
+            <TableCell className="py-1.5 text-right text-xs">{s.lastList ? ago(s.lastList) : "—"}</TableCell>
+            <TableCell className="py-1.5">
               <SupplierDialog supplier={s} />
             </TableCell>
           </TableRow>

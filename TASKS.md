@@ -85,8 +85,19 @@ Design: one record per opportunity (a lead is a deal at stage "New enquiry"). Ev
 - [x] 6b.4 Sales Overview dashboard (Recharts): KPI tiles with change vs previous period, pipeline by stage, lead quality, won by owner, new vs won trend, sources / lost reasons, needs-attention tabs; 30d / 90d / 12m and Team / Mine [2026-10-21]
 - [x] 6b.5 Compact deal page (tabs: timeline, requirement, lead check, details), company page (tabs), companies and contacts lists, phone layout for the pipeline list [2026-10-21]
 - [x] 6b.6 Screens checked in a real browser (headless Edge) at laptop and phone width, light and dark [2026-10-21]
-- [ ] 6b.7 UI pass for the other apps: Procurement, Tasks, Knowledge, Mail, Admin, Account (apply UI-GUIDELINES.md)
+- [~] 6b.7 UI pass for the other apps: Procurement is done (6c); Tasks, Knowledge, Mail, Admin and Account still to do (apply UI-GUIDELINES.md)
 - [ ] 6b.8 Drag and drop on the board
+
+## Phase 6c: Procurement UI pass (same rules as Sales, see UI-GUIDELINES.md)
+Layout only: no change to parsing, matching, saving, URL filters, search/export APIs or access checks.
+- [ ] 6c.1 Shared AppShell (collapsed sidebar, tight padding) for Sales and Procurement
+- [x] 6c.2 Compare: one toolbar (search, sort, Filters popover with active chips, toggles, export), one table for all products with a sticky header and the offers under each product, scrolls inside its panel [2026-10-21]
+- [x] 6c.3 Overview: KPI tiles with change vs last week, tabs for lists waiting / recently saved / quiet suppliers, price moves tabs, charts (offers by supplier, offers added per week) [2026-10-21]
+- [x] 6c.4 Add price list: compact toolbar, how-it-works popover instead of three cards, icon toggle for Paste / Excel, form fills the screen [2026-10-21]
+- [x] 6c.5 Review page: one-row header, Save always visible, grid fills the screen [2026-10-21]
+- [x] 6c.6 Price lists, Alerts, Suppliers: one toolbar row each, dense tables [2026-10-21]
+- [x] 6c.7 Supplier page (tabs: offers, price lists, live feed) and Product page (tabs: current prices, history) [2026-10-21]
+- [x] 6c.8 Checked in a real browser at laptop and phone width, light and dark, and compared with the screens before [2026-10-21]
 
 ## Phase 7: Quotes
 - [ ] 7.1 `deal_items`, `quotes`, `quote_items` tables

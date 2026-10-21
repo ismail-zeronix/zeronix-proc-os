@@ -249,8 +249,8 @@ export function ReviewGrid({
   const noPrice = rows.filter((r) => r.include && r.price == null).length;
 
   return (
-    <Card className="min-w-0">
-      <CardContent className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+    <Card className="min-w-0 gap-0 py-3">
+      <CardContent className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 px-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{rows.length} rows</Badge>
           {flagged > 0 && (
@@ -272,7 +272,7 @@ export function ReviewGrid({
                 )
               }
             >
-              Skip rows without price
+              Skip no-price rows
             </Button>
           )}
           {!readOnly && (
@@ -289,19 +289,19 @@ export function ReviewGrid({
                 }
               }}
             >
-              <Link2 /> Accept all matches
+              <Link2 /> Accept matches
             </Button>
           )}
           {!readOnly && onReset && (
             <Button variant="ghost" size="sm" onClick={() => confirm("Discard your edits?") && onReset()}>
-              <Undo2 /> Reset edits
+              <Undo2 /> Reset
             </Button>
           )}
           <div className="flex-1" />
           {actions}
         </div>
         {/* the Table component wraps <table> in its own scroll box: give that box a height so the header can stick */}
-        <div className="rounded-md border [&_[data-slot=table-container]]:max-h-[68vh] [&_[data-slot=table-container]]:overflow-auto">
+        <div className="rounded-md border [&_[data-slot=table-container]]:max-h-[calc(100svh-12.5rem)] [&_[data-slot=table-container]]:overflow-auto">
           <Table className="min-w-[1600px] table-fixed">
             <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_var(--border)]">
               {table.getHeaderGroups().map((hg) => (

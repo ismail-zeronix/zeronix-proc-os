@@ -34,7 +34,7 @@ export function HBarPanel({ title, hint, views, color = "var(--series-1)" }: { t
   const [table, setTable] = useState(false);
   const view = views.find((v) => v.key === active) ?? views[0];
   const longest = Math.max(...view.data.map((d) => d.label.length), 4);
-  const labelWidth = Math.min(170, longest * 6.6 + 12);
+  const labelWidth = Math.min(220, longest * 7.4 + 12);
 
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card">

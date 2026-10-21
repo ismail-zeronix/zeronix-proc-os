@@ -110,12 +110,12 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
   const chosenSupplier = suppliers.find((x) => String(x.id) === s.supplierId);
 
   return (
-    <Card>
-      <CardContent className="grid gap-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="grid gap-2">
-            <Label htmlFor="supplier">Supplier</Label>
-            <NativeSelect id="supplier" value={s.supplierId} onChange={(e) => s.set({ supplierId: e.target.value })}>
+    <Card className="gap-0 py-3">
+      <CardContent className="grid gap-3 px-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid min-w-52 flex-1 gap-1">
+            <Label htmlFor="supplier" className="text-xs text-muted-foreground">Supplier</Label>
+            <NativeSelect className="w-full" id="supplier" value={s.supplierId} onChange={(e) => s.set({ supplierId: e.target.value })}>
               <NativeSelectOption value="">Choose supplier…</NativeSelectOption>
               {suppliers.map((x) => (
                 <NativeSelectOption key={x.id} value={String(x.id)}>
@@ -133,8 +133,8 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
           </div>
           {s.supplierId === NEW && (
             <>
-              <div className="grid gap-2">
-                <Label htmlFor="newSupplier">New supplier name</Label>
+              <div className="grid min-w-52 flex-1 gap-1">
+                <Label htmlFor="newSupplier" className="text-xs text-muted-foreground">New supplier name</Label>
                 <Input
                   id="newSupplier"
                   value={s.newSupplierName}
@@ -142,9 +142,9 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
                   placeholder="e.g. Aman Star IT DXB"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="newType">Category</Label>
-                <NativeSelect id="newType" value={newType} onChange={(e) => setNewType(e.target.value)}>
+              <div className="grid min-w-44 gap-1">
+                <Label htmlFor="newType" className="text-xs text-muted-foreground">Category</Label>
+                <NativeSelect className="w-full" id="newType" value={newType} onChange={(e) => setNewType(e.target.value)}>
                   <NativeSelectOption value="">Choose category…</NativeSelectOption>
                   {SUPPLIER_TYPES.map((t) => (
                     <NativeSelectOption key={t.key} value={t.key}>
@@ -155,8 +155,8 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
               </div>
             </>
           )}
-          <div className="grid gap-2">
-            <Label htmlFor="receivedAt">Received on</Label>
+          <div className="grid w-56 gap-1">
+            <Label htmlFor="receivedAt" className="text-xs text-muted-foreground">Received on</Label>
             <Input
               id="receivedAt"
               type="datetime-local"
@@ -165,9 +165,9 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
             />
           </div>
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1">
           <div className="flex flex-wrap items-end justify-between gap-2">
-            <Label htmlFor="raw">WhatsApp message</Label>
+            <Label htmlFor="raw" className="text-xs text-muted-foreground">WhatsApp message</Label>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 {blocks ? `${blocks} item block${blocks === 1 ? "" : "s"} detected` : ""}
@@ -210,7 +210,7 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
               value={s.rawText}
               onChange={(e) => s.set({ rawText: e.target.value })}
               placeholder={"Paste the full message here, emojis and all. You can also drop a WhatsApp chat export (.txt) on this box.\n\n*HP ProBook 440 G11*\nCore Ultra 5 125U | 16GB | 512GB | 14\" | DOS\n@3000/-"}
-              className={cn("min-h-90 font-mono text-sm", dragging && "border-primary ring-2 ring-primary/30")}
+              className={cn("min-h-[calc(100svh-19rem)] font-mono text-sm", dragging && "border-primary ring-2 ring-primary/30")}
             />
             {dragging && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-primary/5 text-sm font-medium text-primary">

@@ -13,6 +13,8 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 
 ## 2. Shell
 
+- **One shell for every app with a sidebar:** `components/app-shell.tsx` (used by Sales and Procurement). New apps use it too.
+
 - **Sidebar starts collapsed** to icons; the existing trigger expands it and the choice is remembered (`sidebar_state` cookie).
 - **No "All apps" row** in the sidebar: the header Apps switcher does that.
 - **First sidebar item is an Overview dashboard** for the app.
@@ -22,13 +24,19 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 - **Always show people as avatars** (`components/user-avatar.tsx`, initials avatars by DiceBear with a palette that keeps white text readable). More than one person is shown as an **overlapping stack**, main owner on top, `+N` after three. The tooltip lists everybody.
 - **Assigning is a popover on the avatars** (`assign-popover.tsx`) that saves on click. Forms use the avatar picker (`avatar-picker.tsx`). A person can only be assigned to something they are allowed to open.
 
-## 4. Charts and numbers
+## 4. Tables and filters
+
+- **One table, not many cards.** When a page lists groups of rows (Compare: products with their supplier offers) use one table with one sticky header and a heading row per group; the table scrolls inside its panel.
+- **Filters:** the search box and the two or three things used most stay on the toolbar; everything else lives in a **Filters** popover with a count badge, and active filters show as removable chips. Yes/no filters are small on/off pills.
+- **Detail pages:** a one-row header (back arrow, title, badges, icon buttons), a slim stat strip (`components/stat-strip.tsx`), then tabs for the lists and forms.
+
+## 5. Charts and numbers
 
 - **Recharts** for charts (`components/charts/`), following the `dataviz` skill: one axis, thin marks, hairline solid grid, legend for two or more series, selective labels, tooltip lists every series, `--series-N` colour tokens (light and dark), a chart / table switch on every chart.
 - **KPI tiles** (`components/kpi-tile.tsx`): label, number, change against the previous period (arrow, sign and percentage, never colour alone), optional trend line. One hero number per view.
 - Single-measure bars use one colour. Do not colour bars by value.
 
-## 5. Checks before shipping a screen
+## 6. Checks before shipping a screen
 
 1. Does it fit a laptop screen without scrolling the page?
 2. Is any text bigger or heavier than it needs to be? Is any card only there to hold a heading?

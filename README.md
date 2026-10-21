@@ -32,6 +32,8 @@ Each user connects their own mailbox under **user menu > My account** (the login
 
 ## Procurement
 
+The screens follow [UI-GUIDELINES.md](UI-GUIDELINES.md): **Compare** is one table (a sticky header, each product with its supplier offers under it) with a Filters popover and on/off pills; **Overview** has KPI tiles, tabs and two charts; **Add price list** is one compact form ("How it works" is a popover); supplier and product pages use tabs.
+
 Paste supplier WhatsApp price lists, let a **local AI model** turn them into structured rows, review, and compare prices across suppliers.
 
 - **Overview** (`/procurement`): what needs you today (lists to review, failed, being read), suppliers that went quiet, and this week's price moves.

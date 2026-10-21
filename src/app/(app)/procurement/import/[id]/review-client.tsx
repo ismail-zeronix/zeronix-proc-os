@@ -1,12 +1,11 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,25 +60,23 @@ export function ReviewClient({ id }: { id: number }) {
   if (error || !data) return <p className="text-sm text-destructive">{(error as Error)?.message ?? "Not found"}</p>;
 
   const header = (
-    <PageHeader
-      back={{ href: "/procurement/price-lists", label: "Price lists" }}
-      title={
-        <span className="flex flex-wrap items-center gap-3">
-          <Link href={`/procurement/suppliers/${data.supplierId}`} className="hover:underline">
-            {data.supplierName}
-          </Link>
-          <StatusBadge status={data.status} />
-        </span>
-      }
-      description={
-        <>
-          Received {new Date(data.receivedAt).toLocaleString()} · price list #{data.id}
-          {data.source === "excel" ? ` · Excel: ${data.sourceName}` : data.source === "feed" ? " · Live feed" : data.model ? ` · read by ${data.model}` : ""}
-          {data.source === "paste" && data.parseMs ? ` in ${Math.round(data.parseMs / 1000)}s` : ""}
-          {data.reusedBlocks > 0 ? ` · ${data.reusedBlocks} item${data.reusedBlocks === 1 ? "" : "s"} already known, AI skipped` : ""}
-        </>
-      }
-    />
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/procurement/price-lists" />} aria-label="Back to price lists" title="Back to price lists">
+        <ArrowLeft />
+      </Button>
+      <h1 className="text-lg font-semibold tracking-tight">
+        <Link href={`/procurement/suppliers/${data.supplierId}`} className="hover:underline">
+          {data.supplierName}
+        </Link>
+      </h1>
+      <StatusBadge status={data.status} />
+      <span className="min-w-0 truncate text-xs text-muted-foreground">
+        Received {new Date(data.receivedAt).toLocaleString()} · list #{data.id}
+        {data.source === "excel" ? ` · Excel: ${data.sourceName}` : data.source === "feed" ? " · Live feed" : data.model ? ` · read by ${data.model}` : ""}
+        {data.source === "paste" && data.parseMs ? ` in ${Math.round(data.parseMs / 1000)}s` : ""}
+        {data.reusedBlocks > 0 ? ` · ${data.reusedBlocks} item${data.reusedBlocks === 1 ? "" : "s"} already known, AI skipped` : ""}
+      </span>
+    </div>
   );
 
   const reparse = () =>
@@ -104,7 +101,7 @@ export function ReviewClient({ id }: { id: number }) {
   if (data.status === "queued" || data.status === "parsing") {
     const pct = data.progressTotal ? Math.round((data.progressDone / data.progressTotal) * 100) : 0;
     return (
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         {header}
         <Card>
           <CardHeader>
@@ -136,7 +133,7 @@ export function ReviewClient({ id }: { id: number }) {
 
   if (data.status === "failed") {
     return (
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         {header}
         <Card>
           <CardHeader>
@@ -161,28 +158,20 @@ export function ReviewClient({ id }: { id: number }) {
   if (data.status === "saved") {
     const saved = data.drafts.filter((d) => d.include);
     return (
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         {header}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-600" /> Saved {saved.length} offers
-            </CardTitle>
-            <CardDescription>These prices are now searchable on the Compare page.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button nativeButton={false} render={<Link href="/procurement/compare" />}>Compare prices</Button>
-            <Button variant="outline" nativeButton={false} render={<Link href="/procurement/alerts" />}>
-              See price changes
-            </Button>
-            <Button variant="outline" nativeButton={false} render={<Link href="/procurement/price-lists?status=review" />}>
-              Next list to review
-            </Button>
-            <Button variant="outline" nativeButton={false} render={<Link href="/procurement/import" />}>
-              Paste another list
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <CheckCircle2 className="size-4 text-emerald-600" /> Saved {saved.length} offers
+          </span>
+          <span className="text-xs text-muted-foreground">They are on Compare now.</span>
+          <span className="ml-auto flex flex-wrap gap-1.5">
+            <Button size="sm" nativeButton={false} render={<Link href="/procurement/compare" />}>Compare prices</Button>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/alerts" />}>Price changes</Button>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/price-lists?status=review" />}>Next to review</Button>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/import" />}>Paste another</Button>
+          </span>
+        </div>
         <ReviewGrid id={id} rows={data.drafts} readOnly />
       </div>
     );
@@ -206,7 +195,7 @@ export function ReviewClient({ id }: { id: number }) {
 
   const rows = drafts ?? data.drafts;
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       {header}
       <ReviewGrid
         id={id}

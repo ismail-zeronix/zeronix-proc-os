@@ -142,7 +142,7 @@ export function ExcelImport({ suppliers, fxUsd }: { suppliers: SupplierOption[];
               void upload(e.dataTransfer.files[0]);
             }}
             className={cn(
-              "grid justify-items-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 text-center transition-colors",
+              "grid justify-items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
               dragging ? "border-primary bg-primary/5" : "border-border",
             )}
           >
@@ -179,7 +179,7 @@ export function ExcelImport({ suppliers, fxUsd }: { suppliers: SupplierOption[];
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3">
       <Card>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2 text-base">

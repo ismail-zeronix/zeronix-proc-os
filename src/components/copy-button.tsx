@@ -27,17 +27,22 @@ export function CopyButton({
   label = "Copy",
   size = "sm",
   variant = "outline",
+  iconOnly = false,
 }: {
   text: string | (() => string);
   label?: string;
   size?: "xs" | "sm" | "default";
   variant?: "outline" | "ghost" | "secondary";
+  /** Just the icon (the label becomes its tooltip and screen-reader name). */
+  iconOnly?: boolean;
 }) {
   const [done, setDone] = useState(false);
   return (
     <Button
       variant={variant}
-      size={size}
+      size={iconOnly ? "icon-sm" : size}
+      title={label}
+      aria-label={label}
       onClick={async () => {
         try {
           await copyText(typeof text === "function" ? text() : text);
@@ -49,7 +54,7 @@ export function CopyButton({
         }
       }}
     >
-      {done ? <Check /> : <Copy />} {label}
+      {done ? <Check /> : <Copy />} {!iconOnly && label}
     </Button>
   );
 }
