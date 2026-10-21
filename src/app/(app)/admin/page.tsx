@@ -4,7 +4,7 @@ import { requireApp } from "@/lib/auth/session";
 import { getLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { getBrand } from "@/lib/brand";
-import { AdminSettings, AdminUsers } from "./admin-ui";
+import { AdminSettings, AdminUsers, QuoteSettings } from "./admin-ui";
 import { BrandCard } from "./brand-ui";
 import { AiControl, FeedSchedules } from "./automation-ui";
 
@@ -92,6 +92,7 @@ export default async function AdminPage() {
       />
       <FeedSchedules feeds={feeds.map((f) => ({ ...f, lastCheckedAt: f.lastCheckedAt?.toISOString() ?? null }))} />
       <AdminSettings settings={settings} models={models} health={health} />
+      <QuoteSettings settings={settings} />
       <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} />
       <AdminUsers users={users} meId={me.id} />
     </div>

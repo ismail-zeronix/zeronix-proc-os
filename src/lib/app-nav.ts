@@ -1,4 +1,4 @@
-import { Bell, Building2, ClipboardPaste, History, Kanban, LayoutDashboard, PlusCircle, Search, Truck, Users, type LucideIcon } from "lucide-react";
+import { Bell, Building2, ClipboardPaste, FileText, History, Kanban, LayoutDashboard, PlusCircle, Search, Truck, Users, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -24,6 +24,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       items: [
         { href: "/sales", label: "Overview", icon: LayoutDashboard, exact: true },
         { href: "/sales/pipeline", label: "Pipeline", icon: Kanban },
+        { href: "/sales/quotes", label: "Quotes", icon: FileText },
         { href: "/sales/new", label: "New enquiry", icon: PlusCircle },
       ],
     },

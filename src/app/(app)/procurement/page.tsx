@@ -74,8 +74,8 @@ export default async function ProcurementOverviewPage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 lg:grid-cols-3">
-            <section className="rounded-xl border bg-card p-4 lg:col-span-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
+            <section className="min-w-0 rounded-xl border bg-card p-4 lg:col-span-2">
               <Tabs defaultValue={waitingCount ? "waiting" : quiet.length ? "quiet" : "recent"}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="flex items-center gap-1.5 text-sm font-medium">
@@ -145,8 +145,8 @@ export default async function ProcurementOverviewPage() {
             />
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            <section className="rounded-xl border bg-card p-4 lg:col-span-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
+            <section className="min-w-0 rounded-xl border bg-card p-4 lg:col-span-2">
               <Tabs defaultValue={drops.length || !rises.length ? "drops" : "rises"}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="flex items-center gap-1.5 text-sm font-medium">

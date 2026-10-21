@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { eq, ilike, or } from "drizzle-orm";
+import { desc, eq, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { hasApp } from "@/lib/auth/session";
 import { searchCompanies } from "@/lib/sales-data";
@@ -7,17 +7,17 @@ import { searchCompanies } from "@/lib/sales-data";
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /**
- * Sales search for the company picker (`kind=company`) and for Ctrl K (`kind=all`: companies, contacts and deals).
+ * Sales search for the company picker (`kind=company`) and for Ctrl K (`kind=all`: companies, contacts, deals and quotes).
  */
 export async function GET(req: NextRequest) {
   if (!(await hasApp("sales"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const kind = req.nextUrl.searchParams.get("kind") ?? "company";
-  if (q.length < 2) return Response.json({ companies: [], contacts: [], deals: [] });
+  if (q.length < 2) return Response.json({ companies: [], contacts: [], deals: [], quotes: [] });
 
-  if (kind === "company") return Response.json({ companies: await searchCompanies(q, 8), contacts: [], deals: [] });
+  if (kind === "company") return Response.json({ companies: await searchCompanies(q, 8), contacts: [], deals: [], quotes: [] });
 
-  const [companies, contacts, deals] = await Promise.all([
+  const [companies, contacts, deals, quotes] = await Promise.all([
     searchCompanies(q, 5),
     db
       .select({ id: schema.contacts.id, name: schema.contacts.name, email: schema.contacts.email, companyId: schema.contacts.companyId, companyName: schema.companies.name })
@@ -31,6 +31,14 @@ export async function GET(req: NextRequest) {
       .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
       .where(or(ilike(schema.deals.title, like(q)), ilike(schema.companies.name, like(q))))
       .limit(5),
+    db
+      .select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, companyName: schema.companies.name })
+      .from(schema.quotes)
+      .innerJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
+      .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
+      .where(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))))
+      .orderBy(desc(schema.quotes.createdAt))
+      .limit(5),
   ]);
-  return Response.json({ companies, contacts, deals });
+  return Response.json({ companies, contacts, deals, quotes });
 }

@@ -31,7 +31,9 @@ import { dayLabel } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { aed, daysSince, stageLabel } from "@/lib/sales";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
+import { dealItemsOf, quoteDefaults, quotesOfDeal } from "@/lib/quotes-data";
 import { type TaskRow } from "@/lib/tasks";
+import { DealItems } from "./deal-items";
 import { ActivityForm, ChecklistPanel, DeleteDealButton, DetailsPanel, RequirementPanel } from "./deal-panels";
 
 const ICON: Record<string, typeof Phone> = {
@@ -57,13 +59,16 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
   const deal = await getDeal(id);
   if (!deal) notFound();
 
-  const [activities, tasks, contacts, users, company, contact] = await Promise.all([
+  const [activities, tasks, contacts, users, company, contact, items, quotes, defaults] = await Promise.all([
     dealActivities(id),
     dealTasks(id),
     contactsOfCompany(deal.companyId),
     salesUsers(),
     db.select().from(schema.companies).where(eq(schema.companies.id, deal.companyId)).then((r) => r[0]),
     deal.contactId ? db.select().from(schema.contacts).where(eq(schema.contacts.id, deal.contactId)).then((r) => r[0]) : Promise.resolve(null),
+    dealItemsOf(id),
+    quotesOfDeal(id),
+    quoteDefaults(),
   ]);
   const openTasks = tasks.filter((t) => t.status === "open") as TaskRow[];
   const canMail = apps.includes("mail");
@@ -72,7 +77,7 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/sales/pipeline" />} aria-label="Back to the pipeline" title="Back to the pipeline">
           <ArrowLeft />
@@ -116,12 +121,13 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
         {deal.stage === "lost" && deal.lostReason && <span className="font-medium text-destructive">Lost: {deal.lostReason}</span>}
       </div>
 
-      <div className="grid items-start gap-3 lg:grid-cols-[1fr_20rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="rounded-xl border bg-card p-3">
           <Tabs defaultValue="timeline">
             <TabsList>
               <TabsTrigger value="timeline">Timeline ({activities.length})</TabsTrigger>
               <TabsTrigger value="requirement">Requirement</TabsTrigger>
+              <TabsTrigger value="quote">Quote ({items.length})</TabsTrigger>
               <TabsTrigger value="check">Lead check</TabsTrigger>
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
@@ -150,6 +156,16 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
             </TabsContent>
             <TabsContent value="requirement" className="pt-1">
               <RequirementPanel dealId={deal.id} requirement={deal.requirement} />
+            </TabsContent>
+            <TabsContent value="quote" className="pt-1">
+              <DealItems
+                dealId={deal.id}
+                items={items}
+                quotes={quotes}
+                defaults={{ marginPct: defaults.marginPct, vatPct: defaults.vatPct }}
+                canFindPrice={apps.includes("procurement")}
+                searchHint=""
+              />
             </TabsContent>
             <TabsContent value="check" className="pt-1">
               <ChecklistPanel dealId={deal.id} checks={deal.checks} />

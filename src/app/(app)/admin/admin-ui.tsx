@@ -13,7 +13,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { allowedApps, GRANTABLE_APPS } from "@/lib/apps";
-import { createUser, saveSettings, updateUser } from "./actions";
+import { Textarea } from "@/components/ui/textarea";
+import { createUser, saveQuoteSettings, saveSettings, updateUser } from "./actions";
 
 function useAction() {
   const [pending, start] = useTransition();
@@ -93,6 +94,53 @@ export function AdminSettings({
         >
           Save
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function QuoteSettings({
+  settings,
+}: {
+  settings: { quote_margin_pct: string; quote_valid_days: string; quote_vat_pct: string; quote_terms: string; quote_trn: string };
+}) {
+  const [f, setF] = useState(settings);
+  const [pending, run] = useAction();
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Quotes</CardTitle>
+        <CardDescription>What a new quote starts with. Quotes already made keep the values they were made with.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-1.5">
+          <Label htmlFor="q-margin">Margin on cost (%)</Label>
+          <Input id="q-margin" type="number" min={0} max={300} step={0.5} value={f.quote_margin_pct} onChange={set("quote_margin_pct")} />
+          <p className="text-xs text-muted-foreground">Added to the supplier price when a salesperson picks it.</p>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="q-days">Valid for (days)</Label>
+          <Input id="q-days" type="number" min={1} max={180} value={f.quote_valid_days} onChange={set("quote_valid_days")} />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="q-vat">VAT (%)</Label>
+          <Input id="q-vat" type="number" min={0} max={30} step={0.5} value={f.quote_vat_pct} onChange={set("quote_vat_pct")} />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="q-trn">Our tax number (TRN)</Label>
+          <Input id="q-trn" value={f.quote_trn} onChange={set("quote_trn")} placeholder="Shown on the quote" />
+        </div>
+        <div className="grid gap-1.5 sm:col-span-2 lg:col-span-4">
+          <Label htmlFor="q-terms">Terms printed on every quote</Label>
+          <Textarea id="q-terms" rows={4} value={f.quote_terms} onChange={set("quote_terms")} />
+          <p className="text-xs text-muted-foreground">One line each. The salesperson can change them on a single quote.</p>
+        </div>
+        <div className="sm:col-span-2 lg:col-span-4">
+          <Button disabled={pending} onClick={() => run(() => saveQuoteSettings(f), "Quote settings saved")}>
+            Save
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { DEFAULT_MARGIN_PCT, DEFAULT_TERMS, DEFAULT_VALID_DAYS, DEFAULT_VAT_PCT } from "@/lib/quotation";
 
 export const SETTING_DEFAULTS = {
   llm_model: process.env.LLM_MODEL ?? "qwen3.5:4b",
@@ -14,6 +15,12 @@ export const SETTING_DEFAULTS = {
   ai_last_run_at: "",
   /** ISO time an admin pressed Stop; a list being read when this is newer than its start is put back in the queue. */
   ai_stop_at: "",
+  /** Quotes: margin added on top of cost when a price is picked, how long a quote stays valid, VAT, terms, and our tax number. */
+  quote_margin_pct: String(DEFAULT_MARGIN_PCT),
+  quote_valid_days: String(DEFAULT_VALID_DAYS),
+  quote_vat_pct: String(DEFAULT_VAT_PCT),
+  quote_terms: DEFAULT_TERMS,
+  quote_trn: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

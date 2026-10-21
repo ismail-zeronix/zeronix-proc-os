@@ -108,6 +108,27 @@ export async function saveSettings(input: z.input<typeof settingsSchema>) {
   revalidatePath("/admin");
 }
 
+const quoteSettingsSchema = z.object({
+  quote_margin_pct: z.coerce.number().min(0).max(300),
+  quote_valid_days: z.coerce.number().int().min(1).max(180),
+  quote_vat_pct: z.coerce.number().min(0).max(30),
+  quote_terms: z.string().trim().max(2000),
+  quote_trn: z.string().trim().max(30),
+});
+
+/** Defaults a new quote starts with. Quotes already made keep their own values. */
+export async function saveQuoteSettings(input: z.input<typeof quoteSettingsSchema>) {
+  await requireAdmin();
+  const d = quoteSettingsSchema.parse(input);
+  await setSetting("quote_margin_pct", String(d.quote_margin_pct));
+  await setSetting("quote_valid_days", String(d.quote_valid_days));
+  await setSetting("quote_vat_pct", String(d.quote_vat_pct));
+  await setSetting("quote_terms", d.quote_terms);
+  await setSetting("quote_trn", d.quote_trn);
+  revalidatePath("/admin");
+  revalidatePath("/sales", "layout");
+}
+
 // ---------- AI reading: start / stop / interval ----------
 
 /** Starts AI reading: waiting lists are read now, then again on every interval until Stop. */

@@ -85,7 +85,7 @@ Design: one record per opportunity (a lead is a deal at stage "New enquiry"). Ev
 - [x] 6b.4 Sales Overview dashboard (Recharts): KPI tiles with change vs previous period, pipeline by stage, lead quality, won by owner, new vs won trend, sources / lost reasons, needs-attention tabs; 30d / 90d / 12m and Team / Mine [2026-10-21]
 - [x] 6b.5 Compact deal page (tabs: timeline, requirement, lead check, details), company page (tabs), companies and contacts lists, phone layout for the pipeline list [2026-10-21]
 - [x] 6b.6 Screens checked in a real browser (headless Edge) at laptop and phone width, light and dark [2026-10-21]
-- [~] 6b.7 UI pass for the other apps: Procurement is done (6c); Tasks, Knowledge, Mail, Admin and Account still to do (apply UI-GUIDELINES.md)
+- [~] 6b.7 UI pass for the other apps: Procurement is done (6c); Tasks, Knowledge, Mail, Admin and Account still to do (apply UI-GUIDELINES.md). **Owner asked for a reminder after Phase 7.**
 - [ ] 6b.8 Drag and drop on the board
 
 ## Phase 6c: Procurement UI pass (same rules as Sales, see UI-GUIDELINES.md)
@@ -100,12 +100,12 @@ Layout only: no change to parsing, matching, saving, URL filters, search/export 
 - [x] 6c.8 Checked in a real browser at laptop and phone width, light and dark, and compared with the screens before [2026-10-21]
 
 ## Phase 7: Quotes
-- [ ] 7.1 `deal_items`, `quotes`, `quote_items` tables
-- [ ] 7.2 Requirement lines on a deal
-- [ ] 7.3 Find price (compare in side sheet) + Use this offer + margin %
-- [ ] 7.4 Create quote: numbering, VAT, validity, terms
-- [ ] 7.5 Printable quote page + Copy as WhatsApp text
-- [ ] 7.6 Quote status + Won/Lost closing flow
+- [x] 7.1 tables `deal_items`, `quotes`, `quote_items` (migration 0011) [2026-10-21]
+- [x] 7.2 Quote tab on a deal: lines with cost, margin and price, saved as you leave a box, totals with VAT and profit [2026-10-21]
+- [x] 7.3 Find price dialog (searches Procurement prices); Add uses the offer's cost read on the server plus the default margin [2026-10-21]
+- [x] 7.4 Make quote: numbered ZQ-year-0001 (safe when two people save at once), VAT, valid until, terms, lines copied [2026-10-21]
+- [x] 7.5 Quote page, clean print / PDF page, Copy as WhatsApp text, Email link [2026-10-21]
+- [x] 7.6 Quote status (Sent moves the deal to Quote sent, Accepted marks it Won, Rejected leaves it), Quotes list, Ctrl K finds quotes, Admin defaults [2026-10-21]
 
 ## Later
 - [ ] L.1 Accounts app (invoices, receivables)

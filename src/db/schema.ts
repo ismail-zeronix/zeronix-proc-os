@@ -407,3 +407,75 @@ export const dealAssignees = pgTable(
   },
   (t) => [primaryKey({ columns: [t.dealId, t.userId] }), index("deal_assignees_user_idx").on(t.userId)],
 );
+
+// ---------- Quotes ----------
+
+/** What the customer wants, line by line, with our cost and selling price (all in AED). The base for a quote. */
+export const dealItems = pgTable(
+  "deal_items",
+  {
+    id: serial("id").primaryKey(),
+    dealId: integer("deal_id")
+      .notNull()
+      .references(() => deals.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    description: text("description").notNull(),
+    qty: integer("qty").notNull().default(1),
+    productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
+    offerId: integer("offer_id").references(() => offers.id, { onDelete: "set null" }),
+    /** Who we would buy it from, copied when the price was picked (stays even if the price list is deleted). */
+    supplierName: text("supplier_name").notNull().default(""),
+    /** Our buying price per unit in AED. Empty when typed by hand without a cost. */
+    costAed: numeric("cost_aed", { precision: 14, scale: 2, mode: "number" }),
+    marginPct: numeric("margin_pct", { precision: 6, scale: 2, mode: "number" }),
+    /** Selling price per unit in AED, before VAT. */
+    unitPriceAed: numeric("unit_price_aed", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("deal_items_deal_idx").on(t.dealId, t.position)],
+);
+
+/** A quotation sent to a customer. Its lines are a copy, so later price changes never alter a sent quote. */
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: serial("id").primaryKey(),
+    /** ZQ-2026-0001: the year and a running number that restarts every year. */
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    number: text("number").notNull().unique(),
+    dealId: integer("deal_id")
+      .notNull()
+      .references(() => deals.id, { onDelete: "cascade" }),
+    /** draft, sent, accepted, rejected, expired */
+    status: text("status").notNull().default("draft"),
+    validUntil: date("valid_until").notNull(),
+    vatPct: numeric("vat_pct", { precision: 5, scale: 2, mode: "number" }).notNull().default(5),
+    terms: text("terms").notNull().default(""),
+    subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    /** Our cost of the lines that had one, to show the profit inside the portal (never printed). */
+    costTotal: numeric("cost_total", { precision: 14, scale: 2, mode: "number" }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("quotes_year_seq_idx").on(t.year, t.seq), index("quotes_deal_idx").on(t.dealId), index("quotes_status_idx").on(t.status)],
+);
+
+export const quoteItems = pgTable(
+  "quote_items",
+  {
+    id: serial("id").primaryKey(),
+    quoteId: integer("quote_id")
+      .notNull()
+      .references(() => quotes.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    description: text("description").notNull(),
+    qty: integer("qty").notNull().default(1),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+  },
+  (t) => [index("quote_items_quote_idx").on(t.quoteId, t.position)],
+);
