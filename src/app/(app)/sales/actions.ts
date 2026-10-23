@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertCompany, assertContact, assertDeal, canSeeCompany, currentViewer } from "@/lib/auth/visibility";
+import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
@@ -356,6 +357,8 @@ export async function setAssignees(dealId: number, userIds: number[]) {
       userId: me.id,
     });
   });
+  // the deal's chat thread follows its team
+  await syncDealThread(dealId);
   refresh();
 }
 
@@ -460,6 +463,7 @@ export async function deleteDeal(dealId: number) {
   const [project] = await db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.dealId, dealId));
   if (project) await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "project"), eq(schema.tasks.relatedId, project.id)));
   await db.delete(schema.deals).where(eq(schema.deals.id, dealId));
+  await deleteDealThread(dealId);
   refresh();
 }
 

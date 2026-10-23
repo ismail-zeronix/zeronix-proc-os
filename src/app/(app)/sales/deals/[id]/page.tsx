@@ -28,6 +28,7 @@ import { TaskDialog, TaskItem } from "@/components/task-ui";
 import { InvoiceStateBadge, OrderStatusBadge } from "@/components/order-bits";
 import { QuoteStatusBadge } from "@/components/quote-bits";
 import { Button } from "@/components/ui/button";
+import { RecordChat } from "@/components/chat/record-chat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
@@ -59,9 +60,12 @@ export async function generateMetadata({ params }: PageProps<"/sales/deals/[id]"
   return { title: `${deal?.title ?? "Deal"} · Zeronix Sales` };
 }
 
-export default async function DealPage({ params }: PageProps<"/sales/deals/[id]">) {
+const TABS = ["timeline", "chat", "requirement", "quote", "check", "details"];
+
+export default async function DealPage({ params, searchParams }: PageProps<"/sales/deals/[id]">) {
   const access = await requireApp("sales");
   const { user, apps, seesAll } = access;
+  const tab = (await searchParams).tab;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const deal = await getDeal(id, viewerOf(access));
@@ -149,9 +153,10 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="rounded-xl border bg-card p-3">
-          <Tabs defaultValue="timeline">
+          <Tabs defaultValue={typeof tab === "string" && TABS.includes(tab) ? tab : "timeline"}>
             <TabsList>
               <TabsTrigger value="timeline">Timeline ({activities.length})</TabsTrigger>
+              <TabsTrigger value="chat">Chat</TabsTrigger>
               <TabsTrigger value="requirement">Requirement</TabsTrigger>
               <TabsTrigger value="quote">{project ? "BOQ & quote" : `Quote (${items.length})`}</TabsTrigger>
               <TabsTrigger value="check">Lead check</TabsTrigger>
@@ -179,6 +184,9 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
                 })}
                 {!activities.length && <li className="text-sm text-muted-foreground">Nothing logged yet.</li>}
               </ol>
+            </TabsContent>
+            <TabsContent value="chat" className="pt-1">
+              <RecordChat dealId={id} me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />
             </TabsContent>
             <TabsContent value="requirement" className="pt-1">
               <RequirementPanel dealId={deal.id} requirement={deal.requirement} />

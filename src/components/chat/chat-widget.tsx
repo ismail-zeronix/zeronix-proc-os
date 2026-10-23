@@ -1,18 +1,19 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Minus, MessageCircle, SquarePen, X } from "lucide-react";
+import { Handshake, Info, MessageCircle, SquareArrowOutUpRight, SquarePen, X } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
-import { toast } from "sonner";
-import { startDm } from "@/app/(app)/chat/actions";
+import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { UserAvatar } from "@/components/user-avatar";
 import type { ChannelSummary } from "@/lib/chat/types";
 import { dubaiToday, TZ } from "@/lib/dates";
-import { chatKeys, useChannels, useChatStream, useTeammates } from "./chat-data";
-import { useChatStore } from "./chat-store";
+import { useChannels, useChatStream, useTeammates } from "./chat-data";
+import { useChatStore, type ChatTab } from "./chat-store";
+import { ChannelInfo } from "./channel-info";
 import { Conversation } from "./conversation";
+import type { Me } from "./message-row";
+import { NewChat } from "./new-chat";
+import { ChannelAvatar, PanelHeader } from "./panel-bits";
 
 const noop = () => () => {};
 
@@ -20,7 +21,7 @@ const noop = () => () => {};
  * The team chat on every signed-in page: a round button bottom-right with the unread count, which opens a panel
  * upwards (full screen on a phone). Alt+C opens and closes it, Esc closes it.
  */
-export function ChatWidget({ me }: { me: { id: number; name: string } }) {
+export function ChatWidget({ me }: { me: Me }) {
   const pathname = usePathname();
   const open = useChatStore((s) => s.open);
   const toggle = useChatStore((s) => s.toggle);
@@ -53,7 +54,7 @@ export function ChatWidget({ me }: { me: { id: number; name: string } }) {
           role="dialog"
           aria-label="Team chat"
           onKeyDown={(e) => {
-            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
           }}
           className="fixed right-4 bottom-20 z-40 flex h-140 max-h-[calc(100dvh-6rem)] w-95 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-4 max-sm:inset-0 max-sm:h-auto max-sm:max-h-none max-sm:w-auto max-sm:rounded-none"
         >
@@ -78,125 +79,148 @@ export function ChatWidget({ me }: { me: { id: number; name: string } }) {
   );
 }
 
-function Panel({
-  me,
-  channels,
-  loading,
-  fetching,
-  error,
-}: {
-  me: { id: number; name: string };
-  channels: ChannelSummary[];
-  loading: boolean;
-  fetching: boolean;
-  error: Error | null;
-}) {
+function Panel({ me, channels, loading, fetching, error }: { me: Me; channels: ChannelSummary[]; loading: boolean; fetching: boolean; error: Error | null }) {
   const view = useChatStore((s) => s.view);
   const show = useChatStore((s) => s.show);
-  const setOpen = useChatStore((s) => s.setOpen);
   const teammates = useTeammates();
   const online = new Set(teammates.data?.online ?? []);
-  const channel = view.kind === "channel" ? channels.find((c) => c.id === view.id) : undefined;
-
+  const id = view.kind === "channel" || view.kind === "info" ? view.id : null;
+  const channel = id != null ? channels.find((c) => c.id === id) : undefined;
   const back = () => show({ kind: "list" });
-  const close = (
-    <Button variant="ghost" size="icon-sm" onClick={() => setOpen(false)} aria-label="Minimise chat" title="Minimise (Esc)">
-      <Minus />
-    </Button>
-  );
 
-  // the list is still loading or refreshing (a DM just started shows up a moment later), or the conversation is gone
-  if (view.kind === "channel" && !channel) {
+  if (view.kind === "new") return <NewChat online={online} teammates={teammates.data?.users ?? []} loadingPeople={teammates.isPending} />;
+
+  // the list is still loading or refreshing (a chat just started shows up a moment later), or the conversation is gone
+  if (id != null && !channel) {
     return (
       <>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-          <Button variant="ghost" size="icon-sm" onClick={back} aria-label="Back to conversations">
-            <ArrowLeft />
-          </Button>
-          <p className="flex-1 text-sm font-medium">Chat</p>
-          {close}
-        </header>
+        <PanelHeader title="Chat" onBack={back} />
         <p className="py-8 text-center text-xs text-muted-foreground">{loading || fetching ? "Loading…" : "This conversation is not available any more."}</p>
       </>
     );
   }
 
+  if (view.kind === "info" && channel) return <ChannelInfo channel={channel} me={me} online={online} teammates={teammates.data?.users ?? []} />;
+
   if (view.kind === "channel" && channel) {
-    const peerOnline = channel.peer ? online.has(channel.peer.id) : false;
+    const peerOnline = !!channel.peer && online.has(channel.peer.id);
     return (
       <>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-          <Button variant="ghost" size="icon-sm" onClick={back} aria-label="Back to conversations">
-            <ArrowLeft />
-          </Button>
-          <PresenceAvatar name={channel.name} online={peerOnline} size={28} />
+        <PanelHeader onBack={back}>
+          <ChannelAvatar channel={channel} online={online} size={28} />
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-sm font-medium">{channel.name}</p>
-            {channel.kind === "dm" && <p className="text-[11px] text-muted-foreground">{peerOnline ? "Online" : "Offline"}</p>}
+            <p className="truncate text-[11px] text-muted-foreground">
+              {channel.kind === "dm"
+                ? peerOnline
+                  ? "Online"
+                  : "Offline"
+                : channel.kind === "record"
+                  ? channel.record?.subtitle || "Deal thread"
+                  : channel.topic || `${channel.members.length} ${channel.members.length === 1 ? "person" : "people"}`}
+            </p>
           </div>
-          {close}
-        </header>
-        <Conversation key={channel.id} channel={channel} me={me.id} />
+          {channel.kind === "record" && channel.record && (
+            <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={channel.record.href} />} aria-label="Open the deal" title="Open the deal">
+              <SquareArrowOutUpRight />
+            </Button>
+          )}
+          {channel.kind === "group" && (
+            <Button variant="ghost" size="icon-sm" onClick={() => show({ kind: "info", id: channel.id })} aria-label="Channel details" title="Channel details">
+              <Info />
+            </Button>
+          )}
+        </PanelHeader>
+        <Conversation key={channel.id} channel={channel} me={me} />
       </>
     );
   }
 
-  if (view.kind === "new") {
-    return (
-      <>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-          <Button variant="ghost" size="icon-sm" onClick={back} aria-label="Back to conversations">
-            <ArrowLeft />
-          </Button>
-          <p className="flex-1 text-sm font-medium">New message</p>
-          {close}
-        </header>
-        <PeoplePicker online={online} teammates={teammates.data?.users ?? []} loading={teammates.isPending} />
-      </>
-    );
-  }
+  return <ChannelList me={me} channels={channels} loading={loading} error={error} online={online} />;
+}
+
+function ChannelList({ me, channels, loading, error, online }: { me: Me; channels: ChannelSummary[]; loading: boolean; error: Error | null; online: Set<number> }) {
+  const show = useChatStore((s) => s.show);
+  const tab = useChatStore((s) => s.tab);
+  const setTab = useChatStore((s) => s.setTab);
+  const inTab = (t: ChatTab) => channels.filter((c) => (t === "threads" ? c.kind === "record" : c.kind === "dm" || c.kind === "group"));
+  const unreadIn = (t: ChatTab) => inTab(t).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0);
+  const shown = inTab(tab);
 
   return (
     <>
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-        <p className="flex-1 text-sm font-semibold">Chat</p>
-        <Button variant="ghost" size="icon-sm" onClick={() => show({ kind: "new" })} aria-label="New message" title="New message">
+      <PanelHeader>
+        <div className="flex flex-1 items-center gap-0.5 pl-1" role="tablist" aria-label="Conversations">
+          {(
+            [
+              { key: "chats", label: "Chats", icon: MessageCircle },
+              { key: "threads", label: "Deal threads", icon: Handshake },
+            ] as const
+          ).map((t) => {
+            const n = unreadIn(t.key);
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex h-8 items-center gap-1.5 rounded-md px-2 text-sm ${tab === t.key ? "bg-muted font-semibold" : "text-muted-foreground hover:bg-muted/60"}`}
+              >
+                <t.icon className="size-4" />
+                {t.label}
+                {n > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">{n}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={() => show({ kind: "new" })} aria-label="New message or channel" title="New message or channel">
           <SquarePen />
         </Button>
-        {close}
-      </header>
+      </PanelHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading && <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>}
         {error && <p className="py-8 text-center text-xs text-destructive">{error.message}</p>}
-        {!loading && !error && !channels.length && (
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
-            <MessageCircle className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No conversations yet.</p>
-            <Button size="sm" onClick={() => show({ kind: "new" })}>
-              Message a teammate
-            </Button>
+        {!loading && !error && !shown.length && (
+          <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+            {tab === "threads" ? <Handshake className="size-8 text-muted-foreground" /> : <MessageCircle className="size-8 text-muted-foreground" />}
+            <p className="text-sm text-muted-foreground">
+              {tab === "threads" ? "No deal threads yet. Open a deal and use its Chat tab to talk with the deal's team." : "No conversations yet."}
+            </p>
+            {tab === "chats" && (
+              <Button size="sm" onClick={() => show({ kind: "new" })}>
+                Message a teammate
+              </Button>
+            )}
           </div>
         )}
         <ul>
-          {channels.map((c) => (
+          {shown.map((c) => (
             <li key={c.id}>
               <button
                 type="button"
                 onClick={() => show({ kind: "channel", id: c.id })}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
               >
-                <PresenceAvatar name={c.name} online={!!c.peer && online.has(c.peer.id)} size={34} />
+                <ChannelAvatar channel={c} online={online} size={34} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className={`flex-1 truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>{c.name}</span>
+                    <span className={`flex-1 truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>
+                      {c.name}
+                      {c.kind === "record" && c.record?.subtitle && <span className="font-normal text-muted-foreground"> · {c.record.subtitle}</span>}
+                    </span>
                     {c.lastMessageAt && <span className="shrink-0 text-[11px] text-muted-foreground">{shortTime(c.lastMessageAt)}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`flex-1 truncate text-xs ${c.unread ? "text-foreground" : "text-muted-foreground"}`}>
-                      {c.lastPreview ? `${c.lastFromId === me.id ? "You: " : ""}${c.lastPreview}` : "No messages yet"}
+                      {c.lastPreview
+                        ? `${c.lastFromId === me.id ? "You: " : c.kind !== "dm" && c.lastFrom ? `${c.lastFrom.split(" ")[0]}: ` : ""}${c.lastPreview}`
+                        : "No messages yet"}
                     </span>
                     {c.unread > 0 && (
-                      <span className={`flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${c.muted ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"}`}>
+                      <span
+                        className={`flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${c.muted ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"}`}
+                      >
                         {c.unread}
                       </span>
                     )}
@@ -208,75 +232,6 @@ function Panel({
         </ul>
       </div>
     </>
-  );
-}
-
-function PresenceAvatar({ name, online, size }: { name: string; online: boolean; size: number }) {
-  return (
-    <span className="relative shrink-0">
-      <UserAvatar name={name} size={size} />
-      {online && <span className="absolute right-0 bottom-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-popover" aria-label="Online" />}
-    </span>
-  );
-}
-
-function PeoplePicker({ teammates, online, loading }: { teammates: { id: number; name: string; jobTitle: string }[]; online: Set<number>; loading: boolean }) {
-  const qc = useQueryClient();
-  const show = useChatStore((s) => s.show);
-  const [q, setQ] = useState("");
-  const [pending, start] = useTransition();
-  const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const list = needle ? teammates.filter((u) => u.name.toLowerCase().includes(needle) || u.jobTitle.toLowerCase().includes(needle)) : teammates;
-    // people who are online first
-    return [...list].sort((a, b) => Number(online.has(b.id)) - Number(online.has(a.id)));
-  }, [q, teammates, online]);
-
-  const open = (peerId: number) =>
-    start(async () => {
-      try {
-        const id = await startDm(peerId);
-        await qc.invalidateQueries({ queryKey: chatKeys.channels });
-        show({ kind: "channel", id });
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
-    });
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b p-2">
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search people"
-          aria-label="Search people"
-          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-        />
-      </div>
-      <ul className="min-h-0 flex-1 overflow-y-auto" aria-busy={pending}>
-        {loading && <li className="py-8 text-center text-xs text-muted-foreground">Loading…</li>}
-        {!loading && !shown.length && <li className="py-8 text-center text-xs text-muted-foreground">Nobody matches “{q}”.</li>}
-        {shown.map((u) => (
-          <li key={u.id}>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => open(u.id)}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:opacity-60"
-            >
-              <PresenceAvatar name={u.name} online={online.has(u.id)} size={30} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{u.name}</p>
-                {u.jobTitle && <p className="truncate text-xs text-muted-foreground">{u.jobTitle}</p>}
-              </div>
-              {online.has(u.id) && <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Online</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

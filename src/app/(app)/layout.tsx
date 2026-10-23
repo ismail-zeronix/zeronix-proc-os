@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
       <PunchGate locked={!punchedIn} />
-      {punchedIn && <ChatWidget me={{ id: user.id, name: user.name }} />}
+      {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}
       {children}
     </>
   );

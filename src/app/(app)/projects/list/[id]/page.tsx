@@ -11,6 +11,7 @@ import { StatStrip } from "@/components/stat-strip";
 import { TaskDialog, TaskItem } from "@/components/task-ui";
 import { Button } from "@/components/ui/button";
 import { AvatarStack } from "@/components/user-avatar";
+import { RecordChat } from "@/components/chat/record-chat";
 import { UrlTabs } from "@/components/url-tabs";
 import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
@@ -237,6 +238,11 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                     )}
                   </div>
                 ),
+              },
+              {
+                key: "chat",
+                label: "Chat",
+                content: <RecordChat dealId={p.dealId} me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />,
               },
               {
                 key: "timeline",
