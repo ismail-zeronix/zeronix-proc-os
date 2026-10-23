@@ -12,8 +12,23 @@ type Person = { id: number; name: string };
 /**
  * The people on a deal as stacked avatars; click to add or remove people. Changes save straight away.
  * The first person is the main owner, new people are added after them.
+ * `readOnly` (people who only see their own deals): just the avatars, since only admins and managers share deals.
  */
-export function AssignPopover({ dealId, assignees, users, size = 24, max = 3 }: { dealId: number; assignees: Person[]; users: Person[]; size?: number; max?: number }) {
+export function AssignPopover({
+  dealId,
+  assignees,
+  users,
+  size = 24,
+  max = 3,
+  readOnly = false,
+}: {
+  dealId: number;
+  assignees: Person[];
+  users: Person[];
+  size?: number;
+  max?: number;
+  readOnly?: boolean;
+}) {
   const [ids, setIds] = useState<number[]>(assignees.map((a) => a.id));
   const [pending, start] = useTransition();
 
@@ -32,6 +47,7 @@ export function AssignPopover({ dealId, assignees, users, size = 24, max = 3 }: 
   };
 
   const current = ids.map((i) => users.find((u) => u.id === i) ?? assignees.find((a) => a.id === i)).filter((u): u is Person => !!u);
+  if (readOnly) return <AvatarStack users={current} size={size} max={max} />;
   return (
     <Popover>
       <PopoverTrigger

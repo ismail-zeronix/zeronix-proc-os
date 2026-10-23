@@ -7,7 +7,7 @@ export type Block =
   | { table: { head: string[]; rows: string[][] } }
   | { tip: string };
 
-export type SectionKey = "hardware" | "sales" | "uae";
+export type SectionKey = "portal" | "hardware" | "sales" | "uae";
 
 export interface Article {
   slug: string;

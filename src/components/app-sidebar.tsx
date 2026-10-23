@@ -25,8 +25,9 @@ export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<
   const def = appByKey(app);
   const groups = APP_NAV[app] ?? [];
   const close = () => isMobile && setOpenMobile(false);
+  const under = (base: string) => pathname.startsWith(base + "/");
   const active = (n: NavItem) =>
-    n.exact ? pathname === n.href : pathname === n.href || pathname.startsWith(n.href + "/");
+    pathname === n.href || (!n.exact && under(n.href)) || !!n.also?.some(under);
 
   return (
     <Sidebar collapsible="icon">

@@ -1,26 +1,32 @@
-import { ArrowLeft, Globe, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Tag, UserPlus } from "lucide-react";
+import { Globe, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Tag, UserPlus, Wallet } from "lucide-react";
 import Link from "next/link";
+import { AppLink } from "@/components/app-link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { TempBadge } from "@/components/sales-bits";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AvatarStack } from "@/components/user-avatar";
+import { companyBalance } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { ago } from "@/lib/format";
+import { money } from "@/lib/quotation";
 import { aedShort, stageLabel } from "@/lib/sales";
 import { getCompany } from "@/lib/sales-data";
 import { CompanyDialog, CompanyNoteForm, ContactDialog, DeleteCompanyButton, DeleteContactButton } from "../company-ui";
 
 export async function generateMetadata({ params }: PageProps<"/sales/companies/[id]">) {
-  const c = await getCompany(Number((await params).id)).catch(() => null);
+  const c = await getCompany(Number((await params).id), viewerOf(await requireApp("sales"))).catch(() => null);
   return { title: `${c?.name ?? "Company"} · Zeronix Sales` };
 }
 
 export default async function CompanyPage({ params }: PageProps<"/sales/companies/[id]">) {
-  const { user, apps } = await requireApp("sales");
+  const access = await requireApp("sales");
+  const { user, apps } = access;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
-  const c = await getCompany(id);
+  const [c, bal] = await Promise.all([getCompany(id, viewerOf(access)), companyBalance(id)]);
   if (!c) notFound();
   const canMail = apps.includes("mail");
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
@@ -29,12 +35,10 @@ export default async function CompanyPage({ params }: PageProps<"/sales/companie
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/sales/companies" />} aria-label="Back to companies" title="Back to companies">
-          <ArrowLeft />
-        </Button>
+        <BackButton fallback="/sales/companies" />
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight">{c.name}</h1>
-        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/sales/new?company=${c.id}`} />} title="New enquiry for this company">
-          <Plus /> Enquiry
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/sales/new?company=${c.id}`} />} title="New deal for this company">
+          <Plus /> Deal
         </Button>
         <CompanyDialog
           company={{ id: c.id, name: c.name, industry: c.industry, emirate: c.emirate, website: c.website, phone: c.phone, tradeLicenseNo: c.tradeLicenseNo, trn: c.trn, source: c.source, notes: c.notes }}
@@ -71,6 +75,18 @@ export default async function CompanyPage({ params }: PageProps<"/sales/companie
         {c.tradeLicenseNo && <span>Licence {c.tradeLicenseNo}</span>}
         {c.trn && <span>TRN {c.trn}</span>}
         {c.ownerName && <span>Owner {c.ownerName}</span>}
+        {bal.invoices > 0 &&
+          (apps.includes("accounts") ? (
+            <AppLink href={`/accounts/customers/${c.id}`} className={`${meta} font-medium text-foreground hover:underline`} title="Statement of account">
+              <Wallet /> {bal.owed ? `Owes ${money(bal.owed)}` : "Nothing owed"}
+              {bal.overdue > 0 && <span className="text-red-700 dark:text-red-400">· {money(bal.overdue)} overdue</span>}
+            </AppLink>
+          ) : (
+            <span className={`${meta} font-medium text-foreground`}>
+              <Wallet /> {bal.owed ? `Owes ${money(bal.owed)}` : "Nothing owed"}
+              {bal.overdue > 0 && <span className="text-red-700 dark:text-red-400">· {money(bal.overdue)} overdue</span>}
+            </span>
+          ))}
       </div>
       {c.notes && <p className="px-1 text-xs whitespace-pre-line text-muted-foreground">{c.notes}</p>}
 

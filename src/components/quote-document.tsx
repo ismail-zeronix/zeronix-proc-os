@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { dubaiToday } from "@/lib/dates";
 import { lineTotal, longDay, money } from "@/lib/quotation";
 
@@ -10,7 +11,8 @@ export interface QuoteDocData {
   vatAmount: number;
   total: number;
   terms: string;
-  items: { id: number; description: string; qty: number; unitPrice: number }[];
+  /** `section` and `unit` come from a project BOQ; product quotes leave them empty. */
+  items: { id: number; description: string; qty: number; unitPrice: number; section?: string; unit?: string }[];
   company: { name: string; emirate: string; trn: string; phone: string };
   contact: { name: string; jobTitle: string; email: string; phone: string } | null;
   author: { name: string; email: string; jobTitle: string; phone: string; mobile: string } | null;
@@ -98,15 +100,34 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
             </tr>
           </thead>
           <tbody>
-            {q.items.map((i, n) => (
-              <tr key={i.id} className="border-b border-neutral-200 align-top">
-                <td className="px-2 py-2 text-neutral-500">{n + 1}</td>
-                <td className="px-2 py-2">{i.description}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{i.qty}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{money(i.unitPrice)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{money(lineTotal({ qty: i.qty, unitPrice: i.unitPrice }))}</td>
-              </tr>
-            ))}
+            {q.items.map((i, n) => {
+              const section = i.section ?? "";
+              // a project quote is grouped: a heading row each time the section changes, with that section's subtotal
+              const heading = section && section !== (q.items[n - 1]?.section ?? "");
+              const sectionTotal = heading ? q.items.filter((x) => x.section === section).reduce((s, x) => s + lineTotal({ qty: x.qty, unitPrice: x.unitPrice }), 0) : 0;
+              return (
+                <Fragment key={i.id}>
+                  {heading && (
+                    <tr className="border-b border-neutral-300 bg-neutral-50 break-inside-avoid">
+                      <td colSpan={4} className="px-2 pt-2.5 pb-1 text-[12px] font-semibold" style={{ color: accent }}>
+                        {section}
+                      </td>
+                      <td className="px-2 pt-2.5 pb-1 text-right text-[12px] font-semibold tabular-nums">{money(sectionTotal)}</td>
+                    </tr>
+                  )}
+                  <tr className="border-b border-neutral-200 align-top">
+                    <td className="px-2 py-2 text-neutral-500">{n + 1}</td>
+                    <td className="px-2 py-2">{i.description}</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">
+                      {i.qty}
+                      {i.unit ? <span className="text-neutral-500"> {i.unit}</span> : null}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums">{money(i.unitPrice)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{money(lineTotal({ qty: i.qty, unitPrice: i.unitPrice }))}</td>
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

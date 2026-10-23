@@ -1,8 +1,11 @@
 import { Quote } from "lucide-react";
 import { Suspense } from "react";
 import { AppTile } from "@/components/app-tile";
+import { PunchToggle } from "@/components/attendance/punch-toggle";
 import { PageHeader } from "@/components/page-header";
+import { accountsBadges } from "@/lib/accounts-data";
 import { listCounts } from "@/lib/alerts";
+import { punchState, workHours } from "@/lib/attendance-data";
 import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
@@ -26,31 +29,38 @@ import {
 export const metadata = { title: "Home · Zeronix" };
 
 export default async function HomePage() {
-  const { user, apps } = await requireAccess();
+  const { user, apps, seesAll } = await requireAccess();
   const tiles = visibleApps({ role: user.role, apps });
-  const isAdmin = user.role === "admin";
   const hasProcurement = apps.includes("procurement");
   const hasSales = apps.includes("sales");
   const hasTasks = apps.includes("tasks");
   const hasMail = apps.includes("mail");
 
   // a few cheap numbers for the badges on the tiles
-  const [toReview, newEnquiries, dueTasks, mailUnread] = await Promise.all([
+  const [toReview, newEnquiries, dueTasks, mailUnread, punch, hours, overdueInvoices] = await Promise.all([
     hasProcurement ? listCounts().then((c) => c.review + c.failed) : 0,
-    hasSales ? salesPulse(user.id, isAdmin).then((p) => p.newCount) : 0,
+    hasSales ? salesPulse(user.id, seesAll).then((p) => p.newCount) : 0,
     hasTasks ? dueTasksFor(user.id).then((d) => d.tasks.length) : 0,
     hasMail ? unreadCount(user.id) : 0,
+    punchState(user.id),
+    workHours(),
+    apps.includes("accounts") ? accountsBadges().then((b) => b.overdue) : 0,
   ]);
   const badges: Record<string, { n: number; label: string }> = {
     procurement: { n: toReview, label: `${toReview} to review` },
-    sales: { n: newEnquiries, label: `${newEnquiries} new enquir${newEnquiries === 1 ? "y" : "ies"}` },
+    sales: { n: newEnquiries, label: `${newEnquiries} new deal${newEnquiries === 1 ? "" : "s"}` },
     tasks: { n: dueTasks, label: `${dueTasks} due today` },
     mail: { n: mailUnread, label: `${mailUnread} unread` },
+    accounts: { n: overdueInvoices, label: `${overdueInvoices} invoice${overdueInvoices === 1 ? "" : "s"} overdue` },
   };
 
   return (
     <div className="grid gap-6">
-      <PageHeader title={`${dubaiGreeting()}, ${user.name.split(" ")[0]}`} description={dubaiDateLabel()} />
+      <PageHeader
+        title={`${dubaiGreeting()}, ${user.name.split(" ")[0]}`}
+        description={dubaiDateLabel()}
+        actions={<PunchToggle {...punch} hours={hours} />}
+      />
 
       <figure className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3">
         <Quote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -68,7 +78,7 @@ export default async function HomePage() {
           <h2 className="text-sm font-medium text-muted-foreground">This week</h2>
           {hasSales && (
             <Suspense fallback={<WidgetSkeleton className="h-24" />}>
-              <ThisWeekSales userId={user.id} isAdmin={isAdmin} />
+              <ThisWeekSales userId={user.id} team={seesAll} />
             </Suspense>
           )}
           {hasProcurement && (
@@ -90,12 +100,12 @@ export default async function HomePage() {
         </Suspense>
         {hasSales && (
           <Suspense fallback={<WidgetSkeleton />}>
-            <PipelineCard userId={user.id} isAdmin={isAdmin} />
+            <PipelineCard userId={user.id} team={seesAll} />
           </Suspense>
         )}
         {hasSales && (
           <Suspense fallback={<WidgetSkeleton />}>
-            <DealsAttentionCard userId={user.id} isAdmin={isAdmin} />
+            <DealsAttentionCard userId={user.id} team={seesAll} />
           </Suspense>
         )}
         {hasProcurement && (

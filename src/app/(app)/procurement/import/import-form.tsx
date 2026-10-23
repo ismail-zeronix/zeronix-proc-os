@@ -223,7 +223,7 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
           <p className="text-xs text-muted-foreground">
             Prices are optional. Lists without prices are still saved so you know who has the stock.
           </p>
-          <Button onClick={submit} disabled={!canSubmit || pending}>
+          <Button onClick={submit} pending={pending} disabled={!canSubmit}>
             <Sparkles />
             {pending ? "Queuing…" : "Read with AI"}
           </Button>

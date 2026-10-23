@@ -103,7 +103,7 @@ export interface QuoteDoc {
   contact: string;
   validUntil: string;
   vatPct: number;
-  items: { description: string; qty: number; unitPrice: number }[];
+  items: { description: string; qty: number; unitPrice: number; section?: string; unit?: string }[];
   subtotal: number;
   vatAmount: number;
   total: number;
@@ -115,8 +115,10 @@ export interface QuoteDoc {
 export function quoteWhatsApp(q: QuoteDoc): string {
   const lines = [`*Quotation ${q.number}* - ${q.brand}`, `For: ${q.company}${q.contact ? ` (${q.contact})` : ""}`, ""];
   q.items.forEach((i, n) => {
+    // project quotes: a heading each time the BOQ section changes
+    if (i.section && i.section !== q.items[n - 1]?.section) lines.push(`*${i.section}*`);
     lines.push(`${n + 1}. ${i.description}`);
-    lines.push(`   ${i.qty} x ${money(i.unitPrice)} = ${money(lineTotal(i))}`);
+    lines.push(`   ${i.qty}${i.unit ? ` ${i.unit}` : ""} x ${money(i.unitPrice)} = ${money(lineTotal(i))}`);
   });
   lines.push("");
   lines.push(`Subtotal: ${money(q.subtotal)}`);

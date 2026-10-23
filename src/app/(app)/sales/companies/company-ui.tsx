@@ -129,7 +129,7 @@ export function CompanyDialog({ company, trigger }: { company?: CompanyData; tri
             <Label htmlFor="co-notes">Notes</Label>
             <Textarea id="co-notes" value={f.notes} onChange={set("notes")} />
           </div>
-          <Button type="submit" disabled={pending || f.name.trim().length < 2}>
+          <Button type="submit" pending={pending} disabled={f.name.trim().length < 2}>
             {company ? "Save" : "Add company"}
           </Button>
         </form>
@@ -204,7 +204,7 @@ export function ContactDialog({ companyId, contact, trigger }: { companyId: numb
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={f.isDecisionMaker} onCheckedChange={(v) => setF({ ...f, isDecisionMaker: !!v })} /> Decision maker
           </label>
-          <Button type="submit" disabled={pending || !f.name.trim()}>
+          <Button type="submit" pending={pending} disabled={!f.name.trim()}>
             {contact ? "Save" : "Add person"}
           </Button>
         </form>
@@ -216,7 +216,7 @@ export function ContactDialog({ companyId, contact, trigger }: { companyId: numb
 export function DeleteContactButton({ id, name }: { id: number; name: string }) {
   const [pending, run] = useRun();
   return (
-    <Button variant="ghost" size="icon-sm" aria-label={`Delete ${name}`} disabled={pending} onClick={() => confirm(`Remove ${name}?`) && run(() => deleteContact(id), "Person removed")}>
+    <Button variant="ghost" size="icon-sm" aria-label={`Delete ${name}`} pending={pending} onClick={() => confirm(`Remove ${name}?`) && run(() => deleteContact(id), "Person removed")}>
       <Trash2 />
     </Button>
   );
@@ -230,10 +230,10 @@ export function DeleteCompanyButton({ id, name, deals }: { id: number; name: str
       variant="ghost"
       size="sm"
       className="text-destructive"
-      disabled={pending}
+      pending={pending}
       onClick={() =>
         confirm(`Delete ${name}${deals ? ` and its ${deals} deal(s)` : ""}, with all people and history? This cannot be undone.`) &&
-        run(() => deleteCompany(id), "Company deleted", () => router.push("/sales/companies"))
+        run(() => deleteCompany(id), "Company deleted", () => router.replace("/sales/companies"))
       }
     >
       <Trash2 /> Delete company
@@ -253,7 +253,7 @@ export function CompanyNoteForm({ companyId }: { companyId: number }) {
       }}
     >
       <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a note about this company…" aria-label="Note" />
-      <Button type="submit" size="sm" className="w-fit" disabled={pending || !text.trim()}>
+      <Button type="submit" size="sm" className="w-fit" pending={pending} disabled={!text.trim()}>
         Add note
       </Button>
     </form>

@@ -29,15 +29,15 @@ export function MailForm({ connected, imapUser, defaultEmail }: { connected: boo
   if (connected && !editing) {
     return (
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={pending} onClick={() => run(checkMailNow, "Inbox checked")}>
+        <Button variant="outline" pending={pending} onClick={() => run(checkMailNow, "Inbox checked")}>
           <RefreshCw /> Check now
         </Button>
-        <Button variant="outline" disabled={pending} onClick={() => setEditing(true)}>
+        <Button variant="outline" pending={pending} onClick={() => setEditing(true)}>
           <Plug /> Change password
         </Button>
         <Button
           variant="ghost"
-          disabled={pending}
+          pending={pending}
           onClick={() =>
             confirm("Disconnect this mailbox? The saved login and message list are removed.") &&
             run(disconnectMailbox, "Mailbox disconnected")
@@ -89,11 +89,11 @@ export function MailForm({ connected, imapUser, defaultEmail }: { connected: boo
         </p>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending || !email || !password}>
+        <Button type="submit" pending={pending} disabled={!email || !password}>
           <Plug /> {pending ? "Testing…" : "Test and connect"}
         </Button>
         {connected && (
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => setEditing(false)}>
+          <Button type="button" variant="ghost" pending={pending} onClick={() => setEditing(false)}>
             Cancel
           </Button>
         )}

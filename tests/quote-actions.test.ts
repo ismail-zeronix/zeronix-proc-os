@@ -24,6 +24,7 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
   let pool: typeof import("@/db").pool;
   let eq: typeof import("drizzle-orm").eq;
   let inArray: typeof import("drizzle-orm").inArray;
+  let and: typeof import("drizzle-orm").and;
   let like: typeof import("drizzle-orm").like;
   let S: typeof import("@/app/(app)/sales/actions");
   let Q: typeof import("@/app/(app)/sales/quote-actions");
@@ -59,7 +60,7 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
 
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
-    ({ eq, inArray, like } = await import("drizzle-orm"));
+    ({ eq, inArray, like, and } = await import("drizzle-orm"));
     S = await import("@/app/(app)/sales/actions");
     Q = await import("@/app/(app)/sales/quote-actions");
     const mk = async (name: string, role: "admin" | "sales", apps: string[] | null) =>
@@ -68,6 +69,9 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
     salesOnly = await mk("salesonly", "sales", ["sales"]);
     boss = await mk("boss", "admin", null);
     userIds = [seller, salesOnly, boss];
+    // actions refuse to run for someone who has not punched in today
+    const { dubaiToday } = await import("@/lib/dates");
+    await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: dubaiToday() })));
     supplierId = (await db.insert(schema.suppliers).values({ name: `${tag} Supplier` }).returning({ id: schema.suppliers.id }))[0].id;
     priceListId = (await db.insert(schema.priceLists).values({ supplierId, rawText: "x", status: "saved" }).returning({ id: schema.priceLists.id }))[0].id;
     productId = (await db.insert(schema.products).values({ category: "laptop", brand: "Dell", modelName: `${tag} Latitude`, matchKey: `${tag}-key`, specSummary: "i5 16GB 512GB" }).returning({ id: schema.products.id }))[0].id;
@@ -78,7 +82,7 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
     if (cs.length) {
       const ids = cs.map((c) => c.id);
       const deals = await db.select({ id: schema.deals.id }).from(schema.deals).where(inArray(schema.deals.companyId, ids));
-      if (deals.length) await db.delete(schema.tasks).where(inArray(schema.tasks.relatedId, deals.map((d) => d.id)));
+      if (deals.length) await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), inArray(schema.tasks.relatedId, deals.map((d) => d.id))));
       await db.delete(schema.companies).where(inArray(schema.companies.id, ids)); // deals, items, quotes go with it
     }
     await db.delete(schema.tasks).where(inArray(schema.tasks.createdBy, userIds));
@@ -86,6 +90,7 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
     await db.delete(schema.products).where(eq(schema.products.id, productId));
     await db.delete(schema.priceLists).where(eq(schema.priceLists.id, priceListId));
     await db.delete(schema.suppliers).where(eq(schema.suppliers.id, supplierId));
+    await db.delete(schema.attendancePunches).where(inArray(schema.attendancePunches.userId, userIds));
     await db.delete(schema.users).where(inArray(schema.users.id, userIds));
     await pool.end();
   });
@@ -170,10 +175,10 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
   });
 
   it("only lets an admin delete a quote that was sent", async () => {
-    const dealId = await newDeal("Delete");
-    await Q.addItem(dealId, { description: "PC", qty: 1, unitPriceAed: 2000 });
-    const draft = await Q.createQuote(dealId);
-    const sent = await Q.createQuote(dealId);
+    const [dealA, dealB] = [await newDeal("Delete"), await newDeal("Delete2")];
+    for (const d of [dealA, dealB]) await Q.addItem(d, { description: "PC", qty: 1, unitPriceAed: 2000 });
+    const draft = await Q.createQuote(dealA);
+    const sent = await Q.createQuote(dealB);
     await Q.setQuoteStatus(sent.id, "sent");
     await as(seller, "seller");
     await Q.deleteQuote(draft.id);
@@ -182,6 +187,47 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
     await as(boss, "boss", "admin");
     await Q.deleteQuote(sent.id);
     expect(await db.select().from(schema.quotes).where(eq(schema.quotes.id, sent.id))).toHaveLength(0);
+  });
+
+  it("keeps one quote per deal: an open quote is updated in place instead of making a second one", async () => {
+    const dealId = await newDeal("Revise");
+    await Q.addItem(dealId, { description: "Laptop", qty: 2, unitPriceAed: 1000 });
+    const first = await Q.createQuote(dealId);
+    await Q.setQuoteStatus(first.id, "sent");
+    await expect(Q.createQuote(dealId)).rejects.toThrow(/still open/i);
+    await expect(Promise.all([Q.createQuote(dealId), Q.createQuote(dealId)])).rejects.toThrow();
+
+    const [item] = await db.select().from(schema.dealItems).where(eq(schema.dealItems.dealId, dealId));
+    await Q.updateItem(item.id, { description: "Laptop", qty: 3, unitPriceAed: 1000 });
+    const r = await Q.reviseQuote(first.id);
+    expect(r.number).toBe(first.number);
+    expect(r.wasSent).toBe(true);
+    const [q] = await db.select().from(schema.quotes).where(eq(schema.quotes.id, first.id));
+    expect(q.subtotal).toBe(3000);
+    expect(q.total).toBe(3150);
+    expect(q.status).toBe("sent");
+    const lines = await db.select().from(schema.quoteItems).where(eq(schema.quoteItems.quoteId, first.id));
+    expect(lines.map((l) => l.qty)).toEqual([3]);
+    expect(await db.select().from(schema.quotes).where(eq(schema.quotes.dealId, dealId))).toHaveLength(1);
+    const [deal] = await db.select().from(schema.deals).where(eq(schema.deals.id, dealId));
+    expect(deal.valueAed).toBe(3000);
+
+    // after acceptance: no new quote, no more edits
+    await Q.setQuoteStatus(first.id, "accepted");
+    await expect(Q.createQuote(dealId)).rejects.toThrow(/already accepted/i);
+    await expect(Q.reviseQuote(first.id)).rejects.toThrow(/cannot be changed/i);
+  });
+
+  it("a rejected quote can be followed by a new one, and only one quote per deal can be open or accepted", async () => {
+    const dealId = await newDeal("Replace");
+    await Q.addItem(dealId, { description: "PC", qty: 1, unitPriceAed: 2000 });
+    const old = await Q.createQuote(dealId);
+    await Q.setQuoteStatus(old.id, "rejected");
+    const fresh = await Q.createQuote(dealId);
+    // reopening the old one while the new one is open would give the deal two quotes
+    await expect(Q.setQuoteStatus(old.id, "sent")).rejects.toThrow(/already open/i);
+    await Q.setQuoteStatus(fresh.id, "accepted");
+    await expect(Q.setQuoteStatus(old.id, "accepted")).rejects.toThrow(/already accepted/i);
   });
 
   it("adds a line from a supplier offer using the cost on the server, plus the default margin", async () => {
@@ -209,6 +255,8 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
     await expect(Q.addItemFromOffer(dealId, none)).rejects.toThrow(/no price/i);
     await expect(Q.addItemFromOffer(dealId, eur)).rejects.toThrow(/rate for EUR/i);
     await expect(Q.addItemFromOffer(dealId, 999999999)).rejects.toThrow(/no longer exists/i);
+    // they work on this deal too (a deal you are not on is hidden from you)
+    await db.insert(schema.dealAssignees).values({ dealId, userId: salesOnly, position: 1 });
     await as(salesOnly, "salesonly");
     await expect(Q.addItemFromOffer(dealId, ok)).rejects.toThrow(/do not have access/i);
     // but they can still type a line and make a quote

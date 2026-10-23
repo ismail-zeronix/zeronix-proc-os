@@ -3,9 +3,9 @@ import { hasApp } from "@/lib/auth/session";
 import { searchOffers } from "@/lib/search";
 import { getSetting } from "@/lib/settings";
 
-/** "Find price" in a deal: supplier offers for a search. Needs Sales and Procurement, because it shows what we pay. */
+/** "Find price" in a deal or a project BOQ: supplier offers for a search. Needs Procurement, because it shows what we pay. */
 export async function GET(req: NextRequest) {
-  if (!(await hasApp("sales")) || !(await hasApp("procurement"))) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  if (!((await hasApp("sales")) || (await hasApp("projects"))) || !(await hasApp("procurement"))) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim().slice(0, 200);
   if (q.length < 2) return NextResponse.json({ products: [] });
   const staleDays = Number(await getSetting("stale_days")) || 14;

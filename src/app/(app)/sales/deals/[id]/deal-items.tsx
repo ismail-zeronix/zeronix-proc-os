@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, Plus, Trash2 } from "lucide-react";
+import { CircleCheck, FilePlus2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { dayLabel } from "@/lib/dates";
 import { lineTotal, marginOf, money, sellPrice, totals } from "@/lib/quotation";
 import type { DealItemRow, QuoteSummary } from "@/lib/quotes-data";
-import { addItem, createQuote, deleteItem, updateItem } from "../../quote-actions";
+import { addItem, createQuote, deleteItem, reviseQuote, updateItem } from "../../quote-actions";
 import { FindPrice } from "./find-price";
 
 const COLS = "grid-cols-4 sm:grid-cols-[minmax(0,1fr)_4rem_6rem_5rem_6.5rem_6.5rem_2rem]";
@@ -135,11 +135,11 @@ function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemR
       <div className="col-span-4 flex items-center justify-between gap-2 sm:col-span-1 sm:justify-end">
         <span className="text-sm font-medium tabular-nums sm:hidden">{money(lineTotal({ qty: q, unitPrice: p }))}</span>
         {item ? (
-          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove this line" title="Remove this line" disabled={pending} onClick={() => run(() => deleteItem(item.id))}>
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove this line" title="Remove this line" pending={pending} onClick={() => run(() => deleteItem(item.id))}>
             <Trash2 />
           </Button>
         ) : (
-          <Button size="icon-sm" aria-label="Add this line" title="Add this line" disabled={pending || !desc.trim() || !(p > 0)} onClick={add}>
+          <Button size="icon-sm" aria-label="Add this line" title="Add this line" pending={pending} disabled={!desc.trim() || !(p > 0)} onClick={add}>
             <Plus />
           </Button>
         )}
@@ -167,6 +167,9 @@ export function DealItems({
   const [pending, run] = useRun();
   const t = totals(items.map((i) => ({ qty: i.qty, unitPrice: i.unitPriceAed, cost: i.costAed })), defaults.vatPct);
   const profitPct = t.profit != null && t.soldWithCost > 0 ? Math.round((t.profit / t.soldWithCost) * 1000) / 10 : null;
+  // one quote in play per deal: the accepted one, else the newest open one (quotes come newest first)
+  const accepted = quotes.find((q) => q.status === "accepted");
+  const open = quotes.find((q) => q.status === "draft" || q.status === "sent");
 
   return (
     <div className="grid gap-3">
@@ -176,18 +179,45 @@ export function DealItems({
           {canFindPrice ? "Find a supplier price or type a line. " : "Type each line with the price you will charge. "}
           Prices are in AED before VAT. Changes save when you leave a box.
         </p>
-        <Button
-          size="sm"
-          disabled={pending || !items.length}
-          title={items.length ? "Make a numbered quote from these lines" : "Add at least one line first"}
-          onClick={() => run(async () => {
-            const r = await createQuote(dealId);
-            toast.success(`Quote ${r.number} made`);
-            router.push(`/sales/quotes/${r.id}`);
-          })}
-        >
-          <FilePlus2 /> Make quote
-        </Button>
+        {accepted ? (
+          <Link
+            href={`/sales/quotes/${accepted.id}`}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            title="The customer accepted this quote. Changes to the lines here no longer reach the customer."
+          >
+            <CircleCheck className="size-4 text-emerald-600" /> Quote <span className="font-mono font-medium">{accepted.number}</span> accepted
+          </Link>
+        ) : open ? (
+          <Button
+            size="sm"
+            pending={pending} disabled={!items.length}
+            title={`Rewrite ${open.number} with these lines. It keeps its number${open.status === "sent" ? "; send it to the customer again after" : ""}.`}
+            onClick={() =>
+              run(async () => {
+                const r = await reviseQuote(open.id);
+                toast.success(`Quote ${r.number} updated${r.wasSent ? ". Send it to the customer again." : ""}`);
+                router.push(`/sales/quotes/${r.id}`);
+              })
+            }
+          >
+            <RefreshCw /> Update {open.number}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            pending={pending} disabled={!items.length}
+            title={items.length ? "Make a numbered quote from these lines" : "Add at least one line first"}
+            onClick={() =>
+              run(async () => {
+                const r = await createQuote(dealId);
+                toast.success(`Quote ${r.number} made`);
+                router.push(`/sales/quotes/${r.id}`);
+              })
+            }
+          >
+            <FilePlus2 /> Make quote
+          </Button>
+        )}
       </div>
 
       <div>

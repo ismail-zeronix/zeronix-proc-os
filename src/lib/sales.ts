@@ -1,7 +1,7 @@
 /** Sales rules and lists in one place: stages, sources, the genuine-lead checklist and its Hot / Warm / Cold label. */
 
 export const STAGES = [
-  { key: "new", label: "New enquiry", hint: "Just arrived, not yet contacted" },
+  { key: "new", label: "New", hint: "Just arrived, not yet contacted" },
   { key: "contacted", label: "Contacted", hint: "We spoke or messaged them" },
   { key: "requirement", label: "Requirement confirmed", hint: "We know exactly what, how many, by when" },
   { key: "sourcing", label: "Sourcing", hint: "Getting prices from suppliers" },

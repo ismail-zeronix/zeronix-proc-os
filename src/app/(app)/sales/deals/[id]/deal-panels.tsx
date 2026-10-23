@@ -1,7 +1,7 @@
 "use client";
 
 import { BookOpen, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { AppLink } from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { ACTIVITY_TYPES, type Checks, CHECKS, SOURCES } from "@/lib/sales";
-import { deleteDeal, logActivity, setChecks, updateDeal } from "../../actions";
+import { deleteDeal, logActivity, setChecks, setDealKind, updateDeal } from "../../actions";
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -37,7 +37,7 @@ export function RequirementPanel({ dealId, requirement }: { dealId: number; requ
     <div className="grid gap-2">
       <p className="text-xs text-muted-foreground">In their words: models, quantity, specs, delivery date. Anything that matters for the quote.</p>
       <Textarea rows={7} value={text} onChange={(e) => setText(e.target.value)} aria-label="Requirement" />
-      <Button className="w-fit" size="sm" disabled={pending || text === requirement} onClick={() => run(() => updateDeal(dealId, { requirement: text }), "Saved")}>
+      <Button className="w-fit" size="sm" pending={pending} disabled={text === requirement} onClick={() => run(() => updateDeal(dealId, { requirement: text }), "Saved")}>
         Save
       </Button>
     </div>
@@ -62,9 +62,9 @@ export function ChecklistPanel({ dealId, checks }: { dealId: number; checks: Che
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <TempBadge checks={state} />
         <span className="text-xs text-muted-foreground">Tick what you have confirmed; the label updates itself.</span>
-        <Link href="/knowledge/genuine-lead" className="ml-auto inline-flex items-center gap-1 text-xs underline">
+        <AppLink href="/knowledge/genuine-lead" className="ml-auto inline-flex items-center gap-1 text-xs underline">
           <BookOpen className="size-3" /> How to check
-        </Link>
+        </AppLink>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {groups.map((g) => (
@@ -123,7 +123,7 @@ export function ActivityForm({ dealId }: { dealId: number }) {
           Follow up on
         </Label>
         <Input id="log-follow" type="date" value={followUp} onChange={(e) => setFollowUp(e.target.value)} className="h-8 w-40" title="Optional. Creates a follow-up task." />
-        <Button type="submit" size="sm" className="ml-auto" disabled={pending || !body.trim()}>
+        <Button type="submit" size="sm" className="ml-auto" pending={pending} disabled={!body.trim()}>
           Add to timeline
         </Button>
       </div>
@@ -189,10 +189,62 @@ export function DetailsPanel({
         </NativeSelect>
       </div>
       <div className="sm:col-span-2">
-        <Button size="sm" disabled={pending || !f.title.trim()} onClick={save}>
+        <Button size="sm" pending={pending} disabled={!f.title.trim()} onClick={save}>
           Save details
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Product or project deal. Making it a project opens its project in the Projects app (ZPJ-…), where the site work,
+ * proposal and handover are tracked; the deal itself stays in this pipeline.
+ */
+export function KindPanel({
+  dealId,
+  kind,
+  projectType,
+  projectTypes,
+}: {
+  dealId: number;
+  kind: "product" | "project";
+  projectType: string;
+  projectTypes: { key: string; label: string }[];
+}) {
+  const [k, setK] = useState(kind);
+  const [type, setType] = useState(projectType);
+  const [pending, run] = useRun();
+  const changed = k !== kind || (k === "project" && type !== projectType);
+  return (
+    <div className="mt-3 grid gap-1.5 border-t pt-3">
+      <Label htmlFor="d-kind">Kind of deal</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <NativeSelect className="w-40" id="d-kind" value={k} onChange={(e) => setK(e.target.value as "product" | "project")}>
+          <NativeSelectOption value="product">Product</NativeSelectOption>
+          <NativeSelectOption value="project">Project</NativeSelectOption>
+        </NativeSelect>
+        {k === "project" && (
+          <NativeSelect className="w-52" aria-label="Project type" value={type} onChange={(e) => setType(e.target.value)}>
+            <NativeSelectOption value="">Project type…</NativeSelectOption>
+            {projectTypes.map((t) => (
+              <NativeSelectOption key={t.key} value={t.key}>
+                {t.label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          pending={pending}
+          disabled={!changed || (k === "project" && !type)}
+          onClick={() => run(() => setDealKind(dealId, k, type), k === "project" ? "This deal is now a project" : "This deal is now a product deal")}
+        >
+          Save
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Projects are site work (CCTV, cabling, server rooms...). They also get a project in the Projects app.</p>
     </div>
   );
 }
@@ -207,9 +259,9 @@ export function DeleteDealButton({ dealId, title }: { dealId: number; title: str
       className="text-muted-foreground hover:text-destructive"
       aria-label="Delete this deal"
       title="Delete this deal"
-      disabled={pending}
+      pending={pending}
       onClick={() =>
-        confirm(`Delete "${title}" with its timeline and follow-ups? This cannot be undone.`) && run(() => deleteDeal(dealId), "Deal deleted", () => router.push("/sales/pipeline"))
+        confirm(`Delete "${title}" with its timeline and follow-ups? This cannot be undone.`) && run(() => deleteDeal(dealId), "Deal deleted", () => router.replace("/sales/pipeline"))
       }
     >
       <Trash2 />

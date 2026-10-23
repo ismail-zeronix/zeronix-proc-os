@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/user-avatar";
 import { ago } from "@/lib/format";
 
 interface Row {
@@ -84,12 +85,13 @@ export function InboxList() {
         <Link
           key={m.uid}
           href={`/mail/${m.uid}`}
-          className={`flex gap-2 border-b px-3 py-2.5 hover:bg-muted ${activeUid === m.uid ? "bg-muted" : ""}`}
+          className={`flex items-start gap-2 border-b px-3 py-2 hover:bg-muted ${activeUid === m.uid ? "bg-muted" : ""}`}
         >
           <span
             className={`mt-1.5 size-2 shrink-0 rounded-full ${m.seen ? "bg-transparent" : "bg-primary"}`}
             aria-label={m.seen ? "read" : "unread"}
           />
+          <UserAvatar name={m.fromName || m.fromEmail || "?"} size={28} className="mt-0.5" />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className={`truncate text-sm ${m.seen ? "" : "font-semibold"}`}>{m.fromName || m.fromEmail || "Unknown sender"}</span>

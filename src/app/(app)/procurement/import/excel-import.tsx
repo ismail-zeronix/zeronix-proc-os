@@ -363,7 +363,7 @@ export function ExcelImport({ suppliers, fxUsd }: { suppliers: SupplierOption[];
             "Choose the supplier to continue."
           )}
         </p>
-        <Button onClick={submit} disabled={pending || !supplierOk || !rows}>
+        <Button onClick={submit} pending={pending} disabled={!supplierOk || !rows}>
           {pending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
           {pending ? "Preparing…" : `Review ${rows} rows`}
         </Button>

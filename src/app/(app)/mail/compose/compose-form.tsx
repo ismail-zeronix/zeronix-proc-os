@@ -3,9 +3,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Paperclip, Send, X } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { useGoBack } from "@/components/back-button";
 import { SignaturePreview } from "@/components/signature-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,8 @@ export function ComposeForm({
   version: number;
   person: Person;
 }) {
-  const router = useRouter();
+  // after sending or discarding, return to where the email was started (a deal, a quote, the inbox)
+  const goBack = useGoBack("/mail");
   const qc = useQueryClient();
   const [f, setF] = useState({ to: initial.to, cc: initial.cc, bcc: "", subject: initial.subject, body: "" });
   const [showCc, setShowCc] = useState(!!initial.cc);
@@ -76,7 +77,7 @@ export function ComposeForm({
       if (out.savedToSent === false) toast.warning("Sent, but a copy could not be saved to your Sent folder.");
       else toast.success("Email sent");
       qc.invalidateQueries({ queryKey: ["mail-list"] });
-      router.push("/mail");
+      goBack();
     } catch (e) {
       toast.error((e as Error).message);
       setSending(false);
@@ -98,7 +99,7 @@ export function ComposeForm({
         <Link href="/mail" className="mb-2 inline-flex items-center gap-0.5 text-sm text-muted-foreground hover:text-foreground md:hidden">
           <ChevronLeft className="size-4" /> Inbox
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight">{TITLES[mode]}</h1>
+        <h1 className="text-base font-semibold">{TITLES[mode]}</h1>
         {loadError && <p className="mt-1 text-sm text-destructive">{loadError}</p>}
       </div>
 
@@ -180,10 +181,10 @@ export function ComposeForm({
       )}
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={!canSend}>
+        <Button type="submit" pending={sending} disabled={!canSend}>
           <Send /> {sending ? "Sending…" : "Send"}
         </Button>
-        <Button type="button" variant="ghost" disabled={sending} onClick={() => router.push("/mail")}>
+        <Button type="button" variant="ghost" pending={sending} onClick={goBack}>
           Discard
         </Button>
       </div>

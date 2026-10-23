@@ -106,17 +106,17 @@ export function FeedCard({ supplierId, feed, canEdit }: { supplierId: number; fe
             Keep this supplier&apos;s prices updated automatically
           </Label>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={save} disabled={pending || form.url.trim().length < 8}>
+            <Button onClick={save} pending={pending} disabled={form.url.trim().length < 8}>
               {feed ? "Save and check now" : "Start live feed"}
             </Button>
             {feed && (
               <>
-                <Button variant="outline" disabled={pending} onClick={() => run(() => syncFeedNow(supplierId), "Updated")}>
+                <Button variant="outline" pending={pending} onClick={() => run(() => syncFeedNow(supplierId), "Updated")}>
                   <RefreshCw className={pending ? "animate-spin" : ""} /> Check now
                 </Button>
                 <Button
                   variant="ghost"
-                  disabled={pending}
+                  pending={pending}
                   onClick={() =>
                     start(async () => {
                       await removeFeed(supplierId);

@@ -1,44 +1,77 @@
 import { type NextRequest } from "next/server";
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { hasApp } from "@/lib/auth/session";
+import { companyVisible, currentViewer, dealVisible } from "@/lib/auth/visibility";
 import { searchCompanies } from "@/lib/sales-data";
 
-const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+const like = (q: string) => `%${q.replace(/[\%_]/g, (c) => `\${c}`)}%`;
 
 /**
  * Sales search for the company picker (`kind=company`) and for Ctrl K (`kind=all`: companies, contacts, deals and quotes).
+ * Only finds what the person may see (see lib/auth/visibility.ts); Accounts users find every invoice.
  */
 export async function GET(req: NextRequest) {
   if (!(await hasApp("sales"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const v = await currentViewer();
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const kind = req.nextUrl.searchParams.get("kind") ?? "company";
-  if (q.length < 2) return Response.json({ companies: [], contacts: [], deals: [], quotes: [] });
+  if (q.length < 2) return Response.json({ companies: [], contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
 
-  if (kind === "company") return Response.json({ companies: await searchCompanies(q, 8), contacts: [], deals: [], quotes: [] });
+  if (kind === "company") return Response.json({ companies: await searchCompanies(v, q, 8), contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
 
-  const [companies, contacts, deals, quotes] = await Promise.all([
-    searchCompanies(q, 5),
+  const accounts = await hasApp("accounts");
+  const [companies, contacts, deals, quotes, orders, invoices] = await Promise.all([
+    searchCompanies(v, q, 5),
     db
       .select({ id: schema.contacts.id, name: schema.contacts.name, email: schema.contacts.email, companyId: schema.contacts.companyId, companyName: schema.companies.name })
       .from(schema.contacts)
       .innerJoin(schema.companies, eq(schema.companies.id, schema.contacts.companyId))
-      .where(or(ilike(schema.contacts.name, like(q)), ilike(schema.contacts.email, like(q)), ilike(schema.contacts.phone, like(q))))
+      .where(
+        and(
+          or(ilike(schema.contacts.name, like(q)), ilike(schema.contacts.email, like(q)), ilike(schema.contacts.phone, like(q))),
+          companyVisible(v, schema.companies.id),
+        ),
+      )
       .limit(5),
     db
       .select({ id: schema.deals.id, title: schema.deals.title, stage: schema.deals.stage, companyName: schema.companies.name })
       .from(schema.deals)
       .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
-      .where(or(ilike(schema.deals.title, like(q)), ilike(schema.companies.name, like(q))))
+      .where(and(or(ilike(schema.deals.title, like(q)), ilike(schema.companies.name, like(q))), dealVisible(v, schema.deals.id)))
       .limit(5),
     db
       .select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, companyName: schema.companies.name })
       .from(schema.quotes)
       .innerJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
       .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
-      .where(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))))
+      .where(and(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))), dealVisible(v, schema.quotes.dealId)))
       .orderBy(desc(schema.quotes.createdAt))
       .limit(5),
+    db
+      .select({ id: schema.salesOrders.id, number: schema.salesOrders.number, status: schema.salesOrders.status, total: schema.salesOrders.total, companyName: schema.companies.name })
+      .from(schema.salesOrders)
+      .innerJoin(schema.companies, eq(schema.companies.id, schema.salesOrders.companyId))
+      .where(
+        and(
+          or(ilike(schema.salesOrders.number, like(q)), ilike(schema.salesOrders.customerRef, like(q)), ilike(schema.salesOrders.dnNumber, like(q))),
+          dealVisible(v, schema.salesOrders.dealId),
+        ),
+      )
+      .orderBy(desc(schema.salesOrders.createdAt))
+      .limit(5),
+    db
+      .select({ id: schema.invoices.id, number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, companyName: schema.invoices.customerName })
+      .from(schema.invoices)
+      .where(
+        and(
+          or(ilike(schema.invoices.number, like(q)), ilike(schema.invoices.customerRef, like(q))),
+          accounts ? undefined : dealVisible(v, schema.invoices.dealId),
+        ),
+      )
+      .orderBy(desc(schema.invoices.createdAt))
+      .limit(5),
   ]);
-  return Response.json({ companies, contacts, deals, quotes });
+  // invoices open in Accounts; without it, the printable invoice
+  return Response.json({ companies, contacts, deals, quotes, orders, invoices: invoices.map((i) => ({ ...i, href: accounts ? `/accounts/invoices/${i.id}` : `/print/invoice/${i.id}` })) });
 }

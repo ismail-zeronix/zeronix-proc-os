@@ -1,12 +1,17 @@
-import { PortalHeader } from "@/components/portal-header";
+import { sql } from "drizzle-orm";
+import { AppShell } from "@/components/app-shell";
+import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   await requireApp("admin");
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.priceLists)
+    .where(sql`${schema.priceLists.status} = 'queued'`);
   return (
-    <div className="flex min-h-svh flex-col">
-      <PortalHeader />
-      <div className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-6">{children}</div>
-    </div>
+    <AppShell app="admin" badges={{ queue: n }}>
+      {children}
+    </AppShell>
   );
 }

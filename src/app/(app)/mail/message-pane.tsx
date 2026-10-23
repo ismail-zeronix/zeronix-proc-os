@@ -93,7 +93,7 @@ export function MessagePane({ uid }: { uid: number }) {
     <article className="grid gap-4 p-4">
       <div>
         {back}
-        <h1 className="text-xl font-semibold tracking-tight">{m.subject || "(no subject)"}</h1>
+        <h1 className="text-base font-semibold">{m.subject || "(no subject)"}</h1>
         <div className="mt-1 grid gap-0.5 text-sm text-muted-foreground">
           <div>
             <span className="font-medium text-foreground">{who(m.from)}</span> · {when}

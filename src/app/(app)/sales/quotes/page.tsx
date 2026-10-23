@@ -4,6 +4,7 @@ import { Segmented } from "@/components/segmented";
 import { Empty } from "@/components/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { dayLabel } from "@/lib/dates";
 import { money, QUOTE_STATUSES } from "@/lib/quotation";
 import { listQuotes } from "@/lib/quotes-data";
@@ -14,11 +15,11 @@ export const metadata = { title: "Quotes · Zeronix Sales" };
 const FILTERS = [{ key: "all", label: "All" }, ...QUOTE_STATUSES.map((s) => ({ key: s.key as string, label: s.label }))];
 
 export default async function QuotesPage({ searchParams }: PageProps<"/sales/quotes">) {
-  await requireApp("sales");
+  const access = await requireApp("sales");
   const sp = await searchParams;
   const asked = String((Array.isArray(sp.status) ? sp.status[0] : sp.status) ?? "all");
   const status = FILTERS.some((f) => f.key === asked) ? asked : "all";
-  const all = await listQuotes();
+  const all = await listQuotes(viewerOf(access));
   const count = (k: string) => (k === "all" ? all.length : all.filter((q) => q.shownStatus === k).length);
   const rows = status === "all" ? all : all.filter((q) => q.shownStatus === status);
   const waiting = all.filter((q) => q.shownStatus === "sent");

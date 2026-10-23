@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { DEFAULT_HOURS } from "@/lib/attendance";
 import { DEFAULT_MARGIN_PCT, DEFAULT_TERMS, DEFAULT_VALID_DAYS, DEFAULT_VAT_PCT } from "@/lib/quotation";
+import { DEFAULT_QUOTE_EMAIL_BODY, DEFAULT_QUOTE_EMAIL_SUBJECT } from "@/lib/quote-email";
 
 export const SETTING_DEFAULTS = {
   llm_model: process.env.LLM_MODEL ?? "qwen3.5:4b",
@@ -21,6 +23,27 @@ export const SETTING_DEFAULTS = {
   quote_vat_pct: String(DEFAULT_VAT_PCT),
   quote_terms: DEFAULT_TERMS,
   quote_trn: "",
+  /** Email that carries a quote (Email button on the quote page); {placeholders} are filled in, see lib/quote-email.ts. */
+  quote_email_subject: DEFAULT_QUOTE_EMAIL_SUBJECT,
+  quote_email_body: DEFAULT_QUOTE_EMAIL_BODY,
+  /** Punch in / out: working window and fixed break (UAE time, HH:MM 24h), and weekly off days (0 = Sunday, comma separated). */
+  work_start: DEFAULT_HOURS.start,
+  work_end: DEFAULT_HOURS.end,
+  work_break_start: DEFAULT_HOURS.breakStart,
+  work_break_end: DEFAULT_HOURS.breakEnd,
+  work_off_days: DEFAULT_HOURS.offDays,
+  /** Tax invoices: prefix + running number, padded to this many digits (INV-00124). Set the next number to continue an older series. */
+  invoice_prefix: "INV-",
+  invoice_next_number: "1",
+  invoice_digits: "5",
+  /** Credit terms a new order starts with, in days (0 = cash / on delivery). */
+  default_terms_days: "30",
+  /** Printed on invoices so customers know where to pay. */
+  bank_name: "",
+  bank_account_name: "",
+  bank_account_number: "",
+  bank_iban: "",
+  bank_swift: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

@@ -1,6 +1,7 @@
 import "server-only";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { dealVisible, type Viewer } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
 import { effectiveStatus, DEFAULT_MARGIN_PCT, DEFAULT_VALID_DAYS, DEFAULT_VAT_PCT } from "@/lib/quotation";
 import { getSettings } from "@/lib/settings";
@@ -91,14 +92,15 @@ export async function quotesOfDeal(dealId: number): Promise<QuoteSummary[]> {
   return summarise(rows);
 }
 
-export async function listQuotes(limit = 500): Promise<QuoteSummary[]> {
-  const rows = await summaryQuery().orderBy(desc(schema.quotes.createdAt)).limit(limit);
+/** Quotes on the deals the viewer may see, newest first. */
+export async function listQuotes(v: Viewer, limit = 500): Promise<QuoteSummary[]> {
+  const rows = await summaryQuery().where(dealVisible(v, schema.quotes.dealId)).orderBy(desc(schema.quotes.createdAt)).limit(limit);
   return summarise(rows);
 }
 
-/** Everything the quote page needs: the quote, its lines, the customer and the person who prepared it. */
-export async function getQuote(id: number) {
-  const [q] = await summaryQuery().where(eq(schema.quotes.id, id));
+/** Everything the quote page needs: the quote, its lines, the customer and the person who prepared it. Null when hidden from the viewer. */
+export async function getQuote(id: number, v: Viewer) {
+  const [q] = await summaryQuery().where(and(eq(schema.quotes.id, id), dealVisible(v, schema.quotes.dealId)));
   if (!q) return null;
   const [full] = await db
     .select({

@@ -58,7 +58,7 @@ export function StageMenu({
         </NativeSelect>
       ) : (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Move to another stage" title="Move to another stage" disabled={pending} />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Move to another stage" title="Move to another stage" pending={pending} />}>
             <ArrowRightLeft />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
@@ -97,7 +97,7 @@ export function StageMenu({
               </div>
             )}
             <div className="flex gap-2">
-              <Button disabled={pending || (reason === "Other" && !other.trim())} onClick={() => move("lost", reason === "Other" ? `Other: ${other.trim()}` : reason)}>
+              <Button pending={pending} disabled={(reason === "Other" && !other.trim())} onClick={() => move("lost", reason === "Other" ? `Other: ${other.trim()}` : reason)}>
                 Mark as lost
               </Button>
               <Button variant="ghost" onClick={() => setAsking(false)}>

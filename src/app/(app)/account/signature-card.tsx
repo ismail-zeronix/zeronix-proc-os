@@ -58,7 +58,7 @@ export function SignatureCard({
         <p className="text-xs text-muted-foreground">
           Your email is {email}. The logo, address and layout come from the company branding, which an admin sets.
         </p>
-        <Button className="w-fit" disabled={pending} onClick={save}>
+        <Button className="w-fit" pending={pending} onClick={save}>
           Save signature
         </Button>
       </div>

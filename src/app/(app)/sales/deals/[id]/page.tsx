@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
 import {
-  ArrowLeft,
   ArrowRightLeft,
   Building2,
   CalendarCheck,
   CalendarClock,
   CirclePlus,
   Clock,
+  FolderKanban,
   Globe,
   Mail,
   MapPin,
@@ -18,23 +18,30 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import { AppLink } from "@/components/app-link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { AssignPopover } from "@/components/assign-popover";
 import { TempBadge } from "@/components/sales-bits";
 import { StageMenu } from "@/components/stage-menu";
 import { TaskDialog, TaskItem } from "@/components/task-ui";
+import { InvoiceStateBadge, OrderStatusBadge } from "@/components/order-bits";
+import { QuoteStatusBadge } from "@/components/quote-bits";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { dayLabel } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { aed, daysSince, stageLabel } from "@/lib/sales";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
+import { listOrders } from "@/lib/orders-data";
+import { projectOfDeal, projectTypes } from "@/lib/projects-data";
 import { dealItemsOf, quoteDefaults, quotesOfDeal } from "@/lib/quotes-data";
 import { type TaskRow } from "@/lib/tasks";
 import { DealItems } from "./deal-items";
-import { ActivityForm, ChecklistPanel, DeleteDealButton, DetailsPanel, RequirementPanel } from "./deal-panels";
+import { ActivityForm, ChecklistPanel, DeleteDealButton, DetailsPanel, KindPanel, RequirementPanel } from "./deal-panels";
 
 const ICON: Record<string, typeof Phone> = {
   call: Phone,
@@ -48,18 +55,19 @@ const ICON: Record<string, typeof Phone> = {
 const LABEL: Record<string, string> = { call: "Call", whatsapp: "WhatsApp", email: "Email", meeting: "Meeting", note: "Note", stage: "Stage", created: "Created" };
 
 export async function generateMetadata({ params }: PageProps<"/sales/deals/[id]">) {
-  const deal = await getDeal(Number((await params).id)).catch(() => null);
+  const deal = await getDeal(Number((await params).id), viewerOf(await requireApp("sales"))).catch(() => null);
   return { title: `${deal?.title ?? "Deal"} · Zeronix Sales` };
 }
 
 export default async function DealPage({ params }: PageProps<"/sales/deals/[id]">) {
-  const { user, apps } = await requireApp("sales");
+  const access = await requireApp("sales");
+  const { user, apps, seesAll } = access;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
-  const deal = await getDeal(id);
+  const deal = await getDeal(id, viewerOf(access));
   if (!deal) notFound();
 
-  const [activities, tasks, contacts, users, company, contact, items, quotes, defaults] = await Promise.all([
+  const [activities, tasks, contacts, users, company, contact, items, quotes, defaults, orders, project, types] = await Promise.all([
     dealActivities(id),
     dealTasks(id),
     contactsOfCompany(deal.companyId),
@@ -69,6 +77,9 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
     dealItemsOf(id),
     quotesOfDeal(id),
     quoteDefaults(),
+    listOrders(viewerOf(access), { dealId: id }),
+    projectOfDeal(id),
+    projectTypes(),
   ]);
   const openTasks = tasks.filter((t) => t.status === "open") as TaskRow[];
   const canMail = apps.includes("mail");
@@ -79,9 +90,7 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/sales/pipeline" />} aria-label="Back to the pipeline" title="Back to the pipeline">
-          <ArrowLeft />
-        </Button>
+        <BackButton fallback="/sales/pipeline" />
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight" title={deal.title}>
           {deal.title}
         </h1>
@@ -89,7 +98,7 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
         <div className="w-44">
           <StageMenu dealId={deal.id} stage={deal.stage} label="Stage" />
         </div>
-        <AssignPopover dealId={deal.id} assignees={deal.assignees} users={users} size={28} max={4} />
+        <AssignPopover dealId={deal.id} assignees={deal.assignees} users={users} size={28} max={4} readOnly={!seesAll} />
         {canMail && mailTo && (
           <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href={mailTo} />} aria-label="Write an email to the contact" title="Write an email to the contact">
             <Mail />
@@ -119,6 +128,23 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
           <Clock /> {stageLabel(deal.stage)} for {daysSince(deal.stageChangedAt)}d
         </span>
         {deal.stage === "lost" && deal.lostReason && <span className="font-medium text-destructive">Lost: {deal.lostReason}</span>}
+        {project &&
+          (apps.includes("projects") ? (
+            <AppLink href={`/projects/list/${project.id}`} className={`${meta} font-medium text-foreground hover:underline`} title="Open the project">
+              <FolderKanban /> {project.number}
+            </AppLink>
+          ) : (
+            <span className={meta} title="Project">
+              <FolderKanban /> {project.number}
+            </span>
+          ))}
+        {orders.map((o) => (
+          <Link key={o.id} href={`/sales/orders/${o.id}`} className="inline-flex items-center gap-1.5 hover:text-foreground" title="Sales order">
+            <span className="font-mono font-medium text-foreground hover:underline">{o.number}</span>
+            <OrderStatusBadge status={o.status} />
+            {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}
+          </Link>
+        ))}
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -127,7 +153,7 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
             <TabsList>
               <TabsTrigger value="timeline">Timeline ({activities.length})</TabsTrigger>
               <TabsTrigger value="requirement">Requirement</TabsTrigger>
-              <TabsTrigger value="quote">Quote ({items.length})</TabsTrigger>
+              <TabsTrigger value="quote">{project ? "BOQ & quote" : `Quote (${items.length})`}</TabsTrigger>
               <TabsTrigger value="check">Lead check</TabsTrigger>
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
@@ -158,14 +184,49 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
               <RequirementPanel dealId={deal.id} requirement={deal.requirement} />
             </TabsContent>
             <TabsContent value="quote" className="pt-1">
-              <DealItems
-                dealId={deal.id}
-                items={items}
-                quotes={quotes}
-                defaults={{ marginPct: defaults.marginPct, vatPct: defaults.vatPct }}
-                canFindPrice={apps.includes("procurement")}
-                searchHint=""
-              />
+              {project ? (
+                // a project is priced as a BOQ in sections in the Projects app, not with the product line editor
+                <div className="grid gap-3 rounded-lg border border-dashed p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <FolderKanban className="size-5 text-muted-foreground" />
+                    <p className="min-w-0 flex-1 text-sm">
+                      This is a project, so it is priced as a BOQ (bill of quantities) in sections in the Projects app. The quote is made there too.
+                      <span className="block text-xs text-muted-foreground">
+                        {items.length} BOQ line{items.length === 1 ? "" : "s"}
+                        {deal.valueAed != null ? ` · value ${aed(deal.valueAed)}` : ""}
+                      </span>
+                    </p>
+                    {apps.includes("projects") && (
+                      <Button size="sm" variant="outline" nativeButton={false} render={<AppLink href={`/projects/list/${project.id}?tab=boq`} />}>
+                        Open the BOQ
+                      </Button>
+                    )}
+                  </div>
+                  {quotes.length > 0 && (
+                    <ul className="grid gap-0.5 border-t pt-2">
+                      {quotes.map((q) => (
+                        <li key={q.id}>
+                          <Link href={`/sales/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                            <span className="font-mono font-medium">{q.number}</span>
+                            <QuoteStatusBadge status={q.shownStatus} />
+                            <span className="tabular-nums">{aed(q.total)}</span>
+                            <span className="ml-auto text-xs text-muted-foreground">valid until {dayLabel(q.validUntil)}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <DealItems
+                  dealId={deal.id}
+                  items={items}
+                  quotes={quotes}
+                  defaults={{ marginPct: defaults.marginPct, vatPct: defaults.vatPct }}
+                  canFindPrice={apps.includes("procurement")}
+                  searchHint=""
+                />
+              )}
             </TabsContent>
             <TabsContent value="check" className="pt-1">
               <ChecklistPanel dealId={deal.id} checks={deal.checks} />
@@ -175,6 +236,7 @@ export default async function DealPage({ params }: PageProps<"/sales/deals/[id]"
                 deal={{ id: deal.id, title: deal.title, valueAed: deal.valueAed, expectedClose: deal.expectedClose, source: deal.source, contactId: deal.contactId }}
                 contacts={contacts}
               />
+              <KindPanel dealId={deal.id} kind={deal.kind} projectType={project?.typeKey ?? ""} projectTypes={types.map((t) => ({ key: t.key, label: t.label }))} />
             </TabsContent>
           </Tabs>
         </section>

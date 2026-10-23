@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
@@ -61,9 +62,7 @@ export function ReviewClient({ id }: { id: number }) {
 
   const header = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/procurement/price-lists" />} aria-label="Back to price lists" title="Back to price lists">
-        <ArrowLeft />
-      </Button>
+      <BackButton fallback="/procurement/price-lists" />
       <h1 className="text-lg font-semibold tracking-tight">
         <Link href={`/procurement/suppliers/${data.supplierId}`} className="hover:underline">
           {data.supplierName}
@@ -143,10 +142,10 @@ export function ReviewClient({ id }: { id: number }) {
             <CardDescription className="break-words">{data.error}</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
-            <Button onClick={reparse} disabled={pending}>
+            <Button onClick={reparse} pending={pending}>
               <RotateCcw /> Try again
             </Button>
-            <Button variant="destructive" onClick={remove} disabled={pending}>
+            <Button variant="destructive" onClick={remove} pending={pending}>
               <Trash2 /> Delete
             </Button>
           </CardContent>
@@ -203,13 +202,13 @@ export function ReviewClient({ id }: { id: number }) {
         onReset={() => init(id, data.drafts, true)}
         actions={
           <>
-            <Button variant="ghost" onClick={remove} disabled={pending}>
+            <Button variant="ghost" onClick={remove} pending={pending}>
               <Trash2 /> Delete
             </Button>
-            <Button variant="outline" onClick={reparse} disabled={pending}>
+            <Button variant="outline" onClick={reparse} pending={pending}>
               <RotateCcw /> Re-read with AI
             </Button>
-            <Button onClick={save} disabled={pending || !rows.some((r) => r.include)}>
+            <Button onClick={save} pending={pending} disabled={!rows.some((r) => r.include)}>
               <CheckCircle2 /> Save {rows.filter((r) => r.include).length} offers
             </Button>
           </>

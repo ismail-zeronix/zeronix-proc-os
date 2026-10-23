@@ -1,6 +1,9 @@
 import "server-only";
 import type { QuoteBrand, QuoteDocData } from "@/components/quote-document";
-import { getBrand } from "@/lib/brand";
+import type { BankDetails, ProposalBrand } from "@/components/proposal/proposal-document";
+import { getBrand, getDocBrand } from "@/lib/brand";
+import { displayCompany } from "@/lib/proposal";
+import { getSettings } from "@/lib/settings";
 import { getQuote, quoteDefaults } from "@/lib/quotes-data";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof getQuote>>>;
@@ -16,11 +19,33 @@ export function toDoc(q: Loaded): QuoteDocData {
     vatAmount: q.vatAmount,
     total: q.total,
     terms: q.terms,
-    items: q.items.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice })),
+    items: q.items.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice, section: i.section, unit: i.unit })),
     company: { name: q.company.name, emirate: q.company.emirate, trn: q.company.trn, phone: q.company.phone },
     contact: q.contact ? { name: q.contact.name, jobTitle: q.contact.jobTitle, email: q.contact.email, phone: q.contact.phone } : null,
     author: q.author,
   };
+}
+
+/** Our details for proposals: the quote brand plus the document lines and images (white logo, signature, stamp). */
+export async function proposalBrand(): Promise<ProposalBrand> {
+  const [q, d] = await Promise.all([quoteBrand(), getDocBrand()]);
+  return {
+    ...q,
+    company: displayCompany(q.company),
+    email: d.email,
+    phones: d.phones,
+    tradeLicense: d.tradeLicense,
+    logoDarkSrc: d.logoDarkSrc,
+    signatureSrc: d.signatureSrc,
+    stampSrc: d.stampSrc,
+  };
+}
+
+/** Our bank account for customer payments (Admin > Settings > Documents), or null when not filled in. */
+export async function bankDetails(): Promise<BankDetails | null> {
+  const s = await getSettings();
+  const b = { bank: s.bank_name, accountName: s.bank_account_name, accountNumber: s.bank_account_number, iban: s.bank_iban, swift: s.bank_swift };
+  return Object.values(b).some((v) => v.trim()) ? b : null;
 }
 
 export async function quoteBrand(): Promise<QuoteBrand> {

@@ -72,7 +72,7 @@ export function QuoteEdit({ quoteId, validUntil, terms, locked }: { quoteId: num
       {locked ? (
         <p className="text-xs text-muted-foreground">The customer has answered, so this quote is locked.</p>
       ) : (
-        <Button className="w-fit" size="sm" disabled={pending || (until === validUntil && text === terms) || !until} onClick={() => run(() => updateQuote(quoteId, { validUntil: until, terms: text }), "Saved")}>
+        <Button className="w-fit" size="sm" pending={pending} disabled={(until === validUntil && text === terms) || !until} onClick={() => run(() => updateQuote(quoteId, { validUntil: until, terms: text }), "Saved")}>
           Save
         </Button>
       )}
@@ -90,8 +90,8 @@ export function DeleteQuote({ quoteId, number, dealId }: { quoteId: number; numb
       className="text-muted-foreground hover:text-destructive"
       aria-label="Delete this quote"
       title="Delete this quote"
-      disabled={pending}
-      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.push(`/sales/deals/${dealId}`))}
+      pending={pending}
+      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.replace(`/sales/deals/${dealId}`))}
     >
       <Trash2 />
     </Button>

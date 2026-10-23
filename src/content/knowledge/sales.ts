@@ -203,7 +203,7 @@ export const SALES: Article[] = [
       { h: "A simple daily routine" },
       {
         ol: [
-          "Start of day (10 minutes): open Home, check tasks due today, emails and new enquiries. Pick your top three.",
+          "Start of day (10 minutes): open Home, check tasks due today, emails and new deals. Pick your top three.",
           "First hour: replies to waiting customers and quotations that are due.",
           "Prospecting block (60 to 90 minutes): calls and messages to new and existing leads. Set a number, for example 15 calls.",
           "Midday: follow-ups on open quotations. Anything older than three days without a reply gets a call.",

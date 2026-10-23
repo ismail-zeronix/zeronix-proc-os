@@ -1,6 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { ArrowLeft, ClipboardPaste, MapPin, Phone, Search, Trophy } from "lucide-react";
+import { ClipboardPaste, MapPin, Phone, Search, Trophy } from "lucide-react";
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { StatStrip } from "@/components/stat-strip";
 import { SupplierTypeBadge } from "@/components/supplier-type-badge";
@@ -70,9 +71,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/procurement/suppliers" />} aria-label="Back to suppliers" title="Back to suppliers">
-          <ArrowLeft />
-        </Button>
+        <BackButton fallback="/procurement/suppliers" />
         <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{supplier.name}</h1>
         <SupplierTypeBadge type={supplier.type} />
         {!supplier.isActive && <Badge variant="outline">inactive</Badge>}

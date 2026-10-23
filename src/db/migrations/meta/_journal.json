@@ -85,6 +85,111 @@
       "when": 1792546626337,
       "tag": "0011_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792549815930,
+      "tag": "0012_attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792554389566,
+      "tag": "0013_login_failures",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792554550903,
+      "tag": "0014_orders_invoices_payments_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792554674754,
+      "tag": "0015_invoice_per_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792581515343,
+      "tag": "0016_brand_style",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792619184052,
+      "tag": "0017_data_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792712185867,
+      "tag": "0018_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792716233322,
+      "tag": "0019_project_boq",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792717129483,
+      "tag": "0020_project_checklist",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792718469832,
+      "tag": "0021_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792720865391,
+      "tag": "0022_proposal_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792795488711,
+      "tag": "0023_brand_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792797173081,
+      "tag": "0024_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792797460440,
+      "tag": "0025_proposal_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792798293938,
+      "tag": "0026_drop_proposal_images",
+      "breakpoints": true
     }
   ]
 }

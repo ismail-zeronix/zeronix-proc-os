@@ -17,6 +17,7 @@ import {
 import { searchPages } from "@/lib/app-nav";
 import { appByKey, type AppKey } from "@/lib/apps";
 import { money } from "@/lib/format";
+import { orderStatusLabel } from "@/lib/invoicing";
 import { quoteStatusLabel } from "@/lib/quotation";
 import { stageLabel } from "@/lib/sales";
 import type { ProductHit } from "@/lib/search";
@@ -26,6 +27,8 @@ interface SalesHits {
   contacts: { id: number; name: string; email: string; companyId: number; companyName: string }[];
   deals: { id: number; title: string; stage: string; companyName: string }[];
   quotes: { id: number; number: string; status: string; total: number; companyName: string }[];
+  orders?: { id: number; number: string; status: string; total: number; companyName: string }[];
+  invoices?: { id: number; number: string; status: string; total: number; companyName: string; href: string }[];
 }
 
 /** Ctrl/⌘+K (or "/") anywhere: jump to a page, a product (Procurement), or a company, person or deal (Sales). */
@@ -74,7 +77,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
     staleTime: 30_000,
   });
   const fetching = products.isFetching || sales.isFetching;
-  const nothing = !products.data?.products.length && !sales.data?.companies.length && !sales.data?.contacts.length && !sales.data?.deals.length && !sales.data?.quotes?.length;
+  const nothing = !products.data?.products.length && !sales.data?.companies.length && !sales.data?.contacts.length && !sales.data?.deals.length && !sales.data?.quotes?.length && !sales.data?.orders?.length && !sales.data?.invoices?.length;
   const needle = q.trim().toLowerCase();
   const shownPages = needle ? pages.filter((p) => `${p.group} ${p.label}`.toLowerCase().includes(needle)) : pages;
 
@@ -138,6 +141,39 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                           <div className="truncate font-medium">{x.number}</div>
                           <div className="truncate text-xs text-muted-foreground">
                             {x.companyName} · {quoteStatusLabel(x.status)}
+                          </div>
+                        </div>
+                        <span className="ml-auto text-xs text-muted-foreground">{money(x.total)}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+                {sales.data?.orders?.length ? (
+                  <CommandGroup heading="Orders">
+                    {sales.data.orders.map((x) => (
+                      <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`/sales/orders/${x.id}`)}>
+                        <FileText />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{x.number}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {x.companyName} · {orderStatusLabel(x.status)}
+                          </div>
+                        </div>
+                        <span className="ml-auto text-xs text-muted-foreground">{money(x.total)}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+                {sales.data?.invoices?.length ? (
+                  <CommandGroup heading="Invoices">
+                    {sales.data.invoices.map((x) => (
+                      <CommandItem key={`i${x.id}`} value={`i${x.id}`} onSelect={() => go(x.href)}>
+                        <FileText />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{x.number}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {x.companyName}
+                            {x.status === "cancelled" ? " · cancelled" : ""}
                           </div>
                         </div>
                         <span className="ml-auto text-xs text-muted-foreground">{money(x.total)}</span>

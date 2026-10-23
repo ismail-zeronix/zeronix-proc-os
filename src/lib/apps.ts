@@ -1,5 +1,7 @@
 import {
   BookOpen,
+  FolderKanban,
+  FolderOpen,
   Handshake,
   ListChecks,
   Mail,
@@ -50,6 +52,16 @@ export const APPS = [
     color: "var(--series-3)",
   },
   {
+    key: "projects",
+    label: "Projects",
+    href: "/projects",
+    icon: FolderKanban,
+    blurb: "Proposals, site work, handover",
+    defaultFor: ["admin", "sales"],
+    status: "live",
+    color: "var(--app-projects)",
+  },
+  {
     key: "tasks",
     label: "Tasks",
     href: "/tasks",
@@ -80,13 +92,24 @@ export const APPS = [
     color: "var(--series-7)",
   },
   {
+    key: "files",
+    label: "Files",
+    href: "/files",
+    icon: FolderOpen,
+    blurb: "Shared company documents",
+    defaultFor: ["admin", "sales"],
+    status: "live",
+    color: "var(--series-5)",
+  },
+  {
     key: "accounts",
     label: "Accounts",
     href: "/accounts",
     icon: Receipt,
-    blurb: "Invoices and payments",
+    blurb: "Invoices, payments, money owed",
+    // issuing invoices and recording payments: admins, plus whoever the admin gives this app to
     defaultFor: ["admin"],
-    status: "soon",
+    status: "live",
     color: "var(--series-2)",
   },
   {
@@ -142,4 +165,9 @@ export const canOpen =(user: AccessUser, key: AppKey) => allowedApps(user).inclu
 
 export function appByKey(key: AppKey): AppDef {
   return APPS.find((a) => a.key === key)!;
+}
+
+/** The app a portal path belongs to (`/sales/deals/3` → Sales); undefined for Home and pages outside the apps. */
+export function appOfPath(path: string): AppDef | undefined {
+  return APPS.find((a) => path === a.href || path.startsWith(a.href + "/") || path.startsWith(a.href + "?"));
 }

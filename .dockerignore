@@ -6,3 +6,5 @@ node_modules
 *.log
 _*.ts
 _*.mjs
+data
+backups

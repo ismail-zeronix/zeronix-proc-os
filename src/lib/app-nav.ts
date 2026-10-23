@@ -1,4 +1,4 @@
-import { Bell, Building2, ClipboardPaste, FileText, History, Kanban, LayoutDashboard, PlusCircle, Search, Truck, Users, type LucideIcon } from "lucide-react";
+import { Bell, FolderKanban, Bot, Building2, ClipboardList, Landmark, Wallet, UsersRound, ClipboardPaste, FileText, History, Kanban, LayoutDashboard, PlusCircle, Search, SlidersHorizontal, Truck, Users, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -9,6 +9,8 @@ export interface NavItem {
   badge?: string;
   /** Match only this exact path (for an app's overview page). */
   exact?: boolean;
+  /** Other paths whose pages (`/sales/deals/12`) belong to this item, so it stays lit there. */
+  also?: string[];
 }
 
 export interface NavGroup {
@@ -23,9 +25,10 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       label: "Work",
       items: [
         { href: "/sales", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/sales/pipeline", label: "Pipeline", icon: Kanban },
+        { href: "/sales/pipeline", label: "Pipeline", icon: Kanban, also: ["/sales/deals"] },
         { href: "/sales/quotes", label: "Quotes", icon: FileText },
-        { href: "/sales/new", label: "New enquiry", icon: PlusCircle },
+        { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+        { href: "/sales/new", label: "New deal", icon: PlusCircle },
       ],
     },
     {
@@ -36,21 +39,61 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       ],
     },
   ],
+  projects: [
+    {
+      label: "Work",
+      items: [
+        { href: "/projects", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/projects/list", label: "Projects", icon: FolderKanban, badge: "projOverdue" },
+      ],
+    },
+  ],
   procurement: [
     {
       label: "Work",
       items: [
         { href: "/procurement", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/procurement/compare", label: "Compare prices", icon: Search },
-        { href: "/procurement/import", label: "Paste price list", icon: ClipboardPaste },
+        { href: "/procurement/compare", label: "Compare prices", icon: Search, also: ["/procurement/products"] },
+        { href: "/procurement/import", label: "Paste price list", icon: ClipboardPaste, exact: true },
       ],
     },
     {
       label: "Track",
       items: [
         { href: "/procurement/alerts", label: "Price alerts", icon: Bell, badge: "alerts" },
-        { href: "/procurement/price-lists", label: "Price lists", icon: History, badge: "review" },
+        { href: "/procurement/price-lists", label: "Price lists", icon: History, badge: "review", also: ["/procurement/import"] },
         { href: "/procurement/suppliers", label: "Suppliers", icon: Truck },
+      ],
+    },
+  ],
+  accounts: [
+    {
+      label: "Money",
+      items: [
+        { href: "/accounts", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/accounts/invoices", label: "Invoices", icon: FileText, badge: "overdue" },
+        { href: "/accounts/payments", label: "Payments", icon: Wallet },
+        { href: "/accounts/customers", label: "Customers", icon: UsersRound },
+      ],
+    },
+    {
+      label: "Orders",
+      items: [{ href: "/accounts/to-invoice", label: "To invoice", icon: Landmark, badge: "toInvoice" }],
+    },
+  ],
+  admin: [
+    {
+      label: "Team",
+      items: [
+        { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/admin/users", label: "Users", icon: Users },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { href: "/admin/ai", label: "AI & feeds", icon: Bot, badge: "queue" },
+        { href: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
       ],
     },
   ],
@@ -60,6 +103,11 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
 export const BADGE_LABELS: Record<string, string> = {
   review: "waiting for review",
   alerts: "new this week",
+  queue: "price lists waiting for AI",
+  overdue: "invoices overdue",
+  toInvoice: "delivered orders waiting for an invoice",
+  // Projects
+  projOverdue: "projects with an overdue task",
 };
 
 /** Pages offered in the Ctrl K "Go to" list, for the apps the user may open. */

@@ -17,11 +17,12 @@ const label = (iso: string, monthly: boolean) =>
   new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", monthly ? { month: "short", year: "2-digit", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" });
 
 export default async function SalesOverviewPage({ searchParams }: PageProps<"/sales">) {
-  const { user } = await requireApp("sales");
+  const { user, seesAll } = await requireApp("sales");
   const sp = await searchParams;
   const one = (k: string) => String((Array.isArray(sp[k]) ? sp[k][0] : sp[k]) ?? "");
   const range = (RANGES.find((r) => String(r.days) === one("range"))?.days ?? 30) as RangeDays;
-  const mine = one("who") === "mine";
+  // people who only see their own deals have no team view
+  const mine = !seesAll || one("who") === "mine";
   const o = await salesOverview(user.id, !mine, range);
   const rangeLabel = RANGES.find((r) => r.days === range)!;
   const href = (over: Record<string, string>) => {
@@ -39,12 +40,14 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/sa
         <Segmented
           items={RANGES.map((r) => ({ href: href({ range: r.days === 30 ? "" : String(r.days) }), label: r.label, title: r.title, active: r.days === range }))}
         />
-        <Segmented
-          items={[
-            { href: href({ who: "" }), label: "Team", title: "Whole team", active: !mine },
-            { href: href({ who: "mine" }), label: "Mine", title: "Only my deals", active: mine },
-          ]}
-        />
+        {seesAll && (
+          <Segmented
+            items={[
+              { href: href({ who: "" }), label: "Team", title: "Whole team", active: !mine },
+              { href: href({ who: "mine" }), label: "Mine", title: "Only my deals", active: mine },
+            ]}
+          />
+        )}
         <span className="ml-auto text-xs text-muted-foreground">{rangeLabel.title}, compared with the {range === 365 ? "year" : `${range} days`} before</span>
       </div>
 
@@ -63,11 +66,11 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/sa
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <TrendPanel
-            title="New enquiries and wins"
+            title="New deals and wins"
             hint={monthly ? "Per month" : "Per week"}
             points={o.trend.map((t) => ({ label: label(t.start, monthly), created: t.created, won: t.won }))}
             series={[
-              { key: "created", label: "New enquiries", color: "var(--series-1)" },
+              { key: "created", label: "New deals", color: "var(--series-1)" },
               { key: "won", label: "Won", color: "var(--series-2)" },
             ]}
           />
@@ -81,7 +84,7 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/sa
               label: "Sources",
               unit: "deals",
               format: "count",
-              empty: "No enquiries in this period.",
+              empty: "No new deals in this period.",
               data: o.sources.map((s) => ({ label: s.source, value: s.count, note: `${s.won} won (${Math.round((s.won / s.count) * 100)}%)` })),
             },
             {
@@ -96,7 +99,7 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/sa
         />
       </div>
 
-      <Attention o={o} />
+      <Attention o={o} team={!mine} />
     </div>
   );
 }
@@ -111,7 +114,7 @@ function Kpis({ o, range, rangeLabel }: { o: Overview; range: RangeDays; rangeLa
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
       <KpiTile hero label="Open pipeline" icon={<Handshake />} value={aedShort(k.openValue)} hint={`${k.openCount} open deal${k.openCount === 1 ? "" : "s"}`} />
-      <KpiTile label="New enquiries" icon={<Sparkles />} value={String(k.newCur)} delta={<Delta cur={k.newCur} prev={k.newPrev} label={prev} />} spark={spark((t) => t.created)} />
+      <KpiTile label="New deals" icon={<Sparkles />} value={String(k.newCur)} delta={<Delta cur={k.newCur} prev={k.newPrev} label={prev} />} spark={spark((t) => t.created)} />
       <KpiTile
         label="Won"
         icon={<Trophy />}
@@ -220,8 +223,9 @@ function Leaderboard({ o, rangeLabel }: { o: Overview; rangeLabel: string }) {
   );
 }
 
-function Attention({ o }: { o: Overview }) {
-  const more = (n: number, shown: number) => (n > shown ? <p className="px-2 pt-1 text-xs text-muted-foreground">+ {n - shown} more. <Link href="/sales/pipeline" className="underline">Open the pipeline</Link></p> : null);
+function Attention({ o, team }: { o: Overview; team: boolean }) {
+  // open the pipeline on the same people this overview shows
+  const more = (n: number, shown: number) => (n > shown ? <p className="px-2 pt-1 text-xs text-muted-foreground">+ {n - shown} more. <Link href={team ? "/sales/pipeline?who=all" : "/sales/pipeline"} className="underline">Open the pipeline</Link></p> : null);
   const row = "flex flex-wrap items-center justify-between gap-x-3 rounded-md px-2 py-1.5 hover:bg-muted";
   return (
     <section className="rounded-xl border bg-card p-4">

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Search, Trophy } from "lucide-react";
+import { Search, Trophy } from "lucide-react";
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/copy-button";
 import { PriceChart, type ChartSeries } from "@/components/price-chart";
@@ -61,9 +62,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/procurement/compare" />} aria-label="Back to Compare" title="Back to Compare">
-          <ArrowLeft />
-        </Button>
+        <BackButton fallback="/procurement/compare" />
         <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{productLabel(product)}</h1>
         <Badge variant="outline" className="capitalize">{product.category}</Badge>
         <span className="ml-auto flex items-center gap-1.5">

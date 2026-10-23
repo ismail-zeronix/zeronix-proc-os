@@ -11,8 +11,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-zeronix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zeronix}
       POSTGRES_DB: ${POSTGRES_DB:-procurement}
+    # only this machine can reach the database (the web container uses the internal network)
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -44,6 +45,10 @@ services:
       MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-200}
       MAIL_WEBMAIL_URL: ${MAIL_WEBMAIL_URL:-https://mail.hostinger.com}
       RUN_WORKER: "true"
+      # Files app uploads, kept on a volume so they survive rebuilds
+      FILES_DIR: /app/data/files
+    volumes:
+      - files:/app/data/files
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -55,9 +60,10 @@ services:
       retries: 3
       start_period: 40s
 
-  # Nightly database dump, kept BACKUP_KEEP_DAYS days in ./backups
+  # Nightly database dump plus the uploaded files, kept BACKUP_KEEP_DAYS days in ./backups
   #   docker compose --profile backup up -d
-  # Restore: gunzip -c backups/<file>.sql.gz | docker compose exec -T db psql -U zeronix procurement
+  # Restore the database: gunzip -c backups/<file>.sql.gz | docker compose exec -T db psql -U zeronix procurement
+  # Restore the files:    docker compose run --rm -v ./backups:/b --entrypoint sh web -c "tar xzf /b/<files>.tar.gz -C /app/data/files"
   backup:
     image: postgres:16-alpine
     profiles: ["backup"]
@@ -72,6 +78,7 @@ services:
       KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
     volumes:
       - ./backups:/backups
+      - files:/files:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -79,7 +86,9 @@ services:
         while true; do
         f=/backups/procurement-$$(date +%Y%m%d-%H%M).sql.gz;
         pg_dump -h db | gzip > $$f.tmp && mv $$f.tmp $$f &&
-        find /backups -name 'procurement-*.sql.gz' -mtime +$$KEEP_DAYS -delete;
+        tar czf /backups/files-$$(date +%Y%m%d-%H%M).tar.gz -C /files . &&
+        find /backups -name 'procurement-*.sql.gz' -mtime +$$KEEP_DAYS -delete &&
+        find /backups -name 'files-*.tar.gz' -mtime +$$KEEP_DAYS -delete;
         sleep 86400; done
 
   ollama:
@@ -108,3 +117,4 @@ services:
 volumes:
   pgdata:
   ollama:
+  files:

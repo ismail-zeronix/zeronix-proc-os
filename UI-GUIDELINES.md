@@ -1,6 +1,6 @@
 # UI guidelines
 
-How screens in the Zeronix portal are built. They come from the owner's review of the Sales app (October 2026) and apply to **every** app. Procurement, Tasks, Knowledge, Mail and Admin still need to be brought in line (see `TASKS.md`, "UI pass").
+How screens in the Zeronix portal are built. They come from the owner's review of the Sales app (October 2026) and apply to **every** app. All apps follow them since the October 2026 UI pass.
 
 ## 1. Use the space for the work
 
@@ -13,7 +13,9 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 
 ## 2. Shell
 
-- **One shell for every app with a sidebar:** `components/app-shell.tsx` (used by Sales and Procurement). New apps use it too.
+- **One shell for every app with a sidebar:** `components/app-shell.tsx` (used by Sales, Procurement and Admin). New apps use it too.
+- **Page top:** `components/page-toolbar.tsx` (small title, muted summary, controls on the right). Detail pages: back arrow, avatar or icon, title, badges on one row.
+- **Tabs that survive a reload:** `components/url-tabs.tsx` keeps the open tab in `?tab=`.
 
 - **Sidebar starts collapsed** to icons; the existing trigger expands it and the choice is remembered (`sidebar_state` cookie).
 - **No "All apps" row** in the sidebar: the header Apps switcher does that.
@@ -35,6 +37,7 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 - **Recharts** for charts (`components/charts/`), following the `dataviz` skill: one axis, thin marks, hairline solid grid, legend for two or more series, selective labels, tooltip lists every series, `--series-N` colour tokens (light and dark), a chart / table switch on every chart.
 - **KPI tiles** (`components/kpi-tile.tsx`): label, number, change against the previous period (arrow, sign and percentage, never colour alone), optional trend line. One hero number per view.
 - Single-measure bars use one colour. Do not colour bars by value.
+- **Attendance** (`components/attendance/`): one look everywhere from `status-cell.tsx`. Filled square = at work (present green, late amber), outlined + tint = away (absent red, medical blue, other magenta), grey = day off. The fill/outline split is the second cue next to colour; the colours are `--att-*` tokens checked with the dataviz validator.
 
 ## 6. Checks before shipping a screen
 

@@ -85,7 +85,7 @@ Design: one record per opportunity (a lead is a deal at stage "New enquiry"). Ev
 - [x] 6b.4 Sales Overview dashboard (Recharts): KPI tiles with change vs previous period, pipeline by stage, lead quality, won by owner, new vs won trend, sources / lost reasons, needs-attention tabs; 30d / 90d / 12m and Team / Mine [2026-10-21]
 - [x] 6b.5 Compact deal page (tabs: timeline, requirement, lead check, details), company page (tabs), companies and contacts lists, phone layout for the pipeline list [2026-10-21]
 - [x] 6b.6 Screens checked in a real browser (headless Edge) at laptop and phone width, light and dark [2026-10-21]
-- [~] 6b.7 UI pass for the other apps: Procurement is done (6c); Tasks, Knowledge, Mail, Admin and Account still to do (apply UI-GUIDELINES.md). **Owner asked for a reminder after Phase 7.**
+- [x] 6b.7 UI pass for the other apps: Procurement (6c), then Tasks, Knowledge, Mail, Admin and My account (7c) [2026-10-21]
 - [ ] 6b.8 Drag and drop on the board
 
 ## Phase 6c: Procurement UI pass (same rules as Sales, see UI-GUIDELINES.md)
@@ -107,8 +107,93 @@ Layout only: no change to parsing, matching, saving, URL filters, search/export 
 - [x] 7.5 Quote page, clean print / PDF page, Copy as WhatsApp text, Email link [2026-10-21]
 - [x] 7.6 Quote status (Sent moves the deal to Quote sent, Accepted marks it Won, Rejected leaves it), Quotes list, Ctrl K finds quotes, Admin defaults [2026-10-21]
 
+## Phase 7b: Punch in / out (work hours, not a full attendance system)
+- [x] 7b.1 tables `attendance_punches`, `attendance_absences` (migration 0012); rules in src/lib/attendance.ts [2026-10-21]
+- [x] 7b.2 Punch in / out switch next to the welcome message; late punch-in or leaving inside work hours asks for a reason (fixed list or typed) [2026-10-21]
+- [x] 7b.3 Until punched in, every click or key press shows an error toast (home link, theme, user menu and sign out still work) [2026-10-21]
+- [x] 7b.4 Monthly attendance heatmap on My account and on the new admin user page (/admin/users/[id]); click a day to record a medical or other absence [2026-10-21]
+- [x] 7b.5 Admin "Work hours" card: 9:30 AM to 9:30 PM, break 2:30 to 4:30 PM, Sunday off by default [2026-10-21]
+- [x] 7b.6 Live UAE clock in the header (dot = punch status); click it to punch in / out from any page, and the gate's toast opens it [2026-10-21]
+- [x] 7b.7 Attendance redrawn: small calendar cells (filled = at work, outlined = away), month numbers and an exceptions list with reasons; team heatmap on the Admin overview [2026-10-21]
+- [ ] 7b.8 Check in a real browser (switch, reason dialog, blocked clicks, calendar tooltips) at laptop and phone width, light and dark
+
+## Phase 7c: UI pass for the remaining apps (UI-GUIDELINES.md)
+- [x] 7c.1 Admin is a sidebar app: Overview (team today + attendance heatmap), Users (dense table, + dialog), AI & feeds, Settings (tabs: work hours, quotes, AI & comparison, branding) [2026-10-21]
+- [x] 7c.2 User page: one-row header, stat strip, Attendance / Details tabs [2026-10-21]
+- [x] 7c.3 My account: one-row header, Attendance / Mailbox / Email signature tabs (open tab kept in ?tab=) [2026-10-21]
+- [x] 7c.4 Tasks: one grouped list, toolbar with Mine / Everyone and person avatars, + to add, notes on one line, done tasks folded [2026-10-21]
+- [x] 7c.5 Knowledge: toolbar with search, sections side by side, article page with "more in this section" [2026-10-21]
+- [x] 7c.6 Mail: sender avatars, smaller titles (layout was already two-pane) [2026-10-21]
+- [x] 7c.7 Checked with headless Edge screenshots at 1440 px and 390 px, light and dark; no page scrolls sideways on a phone [2026-10-21]
+
+## Phase 8: Go-live (see GO-LIVE-PLAN.md part A)
+Owner decisions (2026-10-21): accounting stays in Zoho for now, invoice numbers continue from Zoho (owner gives the next number); one delivery and one invoice per order; payments in cash or bank transfer, full or part; credit terms 7 / 15 / 30 days with overdue; a central Files app for documents; office network only; customer list imported later.
+- [x] 8.1 Docker web rebuilt with everything (migrations 0011-0015); database port bound to this machine only (was open to the network with the default password) [2026-10-21]
+- [~] 8.2 Nightly backups on (database + uploaded files, 14 days in ./backups), one restore tested into a throwaway database. **Still open: copy backups off this machine**
+- [ ] 8.3 Change the default admin password (left for the owner so nobody is locked out); AUTH_SECRET is long and random (checked)
+- [x] 8.4 Users change their own password (My account → Password) [2026-10-21]
+- [x] 8.5 Login lockout after 5 wrong passwords for 15 minutes, failed logins logged, admin reset unlocks [2026-10-21]
+- [x] 8.6 Access: office network only, http://<server>:3200 [2026-10-21]
+- [~] 8.7 Settings → Documents built (our TRN, bank, IBAN, invoice series, default terms). **Owner to fill in; an invoice cannot be issued without our TRN**
+- [x] 8.8 Full check: typecheck, lint, 186 tests, build (scratch _*.ts files are kept out of Docker by .dockerignore) [2026-10-21]
+- [ ] 8.9 Import companies and contacts from Excel/CSV (owner will send the list later)
+- [x] 8.10 End-to-end test of quote → order → delivery → invoice → payment in a real browser (headless Edge) and in tests [2026-10-21]
+- [x] 8.11 Punch-in rule enforced on the server (every app action and file upload) [2026-10-21]
+- [x] 8.12 Knowledge → Using the portal: daily routine, quote to money [2026-10-21]
+- [ ] 8.13 Error log and Admin page for it
+
+## Phase 9: Sales orders and delivery (one delivery per order)
+- [x] 9.1 Tables sales_orders, sales_order_items (migration 0014) [2026-10-21]
+- [x] 9.2 Convert to order on the quote (PO number/date, credit terms, delivery address); quote Accepted, deal Won; Orders list (To deliver / To invoice / Invoiced) and order page [2026-10-21]
+- [x] 9.3 Mark delivered gives the delivery note number (ZDN-year-0001); delivery note print with signature boxes; proforma invoice print; cancel order (before invoicing) [2026-10-21]
+- [x] 9.4 Customer PO and signed delivery note uploaded on the order (Files tab) [2026-10-21]
+- [ ] 9.5 Buying checklist per line and "To buy" list (not asked yet)
+- [ ] 9.6 Partial deliveries (not needed for now)
+
+## Phase 10: Tax invoices and credit notes
+- [x] 10.1 Tables invoices, invoice_items, credit_notes; invoice numbers from the Admin series (prefix + next number + digits), no gaps, safe when issued at the same moment [2026-10-21]
+- [x] 10.2 Make invoice (Accounts) from a delivered order, locked once issued; UAE tax invoice print with both TRNs, date of supply, VAT per line, amount in words, bank details [2026-10-21]
+- [x] 10.3 Invoices list (Not paid / Overdue / Paid / Cancelled) and invoice page [2026-10-21]
+- [x] 10.4 Cancel invoice with a full credit note (ZCN-year-0001); the order can be invoiced again [2026-10-21]
+- [ ] 10.5 Email the invoice as a PDF from the portal (today: Print → Save as PDF, then attach)
+
+## Phase 11: Payments and receivables
+- [x] 11.1 Payments table, receipt voucher (ZRV-year-0001), cash or bank transfer, full or part; bank transfers need a reference [2026-10-21]
+- [x] 11.2 Void a payment with a reason (kept on record) [2026-10-21]
+- [x] 11.3 Accounts overview: owed, overdue, due in 7 days, collected this month, ageing chart, open invoices most-overdue first [2026-10-21]
+- [x] 11.4 Customers with balances; statement of account for a period, print/PDF [2026-10-21]
+- [x] 11.5 Collection task for the deal owner on the due date, closed automatically when paid [2026-10-21]
+- [ ] 11.6 Post-dated cheques (not taken for now)
+
+## Phase 12: Alongside 9-11
+- [x] 12.1 Accounts app: issue invoices and record payments only for admins and people given Accounts in Admin → Users [2026-10-21]
+- [~] 12.2 Every order, delivery, invoice, payment, void and cancellation is written to the deal timeline with who and when; a separate audit log is still open
+- [ ] 12.3 Excel export for the accountant / Zoho
+- [x] 12.4 Document settings: invoice prefix, next number, digits, default terms, bank [2026-10-21]
+- [ ] 12.5 Notifications
+- [x] 12.6 Files app: shared documents with folders, search, upload up to 20 MB (PDF, images, Office, CSV, zip, email), linked to orders and invoices, uploader or admin can delete; stored on a Docker volume and in the nightly backup [2026-10-21]
+
+## Phase 13: Projects app (plan: ~/.claude/plans/lets-brainnstrom-new-app-shimmering-cascade.md)
+- [x] 13.1 Foundation: deals have a kind (Product / Project) chosen on the new-deal form or the deal Details tab; a project deal opens a project numbered ZPJ-year-0001 with a type (CCTV, networking, server room, access control, AV, office IT, software, other) [2026-10-23]
+- [x] 13.2 Projects app: overview dashboard (in progress, leads, quoted, won and completed this month, by phase, by type, per month, needs attention), list grouped by phase with a board view, project page with site & plan, tasks, quotes & orders, timeline; Sales pipeline gets a Products / Projects filter [2026-10-23]
+- [x] 13.3 BOQ: projects are priced in sections (ready-made per project type, editable) with kind of line (material, labour, service, lump sum), unit, optional extras, section margin, cost / margin per section; Make quote from the BOQ copies sections and units (ZQ series), the quote print and WhatsApp text are grouped by section; on a project deal Sales shows a BOQ card instead of the product line editor [2026-10-23]
+- [x] 13.4 Checklist per project type: every new project gets its type's tasks in three groups (Survey & proposal, Work on site, Handover); survey dates count from opening, work and handover dates follow the start date (hand-picked dates stay); the whole project team can tick, add, reorder and reassign; required tasks must be done before "Completed" (an admin can override, written to the timeline); tasks show in Tasks and on Home linked to the project; Admin > Settings > Projects edits types, default BOQ sections and starting checklists [2026-10-23]
+- [x] 13.5 Proposal editor (Projects > project > Proposal): blocks for cover, heading, text (bold, lists, links, alignment, highlighted note), table, price from the BOQ (every item or section totals, optional extras), payment schedule (shares of the total with VAT), timeline, terms (standard texts + a shared library), signatures, divider, page break; outline on the left with drag to reorder; "+" between blocks or "/" in an empty text to add; autosave a second after each change, refusing to overwrite a newer version; start from the standard proposal or a saved template, save as template [2026-10-23]
+- [ ] 13.5b Image block (cover photo, site photos) through the Files app
+- [x] 13.6 Proposal print / PDF / email in Zeronix's own layout (dark full-page cover, quotation header, numbered sections, bordered quotation table with totals inside, bank details, signature and stamp; PDF with running header and page numbers after the cover); Make quote freezes the proposal with the quote (the quote print, PDF, email and accept-to-order use the frozen copy); project quotes valid 14 days with project terms; Admin > Settings > Documents: email, phones, trade licence, white logo, signature, stamp [2026-10-24]
+- [ ] 13.7 Project procurement (buy list from the BOQ material lines, Find price), expenses with receipts, budgets, profit
+- [ ] 13.8 Payment milestones: PI per milestone, advance receipts on the order
+- [ ] 13.9 Completion report, Zeronix completion certificate (ZPC), signature and stamp images in Admin, one final invoice with advances applied (one line per BOQ section)
+- [ ] 13.10 Home tile badge and widget, Ctrl K search, company Projects tab
+
+## Phase 14: Team chat (plan: ~/.claude/plans/i-ineed-to-add-eager-falcon.md)
+- [x] 14.1 Foundation: chat tables (conversations, members with read position, messages, reactions, chat settings); live delivery over Server-Sent Events with Postgres LISTEN/NOTIFY (no extra service; `/api/chat/stream`); chat button bottom-right on every page once punched in (Alt+C, Esc), opening a panel upwards (full screen on a phone); direct messages with a people picker (online first), unread counts on the button and per conversation, "Seen", online dots, unsent drafts and the open conversation kept per browser; chat is for every active user (not an app toggle) [2026-10-24]
+- [ ] 14.2 Group channels, deal/project threads (Chat tab on the record), replies and threads, reactions, edit/delete, typing
+- [ ] 14.3 @mentions and record cards: mention picker, `#` record picker, Activity feed, mentions from the deal timeline, task notes and company notes, restricted card when the person cannot see the record
+- [ ] 14.4 Card actions, presence and status (do not disturb), browser notifications and sound, mute, full `/chat` page with search, home tile badge
+- [ ] 14.5 Polish: keyboard shortcuts, empty states, screenshots
+
 ## Later
-- [ ] L.1 Accounts app (invoices, receivables)
 - [ ] L.2 Prospecting app (new-licence feeds, review, convert to deal)
 - [ ] L.3 Cold email campaigns with unsubscribe + suppression list
 - [ ] L.4 Link emails to contacts/deals automatically and log them as activities; create a task from an email

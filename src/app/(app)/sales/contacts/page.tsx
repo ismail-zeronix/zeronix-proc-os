@@ -4,15 +4,17 @@ import { Empty } from "@/components/stat-tile";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { listContacts } from "@/lib/sales-data";
 
 export const metadata = { title: "Contacts · Zeronix Sales" };
 
 export default async function ContactsPage({ searchParams }: PageProps<"/sales/contacts">) {
-  const { apps } = await requireApp("sales");
+  const access = await requireApp("sales");
+  const { apps } = access;
   const sp = await searchParams;
   const q = String((Array.isArray(sp.q) ? sp.q[0] : sp.q) ?? "").trim();
-  const rows = await listContacts(q);
+  const rows = await listContacts(viewerOf(access), q);
   const canMail = apps.includes("mail");
   const icon = "inline-flex size-7 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted hover:text-foreground [&_svg]:size-3.5";
   return (

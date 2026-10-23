@@ -3,6 +3,8 @@
 import { ChevronDown, LayoutGrid, LogOut, UserCog } from "lucide-react";
 import Link from "next/link";
 import { logout } from "@/app/(auth)/login/actions";
+import { HeaderClock } from "@/components/attendance/header-clock";
+import type { PunchProps } from "@/components/attendance/punch-toggle";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,7 @@ export function AppHeader({
   apps,
   visible,
   withSidebar = false,
+  punch,
 }: {
   user: { name: string; email: string; role: Role };
   /** Every app the user may open (drives search). */
@@ -36,12 +39,18 @@ export function AppHeader({
   /** Apps shown in the switcher, in order. */
   visible: string[];
   withSidebar?: boolean;
+  /** Punch state for the clock; left out, no clock is shown. */
+  punch?: PunchProps;
 }) {
   const switcher = APPS.filter((a) => visible.includes(a.key));
   return (
     <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur">
       {withSidebar && <SidebarTrigger />}
-      <Link href="/" className="flex items-center gap-2 rounded-md px-1 font-semibold tracking-tight">
+      <Link
+        href="/"
+        data-punch-allow
+        className={`items-center gap-2 rounded-md px-1 font-semibold tracking-tight ${withSidebar ? "hidden sm:flex" : "flex"}`}
+      >
         <span className="flex size-6 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">
           Z
         </span>
@@ -92,11 +101,14 @@ export function AppHeader({
 
       <GlobalSearch apps={apps} />
       <div className="flex-1" />
+      {punch && <HeaderClock {...punch} />}
       {apps.includes("tasks") && <QuickAddTask />}
-      <ThemeToggle />
+      <span data-punch-allow className="contents">
+        <ThemeToggle />
+      </span>
 
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+        <DropdownMenuTrigger data-punch-allow render={<Button variant="ghost" size="sm" />}>
           <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-medium">
             {user.name.slice(0, 1).toUpperCase()}
           </span>

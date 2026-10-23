@@ -1,4 +1,4 @@
-import { CalendarClock, Kanban, List } from "lucide-react";
+import { CalendarClock, FolderKanban, Kanban, List } from "lucide-react";
 import Link from "next/link";
 import { AssignPopover } from "@/components/assign-popover";
 import { TempBadge } from "@/components/sales-bits";
@@ -7,9 +7,11 @@ import { StageMenu } from "@/components/stage-menu";
 import { Empty } from "@/components/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { aed, aedShort, daysSince, isOpen, isStage, OPEN_STAGES, STAGE_SHORT, STAGES } from "@/lib/sales";
+import { projectTypes } from "@/lib/projects-data";
 import { type DealRow, listDeals, salesUsers } from "@/lib/sales-data";
 import { EnquiryDialog } from "../new/enquiry-dialog";
 
@@ -18,21 +20,26 @@ export const metadata = { title: "Pipeline · Zeronix Sales" };
 type Person = { id: number; name: string };
 
 export default async function PipelinePage({ searchParams }: PageProps<"/sales/pipeline">) {
-  const { user } = await requireApp("sales");
+  const access = await requireApp("sales");
+  const { user, seesAll } = access;
   const sp = await searchParams;
   const one = (k: string) => String((Array.isArray(sp[k]) ? sp[k][0] : sp[k]) ?? "");
-  const all = one("who") === "all";
+  const all = seesAll && one("who") === "all";
   const board = one("view") === "board";
   const stage = isStage(one("stage")) ? one("stage") : "";
+  const kind = one("kind") === "product" || one("kind") === "project" ? (one("kind") as "product" | "project") : undefined;
 
-  const [deals, users] = await Promise.all([listDeals({ memberId: all ? undefined : user.id }), salesUsers()]);
+  const [deals, team, types] = await Promise.all([listDeals(viewerOf(access), { memberId: all ? undefined : user.id, kind }), salesUsers(), projectTypes()]);
+  const typeOptions = types.map((t) => ({ key: t.key, label: t.label }));
+  // only admins and "All data" users share deals with others; everyone else can only pick themselves
+  const users = seesAll ? team : team.filter((u) => u.id === user.id);
   const open = deals.filter((d) => isOpen(d.stage));
   const sum = (rows: DealRow[]) => rows.reduce((n, d) => n + (d.valueAed ?? 0), 0);
   const count = (s: string) => deals.filter((d) => d.stage === s).length;
 
   const href = (over: Record<string, string>) => {
     const p = new URLSearchParams();
-    const cur: Record<string, string> = { who: all ? "all" : "", view: board ? "board" : "", stage, ...over };
+    const cur: Record<string, string> = { who: all ? "all" : "", view: board ? "board" : "", stage, kind: kind ?? "", ...over };
     for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/sales/pipeline?${s}` : "/sales/pipeline";
@@ -50,10 +57,19 @@ export default async function PipelinePage({ searchParams }: PageProps<"/sales/p
             { href: href({ view: "board", stage: "" }), title: "Board view", icon: <Kanban />, active: board },
           ]}
         />
+        {seesAll && (
+          <Segmented
+            items={[
+              { href: href({ who: "" }), title: "My deals", label: "Mine", active: !all },
+              { href: href({ who: "all" }), title: "Everyone's deals", label: "All", active: all },
+            ]}
+          />
+        )}
         <Segmented
           items={[
-            { href: href({ who: "" }), title: "My deals", label: "Mine", active: !all },
-            { href: href({ who: "all" }), title: "Everyone's deals", label: "All", active: all },
+            { href: href({ kind: "" }), title: "Products and projects", label: "All", active: !kind },
+            { href: href({ kind: "product" }), title: "Product deals only", label: "Products", active: kind === "product" },
+            { href: href({ kind: "project" }), title: "Project deals only", label: "Projects", active: kind === "project" },
           ]}
         />
         {!board && (
@@ -67,10 +83,14 @@ export default async function PipelinePage({ searchParams }: PageProps<"/sales/p
         <span className={`text-xs whitespace-nowrap text-muted-foreground ${board ? "ml-auto" : ""}`}>
           {open.length} open · {aedShort(sum(open))}
         </span>
-        {!board && <EnquiryDialog users={users} meId={user.id} stage="new" />}
+        {!board && <EnquiryDialog users={users} meId={user.id} stage="new" projectTypes={typeOptions} kind={kind} />}
       </div>
 
-      {board ? <Board open={open} users={users} meId={user.id} /> : <DealTable deals={rows} users={users} />}
+      {board ? (
+        <Board open={open} users={users} meId={user.id} canAssign={seesAll} projectTypes={typeOptions} kind={kind} />
+      ) : (
+        <DealTable deals={rows} users={users} canAssign={seesAll} />
+      )}
     </div>
   );
 }
@@ -87,6 +107,10 @@ function Tab({ href, active, label, n }: { href: string; active: boolean; label:
   );
 }
 
+function ProjectMark() {
+  return <FolderKanban className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Project" />;
+}
+
 function FollowUp({ due }: { due: string | null }) {
   if (!due) return <span className="text-xs text-muted-foreground">-</span>;
   const overdue = due < dubaiToday();
@@ -98,7 +122,21 @@ function FollowUp({ due }: { due: string | null }) {
   );
 }
 
-function Board({ open, users, meId }: { open: DealRow[]; users: Person[]; meId: number }) {
+function Board({
+  open,
+  users,
+  meId,
+  canAssign,
+  projectTypes,
+  kind,
+}: {
+  open: DealRow[];
+  users: Person[];
+  meId: number;
+  canAssign: boolean;
+  projectTypes: { key: string; label: string }[];
+  kind?: "product" | "project";
+}) {
   return (
     <div className="-mx-3 flex snap-x gap-2.5 overflow-x-auto px-3 pb-2 md:mx-0 md:px-0">
       {OPEN_STAGES.map((s) => {
@@ -113,11 +151,11 @@ function Board({ open, users, meId }: { open: DealRow[]; users: Person[]; meId: 
                   {rows.length > 0 && ` · ${aedShort(rows.reduce((n, d) => n + (d.valueAed ?? 0), 0))}`}
                 </span>
               </h2>
-              <EnquiryDialog users={users} meId={meId} stage={s.key} />
+              <EnquiryDialog users={users} meId={meId} stage={s.key} projectTypes={projectTypes} kind={kind} />
             </header>
             <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-2 pb-2">
               {rows.map((d) => (
-                <DealCard key={d.id} d={d} users={users} />
+                <DealCard key={d.id} d={d} users={users} canAssign={canAssign} />
               ))}
               {!rows.length && <p className="py-6 text-center text-xs text-muted-foreground">No deals</p>}
             </div>
@@ -128,10 +166,11 @@ function Board({ open, users, meId }: { open: DealRow[]; users: Person[]; meId: 
   );
 }
 
-function DealCard({ d, users }: { d: DealRow; users: Person[] }) {
+function DealCard({ d, users, canAssign }: { d: DealRow; users: Person[]; canAssign: boolean }) {
   return (
     <article className="grid gap-1.5 rounded-lg border bg-card p-2.5 shadow-xs">
       <Link href={`/sales/deals/${d.id}`} className="line-clamp-2 text-sm leading-snug font-medium hover:underline">
+        {d.kind === "project" && <ProjectMark />}
         {d.title}
       </Link>
       <div className="truncate text-xs text-muted-foreground">
@@ -145,7 +184,7 @@ function DealCard({ d, users }: { d: DealRow; users: Person[] }) {
         <span className="text-xs font-semibold tabular-nums">{d.valueAed != null ? aedShort(d.valueAed) : <span className="font-normal text-muted-foreground">No value</span>}</span>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} />
+        <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} readOnly={!canAssign} />
         <span className="flex items-center gap-2">
           <FollowUp due={d.nextDue} />
           <span className="text-[11px] text-muted-foreground" title="Days in this stage">
@@ -158,11 +197,11 @@ function DealCard({ d, users }: { d: DealRow; users: Person[] }) {
   );
 }
 
-function DealTable({ deals, users }: { deals: DealRow[]; users: Person[] }) {
+function DealTable({ deals, users, canAssign }: { deals: DealRow[]; users: Person[]; canAssign: boolean }) {
   if (!deals.length) {
     return (
       <div className="rounded-lg border bg-card">
-        <Empty>Nothing here. Use + to add an enquiry.</Empty>
+        <Empty>Nothing here. Use + to add a deal.</Empty>
       </div>
     );
   }
@@ -187,6 +226,7 @@ function DealTable({ deals, users }: { deals: DealRow[]; users: Person[] }) {
               <TableRow key={d.id}>
                 <TableCell className="max-w-80 py-1.5 whitespace-normal">
                   <Link href={`/sales/deals/${d.id}`} className="block truncate text-sm font-medium hover:underline">
+                    {d.kind === "project" && <ProjectMark />}
                     {d.title}
                   </Link>
                   <Link href={`/sales/companies/${d.companyId}`} className="block truncate text-xs text-muted-foreground hover:underline">
@@ -206,7 +246,7 @@ function DealTable({ deals, users }: { deals: DealRow[]; users: Person[] }) {
                   {d.valueAed != null ? aedShort(d.valueAed) : "-"}
                 </TableCell>
                 <TableCell className="py-1.5">
-                  <AssignPopover dealId={d.id} assignees={d.assignees} users={users} />
+                  <AssignPopover dealId={d.id} assignees={d.assignees} users={users} readOnly={!canAssign} />
                 </TableCell>
                 <TableCell className="py-1.5">
                   <FollowUp due={d.nextDue} />
@@ -225,6 +265,7 @@ function DealTable({ deals, users }: { deals: DealRow[]; users: Person[] }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link href={`/sales/deals/${d.id}`} className="line-clamp-2 text-sm leading-snug font-medium">
+                  {d.kind === "project" && <ProjectMark />}
                   {d.title}
                 </Link>
                 <div className="truncate text-xs text-muted-foreground">
@@ -241,7 +282,7 @@ function DealTable({ deals, users }: { deals: DealRow[]; users: Person[] }) {
               <TempBadge checks={d.checks} />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} />
+              <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} readOnly={!canAssign} />
               <FollowUp due={d.nextDue} />
             </div>
           </li>

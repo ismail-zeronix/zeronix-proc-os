@@ -1,5 +1,6 @@
 import { dubaiDayNumber } from "@/lib/dates";
 import { HARDWARE } from "./hardware";
+import { PORTAL } from "./portal";
 import { SALES } from "./sales";
 import type { Article, Block, SectionKey, Tip } from "./types";
 import { UAE } from "./uae";
@@ -7,12 +8,13 @@ import { UAE } from "./uae";
 export type { Article, Block, SectionKey, Tip } from "./types";
 
 export const SECTIONS: { key: SectionKey; title: string; blurb: string }[] = [
+  { key: "portal", title: "Using the portal", blurb: "The daily routine and the steps from quote to money." },
   { key: "hardware", title: "Hardware guide", blurb: "Laptops, workstations, servers and processors." },
   { key: "sales", title: "Sales playbook", blurb: "How to deal with corporates, talk to customers and spot a genuine lead." },
   { key: "uae", title: "Finding customers in the UAE", blurb: "Where new customers come from, and how to reach them." },
 ];
 
-export const ARTICLES: Article[] = [...HARDWARE, ...SALES, ...UAE];
+export const ARTICLES: Article[] = [...PORTAL, ...HARDWARE, ...SALES, ...UAE];
 
 export const articleBySlug = (slug: string) => ARTICLES.find((a) => a.slug === slug);
 

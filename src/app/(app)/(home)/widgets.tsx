@@ -92,7 +92,7 @@ export async function LatestEmailsCard({ userId }: { userId: number }) {
             <Link
               key={m.id}
               href={`/mail/${m.uid}`}
-              className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
+              className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <span className={`size-2 shrink-0 rounded-full ${m.seen ? "bg-transparent" : "bg-primary"}`} aria-label={m.seen ? "read" : "unread"} />
@@ -200,7 +200,7 @@ export async function PriceMovesCard() {
           <Link
             key={`${m.productId}-${m.supplierId}`}
             href={`/procurement/products/${m.productId}`}
-            className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{m.label}</div>
@@ -246,7 +246,7 @@ export async function AttentionCard() {
           <Link
             key={s.id}
             href={`/procurement/suppliers/${s.id}`}
-            className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-muted"
           >
             <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
               <Bell className="size-3.5 shrink-0 text-muted-foreground" />
@@ -264,21 +264,26 @@ export async function AttentionCard() {
 }
 
 /** Sales numbers for this week: the whole team for admins, your own deals for everybody else. */
-export async function ThisWeekSales({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
-  const p = await salesPulse(userId, isAdmin);
+export async function ThisWeekSales({ userId, team }: { userId: number; team: boolean }) {
+  const p = await salesPulse(userId, team);
+  // admins see the whole team here, so the pipeline must open on the team too or the numbers will not match
+  const to = (stage = "") => {
+    const q = new URLSearchParams({ ...(team ? { who: "all" } : {}), ...(stage ? { stage } : {}) }).toString();
+    return q ? `/sales/pipeline?${q}` : "/sales/pipeline";
+  };
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Kpi label="New enquiries" value={p.newThisWeek} hint={`this week · ${p.scope}`} href="/sales/pipeline" />
-      <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href="/sales/pipeline" />
-      <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href="/sales/pipeline?stage=quoted" />
-      <Kpi label="Won this week" value={p.wonCount} hint={aed(p.wonValue)} href="/sales/pipeline?stage=won" />
+      <Kpi label="New deals" value={p.newThisWeek} hint={`this week · ${p.scope}`} href={to("new")} />
+      <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href={to()} />
+      <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href={to("quoted")} />
+      <Kpi label="Won this week" value={p.wonCount} hint={aed(p.wonValue)} href={to("won")} />
     </div>
   );
 }
 
 /** Open deals by stage as simple bars. */
-export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
-  const p = await salesPulse(userId, isAdmin);
+export async function PipelineCard({ userId, team }: { userId: number; team: boolean }) {
+  const p = await salesPulse(userId, team);
   const max = Math.max(1, ...p.stages.map((s) => s.count));
   return (
     <Card>
@@ -290,7 +295,7 @@ export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmi
           {p.openCount} open deal{p.openCount === 1 ? "" : "s"} · {aed(p.openValue)} · {p.scope}
         </CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/sales" />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={team ? "/sales" : "/sales?who=mine"} />}>
             Overview <ArrowRight />
           </Button>
         </CardAction>
@@ -313,7 +318,7 @@ export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmi
           <Empty>
             No open deals.{" "}
             <Link href="/sales/new" className="underline">
-              Add an enquiry
+              Add a deal
             </Link>
             .
           </Empty>
@@ -324,8 +329,8 @@ export async function PipelineCard({ userId, isAdmin }: { userId: number; isAdmi
 }
 
 /** Open deals that have gone quiet. */
-export async function DealsAttentionCard({ userId, isAdmin }: { userId: number; isAdmin: boolean }) {
-  const p = await salesPulse(userId, isAdmin);
+export async function DealsAttentionCard({ userId, team }: { userId: number; team: boolean }) {
+  const p = await salesPulse(userId, team);
   return (
     <Card>
       <CardHeader>

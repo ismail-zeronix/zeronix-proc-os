@@ -7,8 +7,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { stageLabel } from "@/lib/sales";
 import { EnquiryForm } from "./enquiry-form";
 
-/** The "+" on a board column: the enquiry form in a dialog, starting at that column's stage. */
-export function EnquiryDialog({ users, meId, stage }: { users: { id: number; name: string }[]; meId: number; stage: string }) {
+/** The "+" on a board column: the new-deal form in a dialog, starting at that column's stage. */
+export function EnquiryDialog({
+  users,
+  meId,
+  stage,
+  projectTypes,
+  kind,
+}: {
+  users: { id: number; name: string }[];
+  meId: number;
+  stage: string;
+  projectTypes?: { key: string; label: string }[];
+  kind?: "product" | "project";
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -17,10 +29,10 @@ export function EnquiryDialog({ users, meId, stage }: { users: { id: number; nam
       </DialogTrigger>
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>New enquiry</DialogTitle>
+          <DialogTitle>{kind === "project" ? "New project deal" : "New deal"}</DialogTitle>
           <DialogDescription>Added to {stageLabel(stage)}.</DialogDescription>
         </DialogHeader>
-        {open && <EnquiryForm users={users} meId={meId} preset={null} stage={stage} onCreated={() => setOpen(false)} />}
+        {open && <EnquiryForm users={users} meId={meId} preset={null} stage={stage} projectTypes={projectTypes} kind={kind} onCreated={() => setOpen(false)} />}
       </DialogContent>
     </Dialog>
   );

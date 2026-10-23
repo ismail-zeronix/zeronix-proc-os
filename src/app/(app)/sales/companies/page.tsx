@@ -5,16 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
+import { viewerOf } from "@/lib/auth/visibility";
 import { listCompanies } from "@/lib/sales-data";
 import { CompanyDialog } from "./company-ui";
 
 export const metadata = { title: "Companies · Zeronix Sales" };
 
 export default async function CompaniesPage({ searchParams }: PageProps<"/sales/companies">) {
-  await requireApp("sales");
+  const access = await requireApp("sales");
   const sp = await searchParams;
   const q = String((Array.isArray(sp.q) ? sp.q[0] : sp.q) ?? "").trim();
-  const rows = await listCompanies(q);
+  const rows = await listCompanies(viewerOf(access), q);
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -62,7 +63,7 @@ export default async function CompaniesPage({ searchParams }: PageProps<"/sales/
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Empty>{q ? "No company matches. Check the spelling, or add it with +." : "No companies yet. Add one with +, or start from an enquiry."}</Empty>
+                  <Empty>{q ? "No company matches. Check the spelling, or add it with +." : "No companies yet. Add one with +, or start from a new deal."}</Empty>
                 </TableCell>
               </TableRow>
             )}

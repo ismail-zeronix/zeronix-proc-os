@@ -1,7 +1,7 @@
 "use client";
 
-import { Handshake, Pencil, Plus, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { FolderKanban, Handshake, Pencil, Plus, Trash2 } from "lucide-react";
+import { AppLink } from "@/components/app-link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createTask, deleteTask, setTaskDone, updateTask } from "@/app/(app)/tasks/actions";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/user-avatar";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import type { TaskRow } from "@/lib/tasks";
 
@@ -110,7 +111,7 @@ export function TaskDialog({
             <Label htmlFor="task-notes">Notes (optional)</Label>
             <Textarea id="task-notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
           </div>
-          <Button type="submit" disabled={pending || !f.title.trim()}>
+          <Button type="submit" pending={pending} disabled={!f.title.trim()}>
             {task ? "Save" : "Add task"}
           </Button>
         </form>
@@ -163,7 +164,7 @@ export function TaskItem({
     });
 
   return (
-    <div className={`flex items-start gap-3 rounded-md px-2 py-2 hover:bg-muted ${pending ? "opacity-60" : ""}`}>
+    <div className={`group flex min-w-0 items-start gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60 ${pending ? "opacity-60" : ""}`}>
       <Checkbox
         className="mt-0.5"
         checked={done}
@@ -172,8 +173,12 @@ export function TaskItem({
         onCheckedChange={(v) => run(() => setTaskDone(task.id, !!v), v ? "Task done" : undefined)}
       />
       <div className="min-w-0 flex-1">
-        <div className={`text-sm font-medium ${done ? "text-muted-foreground line-through" : ""}`}>{task.title}</div>
-        {!compact && task.notes && <div className="text-xs whitespace-pre-line text-muted-foreground">{task.notes}</div>}
+        <div className={`text-sm font-medium break-words ${done ? "text-muted-foreground line-through" : ""}`}>{task.title}</div>
+        {!compact && task.notes && (
+          <div className="line-clamp-1 text-xs text-muted-foreground" title={task.notes}>
+            {task.notes}
+          </div>
+        )}
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {task.dueDate && (
             <span className={overdue ? "font-medium text-destructive" : ""}>
@@ -182,21 +187,26 @@ export function TaskItem({
             </span>
           )}
           {task.priority === "high" && !done && <Badge variant="destructive">High</Badge>}
-          {showAssignee && <span>· {task.assigneeName}</span>}
           {!hideRelated && task.relatedType === "deal" && task.relatedId && task.relatedTitle && (
-            <Link href={`/sales/deals/${task.relatedId}`} className="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground hover:underline">
-              <Handshake className="size-3 shrink-0" /> {task.relatedTitle}
-            </Link>
+            <AppLink href={`/sales/deals/${task.relatedId}`} className="flex min-w-0 max-w-full items-center gap-1 hover:text-foreground hover:underline">
+              <Handshake className="size-3 shrink-0" /> <span className="truncate">{task.relatedTitle}</span>
+            </AppLink>
+          )}
+          {!hideRelated && task.relatedType === "project" && task.relatedId && task.relatedTitle && (
+            <AppLink href={`/projects/list/${task.relatedId}?tab=tasks`} className="flex min-w-0 max-w-full items-center gap-1 hover:text-foreground hover:underline">
+              <FolderKanban className="size-3 shrink-0" /> <span className="truncate">{task.relatedTitle}</span>
+            </AppLink>
           )}
         </div>
       </div>
+      {showAssignee && <UserAvatar name={task.assigneeName} size={22} className="mt-px" />}
       {!compact && (
-        <div className="flex shrink-0 gap-0.5">
+        <div className="flex shrink-0 gap-0.5 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100">
           <TaskDialog
             task={task}
             people={people}
             trigger={
-              <Button variant="ghost" size="icon-sm" aria-label="Edit task">
+              <Button variant="ghost" size="icon-sm" aria-label="Edit task" title="Edit">
                 <Pencil />
               </Button>
             }
@@ -205,7 +215,8 @@ export function TaskItem({
             variant="ghost"
             size="icon-sm"
             aria-label="Delete task"
-            disabled={pending}
+            title="Delete"
+            pending={pending}
             onClick={() => confirm(`Delete "${task.title}"?`) && run(() => deleteTask(task.id), "Task deleted")}
           >
             <Trash2 />

@@ -43,3 +43,6 @@ next-env.d.ts
 
 # database backups
 /backups/
+
+# uploaded files (Files app)
+/data/

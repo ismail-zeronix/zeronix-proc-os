@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
+import { assertDeal } from "@/lib/auth/visibility";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Write what needs doing").max(200),
@@ -27,6 +28,7 @@ export type TaskInput = z.input<typeof taskSchema>;
 function refresh() {
   revalidatePath("/tasks");
   revalidatePath("/sales", "layout");
+  revalidatePath("/projects", "layout");
   revalidatePath("/");
 }
 
@@ -38,6 +40,7 @@ export async function createTask(input: TaskInput) {
   }
   if (d.related) {
     await assertApp("sales");
+    await assertDeal(d.related.id);
     const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, d.related.id));
     if (!deal) throw new Error("That deal no longer exists.");
   }

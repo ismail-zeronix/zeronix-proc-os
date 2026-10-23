@@ -1,10 +1,11 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import { allowedApps, type AppKey } from "@/lib/apps";
+import { dubaiToday } from "@/lib/dates";
 import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 
 export async function getSession(): Promise<SessionUser | null> {
@@ -22,6 +23,8 @@ export interface Access {
   /** Name, email and role as they are in the database right now (not as they were when the cookie was signed). */
   user: SessionUser;
   apps: AppKey[];
+  /** True when they see every sales record (admins, and users set to "All data"); false = only the deals they are on. */
+  seesAll: boolean;
 }
 
 /** The signed-in user's current role and apps, read from the database once per request. Null = not signed in or deactivated. */
@@ -35,13 +38,14 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       role: schema.users.role,
       isActive: schema.users.isActive,
       apps: schema.users.apps,
+      dataScope: schema.users.dataScope,
     })
     .from(schema.users)
     .where(eq(schema.users.id, session.id))
     .limit(1);
   if (!row || !row.isActive) return null;
   const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role };
-  return { user, apps: allowedApps({ role: row.role, apps: row.apps }) };
+  return { user, apps: allowedApps({ role: row.role, apps: row.apps }), seesAll: row.role === "admin" || row.dataScope === "all" };
 });
 
 /** For pages and layouts: any signed-in, active user. Deactivated users are signed out (their cookie is cleared). */
@@ -58,10 +62,40 @@ export async function requireApp(key: AppKey): Promise<Access> {
   return access;
 }
 
-/** For server actions and route handlers: throws unless the user may use this app. */
+/**
+ * Nothing changes in the portal until you punch in (the browser blocks clicks too; this is the rule on the server).
+ * Only a session opened today counts. Cached per request.
+ */
+export const isPunchedIn = cache(async (userId: number): Promise<boolean> => {
+  const [open] = await db
+    .select({ id: schema.attendancePunches.id })
+    .from(schema.attendancePunches)
+    .where(
+      and(
+        eq(schema.attendancePunches.userId, userId),
+        eq(schema.attendancePunches.day, dubaiToday()),
+        isNull(schema.attendancePunches.outAt),
+      ),
+    )
+    .limit(1);
+  return !!open;
+});
+
+export const NOT_PUNCHED_IN = "Punch in first: click the clock at the top of the page.";
+
+/** For server actions that change something: throws unless the user may use this app and has punched in. */
 export async function assertApp(key: AppKey): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !access.apps.includes(key)) throw new Error("You do not have access to this");
+  if (!(await isPunchedIn(access.user.id))) throw new Error(NOT_PUNCHED_IN);
+  return access.user;
+}
+
+/** Like assertApp, for actions that people of either app may run (e.g. making a quote from Sales or from Projects). */
+export async function assertAnyApp(...keys: AppKey[]): Promise<SessionUser> {
+  const access = await loadAccess();
+  if (!access || !keys.some((k) => access.apps.includes(k))) throw new Error("You do not have access to this");
+  if (!(await isPunchedIn(access.user.id))) throw new Error(NOT_PUNCHED_IN);
   return access.user;
 }
 
@@ -74,5 +108,6 @@ export async function hasApp(key: AppKey): Promise<boolean> {
 export async function requireAdmin(): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || access.user.role !== "admin") throw new Error("Admin access required");
+  if (!(await isPunchedIn(access.user.id))) throw new Error(NOT_PUNCHED_IN);
   return access.user;
 }

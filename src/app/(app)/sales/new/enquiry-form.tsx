@@ -1,11 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Search, X } from "lucide-react";
+import { Check, FolderKanban, Loader2, Package, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { AvatarPicker } from "@/components/avatar-picker";
+import { useGoBack } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -28,7 +29,7 @@ interface Person {
 }
 
 /**
- * One compact form for a new enquiry: company, person and the request side by side.
+ * One compact form for a new deal: company, person and the request side by side.
  * Used as a page (opens the new deal afterwards) and inside the "+" dialog on a board column (stays on the board).
  */
 export function EnquiryForm({
@@ -37,20 +38,28 @@ export function EnquiryForm({
   preset,
   stage = "new",
   onCreated,
+  projectTypes = [],
+  kind: initialKind = "product",
 }: {
   users: { id: number; name: string }[];
   meId: number;
   preset: { id: number; name: string } | null;
   stage?: string;
   onCreated?: (dealId: number) => void;
+  /** Types offered when the deal is a project (empty = the Product / Project choice is hidden). */
+  projectTypes?: { key: string; label: string }[];
+  kind?: "product" | "project";
 }) {
   const router = useRouter();
+  const goBack = useGoBack("/sales/pipeline");
   const [pending, start] = useTransition();
   const [company, setCompany] = useState<Co | null>(preset ? { ...preset, emirate: "", industry: "" } : null);
   const [typed, setTyped] = useState("");
   const [debounced, setDebounced] = useState("");
   const [contactId, setContactId] = useState<number | "new">("new");
   const [team, setTeam] = useState<number[]>([meId]);
+  const [kind, setKind] = useState<"product" | "project">(projectTypes.length ? initialKind : "product");
+  const [projectType, setProjectType] = useState("");
   const [f, setF] = useState({
     emirate: "",
     industry: "",
@@ -85,7 +94,15 @@ export function EnquiryForm({
   const exact = found.data?.companies.find((c) => c.name.toLowerCase() === typed.trim().toLowerCase());
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const canSave = !pending && (company || typed.trim().length >= 2) && (f.requirement.trim() || f.contactName.trim() || contactId !== "new");
+  // what still stops the deal from being saved, said in words next to the button instead of a silently greyed-out button
+  const missing =
+    !company && typed.trim().length < 2
+      ? "Pick a company or type its name."
+      : !f.requirement.trim() && !f.contactName.trim() && contactId === "new"
+        ? "Write what they want, or add a contact person."
+        : kind === "project" && !projectType
+          ? "Pick the project type."
+          : "";
 
   const save = () =>
     start(async () => {
@@ -108,12 +125,14 @@ export function EnquiryForm({
           valueAed: value,
           ownerIds: team.length ? team : [meId],
           stage,
+          kind,
+          projectType: kind === "project" ? projectType : "",
         });
-        toast.success(res.reusedCompany ? `Added to the existing company "${res.reusedCompany}"` : "Enquiry added", {
+        toast.success(res.reusedCompany ? `Added to the existing company "${res.reusedCompany}"` : "Deal added", {
           action: onCreated ? { label: "Open deal", onClick: () => router.push(`/sales/deals/${res.id}`) } : undefined,
         });
         if (onCreated) onCreated(res.id);
-        else router.push(`/sales/deals/${res.id}`);
+        else router.replace(`/sales/deals/${res.id}`);
       } catch (e) {
         toast.error((e as Error).message);
       }
@@ -125,7 +144,9 @@ export function EnquiryForm({
       className="grid gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (canSave) save();
+        if (pending) return;
+        if (missing) toast.error(missing);
+        else save();
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -215,13 +236,53 @@ export function EnquiryForm({
       </div>
 
       <section className="grid gap-2">
-        <h3 className={heading}>Enquiry{stage !== "new" && <span className="ml-2 font-normal normal-case">starts at {stageLabel(stage)}</span>}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className={heading}>Deal{stage !== "new" && <span className="ml-2 font-normal normal-case">starts at {stageLabel(stage)}</span>}</h3>
+          {projectTypes.length > 0 && (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border bg-muted/50 p-0.5" role="radiogroup" aria-label="Kind of deal">
+                {(
+                  [
+                    { key: "product", label: "Product", icon: Package, title: "Supply of products (laptops, servers...)" },
+                    { key: "project", label: "Project", icon: FolderKanban, title: "Site work (CCTV, cabling, server room...), tracked in Projects" },
+                  ] as const
+                ).map((k) => (
+                  <button
+                    key={k.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={kind === k.key}
+                    title={k.title}
+                    onClick={() => setKind(k.key)}
+                    className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium [&_svg]:size-3.5 ${kind === k.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <k.icon /> {k.label}
+                  </button>
+                ))}
+              </div>
+              {kind === "project" && (
+                <NativeSelect size="sm" aria-label="Project type" value={projectType} onChange={(e) => setProjectType(e.target.value)}>
+                  <NativeSelectOption value="">Project type…</NativeSelectOption>
+                  {projectTypes.map((t) => (
+                    <NativeSelectOption key={t.key} value={t.key}>
+                      {t.label}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              )}
+            </div>
+          )}
+        </div>
         <Textarea
           aria-label="What do they want?"
           rows={3}
           value={f.requirement}
           onChange={set("requirement")}
-          placeholder="What do they want? e.g. 20 x 14-inch laptops, i5, 16 GB, 512 GB, 3-year warranty, needed by month end"
+          placeholder={
+            kind === "project"
+              ? "What is the work? e.g. 16 IP cameras for a 2-floor warehouse, NVR with 30 days recording, remote view on mobile, site in Al Quoz"
+              : "What do they want? e.g. 20 x 14-inch laptops, i5, 16 GB, 512 GB, 3-year warranty, needed by month end"
+          }
         />
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1.2fr]">
           <NativeSelect className="w-full" aria-label="Source" value={f.source} onChange={set("source")}>
@@ -242,15 +303,23 @@ export function EnquiryForm({
       </section>
 
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!canSave}>
-          {pending ? "Saving…" : "Add enquiry"}
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : "Add deal"}
         </Button>
         {!onCreated && (
-          <Button type="button" variant="ghost" onClick={() => router.push("/sales/pipeline")}>
+          <Button type="button" variant="ghost" onClick={goBack}>
             Cancel
           </Button>
         )}
-        <span className="ml-auto text-xs text-muted-foreground">Creates the company, person, deal and a follow-up for today.</span>
+        {missing ? (
+          <span className="ml-auto text-xs font-medium text-amber-700 dark:text-amber-400" role="status">
+            {missing}
+          </span>
+        ) : (
+          <span className="ml-auto text-xs text-muted-foreground">
+            Creates the company, person, deal{kind === "project" ? ", the project" : ""} and a follow-up for today.
+          </span>
+        )}
       </div>
     </form>
   );

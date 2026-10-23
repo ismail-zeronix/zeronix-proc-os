@@ -34,10 +34,26 @@ interface Product {
 }
 
 /**
- * "Find price": searches the supplier prices from Procurement and adds a chosen offer to the deal as a line.
- * The cost is read again on the server when "Add" is pressed; this list is only for choosing.
+ * "Find price": searches the supplier prices from Procurement and adds a chosen offer as a line: to the deal, or, with
+ * `onAdd`, wherever the caller wants (a project BOQ section). The cost is read again on the server when "Add" is pressed;
+ * this list is only for choosing.
  */
-export function FindPrice({ dealId, defaultMargin, initialQuery }: { dealId: number; defaultMargin: number; initialQuery: string }) {
+export function FindPrice({
+  dealId,
+  onAdd,
+  defaultMargin,
+  initialQuery,
+  trigger,
+  title = "Find a supplier price",
+}: {
+  dealId?: number;
+  onAdd?: (offerId: number, qty: number, marginPct: number) => Promise<unknown>;
+  defaultMargin: number;
+  initialQuery: string;
+  /** The button that opens it, shown with a search icon (default: an outline "Find price" button). */
+  trigger?: React.ReactElement;
+  title?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState(initialQuery);
   const [qty, setQty] = useState("1");
@@ -80,7 +96,8 @@ export function FindPrice({ dealId, defaultMargin, initialQuery }: { dealId: num
   const add = (o: Offer, label: string) =>
     start(async () => {
       try {
-        await addItemFromOffer(dealId, o.id, n, m);
+        if (onAdd) await onAdd(o.id, n, m);
+        else if (dealId) await addItemFromOffer(dealId, o.id, n, m);
         toast.success(`Added ${n} × ${label.slice(0, 40)}`);
       } catch (e) {
         toast.error((e as Error).message);
@@ -89,12 +106,18 @@ export function FindPrice({ dealId, defaultMargin, initialQuery }: { dealId: num
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
-        <Search /> Find price
-      </DialogTrigger>
+      {trigger ? (
+        <DialogTrigger render={trigger}>
+          <Search />
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger render={<Button variant="outline" size="sm" />}>
+          <Search /> Find price
+        </DialogTrigger>
+      )}
       <DialogContent className="flex max-h-[85svh] flex-col gap-3 sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Find a supplier price</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>Search the price lists, then add the offer you want to quote. The price is cost plus your margin.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-2">
@@ -151,7 +174,7 @@ export function FindPrice({ dealId, defaultMargin, initialQuery }: { dealId: num
                       {usable && o.currency !== "AED" && <div className="text-xs text-muted-foreground">≈ {money(o.priceAed, "AED")}</div>}
                     </div>
                     <div className="w-28 text-right text-xs text-muted-foreground tabular-nums">{usable ? `Sell ${money(sellPrice(o.priceAed!, m), "AED")}` : ""}</div>
-                    <Button size="sm" disabled={!usable || pending} onClick={() => add(o, p.label)} title={usable ? "Add to this deal" : "No AED price: add the line by hand"}>
+                    <Button size="sm" pending={pending} disabled={!usable} onClick={() => add(o, p.label)} title={usable ? "Add this line" : "No AED price: add the line by hand"}>
                       <Plus /> Add
                     </Button>
                   </div>

@@ -4,6 +4,7 @@ import { cache } from "react";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
+import { companyVisible, dealVisible, type Viewer } from "@/lib/auth/visibility";
 import { temperature, type Checks, type StageKey, type Temperature } from "@/lib/sales";
 
 const owner = alias(schema.users, "owner");
@@ -12,6 +13,8 @@ export interface DealRow {
   id: number;
   title: string;
   stage: StageKey;
+  /** "project" deals also have a project in the Projects app. */
+  kind: "product" | "project";
   companyId: number;
   companyName: string;
   contactId: number | null;
@@ -36,6 +39,7 @@ const dealColumns = {
   id: schema.deals.id,
   title: schema.deals.title,
   stage: schema.deals.stage,
+  kind: schema.deals.kind,
   companyId: schema.deals.companyId,
   companyName: schema.companies.name,
   contactId: schema.deals.contactId,
@@ -74,9 +78,10 @@ function toRow(r: Awaited<ReturnType<typeof dealQuery>>[number]): DealRow {
 
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-/** Deals for the board and list. `memberId` limits to the deals one person is assigned to. */
-export async function listDeals(opts: { memberId?: number; q?: string } = {}): Promise<DealRow[]> {
-  const where: (SQL | undefined)[] = [];
+/** Deals for the board and list, as far as the viewer may see them. `memberId` limits to the deals one person is assigned to. */
+export async function listDeals(v: Viewer, opts: { memberId?: number; q?: string; kind?: "product" | "project" } = {}): Promise<DealRow[]> {
+  const where: (SQL | undefined)[] = [dealVisible(v, schema.deals.id)];
+  if (opts.kind) where.push(eq(schema.deals.kind, opts.kind));
   if (opts.memberId) {
     where.push(sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = ${schema.deals.id} AND a.user_id = ${opts.memberId})`);
   }
@@ -98,8 +103,9 @@ export async function listDeals(opts: { memberId?: number; q?: string } = {}): P
   return rows.map(toRow);
 }
 
-export async function getDeal(id: number) {
-  const [row] = await dealQuery().where(eq(schema.deals.id, id));
+/** One deal, or null when it does not exist or the viewer may not see it. */
+export async function getDeal(id: number, v: Viewer) {
+  const [row] = await dealQuery().where(and(eq(schema.deals.id, id), dealVisible(v, schema.deals.id)));
   if (!row) return null;
   const [full] = await db
     .select({ requirement: schema.deals.requirement, source: schema.deals.source, lostReason: schema.deals.lostReason })
@@ -138,8 +144,9 @@ export interface CompanyRow {
   createdAt: Date;
 }
 
-export async function listCompanies(q?: string): Promise<CompanyRow[]> {
+export async function listCompanies(v: Viewer, q?: string): Promise<CompanyRow[]> {
   const term = q?.trim();
+  const mine = dealVisible(v, sql`d.id`);
   const rows = await db
     .select({
       id: schema.companies.id,
@@ -152,26 +159,32 @@ export async function listCompanies(q?: string): Promise<CompanyRow[]> {
       ownerName: sql<string>`coalesce(${owner.name}, '')`,
       createdAt: schema.companies.createdAt,
       contacts: sql<number>`(SELECT count(*)::int FROM contacts c WHERE c.company_id = ${schema.companies.id})`,
-      openDeals: sql<number>`(SELECT count(*)::int FROM deals d WHERE d.company_id = ${schema.companies.id} AND d.stage NOT IN ('won','lost'))`,
+      openDeals: sql<number>`(SELECT count(*)::int FROM deals d WHERE d.company_id = ${schema.companies.id} AND d.stage NOT IN ('won','lost') AND ${mine})`,
     })
     .from(schema.companies)
     .leftJoin(owner, eq(owner.id, schema.companies.ownerId))
-    .where(term ? or(ilike(schema.companies.name, like(term)), ilike(schema.companies.website, like(term)), ilike(schema.companies.phone, like(term))) : undefined)
+    .where(
+      and(
+        companyVisible(v, schema.companies.id),
+        term ? or(ilike(schema.companies.name, like(term)), ilike(schema.companies.website, like(term)), ilike(schema.companies.phone, like(term))) : undefined,
+      ),
+    )
     .orderBy(asc(schema.companies.name))
     .limit(500);
   return rows;
 }
 
-export async function getCompany(id: number) {
+/** One company with its contacts, the deals the viewer may see and their history. Null when hidden from the viewer. */
+export async function getCompany(id: number, v: Viewer) {
   const [company] = await db
     .select({ c: schema.companies, ownerName: sql<string>`coalesce(${owner.name}, '')` })
     .from(schema.companies)
     .leftJoin(owner, eq(owner.id, schema.companies.ownerId))
-    .where(eq(schema.companies.id, id));
+    .where(and(eq(schema.companies.id, id), companyVisible(v, schema.companies.id)));
   if (!company) return null;
   const [contacts, deals, activities] = await Promise.all([
     db.select().from(schema.contacts).where(eq(schema.contacts.companyId, id)).orderBy(desc(schema.contacts.isDecisionMaker), asc(schema.contacts.name)),
-    dealQuery().where(eq(schema.deals.companyId, id)).orderBy(desc(schema.deals.createdAt)),
+    dealQuery().where(and(eq(schema.deals.companyId, id), dealVisible(v, schema.deals.id))).orderBy(desc(schema.deals.createdAt)),
     db
       .select({
         id: schema.activities.id,
@@ -185,14 +198,20 @@ export async function getCompany(id: number) {
       .from(schema.activities)
       .leftJoin(schema.users, eq(schema.users.id, schema.activities.userId))
       .leftJoin(schema.deals, eq(schema.deals.id, schema.activities.dealId))
-      .where(eq(schema.activities.companyId, id))
+      // company notes, plus the history of the deals the viewer is on
+      .where(
+        and(
+          eq(schema.activities.companyId, id),
+          v.seesAll ? undefined : or(sql`${schema.activities.dealId} IS NULL`, dealVisible(v, schema.activities.dealId)),
+        ),
+      )
       .orderBy(desc(schema.activities.at))
       .limit(50),
   ]);
   return { ...company.c, ownerName: company.ownerName, contacts, deals: deals.map(toRow), activities };
 }
 
-export async function listContacts(q?: string) {
+export async function listContacts(v: Viewer, q?: string) {
   const term = q?.trim();
   return db
     .select({
@@ -209,27 +228,30 @@ export async function listContacts(q?: string) {
     .from(schema.contacts)
     .innerJoin(schema.companies, eq(schema.companies.id, schema.contacts.companyId))
     .where(
-      term
-        ? or(
-            ilike(schema.contacts.name, like(term)),
-            ilike(schema.contacts.email, like(term)),
-            ilike(schema.contacts.phone, like(term)),
-            ilike(schema.companies.name, like(term)),
-          )
-        : undefined,
+      and(
+        companyVisible(v, schema.companies.id),
+        term
+          ? or(
+              ilike(schema.contacts.name, like(term)),
+              ilike(schema.contacts.email, like(term)),
+              ilike(schema.contacts.phone, like(term)),
+              ilike(schema.companies.name, like(term)),
+            )
+          : undefined,
+      ),
     )
     .orderBy(asc(schema.contacts.name))
     .limit(500);
 }
 
 /** Companies for the "pick a company" box, best matches first. */
-export async function searchCompanies(q: string, limit = 8) {
+export async function searchCompanies(v: Viewer, q: string, limit = 8) {
   const term = q.trim();
   if (!term) return [];
   return db
     .select({ id: schema.companies.id, name: schema.companies.name, emirate: schema.companies.emirate, industry: schema.companies.industry })
     .from(schema.companies)
-    .where(ilike(schema.companies.name, like(term)))
+    .where(and(ilike(schema.companies.name, like(term)), companyVisible(v, schema.companies.id)))
     .orderBy(asc(schema.companies.name))
     .limit(limit);
 }
@@ -291,11 +313,11 @@ export interface Attention {
 }
 
 /**
- * Sales numbers for the home screen. Admins see the whole team, everybody else sees their own deals.
+ * Sales numbers for the home screen. Admins (and "All data" users) see the whole team, everybody else their own deals.
  * Cached per request so the tiles and the widgets share one set of queries.
  */
-export const salesPulse = cache(async (userId: number, isAdmin: boolean) => {
-  const mine = isAdmin ? sql`TRUE` : sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = d.id AND a.user_id = ${userId})`;
+export const salesPulse = cache(async (userId: number, seesAll: boolean) => {
+  const mine = dealVisible({ id: userId, seesAll }, sql`d.id`);
   const week = sql`now() - interval '7 days'`;
   const [totals, byStage, stale] = await Promise.all([
     db.execute<{ new_week: number; open_n: number; open_value: number; won_n: number; won_value: number; quoted_n: number; new_n: number }>(sql`
@@ -325,7 +347,7 @@ export const salesPulse = cache(async (userId: number, isAdmin: boolean) => {
     id: r.id,
     title: r.title,
     companyName: r.company_name,
-    reason: r.stage === "new" ? `New enquiry, nobody has contacted them for ${r.idle_days} days` : `No activity for ${r.idle_days} days`,
+    reason: r.stage === "new" ? `New deal, nobody has contacted them for ${r.idle_days} days` : `No activity for ${r.idle_days} days`,
   }));
   return {
     newThisWeek: t.new_week,
@@ -337,6 +359,6 @@ export const salesPulse = cache(async (userId: number, isAdmin: boolean) => {
     newCount: t.new_n,
     stages,
     attention,
-    scope: isAdmin ? "whole team" : "your deals",
+    scope: seesAll ? "whole team" : "your deals",
   };
 });

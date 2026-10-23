@@ -15,12 +15,32 @@ Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder unde
 - **New enquiry**: one screen creates (or reuses) the company, the person, the deal and a follow-up task for today. A company with the same name (ignoring LLC, spaces, punctuation) is never added twice.
 - **Deal page**: what they asked for, the **genuine-lead checklist** (need, authority, budget, timing, three ways to verify the company, and a warning flag) that gives a Hot / Warm / Cold label, a timeline for calls, WhatsApp, emails, meetings and notes, and follow-up tasks (they also show in Tasks and on Home). Logging a call or message on a brand-new enquiry moves it to Contacted.
 - **Quote tab** on a deal: the lines the customer wants, each with our cost, a margin and the selling price (AED, before VAT). **Find price** searches the Procurement price lists and adds the chosen supplier offer as a line (cost converted to AED, price = cost plus the default margin; needs the Procurement app). Lines can also be typed by hand. **Make quote** copies the lines into a numbered quote (`ZQ-2026-0001`, the number restarts every year) with VAT, a valid-until date and terms; later edits to the deal never change a quote already made.
-- **Quotes** (`/sales/quotes`): all quotes with a status filter. A quote page shows the document exactly as the customer sees it (logo and details from Admin → branding; no cost or margin on it), the profit inside the company only, a status menu (Draft, Sent, Accepted, Rejected; a sent quote past its date shows as Expired), **Print / PDF** (a clean page), **Copy as WhatsApp text** and **Email**. Marking a quote **Sent** moves the deal to Quote sent; **Accepted** marks the deal Won at the quoted amount; **Rejected** leaves the deal where it is so you choose between negotiating and Lost. Admin → Quotes sets the default margin, validity, VAT, terms and our TRN.
+- **Quotes** (`/sales/quotes`): all quotes with a status filter. A quote page shows the document exactly as the customer sees it (logo and details from Admin → branding; no cost or margin on it), the profit inside the company only, a status menu (Draft, Sent, Accepted, Rejected; a sent quote past its date shows as Expired), **Print / PDF** (a clean page), **Copy as WhatsApp text** and **Email**. Marking a quote **Sent** moves the deal to Quote sent; **Accepted** marks the deal Won at the quoted amount; **Rejected** leaves the deal where it is so you choose between negotiating and Lost. Admin → Settings → Quotes sets the default margin, validity, VAT and terms; our TRN is under Settings → Documents.
 - **Write email** on a contact or deal opens Mail pre-filled; the sent email is logged on the deal.
 - **Home** shows this week's sales numbers, the pipeline by stage and deals with no activity for 3 days. Ctrl K finds companies, people, deals and quote numbers.
 - Rules live in `src/lib/sales.ts` (stages, sources, checklist, label); data queries in `src/lib/sales-data.ts`; changes in `src/app/(app)/sales/actions.ts` (deals) and `quote-actions.ts` (lines and quotes); quote rules (numbers, totals, WhatsApp text) in `src/lib/quotation.ts`.
 
 UI rules for every screen are in [UI-GUIDELINES.md](UI-GUIDELINES.md).
+
+## Orders, invoices and payments
+
+Quote → **sales order** → **delivery note** → **tax invoice** → **payments**. One order per quote, one delivery and one invoice per order. The team guide is in Knowledge → Using the portal.
+
+- **Convert to order** on a quote (Sales): customer PO number and date, credit terms (cash, 7, 15, 30, 45, 60 days), delivery address. The quote becomes Accepted and the deal Won; the lines are copied (`ZSO-2026-0001`). The order page has a proforma invoice, **Mark delivered** (gives `ZDN-2026-0001` and a delivery note with signature boxes), the customer PO and signed delivery note under Files, and Cancel (only before an invoice; the deal goes back to Negotiation).
+- **Accounts** app (`/accounts`, admins plus anyone given Accounts in Admin → Users): **To invoice** lists delivered orders; **Make invoice** issues the tax invoice with the number from **Admin → Settings → Documents** (prefix + next number + digits, so it continues the Zoho series; no gaps, safe when two people issue at once). The invoice is locked; a mistake is fixed with **Cancel invoice** (full credit note `ZCN-2026-0001`), then a new invoice. Our TRN must be set first.
+- **Payments**: cash or bank transfer (needs the reference), full or part; receipt voucher `ZRV-2026-0001`; a wrong entry is voided with a reason, never deleted. Due date = invoice date + credit days; after it the invoice is **Overdue**. The deal owner gets a "Collect payment" task on the due date, closed automatically when fully paid.
+- **Overview**: owed, overdue, due in 7 days, collected this month, ageing; **Customers**: balances and a statement of account for any period (print/PDF).
+- Rules in `src/lib/invoicing.ts`; numbering in `src/lib/doc-numbers.ts`; actions in `src/app/(app)/sales/order-actions.ts` and `src/app/(app)/accounts/actions.ts`; documents in `src/components/sales-document.tsx` and `money-documents.tsx`.
+
+## Files
+
+**Files** (`/files`) keeps shared documents in folders (customer POs, signed delivery notes, invoices and receipts, supplier and company documents). Up to 20 files of 20 MB each per upload: PDF, images, Word, Excel, PowerPoint, CSV, text, zip and emails. A file can be linked to an order or invoice and shows there too. Files are stored under `FILES_DIR` (default `./data/files`; in Docker the `files` volume) with random names; only the uploader or an admin can delete one.
+
+## Security notes
+
+- Nothing can be changed until the user punches in (checked in the browser and on the server).
+- 5 wrong passwords lock that email for 15 minutes; an admin password reset unlocks it. Users change their own password under My account → Password.
+- The database port is bound to 127.0.0.1 in `docker-compose.yml`; only the web container and this machine can reach it. The portal is meant for the office network (port 3200); put it behind HTTPS (Cloudflare Tunnel or Tailscale) and set `COOKIE_SECURE=true` before opening it to the internet.
 
 ## Mail app and mailbox
 
@@ -122,9 +142,11 @@ The web container applies migrations and seeds the admin user on start. Set `COO
 ### Backups
 
 ```bash
-docker compose --profile backup up -d     # nightly pg_dump into ./backups, keeps BACKUP_KEEP_DAYS (default 14)
-# restore:
+docker compose --profile backup up -d     # nightly: database dump + uploaded files into ./backups, kept BACKUP_KEEP_DAYS (default 14)
+# restore the database:
 gunzip -c backups/procurement-YYYYMMDD-HHMM.sql.gz | docker compose exec -T db psql -U zeronix procurement
+# restore the uploaded files:
+docker compose run --rm -v ./backups:/b --entrypoint sh web -c "tar xzf /b/files-YYYYMMDD-HHMM.tar.gz -C /app/data/files"
 ```
 
 Copy `./backups` off the machine as well; a backup on the same disk does not survive a disk failure.

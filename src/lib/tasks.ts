@@ -16,13 +16,15 @@ export interface TaskRow {
   assigneeName: string;
   createdBy: number;
   doneAt: string | null;
-  /** "deal" when the task belongs to a deal in Sales. */
+  /** "deal" when the task belongs to a deal in Sales, "project" for a project checklist task. */
   relatedType: string | null;
   relatedId: number | null;
   relatedTitle: string | null;
 }
 
 const assignee = alias(schema.users, "assignee");
+// a checklist task points at a project; its title comes from the project's deal
+const projectDeal = alias(schema.deals, "project_deal");
 
 function select() {
   return db
@@ -38,12 +40,14 @@ function select() {
       createdBy: schema.tasks.createdBy,
       relatedType: schema.tasks.relatedType,
       relatedId: schema.tasks.relatedId,
-      relatedTitle: schema.deals.title,
+      relatedTitle: sql<string | null>`coalesce(${schema.deals.title}, ${projectDeal.title})`,
       doneAt: sql<string | null>`to_char(${schema.tasks.doneAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
     })
     .from(schema.tasks)
     .innerJoin(assignee, eq(assignee.id, schema.tasks.assignedTo))
-    .leftJoin(schema.deals, and(eq(schema.tasks.relatedType, "deal"), eq(schema.deals.id, schema.tasks.relatedId)));
+    .leftJoin(schema.deals, and(eq(schema.tasks.relatedType, "deal"), eq(schema.deals.id, schema.tasks.relatedId)))
+    .leftJoin(schema.projects, and(eq(schema.tasks.relatedType, "project"), eq(schema.projects.id, schema.tasks.relatedId)))
+    .leftJoin(projectDeal, eq(projectDeal.id, schema.projects.dealId));
 }
 
 /** Open tasks, optionally for one person, plus the ones finished in the last 14 days. */

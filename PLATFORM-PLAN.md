@@ -206,7 +206,9 @@ anti-spam rules apply to cold email). Sending goes through the Hostinger SMTP ac
 | **5b. Mail app** | Read the inbox, compose / reply / forward inside the portal, per-user signature with the Zeronix logo (decided with the owner: light client, no folder management; webmail stays for the rest). Mail is attached by CID so the logo shows outside the company network. | Asked for after the email widget worked. Linking to deals comes with Sales. |
 | **6. Sales basic** | Companies, contacts, deals with board + list, activities, genuine-lead checklist, follow-up tasks, home pipeline widget. | Core CRM. |
 | **7. Quotes** | Deal lines, Find price from procurement, margin, quote number, printable page, WhatsApp text, Won/Lost. | Connects procurement to closing. |
-| **Later** | Accounts (invoices, receivables), Prospecting (licence feeds + cold email), email-to-deal matching, admin-editable knowledge. | After 1-7 are in daily use. |
+| **8-12. Go-live and order-to-cash** | See [GO-LIVE-PLAN.md](GO-LIVE-PLAN.md): go-live checklist, sales orders, delivery notes, tax invoices, credit notes, payments, statements. | The team starts using quotes; money follows. |
+| **14. Team chat** | Chat widget on every page: direct messages, groups, deal/project threads, @mention cards from the timeline and tasks, card actions, presence and alerts. Live over SSE + Postgres LISTEN/NOTIFY. Plan: `~/.claude/plans/i-ineed-to-add-eager-falcon.md`. | The team asked to stop moving deal talk to WhatsApp. |
+| **Later** | Prospecting (licence feeds + cold email), email-to-deal matching, admin-editable knowledge. | After 1-7 are in daily use. |
 
 ## 8. Verification
 

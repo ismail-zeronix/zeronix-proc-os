@@ -139,7 +139,7 @@ export function SupplierDialog({ supplier }: { supplier?: SupplierRow }) {
           </Label>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={pending || form.name.trim().length < 2}>
+          <Button onClick={submit} pending={pending} disabled={form.name.trim().length < 2}>
             Save
           </Button>
         </DialogFooter>

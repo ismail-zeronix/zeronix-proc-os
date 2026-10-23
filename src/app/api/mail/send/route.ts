@@ -11,6 +11,7 @@ import { mailServer } from "@/lib/mail/config";
 import { loadMessage } from "@/lib/mail/message";
 import { recipientsToday, sendMail } from "@/lib/mail/send";
 import { hasApp } from "@/lib/auth/session";
+import { canSeeDeal, currentViewer } from "@/lib/auth/visibility";
 import { logEmailOnDeal } from "@/lib/sales-log";
 
 const bad = (error: string, status = 400) => Response.json({ error, code: "invalid" }, { status });
@@ -84,7 +85,7 @@ export function POST(req: NextRequest) {
     });
     // opened from a deal in Sales: put the email on that deal's timeline (only for people who can use Sales)
     const dealId = Number(text(form, "dealId"));
-    if (Number.isInteger(dealId) && dealId > 0 && (await hasApp("sales"))) {
+    if (Number.isInteger(dealId) && dealId > 0 && (await hasApp("sales")) && (await canSeeDeal(await currentViewer(), dealId))) {
       await logEmailOnDeal(dealId, c.userId, subject, to.ok.map((r) => r.email).join(", ")).catch(() => {});
     }
     return Response.json({ ok: true, savedToSent: result.savedToSent });

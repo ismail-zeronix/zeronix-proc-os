@@ -24,6 +24,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   let pool: typeof import("@/db").pool;
   let eq: typeof import("drizzle-orm").eq;
   let inArray: typeof import("drizzle-orm").inArray;
+  let and: typeof import("drizzle-orm").and;
   let A: typeof import("@/app/(app)/sales/actions");
   let T: typeof import("@/app/(app)/tasks/actions");
   let userIds: number[] = [];
@@ -43,7 +44,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
-    ({ eq, inArray } = await import("drizzle-orm"));
+    ({ eq, inArray, and } = await import("drizzle-orm"));
     A = await import("@/app/(app)/sales/actions");
     T = await import("@/app/(app)/tasks/actions");
     const mk = async (name: string, role: "admin" | "sales", apps: string[] | null) =>
@@ -53,6 +54,9 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     outsider = await mk("outsider", "sales", ["procurement", "tasks"]); // no Sales app
     boss = await mk("boss", "admin", null);
     userIds = [seller, colleague, outsider, boss];
+    // actions refuse to run for someone who has not punched in today
+    const { dubaiToday } = await import("@/lib/dates");
+    await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: dubaiToday() })));
   });
 
   afterAll(async () => {
@@ -61,10 +65,11 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     const ids = [...new Set([...cs.map((c) => c.id), ...names.filter((n) => n.name.includes(tag)).map((n) => n.id)])];
     if (ids.length) {
       const deals = await db.select({ id: schema.deals.id }).from(schema.deals).where(inArray(schema.deals.companyId, ids));
-      if (deals.length) await db.delete(schema.tasks).where(inArray(schema.tasks.relatedId, deals.map((d) => d.id)));
+      if (deals.length) await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), inArray(schema.tasks.relatedId, deals.map((d) => d.id))));
       await db.delete(schema.companies).where(inArray(schema.companies.id, ids));
     }
     await db.delete(schema.tasks).where(inArray(schema.tasks.createdBy, userIds));
+    await db.delete(schema.attendancePunches).where(inArray(schema.attendancePunches.userId, userIds));
     await db.delete(schema.users).where(inArray(schema.users.id, userIds));
     await pool.end();
   });
@@ -184,7 +189,8 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     await as(seller, "seller");
     const { id } = await A.createEnquiry({ companyName: `${tag} Iota`, requirement: "x" });
     await as(colleague, "colleague");
-    await expect(A.deleteDeal(id)).rejects.toThrow(/people on the deal or an admin/);
+    // a deal you are not on is hidden from you, so you cannot delete it either
+    await expect(A.deleteDeal(id)).rejects.toThrow(/not assigned to you/);
     await as(seller, "seller");
     await A.deleteDeal(id);
     expect(await db.select().from(schema.deals).where(eq(schema.deals.id, id))).toHaveLength(0);
@@ -201,7 +207,8 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   });
 
   it("can give a deal to several people, main owner first, and only people who can open Sales", async () => {
-    await as(seller, "seller");
+    // sharing a deal is for admins (and "All data" users)
+    await as(boss, "boss", "admin");
     const { id } = await A.createEnquiry({ companyName: `${tag} Mu`, requirement: "x", ownerIds: [colleague, seller] });
     let rows = await db.select().from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, id));
     expect(rows.sort((a, b) => a.position - b.position).map((r) => r.userId)).toEqual([colleague, seller]);
@@ -229,13 +236,14 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   });
 
   it("lists deals for everyone assigned, not only the main owner", async () => {
-    await as(seller, "seller");
+    await as(boss, "boss", "admin");
     const { listDeals } = await import("@/lib/sales-data");
+    const all = { id: boss, seesAll: true };
     const { id } = await A.createEnquiry({ companyName: `${tag} Xi`, requirement: "x", ownerIds: [colleague, seller] });
-    expect((await listDeals({ memberId: seller })).some((d) => d.id === id)).toBe(true);
-    expect((await listDeals({ memberId: colleague })).some((d) => d.id === id)).toBe(true);
-    expect((await listDeals({ memberId: boss })).some((d) => d.id === id)).toBe(false);
-    const row = (await listDeals({ memberId: seller })).find((d) => d.id === id)!;
+    expect((await listDeals(all, { memberId: seller })).some((d) => d.id === id)).toBe(true);
+    expect((await listDeals(all, { memberId: colleague })).some((d) => d.id === id)).toBe(true);
+    expect((await listDeals(all, { memberId: boss })).some((d) => d.id === id)).toBe(false);
+    const row = (await listDeals(all, { memberId: seller })).find((d) => d.id === id)!;
     expect(row.assignees.map((a) => a.id)).toEqual([colleague, seller]);
   });
 
@@ -254,7 +262,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   });
 
   it("lets anyone on the deal delete it", async () => {
-    await as(seller, "seller");
+    await as(boss, "boss", "admin");
     const { id } = await A.createEnquiry({ companyName: `${tag} Rho`, requirement: "x", ownerIds: [seller, colleague] });
     await as(colleague, "colleague");
     await A.deleteDeal(id);
@@ -267,6 +275,6 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     await T.createTask({ title: "Send brochure", dueDate: "2030-02-01", related: { type: "deal", id } });
     const rows = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, id));
     expect(rows.map((t) => t.title).sort()).toContain("Send brochure");
-    await expect(T.createTask({ title: "ghost", related: { type: "deal", id: 99999999 } })).rejects.toThrow(/no longer exists/);
+    await expect(T.createTask({ title: "ghost", related: { type: "deal", id: 99999999 } })).rejects.toThrow(/does not exist/);
   });
 });

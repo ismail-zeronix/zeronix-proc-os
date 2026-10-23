@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { parseLogoDataUrl } from "@/lib/logo";
-import { DEFAULT_BRAND, safeColor, safeUrl, signatureHtml, signatureText, type Brand, type Person } from "@/lib/signature";
+import {
+  DEFAULT_BRAND,
+  normalizeStyle,
+  safeColor,
+  safeUrl,
+  signatureHtml,
+  signatureText,
+  ZERONIX_SAMPLE,
+  type Brand,
+  type Person,
+} from "@/lib/signature";
 
 const brand: Brand = {
   ...DEFAULT_BRAND,
+  template: "classic",
   company: "Zeronix",
   website: "www.zeronix.ae",
   address: "Office 101\nDubai, UAE",
@@ -57,6 +68,68 @@ describe("signatureHtml", () => {
   it("does not turn a javascript: website into a link", () => {
     const html = signatureHtml({ ...brand, website: "javascript:alert(1)" }, person, "cid:x");
     expect(html).not.toContain("javascript:");
+  });
+});
+
+describe("corporate template", () => {
+  const corp: Brand = { ...DEFAULT_BRAND, ...ZERONIX_SAMPLE, hasLogo: false };
+
+  it("follows the company structure: header, line, Contact Us, slogan, notice, green note", () => {
+    const html = signatureHtml(corp, person, "");
+    const order = [
+      "Ismail K",
+      "ZERONIX TECHNOLOGY LLC",
+      "Your Trusted Partner",
+      "IT Hardware | Networking",
+      "<b>Authorized Business Partners:</b>",
+      "border-top:2px solid #2a78d6",
+      "text-decoration:underline",
+      "Contact Us",
+      "Office 19, Khurram Building",
+      "tel:+971509811669",
+      "tel:+971558246066",
+      "mailto:sales@zeronix.ae",
+      "mailto:info@zeronix.ae",
+      "https://www.zeronix.ae",
+      "Empowering Businesses",
+      "<b>Confidentiality Notice:</b>",
+      "Think Green",
+    ].map((x) => html.indexOf(x));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it("uses the chosen line weight, style and colour, and drops the line at 0", () => {
+    expect(signatureHtml({ ...corp, lineWeight: 5, lineStyle: "dashed", lineColor: "#ff0000" }, person, "")).toContain(
+      "border-top:5px dashed #ff0000",
+    );
+    expect(signatureHtml({ ...corp, lineWeight: 0 }, person, "")).not.toContain("border-top");
+    expect(signatureHtml({ ...corp, footerLine: true }, person, "").match(/border-top/g)).toHaveLength(2);
+  });
+
+  it("can hide the sender block", () => {
+    expect(signatureHtml({ ...corp, showPerson: false }, person, "")).not.toContain("Ismail K");
+  });
+
+  it("builds a matching plain-text version", () => {
+    const t = signatureText(corp, person);
+    expect(t).toContain("Contact Us");
+    expect(t).toContain("T: +971 50 981 1669 | +971 55 824 6066");
+    expect(t).toContain("E: sales@zeronix.ae | info@zeronix.ae");
+    expect(t).toContain("W: www.zeronix.ae");
+  });
+
+  it("cleans bad style values before they reach inline styles", () => {
+    const s = normalizeStyle({ lineWeight: 99, lineStyle: "groove;x", lineColor: "red;x", font: "comic", fontSize: "abc", template: 1 });
+    expect(s.lineWeight).toBe(8);
+    expect(s.lineStyle).toBe("solid");
+    expect(s.lineColor).toBe("");
+    expect(s.font).toBe("arial");
+    expect(s.fontSize).toBe(13);
+    expect(s.template).toBe("corporate");
+    const html = signatureHtml({ ...corp, lineColor: "red;background:url(x)" as string, services: "<b>x</b>" }, person, "");
+    expect(html).not.toContain("url(x)");
+    expect(html).not.toContain("<b>x</b>");
   });
 });
 
