@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { dmKey, previewOf, tokensToText } from "@/lib/chat/text";
+import { dmKey, mentionToken, parseMentions, parseRecordRefs, previewOf, recordToken, tokensToText } from "@/lib/chat/text";
 import type { ChatEvent } from "@/lib/chat/types";
 
 let cookieValue: string | undefined;
@@ -25,6 +25,13 @@ describe("chat text helpers", () => {
 
   it("reads mention and record tokens as plain text", () => {
     expect(tokensToText("Hi @[Rahul K](user:12), see #[ZQ-2026-0012](quote:4)")).toBe("Hi @Rahul K, see ZQ-2026-0012");
+  });
+
+  it("finds mentions and linked records, and keeps names from breaking the markup", () => {
+    const body = `${mentionToken(3, "Bina [Sales]")} and ${mentionToken(9, "Carl")} again ${mentionToken(3, "Bina")}, see ${recordToken("quote:4", "ZQ-2026-0012")}`;
+    expect(parseMentions(body)).toEqual([3, 9]);
+    expect(parseRecordRefs(body)).toEqual(["quote:4"]);
+    expect(tokensToText(body)).toBe("@Bina Sales and @Carl again @Bina, see ZQ-2026-0012");
   });
 
   it("makes a one-line preview", () => {
@@ -274,6 +281,135 @@ describe.skipIf(!live)("chat channels, deal threads, replies and reactions (need
     expect(gone.deletedAt).not.toBeNull();
     // the quote of a deleted message says so
     expect((await M.getMessage(quote.id))!.replyTo).toMatchObject({ deleted: true, body: "" });
+  });
+});
+
+describe.skipIf(!live)("mention cards (needs the dev database)", () => {
+  let db: typeof import("@/db").db;
+  let schema: typeof import("@/db").schema;
+  let inArray: typeof import("drizzle-orm").inArray;
+  let eq: typeof import("drizzle-orm").eq;
+  let A: typeof import("@/app/(app)/chat/actions");
+  let S: typeof import("@/app/(app)/sales/actions");
+  let T: typeof import("@/app/(app)/tasks/actions");
+  let K: typeof import("@/lib/chat/cards");
+  let N: typeof import("@/lib/chat/mentions");
+  let M: typeof import("@/lib/chat/messages");
+  let session: typeof import("@/lib/auth/session");
+  let ali: number, bina: number, carl: number, companyId: number, dealId: number;
+  let userIds: number[] = [];
+  const tag = `ZZCHAT3${Date.now()}`;
+
+  const as = async (id: number, role: "admin" | "sales" = "sales") => {
+    cookieValue = await new SignJWT({ name: `${tag}-${id}`, email: `${tag}-${id}@example.test`, role })
+      .setProtectedHeader({ alg: "HS256" })
+      .setSubject(String(id))
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  };
+  /** The cards in someone's Activity feed, oldest first. */
+  const feed = async (userId: number) => (await M.loadMessages(await N.activityFeedOf(userId))).messages;
+  const cardsFor = async (id: number, refs: string[]) => {
+    await as(id);
+    return K.resolveCards((await session.loadAccess())!, refs);
+  };
+
+  beforeAll(async () => {
+    ({ db, schema } = await import("@/db"));
+    ({ inArray, eq } = await import("drizzle-orm"));
+    A = await import("@/app/(app)/chat/actions");
+    S = await import("@/app/(app)/sales/actions");
+    T = await import("@/app/(app)/tasks/actions");
+    K = await import("@/lib/chat/cards");
+    N = await import("@/lib/chat/mentions");
+    M = await import("@/lib/chat/messages");
+    session = await import("@/lib/auth/session");
+    const mk = async (name: string) =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x" }).returning({ id: schema.users.id }))[0].id;
+    ali = await mk("ali");
+    bina = await mk("bina");
+    carl = await mk("carl");
+    userIds = [ali, bina, carl];
+    const { dubaiToday } = await import("@/lib/dates");
+    await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: dubaiToday() })));
+    companyId = (await db.insert(schema.companies).values({ name: `${tag} Trading`, nameNorm: `${tag}trading`.toLowerCase(), ownerId: ali }).returning({ id: schema.companies.id }))[0].id;
+    dealId = (await db.insert(schema.deals).values({ title: `${tag} CCTV`, companyId, ownerId: ali, valueAed: 12500 }).returning({ id: schema.deals.id }))[0].id;
+    await db.insert(schema.dealAssignees).values([
+      { dealId, userId: ali, position: 0 },
+      { dealId, userId: bina, position: 1 },
+    ]);
+  });
+
+  afterAll(async () => {
+    const ch = await db.select({ id: schema.chatMembers.channelId }).from(schema.chatMembers).where(inArray(schema.chatMembers.userId, userIds));
+    if (ch.length) await db.delete(schema.chatChannels).where(inArray(schema.chatChannels.id, [...new Set(ch.map((c) => c.id))]));
+    await db.delete(schema.tasks).where(inArray(schema.tasks.createdBy, userIds));
+    await db.delete(schema.companies).where(eq(schema.companies.id, companyId));
+    await db.delete(schema.attendancePunches).where(inArray(schema.attendancePunches.userId, userIds));
+    await db.delete(schema.users).where(inArray(schema.users.id, userIds));
+  });
+
+  it("sends a deal card from the timeline to everyone mentioned, locked for those who cannot see the deal", async () => {
+    await as(ali);
+    await S.logActivity(dealId, { type: "call", body: `Customer wants 8 cameras ${mentionToken(bina, "Bina")} ${mentionToken(carl, "Carl")} please check stock` });
+    const [forBina] = await feed(bina);
+    expect(forBina).toMatchObject({ kind: "card", userId: ali, card: { type: "deal", id: dealId, event: "call" } });
+    expect((await feed(carl))[0].card).toMatchObject({ type: "deal", id: dealId });
+    // the author is never told about a mention of themselves
+    expect(await feed(ali)).toHaveLength(0);
+
+    const [binaCard] = await cardsFor(bina, [`deal:${dealId}`]);
+    expect(binaCard).toMatchObject({ title: `${tag} CCTV`, subtitle: `${tag} Trading`, amount: "AED 12,500" });
+    expect(binaCard.people?.map((p) => p.id)).toEqual([ali, bina]);
+    const [carlCard] = await cardsFor(carl, [`deal:${dealId}`]);
+    expect(carlCard).toMatchObject({ restricted: true, title: "" });
+    expect(await K.whoCanSee({ type: "deal", id: dealId }, [bina, carl])).toEqual(new Set([bina]));
+    // the timeline keeps the mention as a token, so it shows as a chip
+    const [entry] = await db.select({ body: schema.activities.body }).from(schema.activities).where(eq(schema.activities.dealId, dealId)).limit(1);
+    expect(entry.body).toContain(`(user:${bina})`);
+  });
+
+  it("cards chat mentions in channels for members only, never in DMs, and keeps Activity read-only", async () => {
+    await as(ali);
+    const g = await A.createGroup({ name: `${tag}-team`, memberIds: [bina] });
+    const sent = await A.sendMessage({ channelId: g, body: `${mentionToken(bina, "Bina")} and ${mentionToken(carl, "Carl")} see ${recordToken(`deal:${dealId}`, "CCTV")}` });
+    expect(sent.body).toContain("#[CCTV]");
+    expect((await feed(bina)).at(-1)?.card).toMatchObject({ type: "chat", id: sent.id, event: "mention" });
+    // Carl is not in the channel: no card for him
+    expect((await feed(carl)).some((m) => m.card?.type === "chat")).toBe(false);
+    const [chatCard] = await cardsFor(bina, [`chat:${sent.id}`]);
+    expect(chatCard).toMatchObject({ title: `#${tag}-team`, channelId: g });
+
+    await as(ali);
+    const dm = await A.startDm(bina);
+    const before = (await feed(bina)).length;
+    await A.sendMessage({ channelId: dm, body: `${mentionToken(bina, "Bina")} quick one` });
+    expect(await feed(bina)).toHaveLength(before);
+
+    await as(bina);
+    await expect(A.sendMessage({ channelId: await N.activityFeedOf(bina), body: "hello" })).rejects.toThrow(/Reply where/);
+  });
+
+  it("cards company notes and task notes; a task card opens for the people mentioned in it", async () => {
+    await as(ali);
+    await S.addCompanyNote(companyId, `Owner changed, ${mentionToken(bina, "Bina")} please update the contact`);
+    expect((await feed(bina)).at(-1)?.card).toMatchObject({ type: "company", id: companyId, event: "company" });
+
+    await T.createTask({ title: `${tag} call the site`, notes: `${mentionToken(carl, "Carl")} you know the guard` });
+    const [task] = await db.select({ id: schema.tasks.id }).from(schema.tasks).where(eq(schema.tasks.createdBy, ali));
+    expect((await feed(carl)).at(-1)?.card).toMatchObject({ type: "task", id: task.id });
+    const [carlTask] = await cardsFor(carl, [`task:${task.id}`]);
+    expect(carlTask.restricted).toBeUndefined();
+    expect(carlTask.title).toBe(`${tag} call the site`);
+    expect((await cardsFor(bina, [`task:${task.id}`]))[0].restricted).toBe(true);
+
+    // editing the notes tells only the people newly mentioned
+    const carlBefore = (await feed(carl)).length;
+    await as(ali);
+    await T.updateTask(task.id, { title: `${tag} call the site`, notes: `${mentionToken(carl, "Carl")} you know the guard, ${mentionToken(bina, "Bina")} too` });
+    expect(await feed(carl)).toHaveLength(carlBefore);
+    expect((await feed(bina)).at(-1)?.card).toMatchObject({ type: "task", id: task.id });
   });
 });
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { MentionTextarea, useMentionPeople, useMentions } from "@/components/mention-textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -241,18 +242,34 @@ export function DeleteCompanyButton({ id, name, deals }: { id: number; name: str
   );
 }
 
+/** A note about the company; "@" mentions a teammate (they get a card for the company in their chat Activity). */
 export function CompanyNoteForm({ companyId }: { companyId: number }) {
   const [text, setText] = useState("");
   const [pending, run] = useRun();
+  const mentions = useMentions(`company:${companyId}`);
+  const team = useMentionPeople(undefined);
   return (
     <form
       className="grid gap-2"
       onSubmit={(e) => {
         e.preventDefault();
-        run(() => addCompanyNote(companyId, text), "Note added", () => setText(""));
+        run(() => addCompanyNote(companyId, mentions.toTokens(text)), "Note added", () => {
+          setText("");
+          mentions.reset();
+        });
       }}
     >
-      <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a note about this company…" aria-label="Note" />
+      <MentionTextarea
+        mentions={mentions}
+        people={team.people}
+        placement="below"
+        rows={2}
+        value={text}
+        onChange={setText}
+        placeholder="Write a note about this company… (@ to mention a teammate)"
+        aria-label="Note"
+        className="field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+      />
       <Button type="submit" size="sm" className="w-fit" pending={pending} disabled={!text.trim()}>
         Add note
       </Button>

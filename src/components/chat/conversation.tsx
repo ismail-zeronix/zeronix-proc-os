@@ -111,6 +111,11 @@ function readersByMessage(messages: ChatMessage[], members: Member[], me: number
   return out;
 }
 
+/** Who can be @mentioned in a conversation: everyone in it but me. */
+function peopleOf(channel: ChannelSummary, me: number) {
+  return channel.members.filter((u) => u.id !== me).map((u) => ({ id: u.id, name: u.name }));
+}
+
 export function Conversation({ channel, me, disabled }: { channel: ChannelSummary; me: Me; disabled?: string }) {
   const [thread, setThread] = useState<ChatMessage | null>(null);
   useOnScreen(channel.id);
@@ -175,7 +180,9 @@ function MainView({ channel, me, onThread, disabled }: { channel: ChannelSummary
         {q.isFetchingNextPage && <p className="py-1 text-center text-[11px] text-muted-foreground">Loading older messages…</p>}
         {!q.isPending && !messages.length && !pending.length && (
           <p className="py-8 text-center text-xs text-muted-foreground">
-            {channel.kind === "dm" ? `No messages yet. Say hello to ${channel.name}.` : channel.kind === "record" ? "No messages yet. Talk about this deal with its team here." : "No messages yet. Start the conversation."}
+            {channel.kind === "system"
+              ? "Nothing yet. When someone @mentions you in chat, a deal timeline, a task or a company note, the card shows up here."
+              : channel.kind === "dm" ? `No messages yet. Say hello to ${channel.name}.` : channel.kind === "record" ? "No messages yet. Talk about this deal with its team here." : "No messages yet. Start the conversation."}
           </p>
         )}
         {messages.map((m, i) => (
@@ -196,10 +203,11 @@ function MainView({ channel, me, onThread, disabled }: { channel: ChannelSummary
       <Composer
         channelId={channel.id}
         draftKey={channel.id}
+        people={peopleOf(channel, me.id)}
         placeholder={`Message ${channel.kind === "group" ? `#${channel.name}` : channel.name}`}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
-        disabled={disabled}
+        disabled={channel.kind === "system" ? "Mentions of you land here. Open a card to answer where it happened." : disabled}
         onSend={(text) => {
           atBottomRef.current = true;
           void send(text, replyTo?.id ?? null);
@@ -253,6 +261,7 @@ function ThreadView({ root: start, channel, me, onBack, disabled }: { root: Chat
       <Composer
         channelId={channel.id}
         draftKey={-start.id}
+        people={peopleOf(channel, me.id)}
         placeholder="Reply in thread"
         disabled={disabled}
         onSend={(text) => {

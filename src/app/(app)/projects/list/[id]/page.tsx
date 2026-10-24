@@ -3,6 +3,7 @@ import { ArrowRightLeft, Building2, CalendarCheck, CirclePlus, FileText, Handsha
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppLink } from "@/components/app-link";
+import { MentionText } from "@/components/mention-text";
 import { BackButton } from "@/components/back-button";
 import { InvoiceStateBadge, OrderStatusBadge } from "@/components/order-bits";
 import { QuoteStatusBadge } from "@/components/quote-bits";
@@ -261,7 +262,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                               <span className="font-medium text-foreground">{LABEL[a.type] ?? a.type}</span>
                               {a.userName && ` · ${a.userName}`} · {ago(a.at)}
                             </div>
-                            <div className="text-sm whitespace-pre-line">{a.body}</div>
+                            <div className="text-sm whitespace-pre-line">
+                              <MentionText body={a.body} me={user.id} />
+                            </div>
                           </div>
                         </li>
                       );

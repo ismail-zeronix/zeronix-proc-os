@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertCompany, assertContact, assertDeal, canSeeCompany, currentViewer } from "@/lib/auth/visibility";
 import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
+import { notifyMentions } from "@/lib/chat/mentions";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
@@ -122,7 +123,8 @@ export async function addCompanyNote(companyId: number, body: string) {
   const me = await assertApp("sales");
   await assertCompany(companyId);
   const note = z.string().trim().min(1, "Write the note").max(4000).parse(body);
-  await db.insert(schema.activities).values({ type: "note", body: note, companyId, userId: me.id });
+  const [row] = await db.insert(schema.activities).values({ type: "note", body: note, companyId, userId: me.id }).returning({ id: schema.activities.id });
+  await notifyMentions({ authorId: me.id, body: note, event: "company", record: { type: "company", id: companyId }, source: "activity", sourceId: row.id });
   refresh();
 }
 
@@ -419,8 +421,11 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
     .from(schema.deals)
     .where(eq(schema.deals.id, dealId));
   if (!deal) throw new Error("That deal no longer exists.");
-  await db.transaction(async (tx) => {
-    await tx.insert(schema.activities).values({ type: d.type, body: d.body, dealId, companyId: deal.companyId, userId: me.id });
+  const activityId = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(schema.activities)
+      .values({ type: d.type, body: d.body, dealId, companyId: deal.companyId, userId: me.id })
+      .returning({ id: schema.activities.id });
     // talking to a customer about a brand-new enquiry means it has been contacted
     if (deal.stage === "new" && d.type !== "note") {
       await tx.update(schema.deals).set({ stage: "contacted", stageChangedAt: new Date() }).where(eq(schema.deals.id, dealId));
@@ -442,7 +447,10 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
         relatedId: dealId,
       });
     }
+    return row.id;
   });
+  // people @mentioned in the entry get a card for the deal in their chat Activity
+  await notifyMentions({ authorId: me.id, body: d.body, event: d.type, record: { type: "deal", id: dealId }, source: "activity", sourceId: activityId });
   refresh();
 }
 

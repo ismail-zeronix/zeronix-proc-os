@@ -73,6 +73,31 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export type CardTone = "blue" | "green" | "amber" | "red" | "violet" | "slate";
+
+/** A record as a card shows it, read live for the person looking (see lib/chat/cards.ts). */
+export interface CardView {
+  /** "deal:12" */
+  ref: string;
+  type: string;
+  id: number;
+  /** They may not see this record: the card says so and shows nothing of it. */
+  restricted?: boolean;
+  /** The record was deleted. */
+  missing?: boolean;
+  title: string;
+  /** Company, supplier, or what kind of record it is. */
+  subtitle?: string;
+  href?: string;
+  status?: { label: string; tone: CardTone };
+  amount?: string;
+  /** Small extra lines: "Valid until 3 Nov", "Due tomorrow". */
+  facts?: string[];
+  people?: ChatUser[];
+  /** For a chat-message card: the conversation to open. */
+  channelId?: number;
+}
+
 /** A public group someone can join. */
 export interface OpenGroup {
   id: number;

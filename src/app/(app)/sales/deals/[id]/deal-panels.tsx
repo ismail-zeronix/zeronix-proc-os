@@ -5,6 +5,7 @@ import { AppLink } from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { MentionTextarea, useMentionPeople, useMentions } from "@/components/mention-textarea";
 import { TempBadge } from "@/components/sales-bits";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { ACTIVITY_TYPES, type Checks, CHECKS, SOURCES } from "@/lib/sales";
-import { deleteDeal, logActivity, setChecks, setDealKind, updateDeal } from "../../actions";
+import { deleteDeal, logActivity, setAssignees, setChecks, setDealKind, updateDeal } from "../../actions";
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -83,22 +84,30 @@ export function ChecklistPanel({ dealId, checks }: { dealId: number; checks: Che
   );
 }
 
-export function ActivityForm({ dealId }: { dealId: number }) {
+/**
+ * Log a call, message, email, meeting or note. "@" mentions a teammate: they get a card for this deal in their chat
+ * Activity. Mentioning someone who cannot see the deal warns first (and admins can add them to the deal).
+ */
+export function ActivityForm({ dealId, canAssign, assigneeIds }: { dealId: number; canAssign: boolean; assigneeIds: number[] }) {
   const [type, setType] = useState<string>("call");
   const [body, setBody] = useState("");
   const [followUp, setFollowUp] = useState("");
   const [pending, run] = useRun();
+  const mentions = useMentions(`deal:${dealId}`);
+  const team = useMentionPeople(`deal:${dealId}`, "cannot see this deal");
+  const blocked = team.blocked(mentions.mentioned(body));
   return (
     <form
       className="grid gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         run(
-          () => logActivity(dealId, { type, body, followUp }),
+          () => logActivity(dealId, { type, body: mentions.toTokens(body), followUp }),
           "Added to the timeline",
           () => {
             setBody("");
             setFollowUp("");
+            mentions.reset();
           },
         );
       }}
@@ -117,7 +126,35 @@ export function ActivityForm({ dealId }: { dealId: number }) {
           </button>
         ))}
       </div>
-      <Textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)} placeholder={type === "note" ? "Write a note…" : "What was said or agreed?"} aria-label="What happened" />
+      <MentionTextarea
+        mentions={mentions}
+        people={team.people}
+        placement="below"
+        rows={2}
+        value={body}
+        onChange={setBody}
+        placeholder={type === "note" ? "Write a note… (@ to mention a teammate)" : "What was said or agreed? (@ to mention a teammate)"}
+        aria-label="What happened"
+        className="field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+      />
+      {blocked.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300">
+          <span className="flex-1">
+            {blocked.map((p) => p.name).join(", ")} cannot see this deal, so they will get a locked card.
+          </span>
+          {canAssign && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              pending={pending}
+              onClick={() => run(() => setAssignees(dealId, [...assigneeIds, ...blocked.map((p) => p.id)]).then(() => team.refetch()), "Added to the deal")}
+            >
+              Add {blocked.length === 1 ? "them" : "them all"} to the deal
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="log-follow" className="text-xs text-muted-foreground">
           Follow up on

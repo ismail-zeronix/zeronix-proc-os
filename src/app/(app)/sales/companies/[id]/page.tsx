@@ -1,6 +1,7 @@
 import { Globe, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Tag, UserPlus, Wallet } from "lucide-react";
 import Link from "next/link";
 import { AppLink } from "@/components/app-link";
+import { MentionText } from "@/components/mention-text";
 import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { TempBadge } from "@/components/sales-bits";
@@ -181,7 +182,9 @@ export default async function CompanyPage({ params }: PageProps<"/sales/companie
                       </>
                     )}
                   </div>
-                  <div className="whitespace-pre-line">{a.body}</div>
+                  <div className="whitespace-pre-line">
+                    <MentionText body={a.body} me={user.id} />
+                  </div>
                 </li>
               ))}
               {!c.activities.length && <li className="text-sm text-muted-foreground">Nothing yet.</li>}

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AppLink } from "@/components/app-link";
+import { MentionText } from "@/components/mention-text";
 import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { AssignPopover } from "@/components/assign-popover";
@@ -163,7 +164,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/sal
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="timeline" className="grid gap-3 pt-1">
-              <ActivityForm dealId={deal.id} />
+              <ActivityForm dealId={deal.id} canAssign={seesAll} assigneeIds={deal.assignees.map((a) => a.id)} />
               <ol className="grid max-h-[calc(100svh-26rem)] min-h-40 gap-2.5 overflow-y-auto border-t pt-3">
                 {activities.map((a) => {
                   const Icon = ICON[a.type] ?? StickyNote;
@@ -177,7 +178,9 @@ export default async function DealPage({ params, searchParams }: PageProps<"/sal
                           <span className="font-medium text-foreground">{LABEL[a.type] ?? a.type}</span>
                           {a.userName && ` · ${a.userName}`} · {ago(a.at)}
                         </div>
-                        <div className="text-sm whitespace-pre-line">{a.body}</div>
+                        <div className="text-sm whitespace-pre-line">
+                          <MentionText body={a.body} me={user.id} />
+                        </div>
                       </div>
                     </li>
                   );

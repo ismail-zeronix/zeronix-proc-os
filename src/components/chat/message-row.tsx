@@ -2,16 +2,18 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquareText, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { deleteMessage, editMessage, toggleReaction } from "@/app/(app)/chat/actions";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AvatarStack, UserAvatar } from "@/components/user-avatar";
-import { MAX_BODY, tokensToText } from "@/lib/chat/text";
+import { MentionText } from "@/components/mention-text";
+import { EVENT_LABEL, MAX_BODY, parseRecordRefs, tokensToText } from "@/lib/chat/text";
 import type { ChatMessage, ChatUser } from "@/lib/chat/types";
 import { dayLabel, dubaiToday, TZ } from "@/lib/dates";
 import { replaceMessage, setReactions } from "./chat-data";
+import { RecordCard } from "./record-card";
 
 /** Messages from the same person within this long sit together under one name. */
 const GROUP_MS = 5 * 60_000;
@@ -26,22 +28,9 @@ export interface Me {
   isAdmin: boolean;
 }
 
-/** Plain text with web links made clickable; mention tokens read as "@Name". */
-export function MessageText({ body }: { body: string }) {
-  const parts = tokensToText(body).split(/(https?:\/\/[^\s<]+)/g);
-  return (
-    <>
-      {parts.map((p, i) =>
-        i % 2 ? (
-          <a key={i} href={p} target="_blank" rel="noreferrer" className="break-all underline underline-offset-2">
-            {p}
-          </a>
-        ) : (
-          <Fragment key={i}>{p}</Fragment>
-        ),
-      )}
-    </>
-  );
+/** Message text: mentions as chips, records as #labels, web links clickable. */
+export function MessageText({ body, me, inverse }: { body: string; me?: number; inverse?: boolean }) {
+  return <MentionText body={body} me={me} inverse={inverse} />;
 }
 
 export interface RowActions {
@@ -99,6 +88,8 @@ export function MessageRow({
         <p className="my-1 text-center text-[11px] text-muted-foreground">
           <MessageText body={m.body} /> · {timeOf(m.createdAt)}
         </p>
+      ) : m.kind === "card" && m.card && !deleted ? (
+        <CardMessage m={m} me={me} />
       ) : (
         <div className={`group/msg flex gap-2 ${mine ? "flex-row-reverse" : ""} ${grouped ? "mt-0.5" : "mt-2"}`}>
           {!mine && (grouped ? <span className="w-6 shrink-0" /> : <UserAvatar name={m.userName ?? "?"} size={24} className="mt-0.5" />)}
@@ -124,7 +115,7 @@ export function MessageRow({
                     deleted ? "border text-muted-foreground italic" : mine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted"
                   }`}
                 >
-                  {deleted ? "Message deleted" : <MessageText body={m.body} />}
+                  {deleted ? "Message deleted" : <MessageText body={m.body} me={me.id} inverse={mine} />}
                   {m.editedAt && !deleted && <span className="ml-1 text-[10px] opacity-70">(edited)</span>}
                 </div>
               )}
@@ -147,6 +138,7 @@ export function MessageRow({
                 />
               )}
             </div>
+            {!deleted && m.kind === "text" && <LinkedCards body={m.body} from={m.userName} mine={mine} />}
             {m.reactions.length > 0 && (
               <div className={`mt-0.5 flex flex-wrap gap-1 ${mine ? "justify-end" : ""}`}>
                 {m.reactions.map((r) => {
@@ -311,6 +303,41 @@ function EditBox({ m, onDone }: { m: ChatMessage; onDone: () => void }) {
         className="field-sizing-content max-h-40 min-h-9 resize-none rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       />
       <span className="text-[10px] text-muted-foreground">Enter to save · Esc to cancel</span>
+    </div>
+  );
+}
+
+/** Cards for the records a message links with "#" (up to three). */
+function LinkedCards({ body, from, mine }: { body: string; from: string | null; mine: boolean }) {
+  const refs = parseRecordRefs(body).slice(0, 3);
+  if (!refs.length) return null;
+  return (
+    <div className={`mt-1 grid w-full gap-1 ${mine ? "justify-items-end" : ""}`}>
+      {refs.map((r) => (
+        <RecordCard key={r} cardRef={r} from={from} />
+      ))}
+    </div>
+  );
+}
+
+/** A mention card in the Activity feed: who mentioned you and where, what they wrote, and the record live. */
+function CardMessage({ m, me }: { m: ChatMessage; me: Me }) {
+  const card = m.card!;
+  const where = EVENT_LABEL[card.event ?? ""] ?? "";
+  return (
+    <div className="mt-3 flex gap-2">
+      <UserAvatar name={m.userName ?? "?"} size={24} className="mt-0.5" />
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">{m.userName ?? "Someone"}</span> mentioned you {where} · {timeOf(m.createdAt)}
+        </p>
+        {m.body && (
+          <div className="rounded-lg border-l-2 border-primary/50 bg-muted/50 px-2.5 py-1.5 text-sm wrap-break-word whitespace-pre-wrap">
+            <MessageText body={m.body} me={me.id} />
+          </div>
+        )}
+        <RecordCard cardRef={`${card.type}:${card.id}`} from={m.userName} />
+      </div>
     </div>
   );
 }

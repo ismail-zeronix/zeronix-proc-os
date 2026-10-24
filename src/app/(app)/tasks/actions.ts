@@ -6,6 +6,8 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertDeal } from "@/lib/auth/visibility";
+import { notifyMentions } from "@/lib/chat/mentions";
+import { parseMentions } from "@/lib/chat/text";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Write what needs doing").max(200),
@@ -44,16 +46,21 @@ export async function createTask(input: TaskInput) {
     const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, d.related.id));
     if (!deal) throw new Error("That deal no longer exists.");
   }
-  await db.insert(schema.tasks).values({
-    title: d.title,
-    notes: d.notes,
-    dueDate: d.dueDate || null,
-    priority: d.priority,
-    assignedTo: d.assignedTo ?? me.id,
-    createdBy: me.id,
-    relatedType: d.related?.type ?? null,
-    relatedId: d.related?.id ?? null,
-  });
+  const [row] = await db
+    .insert(schema.tasks)
+    .values({
+      title: d.title,
+      notes: d.notes,
+      dueDate: d.dueDate || null,
+      priority: d.priority,
+      assignedTo: d.assignedTo ?? me.id,
+      createdBy: me.id,
+      relatedType: d.related?.type ?? null,
+      relatedId: d.related?.id ?? null,
+    })
+    .returning({ id: schema.tasks.id });
+  // people @mentioned in the notes get a card for the task in their chat Activity
+  await notifyMentions({ authorId: me.id, body: d.notes, event: "task", record: { type: "task", id: row.id }, source: "task", sourceId: row.id });
   refresh();
 }
 
@@ -69,7 +76,7 @@ async function ownTask(id: number) {
 }
 
 export async function updateTask(id: number, input: TaskInput) {
-  const { me } = await ownTask(id);
+  const { me, task } = await ownTask(id);
   const d = taskSchema.parse(input);
   const set: Partial<typeof schema.tasks.$inferInsert> = {
     title: d.title,
@@ -82,6 +89,11 @@ export async function updateTask(id: number, input: TaskInput) {
     set.assignedTo = d.assignedTo;
   }
   await db.update(schema.tasks).set(set).where(eq(schema.tasks.id, id));
+  // only people newly @mentioned in the notes are told
+  const before = new Set(parseMentions(task.notes));
+  const added = parseMentions(d.notes).filter((u) => !before.has(u));
+  if (added.length)
+    await notifyMentions({ authorId: me.id, body: d.notes, event: "task", record: { type: "task", id }, source: "task", sourceId: id, allowed: added });
   refresh();
 }
 

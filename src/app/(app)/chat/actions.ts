@@ -12,10 +12,12 @@ import {
   getOrCreateDealThread,
   getOrCreateDm,
   joinGroup as join,
+  memberIds,
   openChannel,
   removeMember,
   updateGroup as saveGroup,
 } from "@/lib/chat/channels";
+import { notifyMentions } from "@/lib/chat/mentions";
 import { channelOf, deleteMessage as removeMessage, editMessage as saveEdit, markRead, postMessage, toggleReaction as toggle } from "@/lib/chat/messages";
 import { MAX_BODY } from "@/lib/chat/text";
 import type { ChannelSummary, ChatMessage, Reaction } from "@/lib/chat/types";
@@ -59,7 +61,20 @@ export async function sendMessage(input: z.input<typeof sendSchema>): Promise<Ch
   const { channelId, body, replyToId, threadId } = sendSchema.parse(input);
   const ch = await openChannel(channelId, access);
   if (ch.archived) throw new Error("This channel is archived.");
-  return postMessage({ channelId, userId: access.user.id, body, replyToId, threadId });
+  if (ch.kind === "system") throw new Error("Reply where you were mentioned: open the card.");
+  const message = await postMessage({ channelId, userId: access.user.id, body, replyToId, threadId });
+  // in a DM the message itself is the notice; in a channel or deal thread the people mentioned also get a card
+  if (ch.kind !== "dm")
+    await notifyMentions({
+      authorId: access.user.id,
+      body,
+      event: "mention",
+      record: { type: "chat", id: message.id },
+      source: "chat",
+      sourceId: message.id,
+      allowed: await memberIds(channelId),
+    });
+  return message;
 }
 
 export async function editMessage(messageId: number, text: string): Promise<ChatMessage> {

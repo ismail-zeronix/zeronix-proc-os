@@ -12,8 +12,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/user-avatar";
+import { MentionText } from "@/components/mention-text";
+import { MentionTextarea, useMentionPeople, useMentions } from "@/components/mention-textarea";
+import { tokensToText } from "@/lib/chat/text";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import type { TaskRow } from "@/lib/tasks";
 
@@ -38,12 +40,16 @@ export function TaskDialog({
   const from = (t?: TaskRow) =>
     t ? { title: t.title, notes: t.notes, dueDate: t.dueDate ?? "", priority: t.priority, assignedTo: t.assignedTo } : blank;
   const [f, setF] = useState(from(task));
+  const mentions = useMentions(`task:${task?.id ?? "new"}`);
+  const team = useMentionPeople(undefined);
 
   const save = () =>
     start(async () => {
       try {
-        if (task) await updateTask(task.id, f);
-        else await createTask({ ...f, related });
+        const notes = mentions.toTokens(f.notes);
+        if (task) await updateTask(task.id, { ...f, notes });
+        else await createTask({ ...f, notes, related });
+        mentions.reset();
         toast.success(task ? "Task updated" : "Task added");
         setOpen(false);
         if (!task) setF(blank);
@@ -57,7 +63,10 @@ export function TaskDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setF(from(task));
+        if (o) {
+          const start = from(task);
+          setF({ ...start, notes: mentions.load(start.notes) });
+        }
       }}
     >
       <DialogTrigger render={trigger} />
@@ -109,7 +118,16 @@ export function TaskDialog({
           )}
           <div className="grid gap-1.5">
             <Label htmlFor="task-notes">Notes (optional)</Label>
-            <Textarea id="task-notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+            <MentionTextarea
+              id="task-notes"
+              mentions={mentions}
+              people={team.people}
+              placement="below"
+              value={f.notes}
+              onChange={(notes) => setF({ ...f, notes })}
+              placeholder="@ to mention a teammate"
+              className="field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+            />
           </div>
           <Button type="submit" pending={pending} disabled={!f.title.trim()}>
             {task ? "Save" : "Add task"}
@@ -175,8 +193,8 @@ export function TaskItem({
       <div className="min-w-0 flex-1">
         <div className={`text-sm font-medium break-words ${done ? "text-muted-foreground line-through" : ""}`}>{task.title}</div>
         {!compact && task.notes && (
-          <div className="line-clamp-1 text-xs text-muted-foreground" title={task.notes}>
-            {task.notes}
+          <div className="line-clamp-1 text-xs text-muted-foreground" title={tokensToText(task.notes)}>
+            <MentionText body={task.notes} />
           </div>
         )}
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">

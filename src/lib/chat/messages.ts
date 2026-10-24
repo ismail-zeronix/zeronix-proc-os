@@ -4,7 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { publish, setMessageLoader } from "./bus";
 import { memberIds } from "./channels";
-import { MAX_BODY } from "./text";
+import { MAX_BODY, parseMentions } from "./text";
 import type { ChatCard, ChatMessage, MessageKind, Reaction } from "./types";
 
 const quoted = alias(schema.chatMessages, "quoted");
@@ -152,7 +152,7 @@ export async function postMessage(input: NewMessage): Promise<ChatMessage> {
         kind: input.kind ?? (input.card ? "card" : "text"),
         body,
         card: input.card ?? null,
-        mentions: input.mentions ?? [],
+        mentions: input.mentions ?? parseMentions(body),
         replyToId: input.replyToId ?? null,
         threadId: input.threadId ?? null,
         source: input.source ?? "chat",

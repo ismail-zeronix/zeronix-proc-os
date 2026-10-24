@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 export type ChatView = { kind: "list" } | { kind: "new" } | { kind: "channel"; id: number } | { kind: "info"; id: number };
-export type ChatTab = "chats" | "threads";
+export type ChatTab = "chats" | "threads" | "activity";
 
 interface ChatState {
   open: boolean;

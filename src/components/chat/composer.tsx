@@ -1,7 +1,7 @@
 "use client";
 
 import { SendHorizontal, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { MentionTextarea, useMentions, type MentionPerson } from "@/components/mention-textarea";
 import { Button } from "@/components/ui/button";
 import { MAX_BODY, tokensToText } from "@/lib/chat/text";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -9,8 +9,9 @@ import { pingTyping, resetTyping } from "./chat-data";
 import { useChatStore } from "./chat-store";
 
 /**
- * The message box under a conversation or a thread. Enter sends, Shift+Enter is a new line. The unsent text is kept per
- * conversation (`draftKey`), and the others see "typing…" while you write.
+ * The message box under a conversation or a thread. Enter sends, Shift+Enter is a new line, "@" mentions someone in the
+ * conversation, "#" links a record (it shows as a card). The unsent text is kept per conversation (`draftKey`), and the
+ * others see "typing…" while you write.
  */
 export function Composer({
   channelId,
@@ -20,6 +21,7 @@ export function Composer({
   onCancelReply,
   onSend,
   disabled,
+  people,
 }: {
   channelId: number;
   draftKey: number;
@@ -28,12 +30,12 @@ export function Composer({
   onCancelReply?: () => void;
   onSend: (text: string) => void;
   disabled?: string;
+  /** Who can be @mentioned here. */
+  people: MentionPerson[];
 }) {
   const draft = useChatStore((s) => s.drafts[draftKey] ?? "");
   const setDraft = useChatStore((s) => s.setDraft);
-  const input = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => input.current?.focus(), [draftKey, replyTo]);
+  const mentions = useMentions(`chat:${draftKey}`);
 
   if (disabled) return <p className="border-t p-3 text-center text-xs text-muted-foreground">{disabled}</p>;
 
@@ -42,7 +44,8 @@ export function Composer({
     if (!text) return;
     setDraft(draftKey, "");
     resetTyping(channelId);
-    onSend(text);
+    onSend(mentions.toTokens(text));
+    mentions.reset();
   };
 
   return (
@@ -64,12 +67,15 @@ export function Composer({
           send();
         }}
       >
-        <textarea
-          ref={input}
+        <MentionTextarea
+          focusOn={`${draftKey}:${replyTo?.id ?? ""}`}
+          mentions={mentions}
+          people={people}
+          records
           value={draft}
-          onChange={(e) => {
-            setDraft(draftKey, e.target.value);
-            if (e.target.value.trim()) pingTyping(channelId);
+          onChange={(v) => {
+            setDraft(draftKey, v);
+            if (v.trim()) pingTyping(channelId);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -85,7 +91,7 @@ export function Composer({
           maxLength={MAX_BODY}
           placeholder={placeholder}
           aria-label={placeholder}
-          className="field-sizing-content max-h-32 min-h-9 flex-1 resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          className="field-sizing-content max-h-32 min-h-9 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         />
         <Button type="submit" size="icon" disabled={!draft.trim()} aria-label="Send" title="Send (Enter)">
           <SendHorizontal />
