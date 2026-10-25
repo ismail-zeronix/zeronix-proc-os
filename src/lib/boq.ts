@@ -54,7 +54,7 @@ export interface Money {
   /** Selling total of the lines that have a cost, so margin compares like with like. */
   sellWithCost: number;
   profit: number;
-  /** Profit as a share of the selling price (gross margin), null when nothing has a cost. */
+  /** Profit as a share of the cost (margin on cost, like each line's Margin %), null when nothing has a cost. */
   marginPct: number | null;
   /** Lines without a cost (left out of profit). */
   noCost: number;
@@ -76,11 +76,23 @@ export function boqMoney(lines: BoqLine[]): Money {
     cost,
     sellWithCost,
     profit,
-    marginPct: sellWithCost > 0 ? Math.round((profit / sellWithCost) * 1000) / 10 : null,
+    marginPct: cost > 0 ? Math.round((profit / cost) * 1000) / 10 : null,
     noCost: firm.length - withCost.length,
     optionalCount: extras.length,
     optionalSell: round2(extras.reduce((s, l) => s + lineTotal({ qty: l.qty, unitPrice: l.unitPriceAed }), 0)),
   };
+}
+
+/**
+ * The selling price of a BOQ line from its cost and margin on cost, to the fil: 185 at 10% is 203.50. (Product quotes round
+ * to whole dirhams; a BOQ has cheap items such as connectors and metres of cable, where that would be far off.)
+ */
+export const boqPrice = (cost: number, marginPct: number) => round2(cost * (1 + marginPct / 100));
+
+/** The margin on cost a price gives, to one decimal (the same measure as the Margin % box). Null without a cost. */
+export function boqMargin(cost: number | null | undefined, price: number): number | null {
+  if (cost == null || cost <= 0) return null;
+  return Math.round(((price - cost) / cost) * 1000) / 10;
 }
 
 /** Cleans a section heading typed by a person: trimmed, single spaces, at most 80 characters. */

@@ -2,17 +2,18 @@
 
 import { ArrowDown, ArrowUp, CircleCheck, Ellipsis, FilePlus2, FolderPlus, Pencil, Percent, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { amount } from "@/components/proposal/price-tables";
 import { QuoteStatusBadge } from "@/components/quote-bits";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { boqMoney, defaultUnit, groupBoq, LINE_TYPES, NO_SECTION, UNITS } from "@/lib/boq";
+import { boqMargin, boqMoney, boqPrice, defaultUnit, groupBoq, LINE_TYPES, NO_SECTION, UNITS } from "@/lib/boq";
 import { dayLabel } from "@/lib/dates";
 import type { BoqLineRow } from "@/lib/projects-data";
-import { lineTotal, marginOf, money, round2, sellPrice } from "@/lib/quotation";
+import { lineTotal, round2 } from "@/lib/quotation";
 import type { QuoteSummary } from "@/lib/quotes-data";
 import { createQuote, reviseQuote } from "../../../sales/quote-actions";
 import { FindPrice } from "../../../sales/deals/[id]/find-price";
@@ -21,6 +22,7 @@ import {
   addBoqLineFromOffer,
   addBoqSection,
   applySectionMargin,
+  type BoqLineInput,
   deleteBoqLine,
   deleteBoqSection,
   moveBoqLine,
@@ -39,6 +41,15 @@ const parse = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 const show = (n: number | null | undefined) => (n == null ? "" : String(n));
+/** Always two decimals, as on the proposal and the quote: AED 9,340.40, not AED 9,340.4. */
+const money = (n: number) => `AED ${amount(n)}`;
+
+/**
+ * Saves still on their way to the server. "Make quote" waits for them, so a line typed a moment before the click is in
+ * the quote and its PDF.
+ */
+const inflight = new Set<Promise<unknown>>();
+const settled = () => Promise.allSettled([...inflight]);
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -55,9 +66,33 @@ function useRun() {
   return [pending, run] as const;
 }
 
+type LineValues = Omit<BoqLineInput, "section">;
+const sameValues = (a: LineValues, b: LineValues) =>
+  a.description.trim() === b.description.trim() &&
+  a.lineType === b.lineType &&
+  a.unit === b.unit &&
+  a.qty === b.qty &&
+  a.costAed === b.costAed &&
+  (a.marginPct ?? null) === (b.marginPct ?? null) &&
+  a.unitPriceAed === b.unitPriceAed &&
+  a.optional === b.optional;
+const valuesOf = (l: BoqLineRow): LineValues => ({
+  description: l.description,
+  lineType: l.lineType,
+  unit: l.unit,
+  qty: l.qty,
+  costAed: l.costAed,
+  marginPct: l.marginPct,
+  unitPriceAed: l.unitPriceAed,
+  optional: l.optional,
+});
+
 /**
- * One BOQ line. Typed boxes save when you leave them; the kind, unit and "optional" switch save at once.
- * Cost and margin fix the price (price = cost plus margin); typing a price works out the margin instead.
+ * One BOQ line, edited like a spreadsheet row. The row saves when you leave it (Tab or click out of the last box), so
+ * typing qty, cost and margin one after the other is one save. The kind, unit and "optional" switch save at once. Saves
+ * of a row run one after another, never at the same time, so a later change is never lost under an earlier one. On the
+ * empty row at the bottom of a section, leaving the row with a description adds the line (as do Enter and +).
+ * Cost and margin fix the price (price = cost plus margin on cost, to the fil); typing a price works out the margin.
  */
 function Line({
   projectId,
@@ -82,74 +117,147 @@ function Line({
   const [margin, setMargin] = useState(show(line?.marginPct));
   const [price, setPrice] = useState(show(line?.unitPriceAed));
   const [optional, setOptional] = useState(line?.optional ?? false);
+  const [saving, setSaving] = useState(false);
   const [pending, run] = useRun();
+  const rowRef = useRef<HTMLDivElement>(null);
 
-  const q = Math.max(1, Math.floor(parse(qty) ?? 1));
+  const q = Math.max(1, Math.round(parse(qty) ?? 1));
   const c = parse(cost);
   const p = parse(price) ?? 0;
+  const m = parse(margin);
+
+  const values: LineValues = { description: desc, lineType: type, unit, qty: q, costAed: c, marginPct: c != null ? m : null, unitPriceAed: p, optional };
+  // the latest typed values, for a save that starts after the one before it has finished
+  const latest = useRef(values);
+  useEffect(() => {
+    latest.current = values;
+  });
+  // what the server has: compared against, so leaving a row you did not change saves nothing
+  const saved = useRef<LineValues | null>(line ? valuesOf(line) : null);
+  const chain = useRef<Promise<unknown> | null>(null);
+  const again = useRef<Partial<LineValues> | null>(null);
+
+  const fromServer = line ? JSON.stringify(valuesOf(line)) : "";
+  // the server changed the line (a section margin, another tab, a refresh): show it, unless the person is typing in it
+  useEffect(() => {
+    if (!line) return;
+    const s = valuesOf(line);
+    saved.current = s;
+    if (chain.current || rowRef.current?.contains(document.activeElement)) return;
+    setDesc(s.description);
+    setType(s.lineType);
+    setUnit(s.unit);
+    setQty(String(s.qty));
+    setCost(show(s.costAed));
+    setMargin(show(s.marginPct));
+    setPrice(show(s.unitPriceAed));
+    setOptional(s.optional);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fromServer stands for the line's values
+  }, [fromServer]);
+
+  const persist = (over: Partial<LineValues> = {}) => {
+    if (!line) return;
+    if (chain.current) {
+      again.current = { ...again.current, ...over };
+      return;
+    }
+    const job = (async () => {
+      let next: Partial<LineValues> | null = over;
+      setSaving(true);
+      try {
+        while (next) {
+          const v = { ...latest.current, ...next };
+          next = null;
+          if (!v.description.trim()) {
+            toast.error("The line needs a description.");
+            break;
+          }
+          if (!saved.current || !sameValues(v, saved.current)) {
+            await updateBoqLine(line.id, { ...v, section });
+            saved.current = v;
+          }
+          // changes made while that save was on its way go in the next one
+          if (again.current) {
+            next = again.current;
+            again.current = null;
+          }
+        }
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    })();
+    chain.current = job;
+    inflight.add(job);
+    void job.finally(() => {
+      chain.current = null;
+      inflight.delete(job);
+      setSaving(false);
+    });
+  };
+
+  const reset = () => {
+    setDesc("");
+    setQty("1");
+    setCost("");
+    setMargin("");
+    setPrice("");
+    setOptional(false);
+  };
+  const add = () => {
+    if (!desc.trim() || pending) return;
+    const v = latest.current;
+    run(async () => {
+      const job = addBoqLine(projectId, { ...v, section });
+      inflight.add(job);
+      try {
+        await job;
+      } finally {
+        inflight.delete(job);
+      }
+      reset();
+    });
+  };
 
   const onCost = (v: string) => {
     setCost(v);
     const nc = parse(v);
-    const m = parse(margin) ?? (nc != null ? defaultMargin : null);
-    if (nc != null && m != null) {
-      setMargin(String(m));
-      setPrice(String(sellPrice(nc, m)));
+    const mm = m ?? (nc != null ? defaultMargin : null);
+    if (nc != null && mm != null) {
+      setMargin(String(mm));
+      setPrice(String(boqPrice(nc, mm)));
     }
   };
   const onMargin = (v: string) => {
     setMargin(v);
-    const m = parse(v);
-    if (c != null && m != null) setPrice(String(sellPrice(c, m)));
+    const mm = parse(v);
+    if (c != null && mm != null) setPrice(String(boqPrice(c, mm)));
   };
   const onPrice = (v: string) => {
     setPrice(v);
     const np = parse(v);
-    const m = np != null ? marginOf(c, np) : null;
-    if (m != null) setMargin(String(m));
+    const mm = np != null ? boqMargin(c, np) : null;
+    if (mm != null) setMargin(String(mm));
   };
 
-  const input = (over: Partial<{ lineType: string; unit: string; optional: boolean }> = {}) => ({
-    section,
-    description: desc,
-    lineType: type,
-    unit,
-    qty: q,
-    costAed: c,
-    unitPriceAed: p,
-    optional,
-    ...over,
-  });
-  const changed = !line || desc !== line.description || q !== line.qty || c !== line.costAed || p !== line.unitPriceAed;
-
-  const save = () => {
-    if (!line || !changed || pending) return;
-    if (!desc.trim()) return void toast.error("The line needs a description.");
-    run(() => updateBoqLine(line.id, input()));
+  // leaving the row (focus goes somewhere outside it) saves an existing line, or adds a typed new one
+  const onRowBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (rowRef.current?.contains(e.relatedTarget as Node | null)) return;
+    if (line) persist();
+    else if (desc.trim()) add();
   };
   // selects and the optional switch save straight away on an existing line
-  const saveNow = (over: Partial<{ lineType: string; unit: string; optional: boolean }>) => {
-    if (line && desc.trim()) run(() => updateBoqLine(line.id, input(over)));
+  const saveNow = (over: Partial<LineValues>) => {
+    if (line) persist(over);
   };
-  const add = () =>
-    run(
-      () => addBoqLine(projectId, input()),
-      undefined,
-      () => {
-        setDesc("");
-        setQty("1");
-        setCost("");
-        setMargin("");
-        setPrice("");
-        setOptional(false);
-      },
-    );
+  // a click or Tab into a number box selects it, so typing replaces the number instead of adding to it
+  const selectAll = (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select();
 
   const field = "h-8 px-2 text-right text-sm tabular-nums";
   const label = "text-[11px] text-muted-foreground lg:sr-only";
   const total = lineTotal({ qty: q, unitPrice: p });
+  const shownTotal = line || desc.trim() ? money(total) : "";
   return (
-    <div className={`grid ${COLS} items-end gap-x-2 gap-y-1 border-b py-1.5 lg:items-center ${optional ? "bg-muted/30" : ""}`}>
+    <div ref={rowRef} onBlur={onRowBlur} className={`grid ${COLS} items-end gap-x-2 gap-y-1 border-b py-1.5 lg:items-center ${optional ? "bg-muted/30" : ""}`}>
       <div className="col-span-4 lg:col-span-1">
         <Input
           aria-label="Line description"
@@ -157,15 +265,15 @@ function Line({
           className="h-8 text-sm"
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          onBlur={save}
           onKeyDown={(e) => {
             if (!line && e.key === "Enter" && desc.trim()) add();
           }}
         />
-        {(line?.supplierName || optional) && (
+        {(line?.supplierName || optional || (!line && desc.trim())) && (
           <div className="mt-0.5 px-1 text-[11px] text-muted-foreground">
             {optional && <span className="mr-2 font-medium text-amber-700 dark:text-amber-400">Optional extra, not in the total</span>}
             {line?.supplierName && `from ${line.supplierName}`}
+            {!line && desc.trim() && "Not saved yet: press Enter, + or move to another row to add it"}
           </div>
         )}
       </div>
@@ -193,7 +301,7 @@ function Line({
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Qty</span>
-        <Input aria-label="Quantity" inputMode="numeric" className={field} value={qty} onChange={(e) => setQty(e.target.value)} onBlur={save} />
+        <Input aria-label="Quantity" inputMode="numeric" className={field} value={qty} onFocus={selectAll} onChange={(e) => setQty(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Unit</span>
@@ -216,21 +324,21 @@ function Line({
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Cost</span>
-        <Input aria-label="Our cost per unit (AED)" inputMode="decimal" placeholder="cost" className={field} value={cost} onChange={(e) => onCost(e.target.value)} onBlur={save} />
+        <Input aria-label="Our cost per unit (AED)" inputMode="decimal" placeholder="cost" className={field} value={cost} onFocus={selectAll} onChange={(e) => onCost(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Margin %</span>
-        <Input aria-label="Margin on cost (%)" inputMode="decimal" placeholder="%" className={field} value={margin} onChange={(e) => onMargin(e.target.value)} onBlur={save} />
+        <Input aria-label="Margin on cost (%)" inputMode="decimal" placeholder="%" className={field} value={margin} onFocus={selectAll} onChange={(e) => onMargin(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Price</span>
-        <Input aria-label="Selling price per unit (AED)" inputMode="decimal" placeholder="price" className={field} value={price} onChange={(e) => onPrice(e.target.value)} onBlur={save} />
+        <Input aria-label="Selling price per unit (AED)" inputMode="decimal" placeholder="price" className={field} value={price} onFocus={selectAll} onChange={(e) => onPrice(e.target.value)} />
       </label>
       <div className={`hidden text-right text-sm font-medium tabular-nums lg:block ${optional ? "text-muted-foreground line-through decoration-muted-foreground/50" : ""}`} aria-label="Line total">
-        {money(total)}
+        {shownTotal}
       </div>
       <div className="col-span-4 flex items-center justify-between gap-0.5 lg:col-span-1 lg:justify-end">
-        <span className="text-sm font-medium tabular-nums lg:hidden">{money(total)}</span>
+        <span className="text-sm font-medium tabular-nums lg:hidden">{shownTotal}</span>
         <span className="flex items-center gap-0.5">
           <Button
             variant="ghost"
@@ -248,7 +356,7 @@ function Line({
           </Button>
           {line ? (
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="More for this line" title="More" pending={pending} />}>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="More for this line" title={saving ? "Saving…" : "More"} pending={pending || saving} />}>
                 <Ellipsis />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
@@ -334,7 +442,7 @@ function SectionHeader({
           }}
         >
           <span className="text-sm font-semibold">{title}</span>
-          <Input autoFocus aria-label="Margin for the whole section (%)" inputMode="decimal" className="h-7 w-20 text-right text-sm" value={margin} onChange={(e) => setMargin(e.target.value)} />
+          <Input autoFocus onFocus={(e) => e.currentTarget.select()} aria-label="Margin for the whole section (%)" inputMode="decimal" className="h-7 w-20 text-right text-sm" value={margin} onChange={(e) => setMargin(e.target.value)} />
           <span className="text-xs text-muted-foreground">% on every line with a cost</span>
           <Button type="submit" size="sm" pending={pending}>
             Apply
@@ -351,7 +459,7 @@ function SectionHeader({
           <span className="font-medium text-foreground">{money(m.sell)}</span>
         </span>
         {m.cost > 0 && <span title="Our cost of the lines that have one">cost {money(m.cost)}</span>}
-        {m.marginPct != null && <span title="Profit as a share of the selling price, for lines with a cost">margin {m.marginPct}%</span>}
+        {m.marginPct != null && <span title="Profit as a share of our cost (margin on cost, like each line), for lines with a cost">margin {m.marginPct}%</span>}
       </span>
       <span className="flex items-center">
         {canFindPrice && (
@@ -493,6 +601,7 @@ export function BoqEditor({
             title={`Rewrite ${open.number} with this BOQ. It keeps its number${open.status === "sent" ? "; send it to the customer again after" : ""}.`}
             onClick={() =>
               run(async () => {
+                await settled();
                 const r = await reviseQuote(open.id);
                 toast.success(`Quote ${r.number} updated${r.wasSent ? ". Send it to the customer again." : ""}`);
               })
@@ -508,6 +617,7 @@ export function BoqEditor({
             title={lines.length ? "Make a numbered quote (ZQ) from this BOQ; optional extras stay out of it" : "Add at least one line first"}
             onClick={() =>
               run(async () => {
+                await settled();
                 const r = await createQuote(dealId);
                 toast.success(`Quote ${r.number} made`);
               })

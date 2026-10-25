@@ -6,9 +6,8 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertDeal } from "@/lib/auth/visibility";
-import { cleanSection, isLineType, UNITS } from "@/lib/boq";
+import { boqMargin, boqPrice, cleanSection, isLineType, UNITS } from "@/lib/boq";
 import { getFx, toAed } from "@/lib/fx";
-import { marginOf, sellPrice } from "@/lib/quotation";
 import { quoteDefaults } from "@/lib/quotes-data";
 
 /**
@@ -16,17 +15,31 @@ import { quoteDefaults } from "@/lib/quotes-data";
  * normal quote, order and invoice code works on them unchanged. The section order lives on the project.
  */
 
-const price = z.number().min(0).max(1e9);
+const price = z.number({ error: "Type the amount as a number" }).min(0, "Amounts cannot be negative").max(1e9, "That amount is too large");
+const marginBox = z.number({ error: "Type the margin as a number" }).min(0, "The margin cannot be negative").max(300, "The margin can be at most 300%");
 const lineSchema = z.object({
   section: z.string().max(200).transform(cleanSection),
   description: z.string().trim().min(1, "Describe the line").max(400),
   lineType: z.string().refine(isLineType, "Unknown kind of line"),
   unit: z.string().refine((u) => u === "" || (UNITS as readonly string[]).includes(u), "Unknown unit"),
-  qty: z.number().int().min(1, "Quantity must be at least 1").max(100000),
+  qty: z.number().int("Quantity must be a whole number").min(1, "Quantity must be at least 1").max(100000, "Quantity can be at most 100,000"),
   costAed: price.nullable(),
+  /** The margin the person typed. Kept as typed when it gives this price; otherwise worked out from cost and price. */
+  marginPct: marginBox.nullable().optional(),
   unitPriceAed: price,
   optional: z.boolean(),
 });
+
+/** Zod errors as one plain sentence for the toast, not a JSON dump. */
+function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
+  const r = schema.safeParse(input);
+  if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the line.");
+  return r.data;
+}
+
+/** The margin to keep for a line: the typed one when cost and margin give exactly this price. */
+const keptMargin = (d: { costAed: number | null; marginPct?: number | null; unitPriceAed: number }) =>
+  d.costAed != null && d.marginPct != null && boqPrice(d.costAed, d.marginPct) === d.unitPriceAed ? d.marginPct : boqMargin(d.costAed, d.unitPriceAed);
 export type BoqLineInput = z.input<typeof lineSchema>;
 
 function refresh(projectId: number) {
@@ -67,7 +80,7 @@ async function nextPosition(dealId: number): Promise<number> {
 
 export async function addBoqLine(projectId: number, input: BoqLineInput) {
   const p = await projectFor(projectId);
-  const d = lineSchema.parse(input);
+  const d = parse(lineSchema, input);
   await db.insert(schema.dealItems).values({
     dealId: p.dealId,
     position: await nextPosition(p.dealId),
@@ -77,7 +90,7 @@ export async function addBoqLine(projectId: number, input: BoqLineInput) {
     unit: d.unit,
     qty: d.qty,
     costAed: d.costAed,
-    marginPct: marginOf(d.costAed, d.unitPriceAed),
+    marginPct: keptMargin(d),
     unitPriceAed: d.unitPriceAed,
     optional: d.optional,
   });
@@ -86,7 +99,7 @@ export async function addBoqLine(projectId: number, input: BoqLineInput) {
 
 export async function updateBoqLine(lineId: number, input: BoqLineInput) {
   const l = await lineFor(lineId);
-  const d = lineSchema.parse(input);
+  const d = parse(lineSchema, input);
   await db
     .update(schema.dealItems)
     .set({
@@ -96,7 +109,7 @@ export async function updateBoqLine(lineId: number, input: BoqLineInput) {
       unit: d.unit,
       qty: d.qty,
       costAed: d.costAed,
-      marginPct: marginOf(d.costAed, d.unitPriceAed),
+      marginPct: keptMargin(d),
       unitPriceAed: d.unitPriceAed,
       optional: d.optional,
     })
@@ -140,7 +153,7 @@ export async function moveBoqLine(lineId: number, dir: "up" | "down") {
 export async function addBoqLineFromOffer(projectId: number, section: string, offerId: number, qty = 1, marginPct?: number) {
   const p = await projectFor(projectId);
   await assertApp("procurement");
-  const q = z.number().int().min(1).max(100000).parse(qty);
+  const q = parse(lineSchema.shape.qty, qty);
   const [o] = await db
     .select({
       id: schema.offers.id,
@@ -161,8 +174,8 @@ export async function addBoqLineFromOffer(projectId: number, section: string, of
   if (o.price == null) throw new Error("This offer has no price (price on request). Add the line by hand with the price you are given.");
   const cost = toAed(o.price, o.currency, await getFx());
   if (cost == null) throw new Error(`There is no AED rate for ${o.currency}. Add the line by hand with the cost in AED.`);
-  const margin = marginPct == null ? (await quoteDefaults()).marginPct : z.number().min(0).max(300).parse(marginPct);
-  const unit = sellPrice(cost, margin);
+  const margin = marginPct == null ? (await quoteDefaults()).marginPct : parse(marginBox, marginPct);
+  const unit = boqPrice(cost, margin);
   const label = [o.brand, o.modelName, o.partNumber].filter(Boolean).join(" ");
   await db.insert(schema.dealItems).values({
     dealId: p.dealId,
@@ -176,7 +189,7 @@ export async function addBoqLineFromOffer(projectId: number, section: string, of
     offerId: o.id,
     supplierName: o.supplierName,
     costAed: cost,
-    marginPct: marginOf(cost, unit),
+    marginPct: margin,
     unitPriceAed: unit,
   });
   refresh(p.id);
@@ -241,7 +254,7 @@ export async function deleteBoqSection(projectId: number, name: string) {
 /** Sets the same margin on every line in a section that has a cost (price = cost plus margin). Lines without a cost keep their price. */
 export async function applySectionMargin(projectId: number, section: string, marginPct: number) {
   const p = await projectFor(projectId);
-  const m = z.number().min(0).max(300).parse(marginPct);
+  const m = parse(marginBox, marginPct);
   const lines = await db
     .select({ id: schema.dealItems.id, cost: schema.dealItems.costAed })
     .from(schema.dealItems)
@@ -250,8 +263,7 @@ export async function applySectionMargin(projectId: number, section: string, mar
   if (!priced.length) throw new Error("No line in this section has a cost yet, so there is nothing to put a margin on.");
   await db.transaction(async (tx) => {
     for (const l of priced) {
-      const unit = sellPrice(l.cost as number, m);
-      await tx.update(schema.dealItems).set({ unitPriceAed: unit, marginPct: marginOf(l.cost, unit) }).where(eq(schema.dealItems.id, l.id));
+      await tx.update(schema.dealItems).set({ unitPriceAed: boqPrice(l.cost as number, m), marginPct: m }).where(eq(schema.dealItems.id, l.id));
     }
   });
   refresh(p.id);

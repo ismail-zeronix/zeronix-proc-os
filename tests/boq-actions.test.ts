@@ -134,6 +134,20 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
     expect(nvr?.marginPct).toBe(20);
   });
 
+  it("prices to the fil and keeps the margin as typed; a bad margin says so in words", async () => {
+    await as(seller, "seller");
+    await B.addBoqLine(projectId, line({ description: "Bullet camera 8MP", costAed: 185, marginPct: 10, unitPriceAed: 203.5 }));
+    await B.addBoqLine(projectId, line({ description: "RJ45 connector", section: "Alarm system", qty: 200, costAed: 1.35, marginPct: 25, unitPriceAed: 1.69 }));
+    const lines = await D.boqLines(dealId);
+    expect(lines.find((l) => l.description === "Bullet camera 8MP")).toMatchObject({ unitPriceAed: 203.5, marginPct: 10 });
+    // 1.35 + 25% is 1.6875, shown as 1.69: the 25% typed stays, not 25.2
+    expect(lines.find((l) => l.description === "RJ45 connector")).toMatchObject({ unitPriceAed: 1.69, marginPct: 25 });
+    await B.applySectionMargin(projectId, "Alarm system", 20);
+    expect((await D.boqLines(dealId)).find((l) => l.description === "RJ45 connector")).toMatchObject({ unitPriceAed: 1.62, marginPct: 20 });
+    await expect(B.applySectionMargin(projectId, "Alarm system", 1020)).rejects.toThrow("The margin can be at most 300%");
+    for (const l of (await D.boqLines(dealId)).filter((x) => x.description === "Bullet camera 8MP" || x.description === "RJ45 connector")) await B.deleteBoqLine(l.id);
+  });
+
   it("makes a quote in section order, with units, without optional extras", async () => {
     // someone with only the Projects app can make the quote from the BOQ
     await db.insert(schema.dealAssignees).values({ dealId, userId: projectsOnly, position: 5 });

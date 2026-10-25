@@ -36,7 +36,7 @@ describe("boqMoney", () => {
     expect(m.cost).toBe(200);
     expect(m.sellWithCost).toBe(300);
     expect(m.profit).toBe(100);
-    expect(m.marginPct).toBe(33.3);
+    expect(m.marginPct).toBe(50);
     expect(m.noCost).toBe(1);
     expect(m.optionalCount).toBe(1);
     expect(m.optionalSell).toBe(1000);

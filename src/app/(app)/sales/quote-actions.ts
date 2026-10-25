@@ -33,6 +33,13 @@ const itemSchema = z.object({
 });
 export type ItemInput = z.input<typeof itemSchema>;
 
+/** A line's values checked, with the first problem as one plain sentence for the toast (not a JSON dump). */
+function parseItem(input: ItemInput) {
+  const r = itemSchema.safeParse(input);
+  if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the line.");
+  return r.data;
+}
+
 async function nextPosition(dealId: number): Promise<number> {
   const [r] = await db.select({ n: sql<number>`coalesce(max(${schema.dealItems.position}), -1) + 1` }).from(schema.dealItems).where(eq(schema.dealItems.dealId, dealId));
   return r.n;
@@ -47,7 +54,7 @@ async function dealExists(dealId: number) {
 export async function addItem(dealId: number, input: ItemInput) {
   await assertApp("sales");
   await assertDeal(dealId);
-  const d = itemSchema.parse(input);
+  const d = parseItem(input);
   await dealExists(dealId);
   await db.insert(schema.dealItems).values({
     dealId,
@@ -113,7 +120,7 @@ export async function addItemFromOffer(dealId: number, offerId: number, qty = 1,
 export async function updateItem(itemId: number, input: ItemInput) {
   await assertApp("sales");
   await assertDealOf("deal_items", itemId);
-  const d = itemSchema.parse(input);
+  const d = parseItem(input);
   const [row] = await db.update(schema.dealItems)
     .set({ description: d.description, qty: d.qty, costAed: d.costAed ?? null, marginPct: marginOf(d.costAed, d.unitPriceAed), unitPriceAed: d.unitPriceAed })
     .where(eq(schema.dealItems.id, itemId))

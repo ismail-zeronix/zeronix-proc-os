@@ -3,7 +3,7 @@
 import { CircleCheck, FilePlus2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { QuoteStatusBadge } from "@/components/quote-bits";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,21 @@ function useRun() {
 }
 
 /**
- * One line. An existing line saves itself when you leave a box; the new-line row has an Add button.
+ * Saves still on their way to the server. "Make quote" and "Update" wait for them, so a line changed a moment before
+ * the click is in the quote.
+ */
+const inflight = new Set<Promise<unknown>>();
+const settled = () => Promise.allSettled([...inflight]);
+
+type RowValues = { description: string; qty: number; costAed: number | null; unitPriceAed: number };
+const sameValues = (a: RowValues, b: RowValues) => a.description.trim() === b.description.trim() && a.qty === b.qty && a.costAed === b.costAed && a.unitPriceAed === b.unitPriceAed;
+const valuesOf = (i: DealItemRow): RowValues => ({ description: i.description, qty: i.qty, costAed: i.costAed, unitPriceAed: i.unitPriceAed });
+
+/**
+ * One line, edited like a spreadsheet row. The row saves when you leave it (Tab or click out of its last box), so typing
+ * qty, cost and margin one after the other is one save. Saves of a row run one after another, never at the same time,
+ * so a later change is never lost under an earlier one. On the empty row, leaving it with a description and a price adds
+ * the line (as do Enter and the Add button).
  * Cost and margin fix the price (price = cost plus margin); typing a price works out the margin instead.
  */
 function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemRow; defaultMargin: number }) {
@@ -49,11 +63,38 @@ function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemR
   const [cost, setCost] = useState(show(item?.costAed));
   const [margin, setMargin] = useState(show(item?.marginPct));
   const [price, setPrice] = useState(show(item?.unitPriceAed));
+  const [saving, setSaving] = useState(false);
   const [pending, run] = useRun();
+  const rowRef = useRef<HTMLDivElement>(null);
 
-  const q = Math.max(1, Math.floor(parse(qty) ?? 1));
+  const q = Math.max(1, Math.round(parse(qty) ?? 1));
   const c = parse(cost);
   const p = parse(price) ?? 0;
+
+  const values: RowValues = { description: desc, qty: q, costAed: c, unitPriceAed: p };
+  // the latest typed values, for a save that starts after the one before it has finished
+  const latest = useRef(values);
+  useEffect(() => {
+    latest.current = values;
+  });
+  // what the server has: leaving a row you did not change saves nothing
+  const saved = useRef<RowValues | null>(item ? valuesOf(item) : null);
+  const chain = useRef<Promise<unknown> | null>(null);
+  const again = useRef(false);
+
+  const fromServer = item ? JSON.stringify([valuesOf(item), item.marginPct]) : "";
+  // the server changed the line (another tab, a refresh): show it, unless the person is typing in it
+  useEffect(() => {
+    if (!item) return;
+    saved.current = valuesOf(item);
+    if (chain.current || rowRef.current?.contains(document.activeElement)) return;
+    setDesc(item.description);
+    setQty(String(item.qty));
+    setCost(show(item.costAed));
+    setMargin(show(item.marginPct));
+    setPrice(show(item.unitPriceAed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fromServer stands for the line's values
+  }, [fromServer]);
 
   const onCost = (v: string) => {
     setCost(v);
@@ -76,18 +117,60 @@ function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemR
     if (m != null) setMargin(String(m));
   };
 
-  const input = () => ({ description: desc, qty: q, costAed: c, unitPriceAed: p });
-  const changed =
-    !item || desc !== item.description || q !== item.qty || c !== item.costAed || p !== item.unitPriceAed;
-
-  const save = () => {
-    if (!item || !changed || pending) return;
-    if (!desc.trim()) return void toast.error("The item needs a description.");
-    run(() => updateItem(item.id, input()));
+  const persist = () => {
+    if (!item) return;
+    if (chain.current) {
+      again.current = true;
+      return;
+    }
+    const job = (async () => {
+      setSaving(true);
+      try {
+        let more = true;
+        while (more) {
+          more = false;
+          const v = latest.current;
+          if (!v.description.trim()) {
+            toast.error("The item needs a description.");
+            break;
+          }
+          if (!saved.current || !sameValues(v, saved.current)) {
+            await updateItem(item.id, v);
+            saved.current = v;
+          }
+          // changes made while that save was on its way go in the next one
+          if (again.current) {
+            again.current = false;
+            more = true;
+          }
+        }
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    })();
+    chain.current = job;
+    inflight.add(job);
+    void job.finally(() => {
+      chain.current = null;
+      inflight.delete(job);
+      setSaving(false);
+    });
   };
-  const add = () =>
+
+  const canAdd = !!desc.trim() && p > 0;
+  const add = () => {
+    if (!canAdd || pending) return;
+    const v = latest.current;
     run(
-      () => addItem(dealId, input()),
+      async () => {
+        const job = addItem(dealId, v);
+        inflight.add(job);
+        try {
+          await job;
+        } finally {
+          inflight.delete(job);
+        }
+      },
       "Line added",
       () => {
         setDesc("");
@@ -97,11 +180,26 @@ function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemR
         setPrice("");
       },
     );
+  };
+
+  // leaving the row (focus goes somewhere outside it) saves an existing line, or adds a complete new one
+  const onRowBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (rowRef.current?.contains(e.relatedTarget as Node | null)) return;
+    if (item) persist();
+    else if (canAdd) add();
+  };
+  const onEnter = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!item && e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") add();
+  };
+  // a click or Tab into a number box selects it, so typing replaces the number instead of adding to it
+  const selectAll = (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select();
 
   const field = "h-8 px-2 text-right text-sm tabular-nums";
   const label = "text-[11px] text-muted-foreground sm:sr-only";
+  const shownTotal = item || desc.trim() ? money(lineTotal({ qty: q, unitPrice: p })) : "";
+  const unsaved = !item && desc.trim();
   return (
-    <div className={`grid ${COLS} items-end gap-x-2 gap-y-1 border-b py-2 sm:items-center`}>
+    <div ref={rowRef} onBlur={onRowBlur} onKeyDown={onEnter} className={`grid ${COLS} items-end gap-x-2 gap-y-1 border-b py-2 sm:items-center`}>
       <div className="col-span-4 sm:col-span-1">
         <Input
           aria-label="Item description"
@@ -109,37 +207,49 @@ function Row({ dealId, item, defaultMargin }: { dealId: number; item?: DealItemR
           className="h-8 text-sm"
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          onBlur={save}
         />
-        {item?.supplierName && <div className="mt-0.5 px-1 text-[11px] text-muted-foreground">from {item.supplierName}</div>}
+        {(item?.supplierName || unsaved) && (
+          <div className="mt-0.5 px-1 text-[11px] text-muted-foreground">
+            {item?.supplierName && `from ${item.supplierName}`}
+            {unsaved && (p > 0 ? "Not saved yet: press Enter, + or move to another row to add it" : "Not saved yet: give it a price to add it")}
+          </div>
+        )}
       </div>
       <label className="grid gap-0.5">
         <span className={label}>Qty</span>
-        <Input aria-label="Quantity" inputMode="numeric" className={field} value={qty} onChange={(e) => setQty(e.target.value)} onBlur={save} />
+        <Input aria-label="Quantity" inputMode="numeric" className={field} value={qty} onFocus={selectAll} onChange={(e) => setQty(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Cost</span>
-        <Input aria-label="Our cost per unit (AED)" inputMode="decimal" placeholder="cost" className={field} value={cost} onChange={(e) => onCost(e.target.value)} onBlur={save} />
+        <Input aria-label="Our cost per unit (AED)" inputMode="decimal" placeholder="cost" className={field} value={cost} onFocus={selectAll} onChange={(e) => onCost(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Margin %</span>
-        <Input aria-label="Margin on cost (%)" inputMode="decimal" placeholder="%" className={field} value={margin} onChange={(e) => onMargin(e.target.value)} onBlur={save} />
+        <Input aria-label="Margin on cost (%)" inputMode="decimal" placeholder="%" className={field} value={margin} onFocus={selectAll} onChange={(e) => onMargin(e.target.value)} />
       </label>
       <label className="grid gap-0.5">
         <span className={label}>Price</span>
-        <Input aria-label="Selling price per unit (AED)" inputMode="decimal" placeholder="price" className={field} value={price} onChange={(e) => onPrice(e.target.value)} onBlur={save} />
+        <Input aria-label="Selling price per unit (AED)" inputMode="decimal" placeholder="price" className={field} value={price} onFocus={selectAll} onChange={(e) => onPrice(e.target.value)} />
       </label>
       <div className="hidden text-right text-sm font-medium tabular-nums sm:block" aria-label="Line total">
-        {money(lineTotal({ qty: q, unitPrice: p }))}
+        {shownTotal}
       </div>
       <div className="col-span-4 flex items-center justify-between gap-2 sm:col-span-1 sm:justify-end">
-        <span className="text-sm font-medium tabular-nums sm:hidden">{money(lineTotal({ qty: q, unitPrice: p }))}</span>
+        <span className="text-sm font-medium tabular-nums sm:hidden">{shownTotal}</span>
         {item ? (
-          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove this line" title="Remove this line" pending={pending} onClick={() => run(() => deleteItem(item.id))}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-destructive"
+            aria-label="Remove this line"
+            title={saving ? "Saving…" : "Remove this line"}
+            pending={pending || saving}
+            onClick={() => run(() => deleteItem(item.id))}
+          >
             <Trash2 />
           </Button>
         ) : (
-          <Button size="icon-sm" aria-label="Add this line" title="Add this line" pending={pending} disabled={!desc.trim() || !(p > 0)} onClick={add}>
+          <Button size="icon-sm" aria-label="Add this line" title="Add this line (or press Enter)" pending={pending} disabled={!canAdd} onClick={add}>
             <Plus />
           </Button>
         )}
@@ -177,7 +287,7 @@ export function DealItems({
         {canFindPrice && <FindPrice dealId={dealId} defaultMargin={defaults.marginPct} initialQuery={searchHint} />}
         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {canFindPrice ? "Find a supplier price or type a line. " : "Type each line with the price you will charge. "}
-          Prices are in AED before VAT. Changes save when you leave a box.
+          Prices are in AED before VAT. A line saves when you leave its row.
         </p>
         {accepted ? (
           <Link
@@ -194,6 +304,7 @@ export function DealItems({
             title={`Rewrite ${open.number} with these lines. It keeps its number${open.status === "sent" ? "; send it to the customer again after" : ""}.`}
             onClick={() =>
               run(async () => {
+                await settled();
                 const r = await reviseQuote(open.id);
                 toast.success(`Quote ${r.number} updated${r.wasSent ? ". Send it to the customer again." : ""}`);
                 router.push(`/sales/quotes/${r.id}`);
@@ -209,6 +320,7 @@ export function DealItems({
             title={items.length ? "Make a numbered quote from these lines" : "Add at least one line first"}
             onClick={() =>
               run(async () => {
+                await settled();
                 const r = await createQuote(dealId);
                 toast.success(`Quote ${r.number} made`);
                 router.push(`/sales/quotes/${r.id}`);
