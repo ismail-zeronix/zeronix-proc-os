@@ -13,7 +13,7 @@ import { getSetting } from "@/lib/settings";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
 
-function refresh(ids: { dealId?: number; orderId?: number; invoiceId?: number; companyId?: number }) {
+function refresh(ids: { dealId?: number | null; orderId?: number | null; invoiceId?: number; companyId?: number }) {
   revalidatePath("/accounts", "layout");
   revalidatePath("/crm", "layout");
   if (ids.dealId) revalidatePath(`/crm/deals/${ids.dealId}`);
@@ -124,6 +124,12 @@ export async function cancelInvoice(invoiceId: number, reason: string) {
       .from(schema.payments)
       .where(and(eq(schema.payments.invoiceId, invoiceId), isNull(schema.payments.voidedAt)));
     if (paid.n > 0) throw new Error("This invoice has payments. Void them first, then cancel the invoice.");
+    if (inv.kind === "opening") {
+      // an opening balance entered by mistake: no credit note, as the tax invoice itself lives in Zoho
+      await tx.update(schema.invoices).set({ status: "cancelled" }).where(eq(schema.invoices.id, invoiceId));
+      await tx.insert(schema.activities).values({ type: "note", body: `Opening invoice ${inv.number} removed: ${why}`, companyId: inv.companyId, userId: me.id });
+      return { number: null, dealId: null, orderId: null, companyId: inv.companyId };
+    }
     const seq = await nextSeq(tx, "credit", schema.creditNotes, schema.creditNotes.year, schema.creditNotes.seq, year);
     const number = yearNumber("ZCN", year, seq);
     await tx.insert(schema.creditNotes).values({
@@ -139,7 +145,7 @@ export async function cancelInvoice(invoiceId: number, reason: string) {
       createdBy: me.id,
     });
     await tx.update(schema.invoices).set({ status: "cancelled" }).where(eq(schema.invoices.id, invoiceId));
-    await tx.update(schema.salesOrders).set({ status: "delivered" }).where(eq(schema.salesOrders.id, inv.orderId));
+    if (inv.orderId) await tx.update(schema.salesOrders).set({ status: "delivered" }).where(eq(schema.salesOrders.id, inv.orderId));
     // the collection task is no longer needed
     await tx.delete(schema.tasks).where(and(eq(schema.tasks.status, "open"), like(schema.tasks.title, `${collectTitle(inv.number)}%`)));
     await tx.insert(schema.activities).values({
@@ -234,4 +240,53 @@ export async function voidPayment(paymentId: number, reason: string) {
     return { invoiceId: p.invoiceId, dealId: inv.dealId, orderId: inv.orderId, companyId: inv.companyId };
   });
   refresh(result);
+}
+
+const openingSchema = z.object({
+  companyId: z.number().int().positive("Pick the customer"),
+  number: z.string().trim().min(1, "Enter the Zoho invoice number").max(40),
+  issueDate: day,
+  termsDays: z.number().int().min(0).max(365),
+  total: z.number().positive("Enter what is still owed").max(1e10),
+  customerRef: z.string().trim().max(60).default(""),
+});
+export type OpeningInput = z.input<typeof openingSchema>;
+
+/**
+ * A customer invoice still unpaid when the portal took over from Zoho: kept with Zoho's number and the amount still owed,
+ * so payments and statements work here. Not a sale of this period, so it stays out of profit and VAT reports.
+ */
+export async function createOpeningInvoice(input: OpeningInput) {
+  const me = await assertFinance();
+  const d = openingSchema.parse(input);
+  if (d.issueDate > dubaiToday()) throw new Error("The invoice date cannot be in the future.");
+  const [company] = await db.select().from(schema.companies).where(eq(schema.companies.id, d.companyId));
+  if (!company) throw new Error("That customer no longer exists.");
+  const [dup] = await db.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.number, d.number));
+  if (dup) throw new Error(`Invoice ${d.number} is already in the portal.`);
+  const total = round2(d.total);
+  const [inv] = await db
+    .insert(schema.invoices)
+    .values({
+      number: d.number,
+      kind: "opening",
+      companyId: d.companyId,
+      issueDate: d.issueDate,
+      supplyDate: d.issueDate,
+      termsDays: d.termsDays,
+      dueDate: dueDateFor(d.issueDate, d.termsDays),
+      customerName: company.name,
+      customerAddress: company.address,
+      customerTrn: company.trn,
+      customerRef: d.customerRef,
+      vatPct: 0,
+      subtotal: total,
+      vatAmount: 0,
+      total,
+      createdBy: me.id,
+    })
+    .returning({ id: schema.invoices.id });
+  await db.insert(schema.activities).values({ type: "note", body: `Opening balance from Zoho: invoice ${d.number}, ${money(total)} still owed.`, companyId: d.companyId, userId: me.id });
+  refresh({ companyId: d.companyId, invoiceId: inv.id });
+  return { id: inv.id };
 }

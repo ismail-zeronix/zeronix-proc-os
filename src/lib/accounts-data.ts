@@ -13,8 +13,9 @@ export interface InvoiceRow {
   number: string;
   companyId: number;
   customerName: string;
-  orderId: number;
-  dealId: number;
+  orderId: number | null;
+  kind: "sale" | "opening";
+  dealId: number | null;
   issueDate: string;
   dueDate: string;
   termsDays: number;
@@ -34,6 +35,7 @@ export async function listInvoices(opts: { companyId?: number } = {}): Promise<I
       customerName: schema.invoices.customerName,
       orderId: schema.invoices.orderId,
       dealId: schema.invoices.dealId,
+      kind: schema.invoices.kind,
       issueDate: schema.invoices.issueDate,
       dueDate: schema.invoices.dueDate,
       termsDays: schema.invoices.termsDays,
@@ -42,7 +44,7 @@ export async function listInvoices(opts: { companyId?: number } = {}): Promise<I
       ownerName: schema.users.name,
     })
     .from(schema.invoices)
-    .innerJoin(schema.deals, eq(schema.deals.id, schema.invoices.dealId))
+    .leftJoin(schema.deals, eq(schema.deals.id, schema.invoices.dealId))
     .leftJoin(schema.users, eq(schema.users.id, schema.deals.ownerId))
     .where(opts.companyId ? eq(schema.invoices.companyId, opts.companyId) : undefined)
     .orderBy(desc(schema.invoices.issueDate), desc(schema.invoices.id));
@@ -75,10 +77,13 @@ export async function getInvoice(id: number) {
       .where(eq(schema.payments.invoiceId, id))
       .orderBy(asc(schema.payments.paidOn), asc(schema.payments.id)),
     db.select().from(schema.creditNotes).where(eq(schema.creditNotes.invoiceId, id)),
-    db
-      .select({ id: schema.salesOrders.id, number: schema.salesOrders.number, dnNumber: schema.salesOrders.dnNumber, dealId: schema.salesOrders.dealId })
-      .from(schema.salesOrders)
-      .where(eq(schema.salesOrders.id, inv.orderId)),
+    // an opening invoice (carried from Zoho) has no order
+    inv.orderId
+      ? db
+          .select({ id: schema.salesOrders.id, number: schema.salesOrders.number, dnNumber: schema.salesOrders.dnNumber, dealId: schema.salesOrders.dealId })
+          .from(schema.salesOrders)
+          .where(eq(schema.salesOrders.id, inv.orderId))
+      : Promise.resolve([]),
     db.select({ phone: schema.companies.phone }).from(schema.companies).where(eq(schema.companies.id, inv.companyId)),
     inv.createdBy ? db.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, inv.createdBy)).then((r) => r[0] ?? null) : Promise.resolve(null),
   ]);
@@ -269,6 +274,7 @@ export async function listCustomers(v: Viewer): Promise<CustomerRow[]> {
       (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS orders
     FROM companies c
     WHERE (EXISTS (SELECT 1 FROM sales_orders o WHERE o.company_id = c.id)
+        OR EXISTS (SELECT 1 FROM invoices i WHERE i.company_id = c.id)
         OR EXISTS (SELECT 1 FROM deals d WHERE d.company_id = c.id AND d.stage = 'won'))
       AND ${companyVisible(v, sql`c.id`)}`);
   const ids = new Set(companies.rows.map((c) => c.id));

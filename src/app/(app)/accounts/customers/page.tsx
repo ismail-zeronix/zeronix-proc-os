@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OpeningInvoiceDialog } from "@/components/opening-ui";
 import { PageToolbar } from "@/components/page-toolbar";
 import { Empty } from "@/components/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,12 +16,19 @@ export const metadata = { title: "Customers · Zeronix Accounts" };
  */
 export default async function CustomersPage() {
   const access = await requireApp("accounts");
+  const { finance } = access;
   const rows = await listCustomers(financeViewerOf(access));
   const owed = rows.reduce((s, c) => s + c.owed, 0);
 
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Customers" meta={`${rows.length} customer${rows.length === 1 ? "" : "s"}${owed ? ` · owe ${money(owed)}` : ""} · open one for its documents and statement`} />
+      <PageToolbar title="Customers" meta={`${rows.length} customer${rows.length === 1 ? "" : "s"}${owed ? ` · owe ${money(owed)}` : ""} · open one for its documents and statement`}>
+        {finance && (
+          <div className="ml-auto">
+            <OpeningInvoiceDialog />
+          </div>
+        )}
+      </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>

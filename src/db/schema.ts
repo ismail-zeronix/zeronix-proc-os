@@ -670,13 +670,14 @@ export const invoices = pgTable(
   {
     id: serial("id").primaryKey(),
     number: text("number").notNull().unique(),
-    /** One active (not cancelled) invoice per order; a cancelled one is followed by a new one. */
-    orderId: integer("order_id")
-      .notNull()
-      .references(() => salesOrders.id),
-    dealId: integer("deal_id")
-      .notNull()
-      .references(() => deals.id),
+    /**
+     * "sale": issued here from an order. "opening": a customer invoice still unpaid when the portal took over from Zoho,
+     * kept with Zoho's number and total, no lines, no order; it counts in what customers owe but not in sales or VAT.
+     */
+    kind: text("kind", { enum: ["sale", "opening"] }).notNull().default("sale"),
+    /** One active (not cancelled) invoice per order; a cancelled one is followed by a new one. Empty for opening invoices. */
+    orderId: integer("order_id").references(() => salesOrders.id),
+    dealId: integer("deal_id").references(() => deals.id),
     companyId: integer("company_id")
       .notNull()
       .references(() => companies.id),

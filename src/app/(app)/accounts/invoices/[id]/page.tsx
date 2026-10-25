@@ -31,6 +31,7 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
   const inv = await getInvoice(id);
   if (!inv) notFound();
   const canFiles = apps.includes("files");
+  const opening = inv.kind === "opening";
   const [brand, doc, files] = await Promise.all([quoteBrand(), invoiceDoc(inv), canFiles ? listFiles(financeViewerOf(access), { relatedType: "invoice", relatedId: inv.id }) : Promise.resolve([])]);
   const s = inv.state;
   const live = inv.payments.filter((p) => !p.voidedAt);
@@ -45,21 +46,23 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
           {inv.customerName}
           {inv.order ? ` · order ${inv.order.number}` : ""}
         </Link>
-        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/print/invoice/${inv.id}`} target="_blank" />}>
-          <Printer /> Print / PDF
-        </Button>
+        {!opening && (
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/print/invoice/${inv.id}`} target="_blank" />}>
+            <Printer /> Print / PDF
+          </Button>
+        )}
         {inv.credit && (
           <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/print/invoice/${inv.id}?doc=credit`} target="_blank" />}>
             <FileMinus /> Credit note {inv.credit.number}
           </Button>
         )}
         {inv.status !== "cancelled" && s.balance > 0 && <RecordPaymentDialog invoiceId={inv.id} invoiceNumber={inv.number} balance={s.balance} issueDate={inv.issueDate} />}
-        {inv.status !== "cancelled" && <CancelInvoiceButton invoiceId={inv.id} number={inv.number} />}
+        {inv.status !== "cancelled" && <CancelInvoiceButton invoiceId={inv.id} number={inv.number} opening={opening} />}
       </div>
 
       {inv.credit && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm">
-          Cancelled with credit note {inv.credit.number} on {longDay(inv.credit.issueDate)}: {inv.credit.reason}. Issue a corrected invoice from the order (To invoice).
+          Cancelled with credit note {inv.credit.number} on {longDay(inv.credit.issueDate)}: {inv.credit.reason}. Issue a corrected invoice from the order (Orders › To invoice).
         </p>
       )}
 
@@ -74,7 +77,13 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="overflow-hidden rounded-xl border bg-card" aria-label="The invoice the customer receives">
-          <SalesDocument d={doc} brand={brand} />
+          {opening ? (
+            <p className="p-6 text-sm text-muted-foreground">
+              Opening balance carried over from Zoho: the tax invoice itself is in Zoho. It counts in what the customer owes, not in this year&apos;s sales or VAT.
+            </p>
+          ) : (
+            <SalesDocument d={doc} brand={brand} />
+          )}
         </section>
         <aside className="grid gap-3">
           <section className="rounded-xl border bg-card">

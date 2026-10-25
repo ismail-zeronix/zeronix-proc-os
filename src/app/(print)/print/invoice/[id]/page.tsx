@@ -19,9 +19,10 @@ export default async function PrintInvoice({ params, searchParams }: PageProps<"
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const inv = await getInvoice(id);
-  if (!inv) notFound();
+  // an opening invoice (carried from Zoho) has no lines to print here: Zoho holds the tax invoice
+  if (!inv || inv.kind === "opening") notFound();
   // Accounts sees every invoice; in Sales only the ones on your deals
-  if (!access.finance && !(await canSeeDeal(viewerOf(access), inv.dealId))) notFound();
+  if (!access.finance && !(inv.dealId && (await canSeeDeal(viewerOf(access), inv.dealId)))) notFound();
   const wantCredit = (await searchParams).doc === "credit";
   const d = wantCredit ? creditDoc(inv) : await invoiceDoc(inv);
   if (!d) notFound();

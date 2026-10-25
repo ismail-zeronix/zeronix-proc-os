@@ -415,20 +415,24 @@ export function VoidPaymentButton({ paymentId, number }: { paymentId: number; nu
   );
 }
 
-export function CancelInvoiceButton({ invoiceId, number }: { invoiceId: number; number: string }) {
+export function CancelInvoiceButton({ invoiceId, number, opening = false }: { invoiceId: number; number: string; opening?: boolean }) {
   const [pending, run] = useRun();
   return (
     <Button
       variant="outline"
       size="sm"
       pending={pending}
-      title="Cancel with a credit note"
+      title={opening ? "Remove this opening balance (entered by mistake)" : "Cancel with a credit note"}
       onClick={() => {
-        const why = prompt(`Cancel ${number} with a credit note for the full amount? The order goes back to Delivered so a corrected invoice can be issued.\n\nWhy is it cancelled?`);
-        if (why) run(() => cancelInvoice(invoiceId, why), "Invoice cancelled, credit note made");
+        const why = prompt(
+          opening
+            ? `Remove opening invoice ${number}? It stays on record, crossed out.\n\nWhy?`
+            : `Cancel ${number} with a credit note for the full amount? The order goes back to Delivered so a corrected invoice can be issued.\n\nWhy is it cancelled?`,
+        );
+        if (why) run(() => cancelInvoice(invoiceId, why), opening ? "Opening invoice removed" : "Invoice cancelled, credit note made");
       }}
     >
-      <Ban /> Cancel invoice
+      <Ban /> {opening ? "Remove" : "Cancel invoice"}
     </Button>
   );
 }

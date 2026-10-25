@@ -18,16 +18,18 @@ export async function GET(req: NextRequest) {
   const docs = !!access?.apps.includes("accounts");
   if (!crm && !docs) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const v = await currentViewer();
+  // the accounts team finds every company (customers and opening balances); deals and people stay by deal
+  const cv = await currentViewer(!!access?.finance);
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const kind = req.nextUrl.searchParams.get("kind") ?? "company";
   if (q.length < 2) return Response.json({ companies: [], contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
 
-  if (kind === "company") return Response.json({ companies: await searchCompanies(v, q, 8), contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
+  if (kind === "company") return Response.json({ companies: await searchCompanies(cv, q, 8), contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
 
   const accounts = !!access?.finance;
   const none = Promise.resolve([]);
   const [companies, contacts, deals, quotes, orders, invoices] = await Promise.all([
-    searchCompanies(v, q, 5),
+    searchCompanies(cv, q, 5),
     !crm ? none : db
       .select({ id: schema.contacts.id, name: schema.contacts.name, email: schema.contacts.email, companyId: schema.contacts.companyId, companyName: schema.companies.name })
       .from(schema.contacts)

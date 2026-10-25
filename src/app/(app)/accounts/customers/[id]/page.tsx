@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AppLink } from "@/components/app-link";
 import { BackButton } from "@/components/back-button";
 import { InvoiceTable } from "@/components/invoice-table";
+import { OpeningInvoiceDialog } from "@/components/opening-ui";
 import { StatementDocument } from "@/components/money-documents";
 import { InvoiceStateBadge, OrderStatusBadge } from "@/components/order-bits";
 import { QuoteStatusBadge } from "@/components/quote-bits";
@@ -54,7 +55,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
   if (!s || !company) notFound();
   // below the finance level: only the invoices of deals they are on
   const visibleDeals = finance ? null : new Set((await db.select({ id: schema.deals.id }).from(schema.deals).where(dealVisible(v, schema.deals.id))).map((d) => d.id));
-  const invoices = visibleDeals ? allInvoices.filter((i) => visibleDeals.has(i.dealId)) : allInvoices;
+  const invoices = visibleDeals ? allInvoices.filter((i) => i.dealId != null && visibleDeals.has(i.dealId)) : allInvoices;
   const quotes = allQuotes.filter((q) => q.companyId === id);
   const paidIn = s.lines.filter((l) => l.kind === "payment").reduce((n, l) => n + l.credit, 0);
   const invoicedIn = s.lines.filter((l) => l.kind === "invoice").reduce((n, l) => n + l.debit, 0);
@@ -77,6 +78,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
             )}
           </span>
         </div>
+        {finance && <OpeningInvoiceDialog company={{ id: company.id, name: company.name }} />}
         <CompanyDialog
           company={{ id: company.id, name: company.name, industry: company.industry, emirate: company.emirate, website: company.website, phone: company.phone, tradeLicenseNo: company.tradeLicenseNo, trn: company.trn, address: company.address, source: company.source, notes: company.notes }}
           trigger={

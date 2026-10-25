@@ -1,4 +1,4 @@
-import { FilePlus2 } from "lucide-react";
+import { FilePlus2, History } from "lucide-react";
 import Link from "next/link";
 import { InvoiceStateBadge } from "@/components/order-bits";
 import { PageToolbar } from "@/components/page-toolbar";
@@ -42,7 +42,10 @@ export default async function BillsPage({ searchParams }: PageProps<"/accounts/b
             active: view.key === x.key,
           }))}
         />
-        <Button size="sm" className="ml-auto" nativeButton={false} render={<Link href="/accounts/bills/new" />}>
+        <Button variant="outline" size="sm" className="ml-auto" nativeButton={false} render={<Link href="/accounts/bills/new?kind=opening" />} title="Supplier bills still unpaid in Zoho when the portal started">
+          <History /> Opening balance
+        </Button>
+        <Button size="sm" nativeButton={false} render={<Link href="/accounts/bills/new" />}>
           <FilePlus2 /> New bill
         </Button>
       </PageToolbar>
