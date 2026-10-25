@@ -32,7 +32,7 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
   if (!inv) notFound();
   const canFiles = apps.includes("files");
   const opening = inv.kind === "opening";
-  const [brand, doc, files] = await Promise.all([quoteBrand(), invoiceDoc(inv), canFiles ? listFiles(financeViewerOf(access), { relatedType: "invoice", relatedId: inv.id }) : Promise.resolve([])]);
+  const [brand, doc, files] = await Promise.all([quoteBrand(), invoiceDoc(inv), canFiles ? listFiles(financeViewerOf(access), { relatedType: "invoice", relatedId: inv.id, finance: true }) : Promise.resolve([])]);
   const s = inv.state;
   const live = inv.payments.filter((p) => !p.voidedAt);
 

@@ -17,7 +17,7 @@ export default async function FilesPage({ searchParams }: PageProps<"/files">) {
   const sp = await searchParams;
   const folder = typeof sp.folder === "string" && isFolder(sp.folder) ? sp.folder : undefined;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";
-  const rows = await listFiles(financeViewerOf(access), { folder, q: q || undefined });
+  const rows = await listFiles(financeViewerOf(access), { folder, q: q || undefined, finance: access.finance });
   const href = (f?: string) => {
     const p = new URLSearchParams();
     if (f) p.set("folder", f);

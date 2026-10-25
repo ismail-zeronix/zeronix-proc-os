@@ -218,6 +218,13 @@
       "when": 1792904551291,
       "tag": "0030_opening_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792905532491,
+      "tag": "0031_error_log",
+      "breakpoints": true
     }
   ]
 }

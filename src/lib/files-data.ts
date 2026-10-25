@@ -22,7 +22,7 @@ export interface FileRow {
 /** Files the viewer may see, newest first, filtered by folder, search text, or what they are linked to. */
 export async function listFiles(
   v: Viewer,
-  opts: { folder?: string; q?: string; relatedType?: string; relatedId?: number; limit?: number } = {},
+  opts: { folder?: string; q?: string; relatedType?: string; relatedId?: number; limit?: number; /** Accounts at the finance level: invoices open on their page, otherwise as the printable copy. */ finance?: boolean } = {},
 ): Promise<FileRow[]> {
   const where: SQL[] = [fileVisible(v, schema.files.relatedType, schema.files.relatedId)];
   if (opts.folder) where.push(eq(schema.files.folder, opts.folder));
@@ -59,7 +59,7 @@ export async function listFiles(
     company: { list: companies, href: (id) => `/crm/companies/${id}` },
     deal: { list: deals, href: (id) => `/crm/deals/${id}` },
     order: { list: orders, href: (id) => `/accounts/orders/${id}` },
-    invoice: { list: invoices, href: (id) => `/accounts/invoices/${id}` },
+    invoice: { list: invoices, href: (id) => (opts.finance ? `/accounts/invoices/${id}` : `/print/invoice/${id}`) },
   };
   return rows.map((r) => {
     const l = r.relatedType ? look[r.relatedType] : undefined;

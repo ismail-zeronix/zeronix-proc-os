@@ -1130,3 +1130,25 @@ export const chatPrefs = pgTable("chat_prefs", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });
 
+
+/**
+ * Server errors (Admin › Errors), written by instrumentation.ts onRequestError: which page or action failed, for whom and
+ * why, so first-week problems are seen instead of guessed. Kept 60 days.
+ */
+export const errorLog = pgTable(
+  "error_log",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    path: text("path").notNull().default(""),
+    method: text("method").notNull().default(""),
+    /** render, route, action, proxy */
+    routeType: text("route_type").notNull().default(""),
+    routePath: text("route_path").notNull().default(""),
+    message: text("message").notNull().default(""),
+    digest: text("digest").notNull().default(""),
+    stack: text("stack").notNull().default(""),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("error_log_at_idx").on(t.at)],
+);

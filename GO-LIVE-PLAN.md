@@ -1,5 +1,7 @@
 # Go-live and order-to-cash plan (October 2026)
 
+> **Update 2026-10-25:** Sales is now **CRM**; quotes, orders, invoices, payments, supplier bills, expenses and reports live in **Accounts**, and the portal replaces Zoho Books (see TASKS.md Phase 15). Steps below that say "Sales" for quotes and orders now mean Accounts.
+
 Two goals, in this order:
 
 1. **Today: the sales team starts using the portal** for what is already built (enquiries, deals, price comparison, quotes, tasks, mail, punch in/out).

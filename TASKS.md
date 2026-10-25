@@ -140,7 +140,7 @@ Owner decisions (2026-10-21): accounting stays in Zoho for now, invoice numbers 
 - [x] 8.10 End-to-end test of quote → order → delivery → invoice → payment in a real browser (headless Edge) and in tests [2026-10-21]
 - [x] 8.11 Punch-in rule enforced on the server (every app action and file upload) [2026-10-21]
 - [x] 8.12 Knowledge → Using the portal: daily routine, quote to money [2026-10-21]
-- [ ] 8.13 Error log and Admin page for it
+- [x] 8.13 Error log: every server error saved with page and user (instrumentation onRequestError), Admin › Errors shows the last 100 [2026-10-25]
 
 ## Phase 9: Sales orders and delivery (one delivery per order)
 - [x] 9.1 Tables sales_orders, sales_order_items (migration 0014) [2026-10-21]
@@ -168,7 +168,7 @@ Owner decisions (2026-10-21): accounting stays in Zoho for now, invoice numbers 
 ## Phase 12: Alongside 9-11
 - [x] 12.1 Accounts app: issue invoices and record payments only for admins and people given Accounts in Admin → Users [2026-10-21]
 - [~] 12.2 Every order, delivery, invoice, payment, void and cancellation is written to the deal timeline with who and when; a separate audit log is still open
-- [ ] 12.3 Excel export for the accountant / Zoho
+- [x] 12.3 Excel (CSV) export of every report for the accountant (Accounts › Reports) [2026-10-25]
 - [x] 12.4 Document settings: invoice prefix, next number, digits, default terms, bank [2026-10-21]
 - [ ] 12.5 Notifications
 - [x] 12.6 Files app: shared documents with folders, search, upload up to 20 MB (PDF, images, Office, CSV, zip, email), linked to orders and invoices, uploader or admin can delete; stored on a Docker volume and in the nightly backup [2026-10-21]
@@ -192,6 +192,15 @@ Owner decisions (2026-10-21): accounting stays in Zoho for now, invoice numbers 
 - [x] 14.3 @mentions and record cards: `@` people picker and `#` record picker (deals, quotes, orders, invoices, companies, products) in chat, the deal timeline, company notes and task notes; mentions show as chips; each person mentioned gets a live card in the widget Activity tab (deal, company, task, or the chat message), in channels and deal threads only for members and never for a DM; a locked card for people who may not see the record, a warning before saving (admins can add them to the deal); `#` records show as cards under the message; editing task notes tells only people newly mentioned [2026-10-24]
 - [x] 14.4 Card buttons (Mark done / Reopen on tasks, Mark sent / Accepted / Rejected on quotes, Mark delivered today on orders, Follow-up task on deals; the record's own rules apply, a line is written in the conversation and every open card refreshes); status online / away (tab in the background 5 min) / do not disturb for 1 h, 4 h, until tomorrow 8:00 or until turned off, shown live as coloured dots; chime and desktop notifications (one tab alerts, not while reading, muted or on do not disturb); mute a conversation for 1 h, 8 h or for good; full `/chat` page (also in Ctrl K and the widget pop-out button) with message search across your conversations. No home tile: chat is not a per-user app, and the chat button shows the unread count on every page [2026-10-25]
 - [ ] 14.5 Polish: keyboard shortcuts, empty states, screenshots
+
+## Phase 15: CRM + Accounts restructure (plan: ~/.claude/plans/i-want-to-change-fluttering-crab.md)
+Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move to Accounts; sales staff quote at an Accounts "sales" level; the portal replaces Zoho Books for bills, payments and reports; no purchase orders.
+- [x] 15.1 CRM app (/crm): Overview, Deals, Companies, Contacts; deal Quotes tab read only; stages Qualified / Pricing; old /sales links redirect [2026-10-25]
+- [x] 15.2 Accounts levels (sales / finance) in Admin › Users; quote builder, quotes, orders, customers in Accounts; To invoice merged into Orders [2026-10-25]
+- [x] 15.3 Purchases: supplier bills, expenses, payments made (ZBL / ZPV), supplier billing details, real cost and profit on orders [2026-10-25]
+- [x] 15.4 Reports: P&L, VAT, receivables, payables, sales, profit per order, cash; CSV export [2026-10-25]
+- [x] 15.5 Opening balances from Zoho (customer invoices and supplier bills) [2026-10-25]
+- [ ] 15.6 Owner: enter opening balances at the cut-over date, set each user's Accounts level
 
 ## Later
 - [ ] L.2 Prospecting app (new-licence feeds, review, convert to deal)

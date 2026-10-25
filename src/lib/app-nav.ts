@@ -1,4 +1,4 @@
-import { BarChart3, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BarChart3, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -103,6 +103,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       items: [
         { href: "/admin/ai", label: "AI & feeds", icon: Bot, badge: "queue" },
         { href: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
+        { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
       ],
     },
   ],

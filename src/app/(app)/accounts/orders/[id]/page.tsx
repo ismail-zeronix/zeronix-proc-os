@@ -37,7 +37,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const canAccounts = access.finance;
   const canFiles = apps.includes("files");
   const [files, nextNumber, ourTrn, costs] = await Promise.all([
-    canFiles ? listFiles(financeViewerOf(access), { relatedType: "order", relatedId: o.id }) : Promise.resolve([]),
+    canFiles ? listFiles(financeViewerOf(access), { relatedType: "order", relatedId: o.id, finance: access.finance }) : Promise.resolve([]),
     canAccounts && o.status === "delivered" ? nextInvoiceNumber() : Promise.resolve(""),
     getSetting("quote_trn"),
     // what it really cost, from the supplier bills bought for it (the accounts team only)
@@ -259,9 +259,9 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
                     {o.invoices.map((i) => (
                       <li key={i.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
                         {canAccounts ? (
-                          <AppLink href={`/accounts/invoices/${i.id}`} className="font-mono text-sm font-medium hover:underline">
+                          <Link href={`/accounts/invoices/${i.id}`} className="font-mono text-sm font-medium hover:underline">
                             {i.number}
-                          </AppLink>
+                          </Link>
                         ) : (
                           <Link href={`/print/invoice/${i.id}`} target="_blank" className="font-mono text-sm font-medium hover:underline">
                             {i.number}
