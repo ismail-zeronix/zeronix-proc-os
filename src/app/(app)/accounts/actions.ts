@@ -17,7 +17,7 @@ function refresh(ids: { dealId?: number | null; orderId?: number | null; invoice
   revalidatePath("/accounts", "layout");
   revalidatePath("/crm", "layout");
   if (ids.dealId) revalidatePath(`/crm/deals/${ids.dealId}`);
-  if (ids.orderId) revalidatePath(`/accounts/orders/${ids.orderId}`);
+  if (ids.orderId) revalidatePath(`/sales/orders/${ids.orderId}`);
   if (ids.invoiceId) revalidatePath(`/accounts/invoices/${ids.invoiceId}`);
   if (ids.companyId) revalidatePath(`/crm/companies/${ids.companyId}`);
   revalidatePath("/");

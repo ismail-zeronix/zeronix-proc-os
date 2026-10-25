@@ -27,14 +27,14 @@ import { CompanyDialog } from "../../../crm/companies/company-ui";
 
 const isDay = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-export const metadata = { title: "Customer · Zeronix Accounts" };
+export const metadata = { title: "Customer · Zeronix Sales" };
 
 /**
- * One customer in Accounts: billing details, what they owe, their quotes, orders and invoices, and the statement of
+ * One customer in Sales: billing details, what they owe, their quotes, orders and invoices, and the statement of
  * account for a period (print or save as PDF). The same company record as in CRM, never a copy.
  */
-export default async function CustomerAccountPage({ params, searchParams }: PageProps<"/accounts/customers/[id]">) {
-  const access = await requireApp("accounts");
+export default async function CustomerAccountPage({ params, searchParams }: PageProps<"/sales/customers/[id]">) {
+  const access = await requireApp("sales");
   const { apps, finance } = access;
   const v = financeViewerOf(access);
   const id = Number((await params).id);
@@ -63,7 +63,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <BackButton fallback="/accounts/customers" />
+        <BackButton fallback="/sales/customers" />
         <div className="grid min-w-0 flex-1 leading-tight">
           <h1 className="truncate text-base font-semibold">{company.name}</h1>
           <span className="truncate text-xs text-muted-foreground">
@@ -113,7 +113,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
               <ul className="divide-y rounded-lg border bg-card">
                 {orders.map((o) => (
                   <li key={o.id}>
-                    <Link href={`/accounts/orders/${o.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
+                    <Link href={`/sales/orders/${o.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
                       <span className="font-mono font-medium">{o.number}</span>
                       <OrderStatusBadge status={o.status} />
                       {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}
@@ -133,7 +133,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
               <ul className="divide-y rounded-lg border bg-card">
                 {quotes.map((q) => (
                   <li key={q.id}>
-                    <Link href={`/accounts/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
+                    <Link href={`/sales/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
                       <span className="font-mono font-medium">{q.number}</span>
                       <QuoteStatusBadge status={q.shownStatus} />
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{q.dealTitle}</span>
@@ -151,7 +151,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
             label: "Statement",
             content: (
               <section className="grid gap-2 rounded-xl border bg-card p-3" aria-label="Statement of account">
-                <form className="flex flex-wrap items-end gap-2" action={`/accounts/customers/${id}`}>
+                <form className="flex flex-wrap items-end gap-2" action={`/sales/customers/${id}`}>
                   <input type="hidden" name="tab" value="statement" />
                   <h2 className="mr-auto text-sm font-semibold">Statement of account</h2>
                   <div className="grid gap-1">

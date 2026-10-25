@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { cancelInvoice, issueInvoice, recordPayment, voidPayment } from "@/app/(app)/accounts/actions";
-import { cancelOrder, convertQuoteToOrder, markDelivered, updateOrder } from "@/app/(app)/accounts/order-actions";
+import { cancelOrder, convertQuoteToOrder, markDelivered, updateOrder } from "@/app/(app)/sales/order-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -72,7 +72,7 @@ export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accep
               "Order created",
               (r) => {
                 setOpen(false);
-                router.push(`/accounts/orders/${(r as { id: number }).id}`);
+                router.push(`/sales/orders/${(r as { id: number }).id}`);
               },
             );
           }}

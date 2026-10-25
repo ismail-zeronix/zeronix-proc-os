@@ -58,7 +58,7 @@ export async function listFiles(
   const look: Record<string, { list: { id: number; label: string }[]; href: (id: number) => string }> = {
     company: { list: companies, href: (id) => `/crm/companies/${id}` },
     deal: { list: deals, href: (id) => `/crm/deals/${id}` },
-    order: { list: orders, href: (id) => `/accounts/orders/${id}` },
+    order: { list: orders, href: (id) => `/sales/orders/${id}` },
     invoice: { list: invoices, href: (id) => (opts.finance ? `/accounts/invoices/${id}` : `/print/invoice/${id}`) },
   };
   return rows.map((r) => {

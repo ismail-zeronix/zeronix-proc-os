@@ -13,12 +13,12 @@ import { money, QUOTE_STATUSES } from "@/lib/quotation";
 import { listQuotes } from "@/lib/quotes-data";
 import { aedShort } from "@/lib/sales";
 
-export const metadata = { title: "Quotes · Zeronix Accounts" };
+export const metadata = { title: "Quotes · Zeronix Sales" };
 
 const FILTERS = [{ key: "all", label: "All" }, ...QUOTE_STATUSES.map((s) => ({ key: s.key as string, label: s.label }))];
 
-export default async function QuotesPage({ searchParams }: PageProps<"/accounts/quotes">) {
-  const access = await requireApp("accounts");
+export default async function QuotesPage({ searchParams }: PageProps<"/sales/quotes">) {
+  const access = await requireApp("sales");
   const crm = access.apps.includes("crm");
   const sp = await searchParams;
   const asked = String((Array.isArray(sp.status) ? sp.status[0] : sp.status) ?? "all");
@@ -35,7 +35,7 @@ export default async function QuotesPage({ searchParams }: PageProps<"/accounts/
         <h1 className="text-sm font-semibold">Quotes</h1>
         <Segmented
           items={FILTERS.map((f) => ({
-            href: f.key === "all" ? "/accounts/quotes" : `/accounts/quotes?status=${f.key}`,
+            href: f.key === "all" ? "/sales/quotes" : `/sales/quotes?status=${f.key}`,
             label: `${f.label} ${count(f.key)}`,
             title: `Show ${f.label.toLowerCase()} quotes`,
             active: status === f.key,
@@ -44,7 +44,7 @@ export default async function QuotesPage({ searchParams }: PageProps<"/accounts/
         <span className="text-xs text-muted-foreground">
           {waiting.length ? `${waiting.length} waiting for an answer · ${aedShort(waitingValue)} before VAT` : "Nothing waiting for an answer"}
         </span>
-        <Button size="sm" className="ml-auto" nativeButton={false} render={<Link href="/accounts/quotes/new" />}>
+        <Button size="sm" className="ml-auto" nativeButton={false} render={<Link href="/sales/quotes/new" />}>
           <FilePlus2 /> New quote
         </Button>
       </div>
@@ -71,12 +71,12 @@ export default async function QuotesPage({ searchParams }: PageProps<"/accounts/
                 {rows.map((q) => (
                   <TableRow key={q.id}>
                     <TableCell className="py-1.5 font-mono font-medium">
-                      <Link href={`/accounts/quotes/${q.id}`} className="hover:underline">
+                      <Link href={`/sales/quotes/${q.id}`} className="hover:underline">
                         {q.number}
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-72 py-1.5">
-                      <Link href={`/accounts/customers/${q.companyId}`} className="font-medium hover:underline">
+                      <Link href={`/sales/customers/${q.companyId}`} className="font-medium hover:underline">
                         {q.companyName}
                       </Link>
                       {crm ? (
@@ -101,7 +101,7 @@ export default async function QuotesPage({ searchParams }: PageProps<"/accounts/
           <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden">
             {rows.map((q) => (
               <li key={q.id}>
-                <Link href={`/accounts/quotes/${q.id}`} className="block rounded-lg border bg-card p-2.5">
+                <Link href={`/sales/quotes/${q.id}`} className="block rounded-lg border bg-card p-2.5">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-medium">{q.number}</span>
                     <QuoteStatusBadge status={q.shownStatus} />

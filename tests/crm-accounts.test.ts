@@ -31,28 +31,32 @@ function redirected(path: string): string | null {
 
 describe("Sales became CRM, money moved to Accounts", () => {
   it("sends old Sales links to their new homes", () => {
-    expect(redirected("/sales")).toBe("/crm");
     expect(redirected("/sales/deals/12")).toBe("/crm/deals/12");
     expect(redirected("/sales/pipeline")).toBe("/crm/deals");
     expect(redirected("/sales/companies/3")).toBe("/crm/companies/3");
-    expect(redirected("/sales/quotes")).toBe("/accounts/quotes");
-    expect(redirected("/sales/quotes/7")).toBe("/accounts/quotes/7");
-    expect(redirected("/sales/orders/9")).toBe("/accounts/orders/9");
-    expect(redirected("/accounts/to-invoice")).toBe("/accounts/orders?view=delivered");
+    expect(redirected("/sales/contacts")).toBe("/crm/contacts");
+    // Sales owns these again: no redirect
+    expect(redirected("/sales/quotes/7")).toBeNull();
+    expect(redirected("/sales/orders/9")).toBeNull();
+    expect(redirected("/sales")).toBeNull();
+    // the day they spent under Accounts
+    expect(redirected("/accounts/quotes/7")).toBe("/sales/quotes/7");
+    expect(redirected("/accounts/orders")).toBe("/sales/orders");
+    expect(redirected("/accounts/customers/5")).toBe("/sales/customers/5");
+    expect(redirected("/accounts/to-invoice")).toBeNull();
     expect(redirected("/salesforce")).toBeNull();
   });
 
-  it("shows the sales level only customers, quotes and orders in Accounts", () => {
-    const sales = navFor("accounts", false).flatMap((g) => g.items.map((i) => i.href));
-    expect(sales).toEqual(["/accounts/customers", "/accounts/quotes", "/accounts/orders"]);
-    expect(navFor("accounts", false).map((g) => g.label)).toEqual(["Sales"]);
-    const finance = navFor("accounts", true).flatMap((g) => g.items.map((i) => i.href));
-    expect(finance).toEqual(expect.arrayContaining(["/accounts", "/accounts/invoices", "/accounts/payments", "/accounts/bills", "/accounts/reports"]));
-    expect(searchPages(["accounts"], false).some((p) => p.href === "/accounts/invoices")).toBe(false);
+  it("splits the work: Sales has customers, quotes and orders; Accounts has the money", () => {
+    expect(navFor("sales").flatMap((g) => g.items.map((i) => i.href))).toEqual(["/sales/customers", "/sales/quotes", "/sales/orders"]);
+    const money = navFor("accounts").flatMap((g) => g.items.map((i) => i.href));
+    expect(money).toEqual(expect.arrayContaining(["/accounts", "/accounts/to-invoice", "/accounts/invoices", "/accounts/payments", "/accounts/bills", "/accounts/reports"]));
+    expect(money.some((h) => h.startsWith("/sales"))).toBe(false);
+    expect(searchPages(["sales"]).some((p) => p.href === "/accounts/invoices")).toBe(false);
   });
 
   it("keeps CRM to deals, companies and contacts", () => {
-    expect(navFor("crm", false).flatMap((g) => g.items.map((i) => i.label))).toEqual(["Overview", "Deals", "Companies", "Contacts"]);
+    expect(navFor("crm").flatMap((g) => g.items.map((i) => i.label))).toEqual(["Overview", "Deals", "Companies", "Contacts"]);
   });
 });
 
@@ -64,8 +68,8 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
   let pool: typeof import("@/db").pool;
   let D: typeof import("drizzle-orm");
   let S: typeof import("@/app/(app)/crm/actions");
-  let Q: typeof import("@/app/(app)/accounts/quote-actions");
-  let O: typeof import("@/app/(app)/accounts/order-actions");
+  let Q: typeof import("@/app/(app)/sales/quote-actions");
+  let O: typeof import("@/app/(app)/sales/order-actions");
   let A: typeof import("@/app/(app)/accounts/actions");
   let AD: typeof import("@/lib/accounts-data");
   let seller = 0, colleague = 0, accountant = 0;
@@ -86,16 +90,16 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
     ({ db, schema, pool } = await import("@/db"));
     D = await import("drizzle-orm");
     S = await import("@/app/(app)/crm/actions");
-    Q = await import("@/app/(app)/accounts/quote-actions");
-    O = await import("@/app/(app)/accounts/order-actions");
+    Q = await import("@/app/(app)/sales/quote-actions");
+    O = await import("@/app/(app)/sales/order-actions");
     A = await import("@/app/(app)/accounts/actions");
     AD = await import("@/lib/accounts-data");
     today = (await import("@/lib/dates")).dubaiToday();
-    const mk = async (name: string, apps: string[], accountsLevel: "sales" | "finance") =>
-      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps, accountsLevel }).returning({ id: schema.users.id }))[0].id;
-    seller = await mk("seller", ["crm", "accounts"], "sales");
-    colleague = await mk("colleague", ["crm", "accounts"], "sales");
-    accountant = await mk("accountant", ["accounts"], "finance"); // no CRM at all
+    const mk = async (name: string, apps: string[]) =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps }).returning({ id: schema.users.id }))[0].id;
+    seller = await mk("seller", ["crm", "sales"]);
+    colleague = await mk("colleague", ["crm", "sales"]);
+    accountant = await mk("accountant", ["accounts", "sales"]); // no CRM at all
     userIds = [seller, colleague, accountant];
     await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
   });
@@ -123,13 +127,13 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
     return { dealId, quoteId: q.id, orderId: o.id };
   };
 
-  it("lets the sales level quote and order its own deals, but not invoice", async () => {
+  it("lets Sales quote and order its own deals, but not invoice", async () => {
     const { orderId } = await orderOf("Own");
     await O.markDelivered(orderId, { deliveredOn: today, receivedBy: "Store" });
     await expect(A.issueInvoice(orderId, { issueDate: today, termsDays: 30 })).rejects.toThrow(/accounts team/);
   });
 
-  it("keeps a colleague's orders private at the sales level, open to finance", async () => {
+  it("keeps a colleague's orders private in Sales, open to Accounts", async () => {
     const { orderId, quoteId } = await orderOf("Private");
     await as(colleague);
     await expect(O.markDelivered(orderId, { deliveredOn: today })).rejects.toThrow(/not assigned to you/);

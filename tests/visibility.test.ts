@@ -26,7 +26,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
   let and: typeof import("drizzle-orm").and;
   let eq: typeof import("drizzle-orm").eq;
   let A: typeof import("@/app/(app)/crm/actions");
-  let Q: typeof import("@/app/(app)/accounts/quote-actions");
+  let Q: typeof import("@/app/(app)/sales/quote-actions");
   let S: typeof import("@/lib/sales-data");
   let QD: typeof import("@/lib/quotes-data");
   let V: typeof import("@/lib/auth/visibility");
@@ -48,7 +48,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ inArray, and, eq } = await import("drizzle-orm"));
     A = await import("@/app/(app)/crm/actions");
-    Q = await import("@/app/(app)/accounts/quote-actions");
+    Q = await import("@/app/(app)/sales/quote-actions");
     S = await import("@/lib/sales-data");
     QD = await import("@/lib/quotes-data");
     V = await import("@/lib/auth/visibility");

@@ -4,9 +4,8 @@ import { requireApp } from "@/lib/auth/session";
 import { billsDueCount } from "@/lib/purchases-data";
 
 export default async function AccountsLayout({ children }: LayoutProps<"/accounts">) {
-  const { finance } = await requireApp("accounts");
-  // money badges are for the accounts team; below the finance level the sidebar has no money pages
-  const [badges, billsDue] = finance ? await Promise.all([accountsBadges(), billsDueCount()]) : [{ overdue: 0, toInvoice: 0 }, 0];
+  await requireApp("accounts");
+  const [badges, billsDue] = await Promise.all([accountsBadges(), billsDueCount()]);
   return (
     <AppShell app="accounts" badges={{ ...badges, billsDue }}>
       {children}

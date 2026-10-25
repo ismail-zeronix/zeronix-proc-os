@@ -101,11 +101,11 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: q.number,
           subtitle: `${q.company} · ${q.title}`,
-          href: `/accounts/quotes/${id}`,
+          href: `/sales/quotes/${id}`,
           status: { label: quoteStatusLabel(q.status), tone: QUOTE_TONE[q.status] ?? "slate" },
           amount: aed(q.total),
           facts: q.validUntil && (q.status === "draft" || q.status === "sent") ? [`Valid until ${dayLabel(q.validUntil, today)}`] : [],
-          actions: !a.apps.includes("accounts")
+          actions: !a.apps.includes("sales")
             ? []
             : q.status === "draft"
               ? [{ key: "sent", label: "Mark sent" }]
@@ -131,11 +131,11 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: o.number,
           subtitle: o.company,
-          href: `/accounts/orders/${id}`,
+          href: `/sales/orders/${id}`,
           status: { label: orderStatusLabel(o.status), tone: ORDER_TONE[o.status] ?? "blue" },
           amount: aed(o.total),
           facts: o.dn ? [`Delivery note ${o.dn}`] : [],
-          actions: a.apps.includes("accounts") && o.status === "open" ? [{ key: "delivered", label: "Mark delivered today" }] : [],
+          actions: a.apps.includes("sales") && o.status === "open" ? [{ key: "delivered", label: "Mark delivered today" }] : [],
         };
       }
       case "invoice": {

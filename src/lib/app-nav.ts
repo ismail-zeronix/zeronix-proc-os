@@ -1,4 +1,4 @@
-import { BarChart3, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BarChart3, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -11,8 +11,6 @@ export interface NavItem {
   exact?: boolean;
   /** Other paths whose pages (`/procurement/import/3`) belong to this item, so it stays lit there. */
   also?: string[];
-  /** Only for Accounts at the finance level (invoices, payments, purchases, reports). */
-  finance?: true;
 }
 
 export interface NavGroup {
@@ -64,30 +62,38 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       ],
     },
   ],
-  accounts: [
+  sales: [
     {
       label: "Sales",
       items: [
-        { href: "/accounts", label: "Overview", icon: LayoutDashboard, exact: true, finance: true },
-        { href: "/accounts/customers", label: "Customers", icon: UsersRound },
-        { href: "/accounts/quotes", label: "Quotes", icon: FileText },
-        { href: "/accounts/orders", label: "Orders", icon: ClipboardList, badge: "toInvoice" },
-        { href: "/accounts/invoices", label: "Invoices", icon: Receipt, badge: "overdue", finance: true },
-        { href: "/accounts/payments", label: "Payments received", icon: Wallet, finance: true },
+        { href: "/sales/customers", label: "Customers", icon: UsersRound },
+        { href: "/sales/quotes", label: "Quotes", icon: FileText, also: ["/sales/quotes/new"] },
+        { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+      ],
+    },
+  ],
+  accounts: [
+    {
+      label: "Money in",
+      items: [
+        { href: "/accounts", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/accounts/to-invoice", label: "To invoice", icon: Landmark, badge: "toInvoice" },
+        { href: "/accounts/invoices", label: "Invoices", icon: Receipt, badge: "overdue" },
+        { href: "/accounts/payments", label: "Payments received", icon: Wallet },
       ],
     },
     {
       label: "Purchases",
       items: [
-        { href: "/accounts/suppliers", label: "Suppliers", icon: Truck, finance: true },
-        { href: "/accounts/bills", label: "Bills", icon: ReceiptText, badge: "billsDue", finance: true },
-        { href: "/accounts/expenses", label: "Expenses", icon: HandCoins, finance: true },
-        { href: "/accounts/payments-made", label: "Payments made", icon: Wallet, finance: true },
+        { href: "/accounts/suppliers", label: "Suppliers", icon: Truck },
+        { href: "/accounts/bills", label: "Bills", icon: ReceiptText, badge: "billsDue" },
+        { href: "/accounts/expenses", label: "Expenses", icon: HandCoins },
+        { href: "/accounts/payments-made", label: "Payments made", icon: Wallet },
       ],
     },
     {
       label: "Reports",
-      items: [{ href: "/accounts/reports", label: "Reports", icon: BarChart3, finance: true }],
+      items: [{ href: "/accounts/reports", label: "Reports", icon: BarChart3 }],
     },
   ],
   admin: [
@@ -109,9 +115,9 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
   ],
 };
 
-/** The sidebar groups this person sees: finance-only pages are left out below the finance level, and empty groups go. */
-export function navFor(app: AppKey, finance: boolean): NavGroup[] {
-  return (APP_NAV[app] ?? []).map((g) => ({ ...g, items: g.items.filter((i) => finance || !i.finance) })).filter((g) => g.items.length);
+/** The sidebar groups of an app. */
+export function navFor(app: AppKey): NavGroup[] {
+  return APP_NAV[app] ?? [];
 }
 
 /** Hover text for a sidebar badge. */
@@ -127,6 +133,6 @@ export const BADGE_LABELS: Record<string, string> = {
 };
 
 /** Pages offered in the Ctrl K "Go to" list, for the apps the user may open. */
-export function searchPages(apps: readonly AppKey[], finance = false) {
-  return apps.flatMap((key) => navFor(key, finance).flatMap((g) => g.items.map((i) => ({ ...i, app: key }))));
+export function searchPages(apps: readonly AppKey[]) {
+  return apps.flatMap((key) => navFor(key).flatMap((g) => g.items.map((i) => ({ ...i, app: key }))));
 }

@@ -52,7 +52,7 @@ async function dealExists(dealId: number) {
 
 /** Adds a line typed by hand (price in AED before VAT; cost is optional). */
 export async function addItem(dealId: number, input: ItemInput) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertDeal(dealId, true);
   const d = parseItem(input);
   await dealExists(dealId);
@@ -73,7 +73,7 @@ export async function addItem(dealId: number, input: ItemInput) {
  * and the price is cost plus the default margin. Needs the Procurement app, because it shows what we pay.
  */
 export async function addItemFromOffer(dealId: number, offerId: number, qty = 1, marginPct?: number) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertApp("procurement");
   await assertDeal(dealId, true);
   const q = z.number().int().min(1).max(100000).parse(qty);
@@ -118,7 +118,7 @@ export async function addItemFromOffer(dealId: number, offerId: number, qty = 1,
 }
 
 export async function updateItem(itemId: number, input: ItemInput) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertDealOf("deal_items", itemId, true);
   const d = parseItem(input);
   const [row] = await db.update(schema.dealItems)
@@ -129,7 +129,7 @@ export async function updateItem(itemId: number, input: ItemInput) {
 }
 
 export async function deleteItem(itemId: number) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertDealOf("deal_items", itemId, true);
   const [row] = await db.delete(schema.dealItems).where(eq(schema.dealItems.id, itemId)).returning({ dealId: schema.dealItems.dealId });
   if (row) refresh(row.dealId);
@@ -180,7 +180,7 @@ async function quotesInPlay(tx: Tx, dealId: number) {
  */
 export async function createQuote(dealId: number, input: z.input<typeof quoteInput> = {}) {
   // project quotes are made from the BOQ in the Projects app
-  const me = await assertAnyApp("accounts", "projects");
+  const me = await assertAnyApp("sales", "projects");
   await assertDeal(dealId, true);
   const d = quoteInput.parse(input);
   const defaults = await quoteDefaults();
@@ -247,7 +247,7 @@ export async function createQuote(dealId: number, input: z.input<typeof quoteInp
  * quantity does not need a second quote. Validity starts again from today. If it was already sent, send it again.
  */
 export async function reviseQuote(quoteId: number) {
-  const me = await assertAnyApp("accounts", "projects");
+  const me = await assertAnyApp("sales", "projects");
   await assertDealOf("quotes", quoteId, true);
   const defaults = await quoteDefaults();
   const result = await db.transaction(async (tx) => {
@@ -283,7 +283,7 @@ export async function reviseQuote(quoteId: number) {
     return { id: quoteId, number: q.number, dealId: q.dealId, wasSent: q.status === "sent" };
   });
   refresh(result.dealId);
-  revalidatePath(`/accounts/quotes/${quoteId}`);
+  revalidatePath(`/sales/quotes/${quoteId}`);
   return result;
 }
 
@@ -294,7 +294,7 @@ const quotePatch = z.object({
 
 /** Change the valid-until date or the terms of a quote that is still a draft or waiting for an answer. */
 export async function updateQuote(quoteId: number, patch: z.input<typeof quotePatch>) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertDealOf("quotes", quoteId, true);
   const d = quotePatch.parse(patch);
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
@@ -305,7 +305,7 @@ export async function updateQuote(quoteId: number, patch: z.input<typeof quotePa
   if (d.terms !== undefined) set.terms = d.terms;
   if (Object.keys(set).length) await db.update(schema.quotes).set(set).where(eq(schema.quotes.id, quoteId));
   refresh(q.dealId);
-  revalidatePath(`/accounts/quotes/${quoteId}`);
+  revalidatePath(`/sales/quotes/${quoteId}`);
 }
 
 const BEFORE_QUOTED = new Set(["new", "contacted", "requirement", "sourcing"]);
@@ -316,7 +316,7 @@ const BEFORE_QUOTED = new Set(["new", "contacted", "requirement", "sourcing"]);
  * Every change is written to the deal's timeline. ("Expired" is never stored: a sent quote past its date just shows as expired.)
  */
 export async function setQuoteStatus(quoteId: number, status: string) {
-  const me = await assertApp("accounts");
+  const me = await assertApp("sales");
   await assertDealOf("quotes", quoteId, true);
   if (!isQuoteStatus(status) || status === "expired") throw new Error("Pick Draft, Sent, Accepted or Rejected.");
   const next: QuoteStatus = status;
@@ -392,13 +392,13 @@ export async function setQuoteStatus(quoteId: number, status: string) {
     return { dealId: q.dealId, stage: movedTo };
   });
   refresh(result.dealId);
-  revalidatePath(`/accounts/quotes/${quoteId}`);
+  revalidatePath(`/sales/quotes/${quoteId}`);
   return result;
 }
 
 /** A draft can be removed by anyone in Sales; a quote that was sent can only be removed by an admin. */
 export async function deleteQuote(quoteId: number) {
-  const me = await assertApp("accounts");
+  const me = await assertApp("sales");
   await assertDealOf("quotes", quoteId, true);
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
   if (!q) return;

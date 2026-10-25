@@ -42,7 +42,7 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
         <BackButton fallback="/accounts/invoices" />
         <h1 className="font-mono text-lg font-semibold tracking-tight">{inv.number}</h1>
         <InvoiceStateBadge state={s} />
-        <Link href={`/accounts/customers/${inv.companyId}`} className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline">
+        <Link href={`/sales/customers/${inv.companyId}`} className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline">
           {inv.customerName}
           {inv.order ? ` · order ${inv.order.number}` : ""}
         </Link>

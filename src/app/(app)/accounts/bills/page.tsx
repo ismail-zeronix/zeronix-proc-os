@@ -85,7 +85,7 @@ export default async function BillsPage({ searchParams }: PageProps<"/accounts/b
                 </TableCell>
                 <TableCell className="hidden max-w-56 py-1.5 text-xs md:table-cell">
                   {b.orderId ? (
-                    <Link href={`/accounts/orders/${b.orderId}`} className="font-mono hover:underline">
+                    <Link href={`/sales/orders/${b.orderId}`} className="font-mono hover:underline">
                       {b.orderNumber}
                     </Link>
                   ) : (

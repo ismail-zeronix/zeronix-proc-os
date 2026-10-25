@@ -75,7 +75,7 @@ describe.skipIf(!live)("reports on real tables (needs the dev database)", () => 
     const P = await import("@/app/(app)/accounts/purchase-actions");
     const A = await import("@/app/(app)/accounts/actions");
     const today = (await import("@/lib/dates")).dubaiToday();
-    accountant = (await db.insert(schema.users).values({ name: `${tag}-acc`, email: `${tag}-acc@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"], accountsLevel: "finance" }).returning({ id: schema.users.id }))[0].id;
+    accountant = (await db.insert(schema.users).values({ name: `${tag}-acc`, email: `${tag}-acc@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"] }).returning({ id: schema.users.id }))[0].id;
     await db.insert(schema.attendancePunches).values({ userId: accountant, day: today });
     cookieValue = await new SignJWT({ name: tag, email: `${tag}@example.test`, role: "sales" }).setProtectedHeader({ alg: "HS256" }).setSubject(String(accountant)).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(process.env.AUTH_SECRET));
     companyId = (await db.insert(schema.companies).values({ name: `${tag} Customer LLC`, nameNorm: `${tag.toLowerCase()}customerllc` }).returning({ id: schema.companies.id }))[0].id;

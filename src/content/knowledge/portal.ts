@@ -25,7 +25,7 @@ export const PORTAL: Article[] = [
         ol: [
           "Every new lead goes into CRM → Deals → New deal, even a WhatsApp message. Use Ctrl K to check the company is not already there.",
           "Log every call, message and meeting on the deal's Activity tab, and set a follow-up task with a date.",
-          "Make the quote in Accounts → Quotes → New quote (or Make quote on the deal's Quotes tab). Find price brings in supplier prices; the margin is added for you.",
+          "Make the quote in Sales → Quotes → New quote (or Make quote on the deal's Quotes tab). Find price brings in supplier prices; the margin is added for you.",
           "Print the quote or copy it as WhatsApp text, and mark it Sent. The deal's Quotes tab shows it, read only.",
         ],
       },
@@ -43,7 +43,8 @@ export const PORTAL: Article[] = [
           head: ["App", "What is in it"],
           rows: [
             ["CRM", "Deals (the pipeline), companies and contacts: everything before the customer says yes"],
-            ["Accounts", "Customers, quotes, orders; for the accounts team also invoices, payments, supplier bills, expenses and reports"],
+            ["Sales", "Customers (companies whose deal is won), quotes and orders"],
+            ["Accounts", "The accounts team: invoices, payments, supplier bills, expenses and reports"],
             ["Procurement", "Supplier price lists and Compare prices"],
             ["Projects", "Project deals: BOQ, proposal, checklist"],
           ],
@@ -56,9 +57,9 @@ export const PORTAL: Article[] = [
           rows: [
             ["Find anything (company, person, deal, quote, order, invoice)", "Ctrl K"],
             ["Add a task quickly", "+ Task at the top"],
-            ["Make or change a quote", "Accounts → Quotes"],
-            ["Turn an accepted quote into an order, mark it delivered", "The quote page, then Accounts → Orders"],
-            ["See what a customer owes", "Accounts → Customers → the customer"],
+            ["Make or change a quote", "Sales → Quotes"],
+            ["Turn an accepted quote into an order, mark it delivered", "The quote page, then Sales → Orders"],
+            ["See what a customer owes", "Sales → Customers → the customer"],
             ["Change my password or signature, see my attendance", "My account (your name, top right)"],
             ["Share a document with the team", "Files"],
           ],
@@ -79,13 +80,13 @@ export const PORTAL: Article[] = [
         table: {
           head: ["Step", "Who", "Where"],
           rows: [
-            ["1. Make the quote: lines, Find price, Make quote", "Sales", "Accounts → Quotes → New quote"],
+            ["1. Make the quote: lines, Find price, Make quote", "Sales", "Sales → Quotes → New quote"],
             ["2. Customer confirms: Convert to order (PO number, credit terms, delivery address)", "Sales", "The quote page"],
             ["3. Upload the customer's PO / LPO", "Sales", "Order → Files tab"],
             ["4. Proforma invoice, if they pay before delivery", "Sales", "Order → Proforma"],
             ["5. Goods go out: Mark delivered, print the delivery note for signature", "Sales", "Order page"],
             ["6. Upload the signed delivery note", "Sales", "Order → Files tab"],
-            ["7. Make invoice: the tax invoice gets its number", "Accounts team", "Accounts → Orders → To invoice, or the order page"],
+            ["7. Make invoice: the tax invoice gets its number", "Accounts team", "Accounts → To invoice, or the order page"],
             ["8. Money in: Record payment (cash or bank transfer, full or part)", "Accounts team", "The invoice page"],
           ],
         },
@@ -99,7 +100,7 @@ export const PORTAL: Article[] = [
           "An issued invoice cannot be edited. A mistake is fixed by Cancel invoice (a credit note), then a new invoice from the same order.",
           "A payment entered by mistake is voided, not deleted, so the receipt numbers stay complete.",
           "Bank transfers need the transfer reference so they can be matched on the bank statement.",
-          "Customer statement of account: Accounts → Customers → the customer → Statement → Print.",
+          "Customer statement of account: Sales → Customers → the customer → Statement → Print.",
         ],
       },
       { tip: "Before the first invoice, an admin fills in Admin → Settings → Documents: our TRN, bank details and the next invoice number (continuing from Zoho)." },
@@ -137,7 +138,7 @@ export const PORTAL: Article[] = [
       {
         ol: [
           "Pick a cut-over date (for example the 1st of the month). Everything after it is entered only in the portal.",
-          "For each customer invoice still unpaid in Zoho on that date: Accounts → Customers → Opening balance (Zoho number, date, what is still owed).",
+          "For each customer invoice still unpaid in Zoho on that date: Accounts → Invoices → Opening balance (Zoho number, date, what is still owed).",
           "For each supplier bill still unpaid: Accounts → Bills → Opening balance.",
           "Opening balances count in what is owed both ways, but not in profit or VAT: those months were reported from Zoho.",
         ],

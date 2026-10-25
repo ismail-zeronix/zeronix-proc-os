@@ -1,4 +1,5 @@
 import { InvoiceTable } from "@/components/invoice-table";
+import { OpeningInvoiceDialog } from "@/components/opening-ui";
 import { PageToolbar } from "@/components/page-toolbar";
 import { Segmented } from "@/components/segmented";
 import { listInvoices } from "@/lib/accounts-data";
@@ -32,6 +33,9 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/account
             active: view.key === x.key,
           }))}
         />
+        <div className="ml-auto">
+          <OpeningInvoiceDialog />
+        </div>
       </PageToolbar>
       <InvoiceTable rows={rows} empty={all.length ? "Nothing in this view." : "No invoices yet. They are made from delivered orders (To invoice)."} />
     </div>

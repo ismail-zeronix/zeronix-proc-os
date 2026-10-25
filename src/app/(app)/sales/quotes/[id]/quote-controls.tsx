@@ -91,7 +91,7 @@ export function DeleteQuote({ quoteId, number }: { quoteId: number; number: stri
       aria-label="Delete this quote"
       title="Delete this quote"
       pending={pending}
-      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.replace("/accounts/quotes"))}
+      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.replace("/sales/quotes"))}
     >
       <Trash2 />
     </Button>

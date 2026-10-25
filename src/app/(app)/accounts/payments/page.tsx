@@ -45,7 +45,7 @@ export default async function PaymentsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="max-w-64 py-1.5">
-                  <Link href={`/accounts/customers/${p.companyId}`} className="block truncate font-medium hover:underline">
+                  <Link href={`/sales/customers/${p.companyId}`} className="block truncate font-medium hover:underline">
                     {p.customerName}
                   </Link>
                 </TableCell>

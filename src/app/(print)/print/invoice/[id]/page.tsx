@@ -15,7 +15,7 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/pri
 
 /** The tax invoice, or its credit note (?doc=credit). Sales can print it for the customer; Accounts manages it. */
 export default async function PrintInvoice({ params, searchParams }: PageProps<"/print/invoice/[id]">) {
-  const access = await requireAnyApp("accounts");
+  const access = await requireAnyApp("accounts", "sales");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const inv = await getInvoice(id);
@@ -27,7 +27,7 @@ export default async function PrintInvoice({ params, searchParams }: PageProps<"
   const d = wantCredit ? creditDoc(inv) : await invoiceDoc(inv);
   if (!d) notFound();
   const brand = await quoteBrand();
-  const back = access.finance ? `/accounts/invoices/${inv.id}` : `/accounts/orders/${inv.orderId}`;
+  const back = access.finance ? `/accounts/invoices/${inv.id}` : `/sales/orders/${inv.orderId}`;
   return (
     <PrintPage back={back} number={d.number}>
       <SalesDocument d={d} brand={brand} />

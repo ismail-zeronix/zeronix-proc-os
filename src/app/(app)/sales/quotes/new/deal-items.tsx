@@ -291,7 +291,7 @@ export function DealItems({
         </p>
         {accepted ? (
           <Link
-            href={`/accounts/quotes/${accepted.id}`}
+            href={`/sales/quotes/${accepted.id}`}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             title="The customer accepted this quote. Changes to the lines here no longer reach the customer."
           >
@@ -307,7 +307,7 @@ export function DealItems({
                 await settled();
                 const r = await reviseQuote(open.id);
                 toast.success(`Quote ${r.number} updated${r.wasSent ? ". Send it to the customer again." : ""}`);
-                router.replace(`/accounts/quotes/${r.id}`);
+                router.replace(`/sales/quotes/${r.id}`);
               })
             }
           >
@@ -323,7 +323,7 @@ export function DealItems({
                 await settled();
                 const r = await createQuote(dealId);
                 toast.success(`Quote ${r.number} made`);
-                router.replace(`/accounts/quotes/${r.id}`);
+                router.replace(`/sales/quotes/${r.id}`);
               })
             }
           >
@@ -382,7 +382,7 @@ export function DealItems({
           <ul className="grid gap-0.5">
             {quotes.map((q) => (
               <li key={q.id}>
-                <Link href={`/accounts/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+                <Link href={`/sales/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
                   <span className="font-mono font-medium">{q.number}</span>
                   <QuoteStatusBadge status={q.shownStatus} />
                   <span className="tabular-nums">{money(q.total)}</span>

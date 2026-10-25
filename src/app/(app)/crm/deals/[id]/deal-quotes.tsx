@@ -10,7 +10,7 @@ import type { QuoteSummary, quoteLines } from "@/lib/quotes-data";
 type Line = Awaited<ReturnType<typeof quoteLines>>[number];
 
 /**
- * The deal's Quotes tab: what was quoted, read only. Quotes are built and sent in Accounts › Quotes (products) or from the
+ * The deal's Quotes tab: what was quoted, read only. Quotes are built and sent in Sales › Quotes (products) or from the
  * BOQ in Projects (projects); this tab shows them and links there, so the selling side never edits prices.
  */
 export function DealQuotes({
@@ -36,7 +36,7 @@ export function DealQuotes({
         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {project
             ? "A project is priced as a BOQ in the Projects app; the quote is made there."
-            : "Quotes are made and sent in Accounts › Quotes, with Find price for supplier prices."}
+            : "Quotes are made and sent in Sales › Quotes, with Find price for supplier prices."}
         </p>
         {project
           ? canProjects && (
@@ -45,7 +45,7 @@ export function DealQuotes({
               </Button>
             )
           : canAccounts && (
-              <Button size="sm" variant="outline" nativeButton={false} render={<AppLink href={`/accounts/quotes/new?deal=${dealId}`} />}>
+              <Button size="sm" variant="outline" nativeButton={false} render={<AppLink href={`/sales/quotes/new?deal=${dealId}`} />}>
                 <FilePlus2 /> {latest ? "Edit the quote" : "Make quote"}
               </Button>
             )}
@@ -68,7 +68,7 @@ export function DealQuotes({
             return (
               <li key={q.id}>
                 {canAccounts ? (
-                  <AppLink href={`/accounts/quotes/${q.id}`} className={`${cls} hover:bg-muted`} title="Open the quote">
+                  <AppLink href={`/sales/quotes/${q.id}`} className={`${cls} hover:bg-muted`} title="Open the quote">
                     {row}
                   </AppLink>
                 ) : (

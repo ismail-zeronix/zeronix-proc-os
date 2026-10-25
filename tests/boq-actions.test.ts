@@ -27,7 +27,7 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
   let S: typeof import("@/app/(app)/crm/actions");
-  let Q: typeof import("@/app/(app)/accounts/quote-actions");
+  let Q: typeof import("@/app/(app)/sales/quote-actions");
   let B: typeof import("@/app/(app)/projects/boq-actions");
   let D: typeof import("@/lib/projects-data");
   let userIds: number[] = [];
@@ -58,7 +58,7 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, asc, inArray, and } = await import("drizzle-orm"));
     S = await import("@/app/(app)/crm/actions");
-    Q = await import("@/app/(app)/accounts/quote-actions");
+    Q = await import("@/app/(app)/sales/quote-actions");
     B = await import("@/app/(app)/projects/boq-actions");
     D = await import("@/lib/projects-data");
     const mk = async (name: string, apps: string[] | null) =>

@@ -52,7 +52,7 @@ export function DealDialog({
             projectTypes={projectTypes}
             kind={kind}
             onCreated={() => setOpen(false)}
-            afterHref={quoteNext ? (id) => `/accounts/quotes/new?deal=${id}` : undefined}
+            afterHref={quoteNext ? (id) => `/sales/quotes/new?deal=${id}` : undefined}
           />
         )}
       </DialogContent>

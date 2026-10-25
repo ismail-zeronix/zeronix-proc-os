@@ -212,7 +212,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                 content: (
                   <div className="grid gap-1">
                     {quotes.map((q) => (
-                      <AppLink key={`q${q.id}`} href={`/accounts/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
+                      <AppLink key={`q${q.id}`} href={`/sales/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
                         <span className="text-sm">
                           Quote <span className="font-mono font-medium">{q.number}</span> <span className="text-xs text-muted-foreground">· {ago(q.createdAt)}</span>
                         </span>
@@ -222,7 +222,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                       </AppLink>
                     ))}
                     {orders.map((o) => (
-                      <AppLink key={`o${o.id}`} href={`/accounts/orders/${o.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
+                      <AppLink key={`o${o.id}`} href={`/sales/orders/${o.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
                         <span className="text-sm">
                           Order <span className="font-mono font-medium">{o.number}</span>
                         </span>

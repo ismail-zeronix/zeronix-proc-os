@@ -139,7 +139,7 @@ export default async function BillPage({ params }: PageProps<"/accounts/bills/[i
             {b.order && (
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">For order</span>
-                <Link href={`/accounts/orders/${b.order.id}`} className="truncate font-mono hover:underline">
+                <Link href={`/sales/orders/${b.order.id}`} className="truncate font-mono hover:underline">
                   {b.order.number} · {b.order.companyName}
                 </Link>
               </div>

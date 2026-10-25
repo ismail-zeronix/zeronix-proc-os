@@ -23,13 +23,13 @@ import { getSettings } from "@/lib/settings";
 import { EmailQuote } from "./email-quote";
 import { DeleteQuote, QuoteEdit, StatusSelect } from "./quote-controls";
 
-export async function generateMetadata({ params }: PageProps<"/accounts/quotes/[id]">) {
-  const q = await getQuote(Number((await params).id), financeViewerOf(await requireApp("accounts"))).catch(() => null);
-  return { title: `${q?.number ?? "Quote"} · Zeronix Accounts` };
+export async function generateMetadata({ params }: PageProps<"/sales/quotes/[id]">) {
+  const q = await getQuote(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
+  return { title: `${q?.number ?? "Quote"} · Zeronix Sales` };
 }
 
-export default async function QuotePage({ params }: PageProps<"/accounts/quotes/[id]">) {
-  const access = await requireApp("accounts");
+export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id]">) {
+  const access = await requireApp("sales");
   const { user, apps } = access;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
@@ -66,11 +66,11 @@ export default async function QuotePage({ params }: PageProps<"/accounts/quotes/
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <BackButton fallback="/accounts/quotes" />
+        <BackButton fallback="/sales/quotes" />
         <h1 className="font-mono text-lg font-semibold tracking-tight">{q.number}</h1>
         <QuoteStatusBadge status={q.shownStatus} />
         <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={q.dealTitle}>
-          <Link href={`/accounts/customers/${q.companyId}`} className="hover:text-foreground hover:underline">
+          <Link href={`/sales/customers/${q.companyId}`} className="hover:text-foreground hover:underline">
             {q.companyName}
           </Link>
           {" · "}
@@ -83,12 +83,12 @@ export default async function QuotePage({ params }: PageProps<"/accounts/quotes/
           )}
         </span>
         {!order && !locked && !project && (
-          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/accounts/quotes/new?deal=${q.dealId}`} />} title="Change the lines, then press Update to rewrite this quote">
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/sales/quotes/new?deal=${q.dealId}`} />} title="Change the lines, then press Update to rewrite this quote">
             <ListPlus /> Edit lines
           </Button>
         )}
         {order ? (
-          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={`/accounts/orders/${order.id}`} />} title="This quote became an order">
+          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={`/sales/orders/${order.id}`} />} title="This quote became an order">
             <ClipboardList /> {order.number}
           </Button>
         ) : (

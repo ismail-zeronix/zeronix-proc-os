@@ -17,7 +17,7 @@ import { listOrders } from "@/lib/orders-data";
 import { money } from "@/lib/quotation";
 import { getSetting } from "@/lib/settings";
 
-export const metadata = { title: "Orders · Zeronix Accounts" };
+export const metadata = { title: "Orders · Zeronix Sales" };
 
 const VIEWS = [
   { key: "open", label: "To deliver", match: (s: string) => s === "open" },
@@ -30,8 +30,8 @@ const VIEWS = [
  * Sales orders made from accepted quotes: what to deliver, what to invoice, and what customers still owe. On "To invoice"
  * the accounts team issues the tax invoice straight from the list (oldest delivery first).
  */
-export default async function OrdersPage({ searchParams }: PageProps<"/accounts/orders">) {
-  const access = await requireApp("accounts");
+export default async function OrdersPage({ searchParams }: PageProps<"/sales/orders">) {
+  const access = await requireApp("sales");
   const v = (await searchParams).view;
   const view = VIEWS.find((x) => x.key === v) ?? VIEWS[3];
   const all = await listOrders(financeViewerOf(access));
@@ -58,7 +58,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/accounts/
       <PageToolbar title="Orders" meta={`${rows.length} shown${invoicing ? ` · next invoice ${nextNumber}` : " · make an order from an accepted quote"}`}>
         <Segmented
           items={VIEWS.map((x) => ({
-            href: x.key === "all" ? "/accounts/orders" : `/accounts/orders?view=${x.key}`,
+            href: x.key === "all" ? "/sales/orders" : `/sales/orders?view=${x.key}`,
             label: `${x.label}${x.key === "all" ? "" : ` ${count(x.key)}`}`,
             title: x.label,
             active: view.key === x.key,
@@ -89,13 +89,13 @@ export default async function OrdersPage({ searchParams }: PageProps<"/accounts/
               return (
                 <TableRow key={o.id}>
                   <TableCell className="py-1.5">
-                    <Link href={`/accounts/orders/${o.id}`} className="font-mono text-sm font-medium hover:underline">
+                    <Link href={`/sales/orders/${o.id}`} className="font-mono text-sm font-medium hover:underline">
                       {o.number}
                     </Link>
                     <div className="text-xs text-muted-foreground">{toInvoice && o.dnNumber ? o.dnNumber : dayLabel(o.createdAt.toISOString().slice(0, 10), today)}</div>
                   </TableCell>
                   <TableCell className="max-w-64 py-1.5">
-                    <Link href={`/accounts/customers/${o.companyId}`} className="block truncate font-medium hover:underline">
+                    <Link href={`/sales/customers/${o.companyId}`} className="block truncate font-medium hover:underline">
                       {o.companyName}
                     </Link>
                     <div className="truncate text-xs text-muted-foreground" title={o.dealTitle}>

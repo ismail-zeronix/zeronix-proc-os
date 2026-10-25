@@ -27,8 +27,8 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
   let and: typeof import("drizzle-orm").and;
   let like: typeof import("drizzle-orm").like;
   let S: typeof import("@/app/(app)/crm/actions");
-  let Q: typeof import("@/app/(app)/accounts/quote-actions");
-  let O: typeof import("@/app/(app)/accounts/order-actions");
+  let Q: typeof import("@/app/(app)/sales/quote-actions");
+  let O: typeof import("@/app/(app)/sales/order-actions");
   let A: typeof import("@/app/(app)/accounts/actions");
   let AD: typeof import("@/lib/accounts-data");
   let today = "";
@@ -70,15 +70,15 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, like, and } = await import("drizzle-orm"));
     S = await import("@/app/(app)/crm/actions");
-    Q = await import("@/app/(app)/accounts/quote-actions");
-    O = await import("@/app/(app)/accounts/order-actions");
+    Q = await import("@/app/(app)/sales/quote-actions");
+    O = await import("@/app/(app)/sales/order-actions");
     A = await import("@/app/(app)/accounts/actions");
     AD = await import("@/lib/accounts-data");
     today = (await import("@/lib/dates")).dubaiToday();
-    const mk = async (name: string, apps: string[], accountsLevel: "sales" | "finance" = "sales") =>
-      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps, accountsLevel }).returning({ id: schema.users.id }))[0].id;
-    seller = await mk("seller", ["crm", "accounts"]);
-    accountant = await mk("accountant", ["crm", "accounts"], "finance");
+    const mk = async (name: string, apps: string[]) =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps }).returning({ id: schema.users.id }))[0].id;
+    seller = await mk("seller", ["crm", "sales"]);
+    accountant = await mk("accountant", ["crm", "sales", "accounts"]);
     userIds = [seller, accountant];
     await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
     savedSeries = await db.select({ key: schema.settings.key, value: schema.settings.value }).from(schema.settings).where(inArray(schema.settings.key, ["invoice_prefix", "invoice_next_number", "invoice_digits", "quote_trn"]));

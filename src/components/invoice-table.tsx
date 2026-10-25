@@ -36,7 +36,7 @@ export function InvoiceTable({ rows, empty, showCustomer = true, finance = true 
               </TableCell>
               {showCustomer && (
                 <TableCell className="max-w-64 py-1.5">
-                  <Link href={`/accounts/customers/${i.companyId}`} className="block truncate font-medium hover:underline">
+                  <Link href={`/sales/customers/${i.companyId}`} className="block truncate font-medium hover:underline">
                     {i.customerName}
                   </Link>
                 </TableCell>

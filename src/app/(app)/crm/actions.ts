@@ -97,8 +97,8 @@ export async function createCompany(input: CompanyInput) {
 }
 
 export async function updateCompany(companyId: number, input: CompanyInput) {
-  // billing details (TRN, address) are also kept up from Accounts › Customers
-  await assertAnyApp("crm", "accounts");
+  // billing details (TRN, address) are also kept up from Sales › Customers
+  await assertAnyApp("crm", "sales", "accounts");
   const v = await assertCompany(companyId, true);
   const d = companySchema.parse(input);
   const dup = await duplicateCompany(d.name, companyId);

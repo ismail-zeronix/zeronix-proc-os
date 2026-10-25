@@ -184,8 +184,6 @@ interface UserRow {
   apps: string[] | null;
   /** Which sales records they see: their own deals, or everyone's. */
   dataScope: "own" | "all";
-  /** Accounts: customers, quotes and orders only ("sales"), or invoices, payments, purchases and reports too ("finance"). */
-  accountsLevel: "sales" | "finance";
   jobTitle: string;
 }
 
@@ -258,9 +256,6 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
               <TableHead className="hidden md:table-cell" title="Which sales records they see">
                 Data
               </TableHead>
-              <TableHead className="hidden md:table-cell" title="What they do in Accounts">
-                Accounts
-              </TableHead>
               <TableHead className="hidden md:table-cell">Status</TableHead>
               <TableHead className="w-24 text-right">
                 <span className="sr-only">Actions</span>
@@ -322,23 +317,6 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
                       >
                         <NativeSelectOption value="own">Own deals</NativeSelectOption>
                         <NativeSelectOption value="all">All data</NativeSelectOption>
-                      </NativeSelect>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden py-1.5 md:table-cell">
-                    {u.role === "admin" ? (
-                      <span className="text-sm text-muted-foreground">Finance</span>
-                    ) : (
-                      <NativeSelect
-                        size="sm"
-                        value={u.accountsLevel}
-                        disabled={pending}
-                        aria-label={`What ${u.name} does in Accounts`}
-                        title="Sales: customers, quotes and orders of their deals. Finance: also invoices, payments, purchases and reports, for every record."
-                        onChange={(e) => run(() => updateUser(u.id, { accountsLevel: e.target.value as "sales" | "finance" }), "Accounts access saved")}
-                      >
-                        <NativeSelectOption value="sales">Sales</NativeSelectOption>
-                        <NativeSelectOption value="finance">Finance</NativeSelectOption>
                       </NativeSelect>
                     )}
                   </TableCell>

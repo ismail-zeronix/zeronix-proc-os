@@ -77,8 +77,8 @@ export default async function CompanyPage({ params }: PageProps<"/crm/companies/
         {c.trn && <span>TRN {c.trn}</span>}
         {c.ownerName && <span>Owner {c.ownerName}</span>}
         {(bal.invoices > 0 || c.deals.some((d) => d.stage === "won")) &&
-          (apps.includes("accounts") ? (
-            <AppLink href={`/accounts/customers/${c.id}`} className={`${meta} font-medium text-foreground hover:underline`} title="Customer in Accounts: documents and statement">
+          (apps.includes("sales") ? (
+            <AppLink href={`/sales/customers/${c.id}`} className={`${meta} font-medium text-foreground hover:underline`} title="Customer in Accounts: documents and statement">
               <Wallet /> {bal.owed ? `Owes ${money(bal.owed)}` : "Nothing owed"}
               {bal.overdue > 0 && <span className="text-red-700 dark:text-red-400">· {money(bal.overdue)} overdue</span>}
             </AppLink>

@@ -25,7 +25,7 @@ export interface Access {
   apps: AppKey[];
   /** True when they see every sales record (admins, and users set to "All data"); false = only the deals they are on. */
   seesAll: boolean;
-  /** Accounts at the finance level: invoices, payments, purchases and reports, for every record. Admins always. */
+  /** Has the Accounts app (invoices, payments, purchases, reports): sees every money record. Admins always. */
   finance: boolean;
 }
 
@@ -41,7 +41,6 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       isActive: schema.users.isActive,
       apps: schema.users.apps,
       dataScope: schema.users.dataScope,
-      accountsLevel: schema.users.accountsLevel,
     })
     .from(schema.users)
     .where(eq(schema.users.id, session.id))
@@ -53,7 +52,7 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
     user,
     apps,
     seesAll: row.role === "admin" || row.dataScope === "all",
-    finance: row.role === "admin" || (apps.includes("accounts") && row.accountsLevel === "finance"),
+    finance: apps.includes("accounts"),
   };
 });
 
@@ -71,7 +70,7 @@ export async function requireApp(key: AppKey): Promise<Access> {
   return access;
 }
 
-/** For finance pages in Accounts (invoices, payments, purchases, reports): others get "page does not exist". */
+/** For Accounts pages (invoices, payments, purchases, reports): others get "page does not exist". */
 export async function requireFinance(): Promise<Access> {
   const access = await requireApp("accounts");
   if (!access.finance) notFound();
@@ -115,7 +114,7 @@ export async function assertAnyApp(...keys: AppKey[]): Promise<SessionUser> {
   return access.user;
 }
 
-/** For finance server actions (invoices, payments, bills, expenses): Accounts at the finance level, punched in. */
+/** For money server actions (invoices, payments, bills, expenses): the Accounts app, punched in. */
 export async function assertFinance(): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !access.finance) throw new Error("Only the accounts team can do this");

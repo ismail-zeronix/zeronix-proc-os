@@ -70,10 +70,10 @@ describe.skipIf(!live)("purchases (needs the dev database)", () => {
     P = await import("@/app/(app)/accounts/purchase-actions");
     PD = await import("@/lib/purchases-data");
     today = (await import("@/lib/dates")).dubaiToday();
-    const mk = async (name: string, apps: string[], accountsLevel: "sales" | "finance") =>
-      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps, accountsLevel }).returning({ id: schema.users.id }))[0].id;
-    accountant = await mk("accountant", ["accounts"], "finance");
-    seller = await mk("seller", ["crm", "accounts"], "sales");
+    const mk = async (name: string, apps: string[]) =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps }).returning({ id: schema.users.id }))[0].id;
+    accountant = await mk("accountant", ["accounts"]);
+    seller = await mk("seller", ["crm", "sales"]);
     userIds = [accountant, seller];
     await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
     supplierId = (await db.insert(schema.suppliers).values({ name: `${tag} Distribution`, termsDays: 30 }).returning({ id: schema.suppliers.id }))[0].id;

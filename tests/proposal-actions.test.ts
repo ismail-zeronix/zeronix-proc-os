@@ -152,7 +152,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
   it("a quote made from the BOQ freezes the proposal; updating the quote refreshes the copy", async () => {
     await as(seller, "seller");
     const B = await import("@/app/(app)/projects/boq-actions");
-    const Q = await import("@/app/(app)/accounts/quote-actions");
+    const Q = await import("@/app/(app)/sales/quote-actions");
     await B.addBoqLine(projectId, { section: "Cameras & recording", description: "Dome camera", lineType: "material", unit: "nos", qty: 4, costAed: 200, unitPriceAed: 300, optional: false });
     const [deal] = await db.select({ id: schema.projects.dealId }).from(schema.projects).where(eq(schema.projects.id, projectId));
     const quote = await Q.createQuote(deal.id);
@@ -176,7 +176,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
 
   it("product quotes keep the product terms and get no proposal copy", async () => {
     await as(seller, "seller");
-    const Q = await import("@/app/(app)/accounts/quote-actions");
+    const Q = await import("@/app/(app)/sales/quote-actions");
     const r = await S.createDeal({ companyName: `${tag} Shop`, requirement: "5 laptops" });
     await db.insert(schema.dealItems).values({ dealId: r.id, description: "Laptop", qty: 5, unitPriceAed: 3000 });
     const quote = await Q.createQuote(r.id);

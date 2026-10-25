@@ -3,7 +3,6 @@ import { InvoiceTable } from "@/components/invoice-table";
 import { PageToolbar } from "@/components/page-toolbar";
 import { StatStrip } from "@/components/stat-strip";
 import { receivables } from "@/lib/accounts-data";
-import { redirect } from "next/navigation";
 import { requireApp } from "@/lib/auth/session";
 import { money } from "@/lib/quotation";
 
@@ -11,8 +10,8 @@ export const metadata = { title: "Accounts · Zeronix" };
 
 /** Money owed today: totals, how late it is, and the open invoices with the most overdue first. */
 export default async function AccountsOverview() {
-  // below the finance level Accounts is quotes, orders and customers; the money dashboard is for the accounts team
-  if (!(await requireApp("accounts")).finance) redirect("/accounts/quotes");
+
+  await requireApp("accounts");
   const r = await receivables();
   const overdueCount = r.open.filter((i) => i.state.key === "overdue").length;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;

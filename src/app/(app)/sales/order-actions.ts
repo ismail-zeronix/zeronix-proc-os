@@ -18,7 +18,7 @@ function refresh(dealId: number, orderId?: number) {
   revalidatePath("/crm", "layout");
   revalidatePath("/accounts", "layout");
   revalidatePath(`/crm/deals/${dealId}`);
-  if (orderId) revalidatePath(`/accounts/orders/${orderId}`);
+  if (orderId) revalidatePath(`/sales/orders/${orderId}`);
   revalidatePath("/");
 }
 
@@ -36,7 +36,7 @@ export type ConvertInput = z.input<typeof convertSchema>;
  * already. Lines and totals are copied, so the order never changes when the quote or the deal lines change later.
  */
 export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) {
-  const me = await assertApp("accounts");
+  const me = await assertApp("sales");
   await assertDealOf("quotes", quoteId, true);
   const d = convertSchema.parse(input);
   const today = dubaiToday();
@@ -104,7 +104,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
     return { id: order.id, number, dealId: q.dealId };
   });
   refresh(result.dealId, result.id);
-  revalidatePath(`/accounts/quotes/${quoteId}`);
+  revalidatePath(`/sales/quotes/${quoteId}`);
   return { id: result.id, number: result.number };
 }
 
@@ -112,7 +112,7 @@ const editSchema = convertSchema.partial();
 
 /** PO number, terms, address and notes can change until the order is invoiced. */
 export async function updateOrder(orderId: number, input: z.input<typeof editSchema>) {
-  await assertApp("accounts");
+  await assertApp("sales");
   await assertDealOf("sales_orders", orderId, true);
   const d = editSchema.parse(input);
   const [o] = await db.select({ status: schema.salesOrders.status, dealId: schema.salesOrders.dealId }).from(schema.salesOrders).where(eq(schema.salesOrders.id, orderId));
@@ -130,7 +130,7 @@ const deliverSchema = z.object({
 
 /** Records the delivery and gives the delivery note its number (ZDN-year-0001). The whole order goes in one delivery. */
 export async function markDelivered(orderId: number, input: z.input<typeof deliverSchema>) {
-  const me = await assertApp("accounts");
+  const me = await assertApp("sales");
   await assertDealOf("sales_orders", orderId, true);
   const d = deliverSchema.parse(input);
   if (d.deliveredOn > dubaiToday()) throw new Error("The delivery date cannot be in the future.");
@@ -168,7 +168,7 @@ export async function markDelivered(orderId: number, input: z.input<typeof deliv
 
 /** Cancels an order that has no invoice. The deal goes back to Negotiation, so the team decides what happens next. */
 export async function cancelOrder(orderId: number, reason: string) {
-  const me = await assertApp("accounts");
+  const me = await assertApp("sales");
   await assertDealOf("sales_orders", orderId, true);
   const why = z.string().trim().min(3, "Say why the order is cancelled").max(300).parse(reason);
   const dealId = await db.transaction(async (tx) => {

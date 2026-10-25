@@ -9,6 +9,7 @@ import {
   Radar,
   Receipt,
   Settings,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,17 @@ export const APPS = [
     defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-3)",
+  },
+  {
+    // owns customers (companies once a deal is won), quotes and sales orders; CRM owns leads and deals, Accounts the money
+    key: "sales",
+    label: "Sales",
+    href: "/sales",
+    icon: ShoppingCart,
+    blurb: "Customers, quotes, orders",
+    defaultFor: ["admin", "sales"],
+    status: "live",
+    color: "var(--series-6)",
   },
   {
     key: "projects",
@@ -106,9 +118,9 @@ export const APPS = [
     label: "Accounts",
     href: "/accounts",
     icon: Receipt,
-    blurb: "Quotes, orders, invoices, bills",
-    // everyone makes quotes and orders here; invoices, payments, purchases and reports need the finance level (users.accounts_level)
-    defaultFor: ["admin", "sales"],
+    blurb: "Invoices, payments, bills, reports",
+    // the money: admins, plus whoever the admin gives this app to (the accounts person)
+    defaultFor: ["admin"],
     status: "live",
     color: "var(--series-2)",
   },

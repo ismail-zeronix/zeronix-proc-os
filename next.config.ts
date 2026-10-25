@@ -4,18 +4,22 @@ import type { NextConfig } from "next";
 const MOVED_TO_PROCUREMENT = ["compare", "import", "alerts", "price-lists", "suppliers", "products"];
 
 /**
- * Sales became CRM (deals, companies, contacts) and its quotes and orders moved to Accounts (October 2026). Old links in
- * chat messages, emails and bookmarks still land on the right page. Most specific first.
+ * October 2026: deals, companies and contacts moved from Sales to CRM; Sales keeps customers, quotes and orders (which
+ * spent a day under Accounts). Old links in chat messages, emails and bookmarks still land on the right page.
  */
 export const MOVED_FROM_SALES = [
-  { source: "/sales/quotes", destination: "/accounts/quotes" },
-  { source: "/sales/quotes/:path*", destination: "/accounts/quotes/:path*" },
-  { source: "/sales/orders", destination: "/accounts/orders" },
-  { source: "/sales/orders/:path*", destination: "/accounts/orders/:path*" },
   { source: "/sales/pipeline", destination: "/crm/deals" },
-  { source: "/sales", destination: "/crm" },
-  { source: "/sales/:path*", destination: "/crm/:path*" },
-  { source: "/accounts/to-invoice", destination: "/accounts/orders?view=delivered" },
+  { source: "/sales/deals/:path*", destination: "/crm/deals/:path*" },
+  { source: "/sales/companies", destination: "/crm/companies" },
+  { source: "/sales/companies/:path*", destination: "/crm/companies/:path*" },
+  { source: "/sales/contacts", destination: "/crm/contacts" },
+  { source: "/sales/new", destination: "/crm/new" },
+  { source: "/accounts/quotes", destination: "/sales/quotes" },
+  { source: "/accounts/quotes/:path*", destination: "/sales/quotes/:path*" },
+  { source: "/accounts/orders", destination: "/sales/orders" },
+  { source: "/accounts/orders/:path*", destination: "/sales/orders/:path*" },
+  { source: "/accounts/customers", destination: "/sales/customers" },
+  { source: "/accounts/customers/:path*", destination: "/sales/customers/:path*" },
 ];
 
 const nextConfig: NextConfig = {

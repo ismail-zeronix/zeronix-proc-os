@@ -15,14 +15,14 @@ import { getDeal, listDeals, salesUsers } from "@/lib/sales-data";
 import { DealDialog } from "../../../crm/new/deal-dialog";
 import { DealItems } from "./deal-items";
 
-export const metadata = { title: "Quote · Zeronix Accounts" };
+export const metadata = { title: "Quote · Zeronix Sales" };
 
 /**
  * The quote builder: the deal's lines (with Find price from Procurement), then Make quote, or Update the open quote.
  * Without `?deal=` it asks which deal the quote is for. Project deals are priced from their BOQ in Projects.
  */
-export default async function QuoteBuilderPage({ searchParams }: PageProps<"/accounts/quotes/new">) {
-  const access = await requireApp("accounts");
+export default async function QuoteBuilderPage({ searchParams }: PageProps<"/sales/quotes/new">) {
+  const access = await requireApp("sales");
   const { user, apps } = access;
   const v = financeViewerOf(access);
   const sp = await searchParams;
@@ -35,7 +35,7 @@ export default async function QuoteBuilderPage({ searchParams }: PageProps<"/acc
     return (
       <div className="mx-auto grid w-full max-w-3xl gap-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <BackButton fallback="/accounts/quotes" />
+          <BackButton fallback="/sales/quotes" />
           <h1 className="flex-1 text-sm font-semibold">New quote: which deal is it for?</h1>
           {crm && <DealDialog users={await salesUsers()} meId={user.id} stage="sourcing" label="New deal" quoteNext />}
         </div>
@@ -48,7 +48,7 @@ export default async function QuoteBuilderPage({ searchParams }: PageProps<"/acc
             <ul className="divide-y">
               {deals.map((d) => (
                 <li key={d.id}>
-                  <Link href={`/accounts/quotes/new?deal=${d.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
+                  <Link href={`/sales/quotes/new?deal=${d.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{d.title}</span>
                       <span className="block truncate text-xs text-muted-foreground">
@@ -80,13 +80,13 @@ export default async function QuoteBuilderPage({ searchParams }: PageProps<"/acc
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <BackButton fallback="/accounts/quotes" />
+        <BackButton fallback="/sales/quotes" />
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight" title={deal.title}>
           Quote · {deal.title}
         </h1>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
-        <Link href={`/accounts/customers/${deal.companyId}`} className={`${meta} hover:text-foreground hover:underline`}>
+        <Link href={`/sales/customers/${deal.companyId}`} className={`${meta} hover:text-foreground hover:underline`}>
           <Building2 /> {deal.companyName}
         </Link>
         <span>{stageLabel(deal.stage)}</span>

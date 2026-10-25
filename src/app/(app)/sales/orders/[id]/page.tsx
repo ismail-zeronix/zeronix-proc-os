@@ -20,14 +20,14 @@ import { orderCosts } from "@/lib/purchases-data";
 import { getSetting } from "@/lib/settings";
 import { lineTotal, longDay, money } from "@/lib/quotation";
 
-export async function generateMetadata({ params }: PageProps<"/accounts/orders/[id]">) {
-  const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("accounts"))).catch(() => null);
-  return { title: `${o?.number ?? "Order"} · Zeronix Accounts` };
+export async function generateMetadata({ params }: PageProps<"/sales/orders/[id]">) {
+  const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
+  return { title: `${o?.number ?? "Order"} · Zeronix Sales` };
 }
 
 /** One sales order: delivery, invoice and money in one place, with the customer's PO and other files. */
-export default async function OrderPage({ params, searchParams }: PageProps<"/accounts/orders/[id]">) {
-  const access = await requireApp("accounts");
+export default async function OrderPage({ params, searchParams }: PageProps<"/sales/orders/[id]">) {
+  const access = await requireApp("sales");
   const { user, apps } = access;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
@@ -50,11 +50,11 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <BackButton fallback="/accounts/orders" />
+        <BackButton fallback="/sales/orders" />
         <h1 className="font-mono text-lg font-semibold tracking-tight">{o.number}</h1>
         <OrderStatusBadge status={o.status} />
         <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={o.deal.title}>
-          <Link href={`/accounts/customers/${o.companyId}`} className="hover:text-foreground hover:underline">
+          <Link href={`/sales/customers/${o.companyId}`} className="hover:text-foreground hover:underline">
             {o.company.name}
           </Link>
           {" · "}
@@ -178,7 +178,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">From quote</dt>
                       <dd>
-                        <Link href={`/accounts/quotes/${o.quote.id}`} className="font-mono hover:underline">
+                        <Link href={`/sales/quotes/${o.quote.id}`} className="font-mono hover:underline">
                           {o.quote.number}
                         </Link>
                       </dd>

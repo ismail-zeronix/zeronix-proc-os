@@ -12,7 +12,8 @@ describe("allowedApps", () => {
     expect(keys).toContain("procurement");
     expect(keys).toContain("crm");
     expect(keys).not.toContain("admin");
-    expect(keys).toContain("accounts"); // quotes and orders; the finance level is a separate switch
+    expect(keys).toContain("sales");
+    expect(keys).not.toContain("accounts"); // the money: only when an admin gives it
   });
 
   it("uses the admin's explicit list for a sales user, in registry order", () => {
@@ -29,7 +30,7 @@ describe("allowedApps", () => {
     expect(allowedApps({ role: "sales", apps: ["nope", "tasks"] })).toEqual(["tasks"]);
     expect(isAppKey("nope")).toBe(false);
     expect(isAppKey("crm")).toBe(true);
-    expect(isAppKey("sales")).toBe(false);
+    expect(isAppKey("sales")).toBe(true);
   });
 
   it("does not offer the admin app as a per-user toggle", () => {

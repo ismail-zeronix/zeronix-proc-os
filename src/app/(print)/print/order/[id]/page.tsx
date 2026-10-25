@@ -8,14 +8,14 @@ import { getOrder } from "@/lib/orders-data";
 import { quoteBrand } from "@/lib/quote-view";
 
 export async function generateMetadata({ params, searchParams }: PageProps<"/print/order/[id]">) {
-  const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("accounts"))).catch(() => null);
+  const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
   const dn = (await searchParams).doc === "delivery";
   return { title: o ? (dn ? `Delivery note ${o.dnNumber ?? o.number}` : `Proforma ${o.number}`) : "Order" };
 }
 
 /** Proforma invoice (default) or delivery note (?doc=delivery) of an order. */
 export default async function PrintOrder({ params, searchParams }: PageProps<"/print/order/[id]">) {
-  const access = await requireApp("accounts");
+  const access = await requireApp("sales");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const o = await getOrder(id, financeViewerOf(access));
@@ -24,7 +24,7 @@ export default async function PrintOrder({ params, searchParams }: PageProps<"/p
   if (dn && !o.dnNumber) notFound();
   const [brand, d] = await Promise.all([quoteBrand(), dn ? deliveryDoc(o) : proformaDoc(o)]);
   return (
-    <PrintPage back={`/accounts/orders/${o.id}`} number={d.number}>
+    <PrintPage back={`/sales/orders/${o.id}`} number={d.number}>
       <SalesDocument d={d} brand={brand} />
     </PrintPage>
   );

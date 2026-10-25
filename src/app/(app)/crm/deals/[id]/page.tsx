@@ -142,7 +142,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
             </span>
           ))}
         {orders.map((o) => (
-          <AppLink key={o.id} href={`/accounts/orders/${o.id}`} className="inline-flex items-center gap-1.5 hover:text-foreground" title="Sales order">
+          <AppLink key={o.id} href={`/sales/orders/${o.id}`} className="inline-flex items-center gap-1.5 hover:text-foreground" title="Sales order">
             <span className="font-mono font-medium text-foreground hover:underline">{o.number}</span>
             <OrderStatusBadge status={o.status} />
             {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}
@@ -193,7 +193,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
               <RequirementPanel dealId={deal.id} requirement={deal.requirement} />
             </TabsContent>
             <TabsContent value="quote" className="pt-1">
-              <DealQuotes dealId={deal.id} quotes={quotes} lines={lines} project={project} canAccounts={apps.includes("accounts")} canProjects={apps.includes("projects")} />
+              <DealQuotes dealId={deal.id} quotes={quotes} lines={lines} project={project} canAccounts={apps.includes("sales")} canProjects={apps.includes("projects")} />
             </TabsContent>
             <TabsContent value="check" className="pt-1">
               <ChecklistPanel dealId={deal.id} checks={deal.checks} />

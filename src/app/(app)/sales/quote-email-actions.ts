@@ -35,7 +35,7 @@ export type EmailQuoteResult = { ok: true; savedToSent: boolean; markedSent: boo
  */
 export async function emailQuote(quoteId: number, raw: z.input<typeof input>): Promise<EmailQuoteResult> {
   try {
-    const me = await assertApp("accounts");
+    const me = await assertApp("sales");
     const d = input.parse(raw);
     const to = parseRecipients(d.to);
     const cc = parseRecipients(d.cc);
@@ -77,7 +77,7 @@ export async function emailQuote(quoteId: number, raw: z.input<typeof input>): P
         () => false,
       );
     }
-    revalidatePath(`/accounts/quotes/${q.id}`);
+    revalidatePath(`/sales/quotes/${q.id}`);
     revalidatePath(`/crm/deals/${q.dealId}`);
     return { ok: true, savedToSent: sent.savedToSent, markedSent };
   } catch (e) {
