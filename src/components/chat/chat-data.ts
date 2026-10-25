@@ -231,22 +231,58 @@ export function useChatStream(me: number) {
           break;
       }
     };
-    const source = new EventSource("/api/chat/stream");
-    source.onmessage = (e) => {
-      try {
-        handle(JSON.parse(e.data));
-      } catch {
-        // ignore a malformed line
-      }
+    /*
+     * One stream per browser, not per tab: a browser keeps only about six connections open to the portal, so a stream
+     * in every tab would freeze the seventh tab. The tab holding the "zp-chat-stream" lock owns the stream and passes
+     * each event to the other tabs; when it closes, another tab gets the lock and opens the stream.
+     */
+    const relay = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`zp-chat-${me}`) : null;
+    if (relay) relay.onmessage = (e) => handle(e.data);
+    let source: EventSource | null = null;
+    let stopped = false;
+    let release: (() => void) | null = null;
+    const openStream = () => {
+      source = new EventSource("/api/chat/stream");
+      source.onmessage = (e) => {
+        let evt: ChatEvent;
+        try {
+          evt = JSON.parse(e.data);
+        } catch {
+          return; // a malformed line
+        }
+        handle(evt);
+        relay?.postMessage(evt);
+      };
+      source.onerror = () => {
+        lost = true;
+      };
+      source.onopen = () => {
+        // back after a drop: every tab re-reads whatever may have been missed
+        if (lost) {
+          handle({ t: "resync" });
+          relay?.postMessage({ t: "resync" });
+        }
+        lost = false;
+      };
     };
-    source.onerror = () => {
-      lost = true;
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      void navigator.locks.request(
+        `zp-chat-stream-${me}`,
+        () =>
+          new Promise<void>((resolve) => {
+            if (stopped) return resolve();
+            release = resolve;
+            // taking over from a tab that closed: events may have been missed in between
+            if (qc.getQueryData(chatKeys.channels)) handle({ t: "resync" });
+            openStream();
+          }),
+      );
+    } else openStream();
+    return () => {
+      stopped = true;
+      source?.close();
+      release?.();
+      relay?.close();
     };
-    source.onopen = () => {
-      // back after a drop: re-read whatever may have been missed
-      if (lost) void qc.invalidateQueries({ queryKey: chatKeys.all });
-      lost = false;
-    };
-    return () => source.close();
   }, [qc, me]);
 }
