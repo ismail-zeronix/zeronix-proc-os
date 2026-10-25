@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { addMembers, leaveGroup, removeFromGroup, updateGroup } from "@/app/(app)/chat/actions";
 import { Button } from "@/components/ui/button";
 import type { ChannelSummary } from "@/lib/chat/types";
-import { chatKeys, type Teammate } from "./chat-data";
+import { chatKeys, type Presence, type Teammate } from "./chat-data";
 import { useChatStore } from "./chat-store";
 import { PanelHeader, PresenceAvatar } from "./panel-bits";
 import type { Me } from "./message-row";
@@ -17,7 +17,7 @@ const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
 
 /** A channel's details: name, topic, private or public, who is in it; the owner (or an admin) can change them. */
-export function ChannelInfo({ channel, me, online, teammates }: { channel: ChannelSummary; me: Me; online: Set<number>; teammates: Teammate[] }) {
+export function ChannelInfo({ channel, me, presence, teammates }: { channel: ChannelSummary; me: Me; presence: Presence; teammates: Teammate[] }) {
   const qc = useQueryClient();
   const show = useChatStore((s) => s.show);
   const [pending, start] = useTransition();
@@ -45,7 +45,7 @@ export function ChannelInfo({ channel, me, online, teammates }: { channel: Chann
         <PanelHeader title={`Add people to #${channel.name}`} onBack={() => setAdding(false)} />
         <PeopleList
           teammates={teammates}
-          online={online}
+          presence={presence}
           exclude={channel.members.map((m) => m.id)}
           disabled={pending}
           onPick={(id) => run(() => addMembers(channel.id, [id]), "Added")}
@@ -103,7 +103,7 @@ export function ChannelInfo({ channel, me, online, teammates }: { channel: Chann
         <ul className="py-1">
           {channel.members.map((u) => (
             <li key={u.id} className="flex items-center gap-2.5 px-3 py-1">
-              <PresenceAvatar name={u.name} online={online.has(u.id)} size={26} />
+              <PresenceAvatar name={u.name} status={presence[u.id]} size={26} />
               <span className="min-w-0 flex-1 truncate text-sm">
                 {u.name}
                 {u.id === me.id && <span className="text-muted-foreground"> (you)</span>}

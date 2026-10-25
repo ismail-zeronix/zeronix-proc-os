@@ -1,6 +1,7 @@
 import { loadAccess } from "@/lib/auth/session";
 import { subscribe } from "@/lib/chat/bus";
 import "@/lib/chat/messages"; // registers the loader for messages too big to send inline
+import "@/lib/chat/presence"; // and the status (online / away / do not disturb) people show when they connect
 
 /**
  * The chat's live stream (Server-Sent Events): one per open portal tab. New messages, reads and who is online arrive

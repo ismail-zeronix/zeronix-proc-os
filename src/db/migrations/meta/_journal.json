@@ -190,6 +190,13 @@
       "when": 1792798293938,
       "tag": "0026_drop_proposal_images",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792893581447,
+      "tag": "0027_chat_search",
+      "breakpoints": true
     }
   ]
 }

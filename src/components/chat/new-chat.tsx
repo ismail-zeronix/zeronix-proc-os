@@ -6,24 +6,24 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createGroup, joinGroup, startDm } from "@/app/(app)/chat/actions";
 import { Button } from "@/components/ui/button";
-import { chatKeys, useOpenGroups, type Teammate } from "./chat-data";
+import { chatKeys, isOn, useOpenGroups, type Presence, type Teammate } from "./chat-data";
 import { useChatStore } from "./chat-store";
-import { PanelHeader, PresenceAvatar } from "./panel-bits";
+import { PanelHeader, PresenceAvatar, STATUS_LABEL } from "./panel-bits";
 
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
-/** Searchable list of teammates (online first), single pick or several. */
+/** Searchable list of teammates (people who are on first), single pick or several. */
 export function PeopleList({
   teammates,
-  online,
+  presence,
   picked,
   onPick,
   disabled,
   exclude = [],
 }: {
   teammates: Teammate[];
-  online: Set<number>;
+  presence: Presence;
   /** When set, the list is a multi-select with ticks. */
   picked?: Set<number>;
   onPick: (id: number) => void;
@@ -34,8 +34,8 @@ export function PeopleList({
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = teammates.filter((u) => !exclude.includes(u.id) && (!needle || u.name.toLowerCase().includes(needle) || u.jobTitle.toLowerCase().includes(needle)));
-    return [...list].sort((a, b) => Number(online.has(b.id)) - Number(online.has(a.id)));
-  }, [q, teammates, online, exclude]);
+    return [...list].sort((a, b) => Number(isOn(presence, b.id)) - Number(isOn(presence, a.id)));
+  }, [q, teammates, presence, exclude]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="p-2">
@@ -54,7 +54,7 @@ export function PeopleList({
                 aria-pressed={picked ? on : undefined}
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:opacity-60"
               >
-                <PresenceAvatar name={u.name} online={online.has(u.id)} size={28} />
+                <PresenceAvatar name={u.name} status={presence[u.id]} size={28} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{u.name}</p>
                   {u.jobTitle && <p className="truncate text-xs text-muted-foreground">{u.jobTitle}</p>}
@@ -62,7 +62,7 @@ export function PeopleList({
                 {picked ? (
                   <span className={`flex size-4.5 items-center justify-center rounded border ${on ? "border-primary bg-primary text-primary-foreground" : ""}`}>{on && <Check className="size-3" />}</span>
                 ) : (
-                  online.has(u.id) && <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Online</span>
+                  isOn(presence, u.id) && <span className="text-[11px] text-muted-foreground">{STATUS_LABEL[presence[u.id]]}</span>
                 )}
               </button>
             </li>
@@ -74,7 +74,7 @@ export function PeopleList({
 }
 
 /** Start a direct message, make a channel, or join a public one. */
-export function NewChat({ teammates, online, loadingPeople }: { teammates: Teammate[]; online: Set<number>; loadingPeople: boolean }) {
+export function NewChat({ teammates, presence, loadingPeople }: { teammates: Teammate[]; presence: Presence; loadingPeople: boolean }) {
   const qc = useQueryClient();
   const show = useChatStore((s) => s.show);
   const [mode, setMode] = useState<"dm" | "group">("dm");
@@ -123,7 +123,7 @@ export function NewChat({ teammates, online, loadingPeople }: { teammates: Teamm
         loadingPeople ? (
           <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>
         ) : (
-          <PeopleList teammates={teammates} online={online} disabled={pending} onPick={(id) => go(() => startDm(id))} />
+          <PeopleList teammates={teammates} presence={presence} disabled={pending} onPick={(id) => go(() => startDm(id))} />
         )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -179,7 +179,7 @@ export function NewChat({ teammates, online, loadingPeople }: { teammates: Teamm
           <p className="px-3 pt-2 text-[11px] font-medium text-muted-foreground uppercase">Add people</p>
           <PeopleList
             teammates={teammates}
-            online={online}
+            presence={presence}
             picked={picked}
             disabled={pending}
             onPick={(id) =>

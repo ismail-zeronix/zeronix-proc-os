@@ -2,11 +2,11 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { loadAccess } from "@/lib/auth/session";
-import { onlineUserIds } from "@/lib/chat/bus";
 import { parseRef, whoCanSee } from "@/lib/chat/cards";
+import { presenceMap } from "@/lib/chat/presence";
 
 /**
- * Active teammates to start a chat with or mention, and who has the portal open right now. With `?record=deal:12`,
+ * Active teammates to start a chat with or mention, and how each shows right now (online, away, do not disturb; missing = offline). With `?record=deal:12`,
  * also says which of them may see that record (to warn before mentioning someone who cannot).
  */
 export async function GET(req: NextRequest) {
@@ -19,5 +19,5 @@ export async function GET(req: NextRequest) {
     .orderBy(asc(schema.users.name));
   const record = parseRef(req.nextUrl.searchParams.get("record") ?? "");
   const canSee = record ? [...(await whoCanSee(record, users.map((u) => u.id)))] : undefined;
-  return Response.json({ users, online: onlineUserIds(), canSee });
+  return Response.json({ users, presence: await presenceMap(), canSee });
 }

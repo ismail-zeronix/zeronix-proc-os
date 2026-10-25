@@ -4,7 +4,8 @@ import { useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { previewOf } from "@/lib/chat/text";
-import type { ChannelSummary, ChatEvent, ChatMessage, ChatUser, OpenGroup, Reaction } from "@/lib/chat/types";
+import { alertFor } from "./alerts";
+import type { ChannelSummary, ChatEvent, ChatMessage, ChatUser, OpenGroup, PresenceStatus, Reaction } from "@/lib/chat/types";
 
 export type Member = ChatUser & { lastReadId: number; role: "owner" | "member" };
 
@@ -22,6 +23,10 @@ export interface ThreadData {
 export interface Teammate extends ChatUser {
   jobTitle: string;
 }
+
+/** user id → how they show; anyone missing is offline. */
+export type Presence = Record<number, PresenceStatus>;
+export const isOn = (p: Presence, id: number) => !!p[id] && p[id] !== "offline";
 
 export const chatKeys = {
   all: ["chat"] as const,
@@ -53,7 +58,7 @@ export function useChannels() {
 export function useTeammates() {
   return useQuery({
     queryKey: chatKeys.users,
-    queryFn: () => getJson<{ users: Teammate[]; online: number[] }>("/api/chat/users"),
+    queryFn: () => getJson<{ users: Teammate[]; presence: Presence }>("/api/chat/users"),
     staleTime: 5 * 60_000,
   });
 }
@@ -182,10 +187,16 @@ export function useChatStream(me: number) {
     let lost = false;
     const handle = (evt: ChatEvent | { t: "resync" }) => {
       switch (evt.t) {
-        case "message.new":
+        case "message.new": {
+          const reading = isReading(evt.message.channelId);
           addMessage(qc, evt.message);
-          bumpChannel(qc, evt.message, me, isReading(evt.message.channelId));
+          bumpChannel(qc, evt.message, me, reading);
+          alertFor(qc, evt.message, me, reading);
           if (evt.message.userId) useTypingStore.getState().clear(evt.message.channelId, evt.message.userId);
+          break;
+        }
+        case "card.refresh":
+          void qc.invalidateQueries({ queryKey: ["chat", "card", evt.ref] });
           break;
         case "message.update":
           replaceMessage(qc, evt.message);
@@ -213,9 +224,7 @@ export function useChatStream(me: number) {
           void qc.invalidateQueries({ queryKey: chatKeys.messages(evt.channelId) });
           break;
         case "presence":
-          qc.setQueryData<{ users: Teammate[]; online: number[] }>(chatKeys.users, (d) =>
-            d && { ...d, online: evt.online ? [...new Set([...d.online, evt.userId])] : d.online.filter((id) => id !== evt.userId) },
-          );
+          qc.setQueryData<{ users: Teammate[]; presence: Presence }>(chatKeys.users, (d) => d && { ...d, presence: { ...d.presence, [evt.userId]: evt.status } });
           break;
         case "resync":
           void qc.invalidateQueries({ queryKey: chatKeys.all });

@@ -1,7 +1,7 @@
 import "server-only";
 import { Client } from "pg";
 import { pool } from "@/db";
-import type { ChatEvent } from "./types";
+import type { ChatEvent, PresenceStatus } from "./types";
 
 /**
  * The live part of the chat. Anything that changes a conversation calls `publish`, which goes through Postgres
@@ -27,13 +27,22 @@ type Listener = (evt: ChatEvent | { t: "resync" }) => void;
 
 interface Bus {
   listeners: Map<number, Set<Listener>>;
+  /** People whose portal tab has been in the background for a while. */
+  away: Set<number>;
   client: Client | null;
   connecting: Promise<void> | null;
 }
 
 // one per process, also across dev hot reloads
 const g = globalThis as unknown as { chatBus?: Bus };
-const bus: Bus = (g.chatBus ??= { listeners: new Map(), client: null, connecting: null });
+const bus: Bus = (g.chatBus ??= { listeners: new Map(), away: new Set(), client: null, connecting: null });
+bus.away ??= new Set(); // a bus made before this field existed (dev hot reload)
+
+/** Someone's status as others should see it while connected (set by presence.ts: do not disturb, away, online). */
+let statusOf: (userId: number) => Promise<PresenceStatus> = async () => "online";
+export function setStatusResolver(fn: (userId: number) => Promise<PresenceStatus>) {
+  statusOf = fn;
+}
 
 /** Loads a message whose payload was too big to send inline (set by messages.ts to avoid an import cycle). */
 let loadMessage: ((id: number) => Promise<ChatEvent | null>) | null = null;
@@ -115,7 +124,9 @@ export function subscribe(userId: number, fn: Listener): () => void {
   let set = bus.listeners.get(userId);
   if (!set) {
     bus.listeners.set(userId, (set = new Set()));
-    void publish("all", { t: "presence", userId, online: true });
+    void statusOf(userId)
+      .catch(() => "online" as const)
+      .then((status) => publish("all", { t: "presence", userId, status }));
   }
   set.add(fn);
   let done = false;
@@ -128,7 +139,10 @@ export function subscribe(userId: number, fn: Listener): () => void {
       bus.listeners.delete(userId);
       // a page reload closes the stream for a moment; only say "offline" if they do not come back
       setTimeout(() => {
-        if (!bus.listeners.get(userId)?.size) void publish("all", { t: "presence", userId, online: false });
+        if (!bus.listeners.get(userId)?.size) {
+          bus.away.delete(userId);
+          void publish("all", { t: "presence", userId, status: "offline" });
+        }
       }, 10_000);
     }
   };
@@ -140,6 +154,15 @@ export async function closeBus(): Promise<void> {
   bus.client = null; // stops the reconnect
   await client?.end();
 }
+
+/** Marks someone away (tab in the background) or back. Returns true when it changed. */
+export function setAway(userId: number, away: boolean): boolean {
+  if (away === bus.away.has(userId)) return false;
+  if (away) bus.away.add(userId);
+  else bus.away.delete(userId);
+  return true;
+}
+export const isAway = (userId: number) => bus.away.has(userId);
 
 /** People with the portal open in this process right now. */
 export function onlineUserIds(): number[] {

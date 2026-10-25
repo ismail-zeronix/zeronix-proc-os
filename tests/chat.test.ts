@@ -413,6 +413,145 @@ describe.skipIf(!live)("mention cards (needs the dev database)", () => {
   });
 });
 
+describe.skipIf(!live)("status, mute, card buttons and search (needs the dev database)", () => {
+  let db: typeof import("@/db").db;
+  let schema: typeof import("@/db").schema;
+  let inArray: typeof import("drizzle-orm").inArray;
+  let eq: typeof import("drizzle-orm").eq;
+  let A: typeof import("@/app/(app)/chat/actions");
+  let T: typeof import("@/app/(app)/tasks/actions");
+  let C: typeof import("@/lib/chat/channels");
+  let K: typeof import("@/lib/chat/cards");
+  let M: typeof import("@/lib/chat/messages");
+  let P: typeof import("@/lib/chat/presence");
+  let F: typeof import("@/lib/chat/search");
+  let bus: typeof import("@/lib/chat/bus");
+  let session: typeof import("@/lib/auth/session");
+  let ali: number, bina: number, carl: number, companyId: number, dealId: number;
+  let userIds: number[] = [];
+  const tag = `ZZCHAT4${Date.now()}`;
+
+  const as = async (id: number) => {
+    cookieValue = await new SignJWT({ name: `${tag}-${id}`, email: `${tag}-${id}@example.test`, role: "sales" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setSubject(String(id))
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  };
+  const cardFor = async (id: number, ref: string) => {
+    await as(id);
+    return (await K.resolveCards((await session.loadAccess())!, [ref]))[0];
+  };
+
+  beforeAll(async () => {
+    ({ db, schema } = await import("@/db"));
+    ({ inArray, eq } = await import("drizzle-orm"));
+    A = await import("@/app/(app)/chat/actions");
+    T = await import("@/app/(app)/tasks/actions");
+    C = await import("@/lib/chat/channels");
+    K = await import("@/lib/chat/cards");
+    M = await import("@/lib/chat/messages");
+    P = await import("@/lib/chat/presence");
+    F = await import("@/lib/chat/search");
+    bus = await import("@/lib/chat/bus");
+    session = await import("@/lib/auth/session");
+    const mk = async (name: string) =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x" }).returning({ id: schema.users.id }))[0].id;
+    ali = await mk("ali");
+    bina = await mk("bina");
+    carl = await mk("carl");
+    userIds = [ali, bina, carl];
+    const { dubaiToday } = await import("@/lib/dates");
+    await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: dubaiToday() })));
+    companyId = (await db.insert(schema.companies).values({ name: `${tag} Co`, nameNorm: `${tag}co`.toLowerCase(), ownerId: ali }).returning({ id: schema.companies.id }))[0].id;
+    dealId = (await db.insert(schema.deals).values({ title: `${tag} switches`, companyId, ownerId: ali }).returning({ id: schema.deals.id }))[0].id;
+    await db.insert(schema.dealAssignees).values({ dealId, userId: ali, position: 0 });
+  });
+
+  afterAll(async () => {
+    const ch = await db.select({ id: schema.chatMembers.channelId }).from(schema.chatMembers).where(inArray(schema.chatMembers.userId, userIds));
+    if (ch.length) await db.delete(schema.chatChannels).where(inArray(schema.chatChannels.id, [...new Set(ch.map((c) => c.id))]));
+    await db.delete(schema.chatPrefs).where(inArray(schema.chatPrefs.userId, userIds));
+    await db.delete(schema.tasks).where(inArray(schema.tasks.createdBy, userIds));
+    await db.delete(schema.companies).where(eq(schema.companies.id, companyId));
+    await db.delete(schema.attendancePunches).where(inArray(schema.attendancePunches.userId, userIds));
+    await db.delete(schema.users).where(inArray(schema.users.id, userIds));
+  });
+
+  it("shows people online, away or on do not disturb, and ends a timed do-not-disturb by itself", async () => {
+    const off = bus.subscribe(ali, () => {});
+    try {
+      expect((await P.presenceMap())[ali]).toBe("online");
+      await P.reportAway(ali, true);
+      expect((await P.presenceMap())[ali]).toBe("away");
+      await as(ali);
+      const prefs = await A.setChatPrefs({ status: "dnd", dndMinutes: 60 });
+      expect(prefs.status).toBe("dnd");
+      expect(Date.parse(prefs.dndUntil!)).toBeGreaterThan(Date.now() + 59 * 60_000);
+      expect((await P.presenceMap())[ali]).toBe("dnd");
+      await A.setChatPrefs({ sound: false });
+      expect(await P.prefsOf(ali)).toMatchObject({ status: "dnd", sound: false, desktop: true });
+      // a do-not-disturb whose time has passed reads as back to normal
+      await db.update(schema.chatPrefs).set({ dndUntil: new Date(Date.now() - 1000) }).where(eq(schema.chatPrefs.userId, ali));
+      expect((await P.prefsOf(ali)).status).toBe("auto");
+      await P.reportAway(ali, false);
+      expect((await P.presenceMap())[ali]).toBe("online");
+    } finally {
+      off();
+    }
+    expect((await P.presenceMap())[carl]).toBeUndefined();
+  });
+
+  it("mutes and unmutes a conversation for one person only", async () => {
+    await as(ali);
+    const dm = await A.startDm(bina);
+    await A.setChannelMute(dm, 60);
+    expect((await C.listChannelsFor(ali)).find((c) => c.id === dm)?.muted).toBe(true);
+    expect((await C.listChannelsFor(bina)).find((c) => c.id === dm)?.muted).toBe(false);
+    await A.setChannelMute(dm, 0);
+    expect((await C.listChannelsFor(ali)).find((c) => c.id === dm)?.muted).toBe(false);
+  });
+
+  it("runs card buttons with the record's own rules and notes it in the conversation", async () => {
+    await as(ali);
+    await T.createTask({ title: `${tag} send the datasheet`, notes: "" });
+    const [task] = await db.select({ id: schema.tasks.id }).from(schema.tasks).where(eq(schema.tasks.createdBy, ali));
+    const ref = `task:${task.id}`;
+    expect((await cardFor(ali, ref)).actions).toEqual([{ key: "done", label: "Mark done" }]);
+    // someone who cannot change the task gets no button, and the action refuses them
+    expect((await cardFor(bina, ref)).restricted).toBe(true);
+    await as(bina);
+    await expect(A.runCardAction(ref, "done")).rejects.toThrow();
+
+    await as(ali);
+    const dm = await A.startDm(bina);
+    const after = await A.runCardAction(ref, "done", dm);
+    expect(after).toMatchObject({ status: { label: "Done" }, actions: [{ key: "reopen", label: "Reopen" }] });
+    const lines = (await M.loadMessages(dm)).messages;
+    expect(lines.at(-1)).toMatchObject({ kind: "system", userId: null });
+    expect(lines.at(-1)?.body).toContain("marked the task done");
+
+    // a follow-up from a deal card is a task for tomorrow on that deal
+    await A.runCardAction(`deal:${dealId}`, "followup");
+    const [follow] = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, dealId));
+    expect(follow).toMatchObject({ title: `Follow up: ${tag} switches`, relatedType: "deal", assignedTo: ali });
+    await expect(A.runCardAction(ref, "explode")).rejects.toThrow(/does not work/);
+  });
+
+  it("searches only the conversations you are in, taking % literally", async () => {
+    await as(ali);
+    const g = await A.createGroup({ name: `${tag}-private`, memberIds: [bina], isPrivate: true });
+    await A.sendMessage({ channelId: g, body: `${tag} margin is 15% on the HP order` });
+    const hits = await F.searchMessages(bina, `${tag} margin`);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ channelId: g, channelName: `#${tag}-private` });
+    expect(await F.searchMessages(carl, `${tag} margin`)).toHaveLength(0);
+    expect(await F.searchMessages(bina, "15% on")).toHaveLength(1);
+    expect(await F.searchMessages(bina, `${tag}%HP`)).toHaveLength(0);
+  });
+});
+
 // both groups share the pool and the LISTEN connection; close them once at the very end
 afterAll(async () => {
   if (!live) return;

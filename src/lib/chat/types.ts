@@ -96,6 +96,8 @@ export interface CardView {
   people?: ChatUser[];
   /** For a chat-message card: the conversation to open. */
   channelId?: number;
+  /** Buttons the viewer may use on it (e.g. "Mark done"); they run the same rules as the record's own page. */
+  actions?: { key: string; label: string }[];
 }
 
 /** A public group someone can join. */
@@ -116,4 +118,17 @@ export type ChatEvent =
   | { t: "typing"; channelId: number; userId: number; name: string }
   /** Renamed, archived, or people joined or left: re-read the list. */
   | { t: "channel.update"; channelId: number }
-  | { t: "presence"; userId: number; online: boolean };
+  | { t: "presence"; userId: number; status: PresenceStatus }
+  /** A record changed (e.g. from a card button): cards showing it re-read it. */
+  | { t: "card.refresh"; ref: string };
+
+/** online = the portal is open; away = its tab has been in the background a while; dnd = do not disturb. */
+export type PresenceStatus = "online" | "away" | "dnd" | "offline";
+
+/** My chat settings. */
+export interface ChatPrefsView {
+  status: "auto" | "away" | "dnd";
+  dndUntil: string | null;
+  sound: boolean;
+  desktop: boolean;
+}

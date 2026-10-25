@@ -1,8 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, FileText, Handshake, ListChecks, Lock, MessageCircle, Package, Receipt, SquareArrowOutUpRight, Truck } from "lucide-react";
 import Link from "next/link";
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { runCardAction } from "@/app/(app)/chat/actions";
+import { Button } from "@/components/ui/button";
 import { AvatarStack } from "@/components/user-avatar";
 import type { CardTone, CardView } from "@/lib/chat/types";
 import { useChatStore } from "./chat-store";
@@ -57,8 +61,30 @@ const TONE: Record<CardTone, string> = {
  * A record (deal, quote, order, invoice, company, product, task, or a chat message) as a small live card: what it is,
  * where it stands, the money and the people, and a button to open it. People who may not see it get a locked card.
  */
-export function RecordCard({ cardRef, from }: { cardRef: string; /** who sent it, for "ask … for access" */ from?: string | null }) {
+export function RecordCard({
+  cardRef,
+  from,
+  channelId,
+}: {
+  cardRef: string;
+  /** who sent it, for "ask … for access" */
+  from?: string | null;
+  /** the conversation the card is in, where a button writes what it did */
+  channelId?: number;
+}) {
   const show = useChatStore((s) => s.show);
+  const qc = useQueryClient();
+  const [pending, start] = useTransition();
+  const act = (key: string, label: string) =>
+    start(async () => {
+      try {
+        const next = await runCardAction(cardRef, key, channelId);
+        qc.setQueryData(cardKey(cardRef), next);
+        toast.success(`${label} ✓`);
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    });
   const q = useQuery({ queryKey: cardKey(cardRef), queryFn: () => loadCard(cardRef), staleTime: 60_000 });
   const type = cardRef.split(":")[0];
   const Icon = ICON[type] ?? FileText;
@@ -128,7 +154,20 @@ export function RecordCard({ cardRef, from }: { cardRef: string; /** who sent it
           )}
         </div>
       )}
-      {open && <div className="text-xs">{open}</div>}
+      {(open || c.actions?.length) && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {open}
+          {!!c.actions?.length && (
+            <span className="ml-auto flex gap-1">
+              {c.actions.map((a) => (
+                <Button key={a.key} size="xs" variant="outline" pending={pending} onClick={() => act(a.key, a.label)}>
+                  {a.label}
+                </Button>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

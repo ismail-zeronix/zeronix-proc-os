@@ -83,6 +83,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           amount: d.valueAed != null ? aed(d.valueAed) : undefined,
           facts: [`${TEMPERATURE_LABEL[temp]} lead`],
           people,
+          actions: a.apps.includes("tasks") && a.apps.includes("sales") ? [{ key: "followup", label: "Follow-up task" }] : [],
         };
       }
       case "quote": {
@@ -104,6 +105,16 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           status: { label: quoteStatusLabel(q.status), tone: QUOTE_TONE[q.status] ?? "slate" },
           amount: aed(q.total),
           facts: q.validUntil && (q.status === "draft" || q.status === "sent") ? [`Valid until ${dayLabel(q.validUntil, today)}`] : [],
+          actions: !a.apps.includes("sales")
+            ? []
+            : q.status === "draft"
+              ? [{ key: "sent", label: "Mark sent" }]
+              : q.status === "sent"
+                ? [
+                    { key: "accepted", label: "Accepted" },
+                    { key: "rejected", label: "Rejected" },
+                  ]
+                : [],
         };
       }
       case "order": {
@@ -124,6 +135,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           status: { label: orderStatusLabel(o.status), tone: ORDER_TONE[o.status] ?? "blue" },
           amount: aed(o.total),
           facts: o.dn ? [`Delivery note ${o.dn}`] : [],
+          actions: a.apps.includes("sales") && o.status === "open" ? [{ key: "delivered", label: "Mark delivered today" }] : [],
         };
       }
       case "invoice": {
@@ -218,6 +230,11 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           status: done ? { label: "Done", tone: "green" } : overdue ? { label: "Overdue", tone: "red" } : { label: t.priority === "high" ? "Open · high" : "Open", tone: t.priority === "high" ? "amber" : "blue" },
           facts: t.dueDate ? [`Due ${dayLabel(t.dueDate, today)}`] : [],
           people: [{ id: t.assignedTo, name: t.assignee }],
+          // only the people who may change the task (as on the Tasks page)
+          actions:
+            a.apps.includes("tasks") && (a.user.role === "admin" || t.assignedTo === a.user.id || t.createdBy === a.user.id)
+              ? [done ? { key: "reopen", label: "Reopen" } : { key: "done", label: "Mark done" }]
+              : [],
         };
       }
       case "chat": {

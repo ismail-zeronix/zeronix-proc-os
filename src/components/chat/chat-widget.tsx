@@ -1,19 +1,21 @@
 "use client";
 
-import { AtSign, Handshake, Info, MessageCircle, SquareArrowOutUpRight, SquarePen, X } from "lucide-react";
+import { AtSign, Handshake, Info, Maximize2, MessageCircle, SquareArrowOutUpRight, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useSyncExternalStore } from "react";
+import { useContext, useEffect, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import type { ChannelSummary } from "@/lib/chat/types";
 import { dubaiToday, TZ } from "@/lib/dates";
-import { useChannels, useChatStream, useTeammates } from "./chat-data";
+import { useChannels, useChatStream, useTeammates, type Presence } from "./chat-data";
 import { useChatStore, type ChatTab } from "./chat-store";
 import { ChannelInfo } from "./channel-info";
 import { Conversation } from "./conversation";
 import type { Me } from "./message-row";
 import { NewChat } from "./new-chat";
-import { ChannelAvatar, PanelHeader } from "./panel-bits";
+import { ChannelAvatar, ChatSurface, PanelHeader, STATUS_LABEL } from "./panel-bits";
+import { useAwayReporter, useMyPrefs } from "./alerts";
+import { MuteMenu, StatusMenu } from "./chat-menus";
 
 const noop = () => () => {};
 
@@ -30,6 +32,8 @@ export function ChatWidget({ me }: { me: Me }) {
   // persisted state is read from localStorage after the first render; wait so server and browser agree
   const ready = useSyncExternalStore(noop, () => true, () => false);
   useChatStream(me.id);
+  useMyPrefs();
+  useAwayReporter();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,14 +85,22 @@ export function ChatWidget({ me }: { me: Me }) {
 
 function Panel({ me, channels, loading, fetching, error }: { me: Me; channels: ChannelSummary[]; loading: boolean; fetching: boolean; error: Error | null }) {
   const view = useChatStore((s) => s.view);
+  const teammates = useTeammates();
+  if (view.kind === "list") return <ChannelList me={me} channels={channels} loading={loading} error={error} presence={teammates.data?.presence ?? {}} />;
+  return <ChatDetail me={me} channels={channels} loading={loading} fetching={fetching} />;
+}
+
+/** Whatever is open that is not the list: a conversation, "New", channel details. Shared by the widget and the /chat page. */
+export function ChatDetail({ me, channels, loading, fetching }: { me: Me; channels: ChannelSummary[]; loading: boolean; fetching: boolean }) {
+  const view = useChatStore((s) => s.view);
   const show = useChatStore((s) => s.show);
   const teammates = useTeammates();
-  const online = new Set(teammates.data?.online ?? []);
+  const presence = teammates.data?.presence ?? {};
   const id = view.kind === "channel" || view.kind === "info" ? view.id : null;
   const channel = id != null ? channels.find((c) => c.id === id) : undefined;
   const back = () => show({ kind: "list" });
 
-  if (view.kind === "new") return <NewChat online={online} teammates={teammates.data?.users ?? []} loadingPeople={teammates.isPending} />;
+  if (view.kind === "new") return <NewChat presence={presence} teammates={teammates.data?.users ?? []} loadingPeople={teammates.isPending} />;
 
   // the list is still loading or refreshing (a chat just started shows up a moment later), or the conversation is gone
   if (id != null && !channel) {
@@ -100,26 +112,25 @@ function Panel({ me, channels, loading, fetching, error }: { me: Me; channels: C
     );
   }
 
-  if (view.kind === "info" && channel) return <ChannelInfo channel={channel} me={me} online={online} teammates={teammates.data?.users ?? []} />;
+  if (view.kind === "info" && channel) return <ChannelInfo channel={channel} me={me} presence={presence} teammates={teammates.data?.users ?? []} />;
 
   if (view.kind === "channel" && channel) {
-    const peerOnline = !!channel.peer && online.has(channel.peer.id);
+    const peerStatus = (channel.peer && presence[channel.peer.id]) || "offline";
     return (
       <>
         <PanelHeader onBack={back}>
-          <ChannelAvatar channel={channel} online={online} size={28} />
+          <ChannelAvatar channel={channel} presence={presence} size={28} />
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-sm font-medium">{channel.name}</p>
             <p className="truncate text-[11px] text-muted-foreground">
               {channel.kind === "dm"
-                ? peerOnline
-                  ? "Online"
-                  : "Offline"
+                ? STATUS_LABEL[peerStatus]
                 : channel.kind === "record"
                   ? channel.record?.subtitle || "Deal thread"
                   : channel.topic || `${channel.members.length} ${channel.members.length === 1 ? "person" : "people"}`}
             </p>
           </div>
+          {channel.kind !== "system" && <MuteMenu channel={channel} />}
           {channel.kind === "record" && channel.record && (
             <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={channel.record.href} />} aria-label="Open the deal" title="Open the deal">
               <SquareArrowOutUpRight />
@@ -136,11 +147,34 @@ function Panel({ me, channels, loading, fetching, error }: { me: Me; channels: C
     );
   }
 
-  return <ChannelList me={me} channels={channels} loading={loading} error={error} online={online} />;
+  return null;
 }
 
-function ChannelList({ me, channels, loading, error, online }: { me: Me; channels: ChannelSummary[]; loading: boolean; error: Error | null; online: Set<number> }) {
+/** The conversation list with its tabs. In the widget the Activity tab shows the feed in place; on the page it is a row like the others. */
+export function ChannelList({
+  me,
+  channels,
+  loading,
+  error,
+  presence,
+  inlineActivity = true,
+  belowHeader,
+  body,
+}: {
+  me: Me;
+  channels: ChannelSummary[];
+  loading: boolean;
+  error: Error | null;
+  presence: Presence;
+  inlineActivity?: boolean;
+  /** Shown under the tabs (the page's search box). */
+  belowHeader?: React.ReactNode;
+  /** Replaces the rows (search results). */
+  body?: React.ReactNode;
+}) {
   const show = useChatStore((s) => s.show);
+  const surface = useContext(ChatSurface);
+  const setOpen = useChatStore((s) => s.setOpen);
   const tab = useChatStore((s) => s.tab);
   const setTab = useChatStore((s) => s.setTab);
   const inTab = (t: ChatTab) => channels.filter((c) => (t === "activity" ? c.kind === "system" : t === "threads" ? c.kind === "record" : c.kind === "dm" || c.kind === "group"));
@@ -175,11 +209,27 @@ function ChannelList({ me, channels, loading, error, online }: { me: Me; channel
             );
           })}
         </div>
+        <StatusMenu me={me} />
+        {surface === "widget" && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            nativeButton={false}
+            render={<Link href="/chat" onClick={() => setOpen(false)} />}
+            aria-label="Open the full chat page"
+            title="Open the full chat page"
+          >
+            <Maximize2 />
+          </Button>
+        )}
         <Button variant="ghost" size="icon-sm" onClick={() => show({ kind: "new" })} aria-label="New message or channel" title="New message or channel">
           <SquarePen />
         </Button>
       </PanelHeader>
-      {tab === "activity" ? (
+      {belowHeader}
+      {body ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+      ) : tab === "activity" && inlineActivity ? (
         shown[0] ? (
           <Conversation key={shown[0].id} channel={shown[0]} me={me} />
         ) : (
@@ -215,7 +265,7 @@ function ChannelList({ me, channels, loading, error, online }: { me: Me; channel
                   onClick={() => show({ kind: "channel", id: c.id })}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
                 >
-                  <ChannelAvatar channel={c} online={online} size={34} />
+                  <ChannelAvatar channel={c} presence={presence} size={34} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className={`flex-1 truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>

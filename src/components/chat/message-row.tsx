@@ -138,7 +138,7 @@ export function MessageRow({
                 />
               )}
             </div>
-            {!deleted && m.kind === "text" && <LinkedCards body={m.body} from={m.userName} mine={mine} />}
+            {!deleted && m.kind === "text" && <LinkedCards body={m.body} from={m.userName} mine={mine} channelId={m.channelId} />}
             {m.reactions.length > 0 && (
               <div className={`mt-0.5 flex flex-wrap gap-1 ${mine ? "justify-end" : ""}`}>
                 {m.reactions.map((r) => {
@@ -308,13 +308,13 @@ function EditBox({ m, onDone }: { m: ChatMessage; onDone: () => void }) {
 }
 
 /** Cards for the records a message links with "#" (up to three). */
-function LinkedCards({ body, from, mine }: { body: string; from: string | null; mine: boolean }) {
+function LinkedCards({ body, from, mine, channelId }: { body: string; from: string | null; mine: boolean; channelId: number }) {
   const refs = parseRecordRefs(body).slice(0, 3);
   if (!refs.length) return null;
   return (
     <div className={`mt-1 grid w-full gap-1 ${mine ? "justify-items-end" : ""}`}>
       {refs.map((r) => (
-        <RecordCard key={r} cardRef={r} from={from} />
+        <RecordCard key={r} cardRef={r} from={from} channelId={channelId} />
       ))}
     </div>
   );
@@ -336,7 +336,7 @@ function CardMessage({ m, me }: { m: ChatMessage; me: Me }) {
             <MessageText body={m.body} me={me.id} />
           </div>
         )}
-        <RecordCard cardRef={`${card.type}:${card.id}`} from={m.userName} />
+        <RecordCard cardRef={`${card.type}:${card.id}`} from={m.userName} channelId={m.channelId} />
       </div>
     </div>
   );

@@ -2,9 +2,14 @@
 
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { markDelivered } from "@/app/(app)/sales/order-actions";
+import { setQuoteStatus } from "@/app/(app)/sales/quote-actions";
+import { createTask, setTaskDone } from "@/app/(app)/tasks/actions";
 import { db, schema } from "@/db";
 import { assertDeal } from "@/lib/auth/visibility";
 import { assertChat } from "@/lib/chat/access";
+import { publish } from "@/lib/chat/bus";
+import { parseRef, resolveCards } from "@/lib/chat/cards";
 import {
   addMembers as addToChannel,
   channelSummary,
@@ -19,8 +24,11 @@ import {
 } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
 import { channelOf, deleteMessage as removeMessage, editMessage as saveEdit, markRead, postMessage, toggleReaction as toggle } from "@/lib/chat/messages";
+import { savePrefs } from "@/lib/chat/presence";
 import { MAX_BODY } from "@/lib/chat/text";
-import type { ChannelSummary, ChatMessage, Reaction } from "@/lib/chat/types";
+import type { CardView, ChannelSummary, ChatMessage, ChatPrefsView, Reaction } from "@/lib/chat/types";
+import { dubaiToday } from "@/lib/dates";
+import { quoteStatusLabel } from "@/lib/quotation";
 
 const id = z.number().int().positive();
 const body = z.string().trim().min(1, "Write a message first.").max(MAX_BODY, `Keep a message under ${MAX_BODY} characters.`);
@@ -163,4 +171,75 @@ export async function leaveGroup(channelId: number): Promise<void> {
   const ch = await openChannel(id.parse(channelId), access);
   if (ch.kind !== "group") throw new Error("You can only leave a channel.");
   await removeMember(channelId, access.user.id);
+}
+
+// ---------- settings, mute, card buttons ----------
+
+const prefsSchema = z.object({
+  status: z.enum(["auto", "away", "dnd"]).optional(),
+  /** Minutes of do not disturb; null = until I turn it off. */
+  dndMinutes: z.number().int().min(1).max(7 * 24 * 60).nullish(),
+  sound: z.boolean().optional(),
+  desktop: z.boolean().optional(),
+});
+
+/** My status (online, away, do not disturb for a while) and alert settings. */
+export async function setChatPrefs(input: z.input<typeof prefsSchema>): Promise<ChatPrefsView> {
+  const { user } = await assertChat();
+  const { dndMinutes, ...p } = prefsSchema.parse(input);
+  const patch: Parameters<typeof savePrefs>[1] = { ...p };
+  if (p.status) patch.dndUntil = p.status === "dnd" && dndMinutes ? new Date(Date.now() + dndMinutes * 60_000) : null;
+  return savePrefs(user.id, patch);
+}
+
+/** Mutes a conversation for some minutes, for good (null), or unmutes it (0): no sound or alert, a grey unread count. */
+export async function setChannelMute(channelId: number, minutes: number | null): Promise<void> {
+  const access = await assertChat();
+  await openChannel(id.parse(channelId), access);
+  const until = minutes === 0 ? null : minutes == null ? new Date("2100-01-01T00:00:00Z") : new Date(Date.now() + z.number().int().min(1).max(525_600).parse(minutes) * 60_000);
+  await db
+    .update(schema.chatMembers)
+    .set({ mutedUntil: until })
+    .where(and(eq(schema.chatMembers.channelId, channelId), eq(schema.chatMembers.userId, access.user.id)));
+  await publish([access.user.id], { t: "channel.update", channelId });
+}
+
+/**
+ * A button on a card: runs the record's own action (so its rules apply), writes a short line in the conversation the
+ * card was in, and tells every open card to re-read the record. Returns the card as it is now.
+ */
+export async function runCardAction(ref: string, action: string, channelId?: number | null): Promise<CardView | null> {
+  const access = await assertChat();
+  const r = parseRef(ref);
+  if (!r) throw new Error("Unknown card.");
+  let line = "";
+  if (r.type === "task" && (action === "done" || action === "reopen")) {
+    await setTaskDone(r.id, action === "done");
+    const [t] = await db.select({ title: schema.tasks.title }).from(schema.tasks).where(eq(schema.tasks.id, r.id));
+    line = `${access.user.name} ${action === "done" ? "marked the task done" : "reopened the task"}: ${t?.title ?? ""}`;
+  } else if (r.type === "quote" && ["sent", "accepted", "rejected"].includes(action)) {
+    await setQuoteStatus(r.id, action);
+    const [q] = await db.select({ number: schema.quotes.number }).from(schema.quotes).where(eq(schema.quotes.id, r.id));
+    line = `${access.user.name} marked quote ${q?.number ?? ""} as ${quoteStatusLabel(action)}`;
+  } else if (r.type === "order" && action === "delivered") {
+    await markDelivered(r.id, { deliveredOn: dubaiToday() });
+    const [o] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.id, r.id));
+    line = `${access.user.name} marked order ${o?.number ?? ""} as delivered`;
+  } else if (r.type === "deal" && action === "followup") {
+    const [d] = await db.select({ title: schema.deals.title }).from(schema.deals).where(eq(schema.deals.id, r.id));
+    if (!d) throw new Error("That deal no longer exists.");
+    const tomorrow = dubaiToday(new Date(Date.now() + 86_400_000));
+    await createTask({ title: `Follow up: ${d.title}`.slice(0, 200), dueDate: tomorrow, related: { type: "deal", id: r.id } });
+    line = `${access.user.name} booked a follow-up for tomorrow`;
+  } else {
+    throw new Error("That button does not work on this card.");
+  }
+  // the line goes where the card was (not into an Activity feed, which is only its owner's)
+  if (channelId) {
+    const ch = await openChannel(id.parse(channelId), access).catch(() => null);
+    if (ch && ch.kind !== "system" && !ch.archived) await postMessage({ channelId, userId: null, kind: "system", body: line });
+  }
+  await publish("all", { t: "card.refresh", ref });
+  const [card] = await resolveCards(access, [ref]);
+  return card ?? null;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Building2, FileText, Handshake, LayoutGrid, Search, User } from "lucide-react";
+import { Building2, FileText, Handshake, LayoutGrid, MessageCircle, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
   const hasSales = apps.includes("sales");
   const pages = [
     { href: "/", label: "Home", icon: LayoutGrid, group: "Zeronix" },
+    { href: "/chat", label: "Chat", icon: MessageCircle, group: "Zeronix" },
     ...searchPages(apps).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
   ];
   const groups = [...new Set(pages.map((p) => p.group))];

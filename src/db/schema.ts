@@ -989,6 +989,8 @@ export const chatMessages = pgTable(
     index("chat_messages_channel_idx").on(t.channelId, t.id),
     index("chat_messages_thread_idx").on(t.threadId),
     index("chat_messages_mentions_idx").using("gin", t.mentions),
+    // message search (pg_trgm is switched on by scripts/migrate.ts)
+    index("chat_messages_body_trgm_idx").using("gin", t.body.op("gin_trgm_ops")),
   ],
 );
 
