@@ -362,3 +362,13 @@ export const salesPulse = cache(async (userId: number, seesAll: boolean) => {
     scope: seesAll ? "whole team" : "your deals",
   };
 });
+
+/** Active people who use Sales: who a quote can be in the name of. */
+export async function salesPeople() {
+  const rows = await db
+    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, apps: schema.users.apps })
+    .from(schema.users)
+    .where(eq(schema.users.isActive, true))
+    .orderBy(asc(schema.users.name));
+  return rows.filter((u) => allowedApps(u).includes("sales")).map((u) => ({ id: u.id, name: u.name }));
+}

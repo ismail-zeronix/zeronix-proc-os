@@ -66,7 +66,7 @@ describe("Sales became CRM, money moved to Accounts", () => {
   });
 
   it("keeps CRM to deals, companies and contacts", () => {
-    expect(navFor("crm").flatMap((g) => g.items.map((i) => i.label))).toEqual(["Overview", "Deals", "Companies", "Contacts"]);
+    expect(navFor("crm").flatMap((g) => g.items.map((i) => i.label))).toEqual(["Overview", "Leads", "Deals", "Companies", "Contacts"]);
   });
 });
 
@@ -208,5 +208,45 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
     await Q.addItem(d2, { description: "Toner", qty: 1, unitPriceAed: 100 });
     const q = await Q.createQuote(d2, { vatPct: 5 });
     await expect(O.convertQuoteToOrder(q.id, { termsDays: 30 })).rejects.toThrow(/15 digits/);
+  });
+
+  it("makes an instant quote for a customer with no deal, private to its salesperson and whoever typed it", async () => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Instant LLC`, emirate: "Dubai", contactName: "Huda", requirement: "first deal" });
+    const [d] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const base = { companyId: d.companyId, validUntil: "2099-12-31", termsDays: 15, vatPct: 0, lines: [{ description: "Toner", qty: 3, costAed: 80, unitPriceAed: 100 }], terms: "Prices in AED.", notes: "repeat order" };
+    // typed by the seller, in the colleague's name, with no deal
+    const q = await Q.saveQuote(null, { ...base, ownerId: colleague });
+    const [row] = await db.select().from(schema.quotes).where(D.eq(schema.quotes.id, q.id));
+    expect(row).toMatchObject({ dealId: null, companyId: d.companyId, ownerId: colleague, createdBy: seller, termsDays: 15, vatPct: 0, subtotal: 300, vatAmount: 0, total: 300, costTotal: 240, status: "draft" });
+    const QD = await import("@/lib/quotes-data");
+    expect((await QD.listQuotes({ id: colleague, seesAll: false })).some((x) => x.id === q.id)).toBe(true);
+    expect((await QD.listQuotes({ id: seller, seesAll: false })).some((x) => x.id === q.id)).toBe(true);
+    expect((await QD.listQuotes({ id: accountant, seesAll: false })).some((x) => x.id === q.id)).toBe(false);
+    // edit it (same number), then turn it into an order: no deal involved
+    const e = await Q.saveQuote(q.id, { ...base, ownerId: colleague, lines: [{ description: "Toner", qty: 4, costAed: 80, unitPriceAed: 100 }] });
+    expect(e.number).toBe(q.number);
+    const o = await O.convertQuoteToOrder(q.id, { termsDays: 15 });
+    const [order] = await db.select().from(schema.salesOrders).where(D.eq(schema.salesOrders.id, o.id));
+    expect(order).toMatchObject({ dealId: null, companyId: d.companyId, subtotal: 400, total: 400 });
+    const OD = await import("@/lib/orders-data");
+    expect((await OD.listOrders({ id: colleague, seesAll: false })).some((x) => x.id === o.id)).toBe(true);
+    // the first deal is untouched by the instant quote
+    const [deal] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    expect(deal.stage).toBe("new");
+  });
+
+  it("links a quote to a lead's deal and keeps one quote in play", async () => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Lead LLC`, emirate: "Dubai", contactName: "Faris", requirement: "switch" });
+    const { id: otherDeal } = await S.createDeal({ companyName: `${tag} Other LLC`, emirate: "Dubai", contactName: "Omar", requirement: "x" });
+    const [d] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const base = { companyId: d.companyId, ownerId: seller, validUntil: "2099-12-31", termsDays: 30, vatPct: 5, lines: [{ description: "Switch", qty: 1, unitPriceAed: 1000 }] };
+    await expect(Q.saveQuote(null, { ...base, dealId: otherDeal })).rejects.toThrow(/another customer/);
+    await Q.saveQuote(null, { ...base, dealId });
+    const [deal] = await db.select({ valueAed: schema.deals.valueAed }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    expect(deal.valueAed).toBe(1000);
+    await expect(Q.saveQuote(null, { ...base, dealId })).rejects.toThrow(/already open/);
+    await expect(Q.saveQuote(null, { ...base, lines: [{ description: "Free", qty: 1, unitPriceAed: 0 }] })).rejects.toThrow(/selling price/);
   });
 });

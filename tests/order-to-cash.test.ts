@@ -239,4 +239,21 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     expect(deal.stage).toBe("negotiation");
     await expect(O.markDelivered(o.id, { deliveredOn: today })).rejects.toThrow(/cancelled/);
   });
+
+  it("invoices an order from an instant quote (no deal), with the collection task for the quote's salesperson", async () => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Walkin LLC`, emirate: "Dubai", contactName: "Sara", requirement: "-" });
+    const [d] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
+    const q = await Q.saveQuote(null, { companyId: d.companyId, ownerId: seller, validUntil: "2099-12-31", termsDays: 7, vatPct: 5, lines: [{ description: "Mouse", qty: 10, unitPriceAed: 50 }] });
+    const o = await O.convertQuoteToOrder(q.id, { termsDays: 7 });
+    await O.markDelivered(o.id, { deliveredOn: today, receivedBy: "Front desk" });
+    await as(accountant);
+    const inv = await A.issueInvoice(o.id, { issueDate: today, termsDays: 7 });
+    const [row] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, inv.id));
+    expect(row).toMatchObject({ dealId: null, orderId: o.id, subtotal: 500, vatAmount: 25, total: 525 });
+    const [task] = await db.select().from(schema.tasks).where(like(schema.tasks.title, `%${inv.number}%`));
+    expect(task).toMatchObject({ assignedTo: seller, relatedType: null });
+    await A.recordPayment(inv.id, { paidOn: today, amount: 525, method: "cash" });
+    expect((await AD.getInvoice(inv.id))!.state.key).toBe("paid");
+  });
 });

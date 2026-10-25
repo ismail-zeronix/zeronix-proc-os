@@ -194,10 +194,11 @@ async function salesReport(from: string, to: string, period: string): Promise<Re
         (sum(i.subtotal) - coalesce(sum(c.subtotal), 0))::float net
       FROM invoices i LEFT JOIN credit_notes c ON c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to}
       WHERE i.kind = 'sale' AND i.issue_date BETWEEN ${from} AND ${to} GROUP BY i.company_id, i.customer_name ORDER BY net DESC`),
-    rows<{ name: string; invoices: number; net: number }>(sql`SELECT coalesce(u.name, 'No owner') name, count(*) FILTER (WHERE i.status <> 'cancelled')::int invoices,
+    rows<{ name: string; invoices: number; net: number }>(sql`SELECT coalesce(u.name, 'No salesperson') name, count(*) FILTER (WHERE i.status <> 'cancelled')::int invoices,
         (sum(i.subtotal) - coalesce(sum(c.subtotal), 0))::float net
       FROM invoices i LEFT JOIN credit_notes c ON c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to}
-      LEFT JOIN deals d ON d.id = i.deal_id LEFT JOIN users u ON u.id = d.owner_id
+      LEFT JOIN deals d ON d.id = i.deal_id LEFT JOIN sales_orders so ON so.id = i.order_id LEFT JOIN quotes sq ON sq.id = so.quote_id
+      LEFT JOIN users u ON u.id = coalesce(d.owner_id, sq.owner_id)
       WHERE i.kind = 'sale' AND i.issue_date BETWEEN ${from} AND ${to} GROUP BY 1 ORDER BY net DESC`),
     salesByMonth(from, to),
   ]);
@@ -215,7 +216,7 @@ async function salesReport(from: string, to: string, period: string): Promise<Re
     ],
     tables: [
       { title: "By customer", columns: [{ label: "Customer" }, { label: "Invoices", kind: "int" }, { label: "Net sales", kind: "money" }, { label: "Share", kind: "pct" }], rows: live.map((c) => [c.name, c.invoices, n(c.net), pct(n(c.net), total)]), total: ["Total", null, total, total ? 100 : null] },
-      { title: "By salesperson (deal owner)", columns: [{ label: "Salesperson" }, { label: "Invoices", kind: "int" }, { label: "Net sales", kind: "money" }, { label: "Share", kind: "pct" }], rows: byOwner.map((c) => [c.name, c.invoices, n(c.net), pct(n(c.net), total)]), total: ["Total", null, total, total ? 100 : null] },
+      { title: "By salesperson", columns: [{ label: "Salesperson" }, { label: "Invoices", kind: "int" }, { label: "Net sales", kind: "money" }, { label: "Share", kind: "pct" }], rows: byOwner.map((c) => [c.name, c.invoices, n(c.net), pct(n(c.net), total)]), total: ["Total", null, total, total ? 100 : null] },
       ...(months.length > 1 ? [{ title: "By month", columns: [{ label: "Month" }, { label: "Net sales", kind: "money" as const }], rows: months.map((m) => [monthLabel(m.m), m.net]), total: ["Total", total] }] : []),
     ],
   };

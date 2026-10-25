@@ -67,7 +67,7 @@ export async function emailQuote(quoteId: number, raw: z.input<typeof input>): P
     }
 
     const sent = await sendMail(creds, { to: to.ok, cc: cc.ok, bcc: [], subject: d.subject.trim(), body: d.body, quote: "", files });
-    await logEmailOnDeal(q.dealId, me.id, d.subject.trim(), [...to.ok, ...cc.ok].map((r) => r.email).join(", ")).catch(() => {});
+    if (q.dealId) await logEmailOnDeal(q.dealId, me.id, d.subject.trim(), [...to.ok, ...cc.ok].map((r) => r.email).join(", ")).catch(() => {});
 
     let markedSent = false;
     if (q.status === "draft") {

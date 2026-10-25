@@ -38,7 +38,7 @@ import { requireApp } from "@/lib/auth/session";
 import { viewerOf } from "@/lib/auth/visibility";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
-import { aed, daysSince, stageLabel } from "@/lib/sales";
+import { aed, daysSince, isLeadStage, stageLabel } from "@/lib/sales";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
 import { listOrders } from "@/lib/orders-data";
 import { projectOfDeal, projectTypes } from "@/lib/projects-data";
@@ -105,7 +105,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <BackButton fallback="/crm/deals" />
+        <BackButton fallback={isLeadStage(deal.stage) ? "/crm/leads" : "/crm/deals"} />
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight" title={deal.title}>
           {deal.title}
         </h1>

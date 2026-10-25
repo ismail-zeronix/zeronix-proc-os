@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Access } from "@/lib/auth/session";
-import { canSeeCompany, canSeeDeal, financeViewerOf, viewerOf } from "@/lib/auth/visibility";
+import { canSeeCompany, canSeeDeal, canSeeOrder, canSeeQuote, financeViewerOf, viewerOf } from "@/lib/auth/visibility";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { invoiceState, orderStatusLabel } from "@/lib/invoicing";
 import { quoteStatusLabel } from "@/lib/quotation";
@@ -88,13 +88,13 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
       }
       case "quote": {
         const [q] = await db
-          .select({ number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, validUntil: schema.quotes.validUntil, dealId: schema.quotes.dealId, title: schema.deals.title, company: schema.companies.name })
+          .select({ number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, validUntil: schema.quotes.validUntil, dealId: schema.quotes.dealId, title: sql<string>`coalesce(${schema.deals.title}, 'Instant quote')`, company: schema.companies.name })
           .from(schema.quotes)
-          .innerJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
-          .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
+          .leftJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
+          .innerJoin(schema.companies, eq(schema.companies.id, schema.quotes.companyId))
           .where(eq(schema.quotes.id, id));
         if (!q) return missing(type, id);
-        if (!(await canSeeDeal(financeViewerOf(a), q.dealId))) return restricted(type, id);
+        if (!(await canSeeQuote(financeViewerOf(a), id))) return restricted(type, id);
         return {
           ref,
           type,
@@ -124,7 +124,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           .innerJoin(schema.companies, eq(schema.companies.id, schema.salesOrders.companyId))
           .where(eq(schema.salesOrders.id, id));
         if (!o) return missing(type, id);
-        if (!(await canSeeDeal(financeViewerOf(a), o.dealId))) return restricted(type, id);
+        if (!(await canSeeOrder(financeViewerOf(a), id))) return restricted(type, id);
         return {
           ref,
           type,

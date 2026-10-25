@@ -1,4 +1,4 @@
-import { BarChart3, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BarChart3, Inbox, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -25,7 +25,8 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       label: "Work",
       items: [
         { href: "/crm", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/crm/deals", label: "Deals", icon: Kanban, also: ["/crm/new"] },
+        { href: "/crm/leads", label: "Leads", icon: Inbox, also: ["/crm/new"] },
+        { href: "/crm/deals", label: "Deals", icon: Kanban },
       ],
     },
     {

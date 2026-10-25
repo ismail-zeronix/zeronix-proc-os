@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { dealVisible, type Viewer } from "@/lib/auth/visibility";
+import { orderVisible, type Viewer } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
 import { invoiceState, type InvoiceState } from "@/lib/invoicing";
 
@@ -22,7 +22,8 @@ export interface OrderRow {
   status: string;
   companyId: number;
   companyName: string;
-  dealId: number;
+  /** Empty when it came from an instant quote. */
+  dealId: number | null;
   dealTitle: string;
   customerRef: string;
   termsDays: number;
@@ -34,10 +35,12 @@ export interface OrderRow {
   invoice: { id: number; number: string; state: InvoiceState } | null;
 }
 
-/** Orders on the deals the viewer may see, newest first, with the state of their (active) invoice. */
+const visible = (v: Viewer) => orderVisible(v, { dealId: schema.salesOrders.dealId, quoteId: schema.salesOrders.quoteId });
+
+/** Orders the viewer may see (by deal, or by the instant quote they came from), newest first, with their invoice's state. */
 export async function listOrders(v: Viewer, opts: { companyId?: number; dealId?: number; limit?: number } = {}): Promise<OrderRow[]> {
   const where = [
-    dealVisible(v, schema.salesOrders.dealId),
+    visible(v),
     opts.companyId ? eq(schema.salesOrders.companyId, opts.companyId) : undefined,
     opts.dealId ? eq(schema.salesOrders.dealId, opts.dealId) : undefined,
   ];
@@ -49,7 +52,7 @@ export async function listOrders(v: Viewer, opts: { companyId?: number; dealId?:
       companyId: schema.salesOrders.companyId,
       companyName: schema.companies.name,
       dealId: schema.salesOrders.dealId,
-      dealTitle: schema.deals.title,
+      dealTitle: sql<string>`coalesce(${schema.deals.title}, '')`,
       customerRef: schema.salesOrders.customerRef,
       termsDays: schema.salesOrders.termsDays,
       total: schema.salesOrders.total,
@@ -60,8 +63,10 @@ export async function listOrders(v: Viewer, opts: { companyId?: number; dealId?:
     })
     .from(schema.salesOrders)
     .innerJoin(schema.companies, eq(schema.companies.id, schema.salesOrders.companyId))
-    .innerJoin(schema.deals, eq(schema.deals.id, schema.salesOrders.dealId))
-    .leftJoin(schema.users, eq(schema.users.id, schema.deals.ownerId))
+    .leftJoin(schema.deals, eq(schema.deals.id, schema.salesOrders.dealId))
+    .innerJoin(schema.quotes, eq(schema.quotes.id, schema.salesOrders.quoteId))
+    // the deal's owner, or the salesperson of the instant quote
+    .leftJoin(schema.users, eq(schema.users.id, sql`coalesce(${schema.deals.ownerId}, ${schema.quotes.ownerId})`))
     .where(and(...where))
     .orderBy(desc(schema.salesOrders.createdAt))
     .limit(opts.limit ?? 500);
@@ -84,14 +89,14 @@ export async function getOrder(id: number, v: Viewer) {
   const [o] = await db
     .select()
     .from(schema.salesOrders)
-    .where(and(eq(schema.salesOrders.id, id), dealVisible(v, schema.salesOrders.dealId)));
+    .where(and(eq(schema.salesOrders.id, id), visible(v)));
   if (!o) return null;
   const [items, [company], contact, [quote], [deal], invs, author] = await Promise.all([
     db.select().from(schema.salesOrderItems).where(eq(schema.salesOrderItems.orderId, id)).orderBy(asc(schema.salesOrderItems.position), asc(schema.salesOrderItems.id)),
     db.select().from(schema.companies).where(eq(schema.companies.id, o.companyId)),
     o.contactId ? db.select().from(schema.contacts).where(eq(schema.contacts.id, o.contactId)).then((r) => r[0] ?? null) : Promise.resolve(null),
     db.select({ id: schema.quotes.id, number: schema.quotes.number }).from(schema.quotes).where(eq(schema.quotes.id, o.quoteId)),
-    db.select({ id: schema.deals.id, title: schema.deals.title, ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, o.dealId)),
+    o.dealId ? db.select({ id: schema.deals.id, title: schema.deals.title, ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, o.dealId)) : Promise.resolve([]),
     db.select().from(schema.invoices).where(eq(schema.invoices.orderId, id)).orderBy(desc(schema.invoices.createdAt)),
     o.createdBy
       ? db
@@ -109,7 +114,7 @@ export async function getOrder(id: number, v: Viewer) {
     company,
     contact,
     quote,
-    deal,
+    deal: deal ?? null,
     author,
     invoices: invs.map((i) => ({ ...i, state: invoiceState(i, paid.get(i.id) ?? 0, today) })),
   };

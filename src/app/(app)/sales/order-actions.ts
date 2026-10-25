@@ -14,10 +14,11 @@ import { stageLabel, trnProblem } from "@/lib/sales";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
 
-function refresh(dealId: number, orderId?: number) {
+function refresh(dealId: number | null, orderId?: number) {
   revalidatePath("/crm", "layout");
+  revalidatePath("/sales", "layout");
   revalidatePath("/accounts", "layout");
-  revalidatePath(`/crm/deals/${dealId}`);
+  if (dealId) revalidatePath(`/crm/deals/${dealId}`);
   if (orderId) revalidatePath(`/sales/orders/${orderId}`);
   revalidatePath("/");
 }
@@ -48,9 +49,10 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
     if (q.status === "rejected") throw new Error("This quote was rejected. Set it back to Sent first if the customer changed their mind.");
     const [existing] = await tx.select({ id: schema.salesOrders.id, number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
     if (existing) throw new Error(`This quote is already order ${existing.number}.`);
-    const [deal] = await tx.select().from(schema.deals).where(eq(schema.deals.id, q.dealId));
-    const [company] = await tx.select({ name: schema.companies.name, trn: schema.companies.trn }).from(schema.companies).where(eq(schema.companies.id, deal.companyId));
-    if (!company) throw new Error("This deal has no customer company.");
+    // an instant quote has no deal: the customer and contact come from the quote
+    const [deal] = q.dealId ? await tx.select().from(schema.deals).where(eq(schema.deals.id, q.dealId)) : [];
+    const [company] = await tx.select({ name: schema.companies.name, trn: schema.companies.trn }).from(schema.companies).where(eq(schema.companies.id, q.companyId));
+    if (!company) throw new Error("This quote has no customer.");
     const badTrn = trnProblem(company.trn);
     if (badTrn) throw new Error(`${badTrn} Fix ${company.name}'s billing details in Sales › Customers before making the order.`);
     const items = await tx.select().from(schema.quoteItems).where(eq(schema.quoteItems.quoteId, quoteId)).orderBy(asc(schema.quoteItems.position), asc(schema.quoteItems.id));
@@ -66,8 +68,8 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
         number,
         quoteId,
         dealId: q.dealId,
-        companyId: deal.companyId,
-        contactId: deal.contactId,
+        companyId: q.companyId,
+        contactId: q.contactId ?? deal?.contactId ?? null,
         customerRef: d.customerRef,
         customerRefDate: d.customerRefDate ?? null,
         termsDays: d.termsDays,
@@ -85,7 +87,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
 
     const now = new Date();
     if (q.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: now }).where(eq(schema.quotes.id, quoteId));
-    if (deal.stage !== "won") {
+    if (deal && q.dealId && deal.stage !== "won") {
       await tx
         .update(schema.deals)
         .set({ stage: "won", stageChangedAt: now, closedAt: now, lostReason: "", valueAed: q.subtotal })
@@ -94,7 +96,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
         type: "stage",
         body: `Moved from ${stageLabel(deal.stage)} to ${stageLabel("won")} (order ${number}).`,
         dealId: q.dealId,
-        companyId: deal.companyId,
+        companyId: q.companyId,
         userId: me.id,
       });
     }
@@ -102,7 +104,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
       type: "note",
       body: `Order ${number} made from quote ${q.number}: ${money(q.total)} with VAT, ${termsLabel(d.termsDays).toLowerCase()}${d.customerRef ? `, customer PO ${d.customerRef}` : ""}.`,
       dealId: q.dealId,
-      companyId: deal.companyId,
+      companyId: q.companyId,
       userId: me.id,
     });
     return { id: order.id, number, dealId: q.dealId };
@@ -184,8 +186,8 @@ export async function cancelOrder(orderId: number, reason: string) {
     if (o.status === "invoiced") throw new Error("This order has an invoice. Cancel the invoice (credit note) in Accounts first.");
     if (o.status === "cancelled") return o.dealId;
     await tx.update(schema.salesOrders).set({ status: "cancelled", cancelReason: why, cancelledAt: new Date() }).where(eq(schema.salesOrders.id, orderId));
-    const [deal] = await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, o.dealId));
-    if (deal?.stage === "won") {
+    const [deal] = o.dealId ? await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, o.dealId)) : [];
+    if (o.dealId && deal?.stage === "won") {
       await tx.update(schema.deals).set({ stage: "negotiation", stageChangedAt: new Date(), closedAt: null }).where(eq(schema.deals.id, o.dealId));
       await tx.insert(schema.activities).values({
         type: "stage",

@@ -1,4 +1,4 @@
-import { Pencil, Printer } from "lucide-react";
+import { FilePlus2, Pencil, Printer } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppLink } from "@/components/app-link";
@@ -17,7 +17,7 @@ import { db, schema } from "@/db";
 import { eq } from "drizzle-orm";
 import { companyBalance, listInvoices, statement } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
-import { canSeeCompany, dealVisible, financeViewerOf } from "@/lib/auth/visibility";
+import { canSeeCompany, financeViewerOf } from "@/lib/auth/visibility";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { listOrders } from "@/lib/orders-data";
 import { money } from "@/lib/quotation";
@@ -53,9 +53,9 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
     listQuotes(v),
   ]);
   if (!s || !company) notFound();
-  // below the finance level: only the invoices of deals they are on
-  const visibleDeals = finance ? null : new Set((await db.select({ id: schema.deals.id }).from(schema.deals).where(dealVisible(v, schema.deals.id))).map((d) => d.id));
-  const invoices = visibleDeals ? allInvoices.filter((i) => i.dealId != null && visibleDeals.has(i.dealId)) : allInvoices;
+  // without Accounts: only the invoices of orders they may see
+  const visibleOrders = new Set(orders.map((o) => o.id));
+  const invoices = finance ? allInvoices : allInvoices.filter((i) => i.orderId != null && visibleOrders.has(i.orderId));
   const quotes = allQuotes.filter((q) => q.companyId === id);
   const paidIn = s.lines.filter((l) => l.kind === "payment").reduce((n, l) => n + l.credit, 0);
   const invoicedIn = s.lines.filter((l) => l.kind === "invoice").reduce((n, l) => n + l.debit, 0);
@@ -79,6 +79,9 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
           </span>
         </div>
         {finance && <OpeningInvoiceDialog company={{ id: company.id, name: company.name }} />}
+        <Button size="sm" nativeButton={false} render={<Link href={`/sales/quotes/new?company=${company.id}`} />} title="A quick quote for this customer, no deal needed">
+          <FilePlus2 /> New quote
+        </Button>
         <CompanyDialog
           company={{ id: company.id, name: company.name, industry: company.industry, emirate: company.emirate, website: company.website, phone: company.phone, tradeLicenseNo: company.tradeLicenseNo, trn: company.trn, address: company.address, source: company.source, notes: company.notes }}
           trigger={

@@ -167,3 +167,7 @@ export function customerGaps(c: { trn: string; address: string; emirate: string 
   else if (!contact.email.trim() && !contact.phone.trim() && !contact.whatsapp.trim()) gaps.push({ key: "contactReach", label: "Contact email or phone", blocksInvoice: false });
   return gaps;
 }
+
+/** Leads: deals not qualified yet (CRM › Leads). From "Qualified" on they are deals (CRM › Deals). Same records. */
+export const LEAD_STAGES = ["new", "contacted"] as const;
+export const isLeadStage = (k: string) => (LEAD_STAGES as readonly string[]).includes(k);

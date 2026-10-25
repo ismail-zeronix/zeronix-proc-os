@@ -60,7 +60,9 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
     const badTrn = trnProblem(company.trn);
     if (badTrn) throw new Error(`${badTrn} Fix it in Sales › Customers › Billing details before issuing the invoice.`);
     const items = await tx.select().from(schema.salesOrderItems).where(eq(schema.salesOrderItems.orderId, orderId)).orderBy(asc(schema.salesOrderItems.position), asc(schema.salesOrderItems.id));
-    const [deal] = await tx.select({ ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, o.dealId));
+    // who collects the money: the deal owner, or the salesperson of the instant quote
+    const [deal] = o.dealId ? await tx.select({ ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, o.dealId)) : [];
+    const [quote] = await tx.select({ ownerId: schema.quotes.ownerId }).from(schema.quotes).where(eq(schema.quotes.id, o.quoteId));
 
     const number = await takeInvoiceNumber(tx);
     const dueDate = dueDateFor(d.issueDate, d.termsDays);
@@ -100,9 +102,9 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
       notes: `${company.name}: ${money(o.total)} due ${dueDate}. Record the payment in Accounts when it arrives.`,
       dueDate,
       priority: "normal",
-      assignedTo: deal?.ownerId ?? o.createdBy ?? me.id,
+      assignedTo: deal?.ownerId ?? quote?.ownerId ?? o.createdBy ?? me.id,
       createdBy: me.id,
-      relatedType: "deal",
+      relatedType: o.dealId ? "deal" : null,
       relatedId: o.dealId,
     });
     return { id: inv.id, number, dealId: o.dealId, companyId: o.companyId };

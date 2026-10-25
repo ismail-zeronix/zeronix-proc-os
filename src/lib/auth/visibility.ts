@@ -43,14 +43,35 @@ export function companyVisible(v: Viewer, companyId: SQLWrapper): SQL {
     OR EXISTS (SELECT 1 FROM deals vd JOIN deal_assignees va ON va.deal_id = vd.id WHERE vd.company_id = ${companyId} AND va.user_id = ${v.id}))`;
 }
 
+/**
+ * SQL condition: a quote the viewer may see. With a deal it follows the deal; an instant quote (no deal) is seen by its
+ * salesperson and by whoever typed it.
+ */
+export function quoteVisible(v: Viewer, q: { dealId: SQLWrapper; ownerId: SQLWrapper; createdBy: SQLWrapper }): SQL {
+  if (v.seesAll) return sql`TRUE`;
+  return sql`((${q.dealId} IS NOT NULL AND ${dealVisible(v, q.dealId)}) OR (${q.dealId} IS NULL AND (${q.ownerId} = ${v.id} OR ${q.createdBy} = ${v.id})))`;
+}
+
+/** SQL condition: an order the viewer may see (by its deal, or, without one, by the quote it came from). */
+export function orderVisible(v: Viewer, o: { dealId: SQLWrapper; quoteId: SQLWrapper }): SQL {
+  if (v.seesAll) return sql`TRUE`;
+  return sql`((${o.dealId} IS NOT NULL AND ${dealVisible(v, o.dealId)}) OR (${o.dealId} IS NULL AND EXISTS (SELECT 1 FROM quotes vq WHERE vq.id = ${o.quoteId} AND (vq.owner_id = ${v.id} OR vq.created_by = ${v.id}))))`;
+}
+
+/** SQL condition: an invoice the viewer may see (opening balances: the accounts team only, who see everything). */
+export function invoiceVisible(v: Viewer, i: { dealId: SQLWrapper; orderId: SQLWrapper }): SQL {
+  if (v.seesAll) return sql`TRUE`;
+  return sql`((${i.dealId} IS NOT NULL AND ${dealVisible(v, i.dealId)}) OR (${i.dealId} IS NULL AND EXISTS (SELECT 1 FROM sales_orders vo WHERE vo.id = ${i.orderId} AND ${orderVisible(v, { dealId: sql`vo.deal_id`, quoteId: sql`vo.quote_id` })})))`;
+}
+
 /** SQL condition for a file: unlinked files are shared with everyone; linked ones follow their company / deal / order / invoice. */
 export function fileVisible(v: Viewer, relatedType: SQLWrapper, relatedId: SQLWrapper): SQL {
   if (v.seesAll) return sql`TRUE`;
   return sql`(${relatedType} IS NULL
     OR (${relatedType} = 'company' AND ${companyVisible(v, relatedId)})
     OR (${relatedType} = 'deal' AND ${dealVisible(v, relatedId)})
-    OR (${relatedType} = 'order' AND EXISTS (SELECT 1 FROM sales_orders fo WHERE fo.id = ${relatedId} AND ${dealVisible(v, sql`fo.deal_id`)}))
-    OR (${relatedType} = 'invoice' AND EXISTS (SELECT 1 FROM invoices fi WHERE fi.id = ${relatedId} AND ${dealVisible(v, sql`fi.deal_id`)})))`;
+    OR (${relatedType} = 'order' AND EXISTS (SELECT 1 FROM sales_orders fo WHERE fo.id = ${relatedId} AND ${orderVisible(v, { dealId: sql`fo.deal_id`, quoteId: sql`fo.quote_id` })}))
+    OR (${relatedType} = 'invoice' AND EXISTS (SELECT 1 FROM invoices fi WHERE fi.id = ${relatedId} AND ${invoiceVisible(v, { dealId: sql`fi.deal_id`, orderId: sql`fi.order_id` })})))`;
 }
 
 export async function canSeeFile(v: Viewer, fileId: number): Promise<boolean> {
@@ -62,6 +83,18 @@ export async function canSeeFile(v: Viewer, fileId: number): Promise<boolean> {
 export async function canSeeDeal(v: Viewer, dealId: number): Promise<boolean> {
   if (v.seesAll) return true;
   const r = await db.execute(sql`SELECT 1 FROM deal_assignees WHERE deal_id = ${dealId} AND user_id = ${v.id} LIMIT 1`);
+  return r.rows.length > 0;
+}
+
+export async function canSeeQuote(v: Viewer, quoteId: number): Promise<boolean> {
+  if (v.seesAll) return true;
+  const r = await db.execute(sql`SELECT 1 FROM quotes q WHERE q.id = ${quoteId} AND ${quoteVisible(v, { dealId: sql`q.deal_id`, ownerId: sql`q.owner_id`, createdBy: sql`q.created_by` })}`);
+  return r.rows.length > 0;
+}
+
+export async function canSeeOrder(v: Viewer, orderId: number): Promise<boolean> {
+  if (v.seesAll) return true;
+  const r = await db.execute(sql`SELECT 1 FROM sales_orders o WHERE o.id = ${orderId} AND ${orderVisible(v, { dealId: sql`o.deal_id`, quoteId: sql`o.quote_id` })}`);
   return r.rows.length > 0;
 }
 
@@ -93,10 +126,23 @@ export async function dealOf(table: "quotes" | "sales_orders" | "deal_items", id
   return r.rows[0]?.deal_id ?? null;
 }
 
+/**
+ * For actions on a quote, order or deal line: throws unless the viewer may work on it. With a deal it follows the deal;
+ * an instant quote (and the order made from it) follows its salesperson and whoever typed it.
+ */
 export async function assertDealOf(table: "quotes" | "sales_orders" | "deal_items", id: number, finance = false): Promise<Viewer> {
+  const exists = await db.execute(sql`SELECT 1 FROM ${sql.identifier(table)} WHERE id = ${id}`);
+  if (!exists.rows.length) throw new Error(GONE);
   const dealId = await dealOf(table, id);
-  if (dealId == null) throw new Error(GONE);
-  return assertDeal(dealId, finance);
+  if (dealId != null) return assertDeal(dealId, finance);
+  const v = await currentViewer(finance);
+  if (v.seesAll) return v;
+  const cond =
+    table === "quotes"
+      ? sql`SELECT 1 FROM quotes q WHERE q.id = ${id} AND (q.owner_id = ${v.id} OR q.created_by = ${v.id})`
+      : sql`SELECT 1 FROM sales_orders o JOIN quotes q ON q.id = o.quote_id WHERE o.id = ${id} AND (q.owner_id = ${v.id} OR q.created_by = ${v.id})`;
+  if (table === "deal_items" || !(await db.execute(cond)).rows.length) throw new Error(GONE);
+  return v;
 }
 
 export async function assertContact(contactId: number): Promise<Viewer> {

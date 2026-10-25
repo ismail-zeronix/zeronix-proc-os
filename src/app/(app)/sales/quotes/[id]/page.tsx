@@ -35,9 +35,10 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
   if (!Number.isInteger(id) || id < 1) notFound();
   const q = await getQuote(id, financeViewerOf(access));
   if (!q) notFound();
-  const [brand, order, settings, snapshot, project] = await Promise.all([quoteBrand(), orderOfQuote(q.id), getSettings(), snapshotOfQuote(q.id), projectOfDeal(q.dealId)]);
+  const [brand, order, settings, snapshot, project] = await Promise.all([quoteBrand(), orderOfQuote(q.id), getSettings(), snapshotOfQuote(q.id), q.dealId ? projectOfDeal(q.dealId) : Promise.resolve(null)]);
   const pBrand = snapshot ? await proposalBrand() : null;
-  const defaultTerms = Math.max(0, Math.floor(Number(settings.default_terms_days)) || 0);
+  // the payment terms offered on the quote; older quotes fall back to the default
+  const defaultTerms = q.termsDays ?? Math.max(0, Math.floor(Number(settings.default_terms_days)) || 0);
   const doc = toDoc(q);
   const text = quoteWhatsApp({
     number: q.number,
@@ -74,17 +75,20 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
             {q.companyName}
           </Link>
           {" · "}
-          {apps.includes("crm") ? (
+          {!q.dealId ? (
+            "Instant quote"
+          ) : apps.includes("crm") ? (
             <AppLink href={`/crm/deals/${q.dealId}`} className="hover:text-foreground hover:underline" title="Open the deal">
               {q.dealTitle}
             </AppLink>
           ) : (
             q.dealTitle
           )}
+          {q.createdByName ? ` · ${q.createdByName}` : ""}
         </span>
         {!order && !locked && !project && (
-          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/sales/quotes/new?deal=${q.dealId}`} />} title="Change the lines, then press Update to rewrite this quote">
-            <ListPlus /> Edit lines
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/sales/quotes/${q.id}/edit`} />} title="Change the customer, lines, terms or salesperson">
+            <ListPlus /> Edit
           </Button>
         )}
         {order ? (
@@ -94,7 +98,7 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
         ) : (
           <>
             <div className="w-36">
-              <StatusSelect quoteId={q.id} status={q.shownStatus} dealStage={q.dealStage} />
+              <StatusSelect quoteId={q.id} status={q.shownStatus} dealStage={q.dealStage ?? ""} />
             </div>
             {q.status !== "rejected" && <ConvertToOrderDialog quoteId={q.id} quoteNumber={q.number} defaultTerms={defaultTerms} accepted={q.status === "accepted"} />}
           </>

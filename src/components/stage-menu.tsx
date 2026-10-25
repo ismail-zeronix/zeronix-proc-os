@@ -227,3 +227,28 @@ function WonDialog({ dealId, onClose }: { dealId: number; onClose: () => void })
     </Dialog>
   );
 }
+
+/** Lead → deal: moves it to Qualified (we know what, how many, by when), where it shows on CRM › Deals. */
+export function QualifyButton({ dealId }: { dealId: number }) {
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="xs"
+      pending={pending}
+      title="We know what, how many and by when: make it a deal"
+      onClick={() =>
+        start(async () => {
+          try {
+            await moveDeal(dealId, "requirement");
+            toast.success("Qualified: it is now a deal");
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
+        })
+      }
+    >
+      Qualify
+    </Button>
+  );
+}

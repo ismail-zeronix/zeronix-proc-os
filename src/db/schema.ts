@@ -489,9 +489,19 @@ export const quotes = pgTable(
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
-    dealId: integer("deal_id")
+    /** The CRM deal it was made for; empty for an instant quote to a customer (Sales › Quotes › New quote). */
+    dealId: integer("deal_id").references(() => deals.id, { onDelete: "cascade" }),
+    /** The customer, always set (the deal's company when there is a deal). */
+    companyId: integer("company_id")
       .notNull()
-      .references(() => deals.id, { onDelete: "cascade" }),
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    /** The salesperson the quote is in the name of (may differ from who typed it). */
+    ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+    /** Payment terms offered, in days after the invoice (0 = cash); carried to the order. */
+    termsDays: integer("terms_days"),
+    /** Inside the company only, never printed. */
+    notes: text("notes").notNull().default(""),
     /** draft, sent, accepted, rejected, expired */
     status: text("status").notNull().default("draft"),
     validUntil: date("valid_until").notNull(),
@@ -507,7 +517,7 @@ export const quotes = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("quotes_year_seq_idx").on(t.year, t.seq), index("quotes_deal_idx").on(t.dealId), index("quotes_status_idx").on(t.status)],
+  (t) => [uniqueIndex("quotes_year_seq_idx").on(t.year, t.seq), index("quotes_deal_idx").on(t.dealId), index("quotes_status_idx").on(t.status), index("quotes_company_idx").on(t.companyId), index("quotes_owner_idx").on(t.ownerId)],
 );
 
 export const quoteItems = pgTable(
@@ -524,6 +534,9 @@ export const quoteItems = pgTable(
     /** Copied from the project BOQ: section heading and unit ("" on product quotes). */
     section: text("section").notNull().default(""),
     unit: text("unit").notNull().default(""),
+    /** Our cost per unit (AED) and who from, so the quote can be edited with its margin; never printed. */
+    costAed: numeric("cost_aed", { precision: 14, scale: 2, mode: "number" }),
+    supplierName: text("supplier_name").notNull().default(""),
   },
   (t) => [index("quote_items_quote_idx").on(t.quoteId, t.position)],
 );
@@ -600,9 +613,8 @@ export const salesOrders = pgTable(
       .notNull()
       .unique()
       .references(() => quotes.id),
-    dealId: integer("deal_id")
-      .notNull()
-      .references(() => deals.id),
+    /** Empty when it came from an instant quote (no CRM deal). */
+    dealId: integer("deal_id").references(() => deals.id),
     companyId: integer("company_id")
       .notNull()
       .references(() => companies.id),

@@ -30,6 +30,9 @@ export function DealQuotes({
   canProjects: boolean;
 }) {
   const latest = quotes[0];
+  // one quote in play per deal: change the open one; once one is accepted there is nothing more to quote
+  const open = quotes.find((q) => q.status === "draft" || q.status === "sent");
+  const accepted = quotes.some((q) => q.status === "accepted");
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -44,9 +47,10 @@ export function DealQuotes({
                 <FolderKanban /> Open the BOQ
               </Button>
             )
-          : canAccounts && (
-              <Button size="sm" variant="outline" nativeButton={false} render={<AppLink href={`/sales/quotes/new?deal=${dealId}`} />}>
-                <FilePlus2 /> {latest ? "Edit the quote" : "Make quote"}
+          : canAccounts &&
+            !accepted && (
+              <Button size="sm" variant="outline" nativeButton={false} render={<AppLink href={open ? `/sales/quotes/${open.id}/edit` : `/sales/quotes/new?deal=${dealId}`} />}>
+                <FilePlus2 /> {open ? `Edit ${open.number}` : "Make quote"}
               </Button>
             )}
       </div>

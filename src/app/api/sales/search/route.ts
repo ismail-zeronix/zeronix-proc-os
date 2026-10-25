@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { loadAccess } from "@/lib/auth/session";
-import { companyVisible, currentViewer, dealVisible } from "@/lib/auth/visibility";
+import { companyVisible, currentViewer, dealVisible, invoiceVisible, orderVisible, quoteVisible } from "@/lib/auth/visibility";
 import { searchCompanies } from "@/lib/sales-data";
 
 const like = (q: string) => `%${q.replace(/[\%_]/g, (c) => `\${c}`)}%`;
@@ -50,9 +50,8 @@ export async function GET(req: NextRequest) {
     !docs ? none : db
       .select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, companyName: schema.companies.name })
       .from(schema.quotes)
-      .innerJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
-      .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
-      .where(and(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))), dealVisible(v, schema.quotes.dealId)))
+      .innerJoin(schema.companies, eq(schema.companies.id, schema.quotes.companyId))
+      .where(and(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))), quoteVisible(v, { dealId: schema.quotes.dealId, ownerId: schema.quotes.ownerId, createdBy: schema.quotes.createdBy })))
       .orderBy(desc(schema.quotes.createdAt))
       .limit(5),
     !docs ? none : db
@@ -62,7 +61,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           or(ilike(schema.salesOrders.number, like(q)), ilike(schema.salesOrders.customerRef, like(q)), ilike(schema.salesOrders.dnNumber, like(q))),
-          dealVisible(v, schema.salesOrders.dealId),
+          orderVisible(v, { dealId: schema.salesOrders.dealId, quoteId: schema.salesOrders.quoteId }),
         ),
       )
       .orderBy(desc(schema.salesOrders.createdAt))
@@ -73,7 +72,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           or(ilike(schema.invoices.number, like(q)), ilike(schema.invoices.customerRef, like(q))),
-          accounts ? undefined : dealVisible(v, schema.invoices.dealId),
+          accounts ? undefined : invoiceVisible(v, { dealId: schema.invoices.dealId, orderId: schema.invoices.orderId }),
         ),
       )
       .orderBy(desc(schema.invoices.createdAt))
