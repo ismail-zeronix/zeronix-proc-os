@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import { BackButton } from "@/components/back-button";
 import { requireApp } from "@/lib/auth/session";
 import { financeViewerOf } from "@/lib/auth/visibility";
 import { orderOfQuote } from "@/lib/orders-data";
@@ -26,13 +25,9 @@ export default async function EditQuotePage({ params }: PageProps<"/sales/quotes
   const owner = q.ownerId ?? q.createdBy ?? access.user.id;
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
-      <div className="flex items-center gap-3">
-        <BackButton fallback={`/sales/quotes/${id}`} />
-        <h1 className="text-sm font-semibold">Edit {q.number}</h1>
-        {q.status === "sent" && <span className="text-xs text-muted-foreground">Already sent: send it again after saving.</span>}
-      </div>
-      <QuoteForm
+    <QuoteForm
+        backHref={`/sales/quotes/${id}`}
+        subtitle={q.status === "sent" ? "already sent: send it again after saving" : undefined}
         initial={{
           id,
           number: q.number,
@@ -52,6 +47,5 @@ export default async function EditQuotePage({ params }: PageProps<"/sales/quotes
         defaultMargin={defaults.marginPct}
         canFindPrice={access.apps.includes("procurement")}
       />
-    </div>
   );
 }

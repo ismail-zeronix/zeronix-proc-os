@@ -1,7 +1,6 @@
 import { FolderKanban } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { AppLink } from "@/components/app-link";
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -61,13 +60,8 @@ export default async function NewQuotePage({ searchParams }: PageProps<"/sales/q
   const me = people.some((p) => p.id === user.id) ? user.id : (people[0]?.id ?? user.id);
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
-      <div className="flex items-center gap-3">
-        <BackButton fallback="/sales/quotes" />
-        <h1 className="text-sm font-semibold">New quote</h1>
-        {deal && <span className="truncate text-xs text-muted-foreground">for deal {deal.title}</span>}
-      </div>
-      <QuoteForm
+    <QuoteForm
+        backHref="/sales/quotes"
         initial={{
           id: null,
           number: "",
@@ -88,6 +82,5 @@ export default async function NewQuotePage({ searchParams }: PageProps<"/sales/q
         defaultMargin={defaults.marginPct}
         canFindPrice={apps.includes("procurement")}
       />
-    </div>
   );
 }
