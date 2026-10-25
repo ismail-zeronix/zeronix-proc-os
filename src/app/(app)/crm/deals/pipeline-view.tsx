@@ -222,7 +222,7 @@ function DealTable({ deals, users, canAssign, leads = false }: { deals: DealRow[
             <TableRow className="text-xs">
               <TableHead>{leads ? "Lead" : "Deal"}</TableHead>
               <TableHead>Stage</TableHead>
-              <TableHead>Lead</TableHead>
+              <TableHead title="Hot / warm / cold, from the qualification checks">Quality</TableHead>
               <TableHead className="text-right">Value</TableHead>
               <TableHead>Team</TableHead>
               <TableHead>Follow-up</TableHead>
