@@ -198,9 +198,10 @@ export function QuoteForm({
         </Button>
       </div>
 
-      <div className="grid items-start gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        {/* left: who and on what terms, with the totals; stays in view while the lines scroll */}
-        <aside className="overflow-hidden rounded-xl border bg-card lg:sticky lg:top-16" aria-label="Customer, terms and totals">
+      {/* both columns run to the same bottom line, at least the height of the screen */}
+      <div className="grid gap-3 lg:min-h-[calc(100svh-9.5rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
+        {/* left: who and on what terms; the totals sit at the bottom of the panel */}
+        <aside className="flex flex-col overflow-hidden rounded-xl border bg-card" aria-label="Customer, terms and totals">
           <section className={group}>
             <h2 className={groupTitle}>Customer</h2>
             {company ? (
@@ -325,7 +326,7 @@ export function QuoteForm({
             </div>
           </section>
 
-          <section className={`${group} bg-muted/30`} aria-label="Totals">
+          <section className={`${group} mt-auto bg-muted/30`} aria-label="Totals">
             <dl className="grid gap-1 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">
@@ -354,9 +355,9 @@ export function QuoteForm({
           </section>
         </aside>
 
-        {/* right: the lines, then the words that go with them */}
-        <div className="grid min-w-0 gap-3">
-          <section className="overflow-hidden rounded-xl border bg-card" aria-label="Lines">
+        {/* right: the lines take the free height; terms and notes close the column at the bottom */}
+        <div className="flex min-w-0 flex-col gap-3">
+          <section className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card" aria-label="Lines">
             <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
               <h2 className="mr-auto text-sm font-medium">Items</h2>
               {canFindPrice && lines.length > 0 && (
@@ -406,11 +407,11 @@ export function QuoteForm({
               })}
             </div>
             {lines.length ? (
-              <button type="button" onClick={addBlank} className="flex w-full items-center gap-2 border-t px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground">
+              <button type="button" onClick={addBlank} className="flex w-full items-center gap-2 border-y px-3 py-2.5 text-left text-sm text-muted-foreground hover:bg-muted/30 hover:text-foreground">
                 <Plus className="size-4" /> Add line
               </button>
             ) : (
-              <div className="grid justify-items-center gap-3 px-3 py-12 text-center">
+              <div className="grid flex-1 content-center justify-items-center gap-3 px-3 py-12 text-center">
                 <p className="text-sm text-muted-foreground">No items yet. {canFindPrice ? "Pick a supplier price, or type a line." : "Type the first line."}</p>
                 <div className="flex gap-2">
                   {canFindPrice && (
