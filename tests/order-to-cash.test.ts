@@ -52,7 +52,7 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
   /** A deal with two priced lines and a quote: 2 x 1000 + 1 x 500 = 2500, VAT 5% = 125, total 2625. */
   const quotedDeal = async (label: string) => {
     await as(seller);
-    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, contactName: "Ahmed", requirement: "laptops" });
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, emirate: "Dubai", contactName: "Ahmed", requirement: "laptops" });
     await Q.addItem(dealId, { description: "Laptop", qty: 2, costAed: 900, unitPriceAed: 1000 });
     await Q.addItem(dealId, { description: "Dock", qty: 1, unitPriceAed: 500 });
     const q = await Q.createQuote(dealId, { vatPct: 5 });

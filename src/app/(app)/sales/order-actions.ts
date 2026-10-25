@@ -10,7 +10,7 @@ import { dubaiToday } from "@/lib/dates";
 import { nextSeq } from "@/lib/doc-numbers";
 import { termsLabel, yearNumber } from "@/lib/invoicing";
 import { money } from "@/lib/quotation";
-import { stageLabel } from "@/lib/sales";
+import { stageLabel, trnProblem } from "@/lib/sales";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
 
@@ -49,6 +49,10 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
     const [existing] = await tx.select({ id: schema.salesOrders.id, number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
     if (existing) throw new Error(`This quote is already order ${existing.number}.`);
     const [deal] = await tx.select().from(schema.deals).where(eq(schema.deals.id, q.dealId));
+    const [company] = await tx.select({ name: schema.companies.name, trn: schema.companies.trn }).from(schema.companies).where(eq(schema.companies.id, deal.companyId));
+    if (!company) throw new Error("This deal has no customer company.");
+    const badTrn = trnProblem(company.trn);
+    if (badTrn) throw new Error(`${badTrn} Fix ${company.name}'s billing details in Sales › Customers before making the order.`);
     const items = await tx.select().from(schema.quoteItems).where(eq(schema.quoteItems.quoteId, quoteId)).orderBy(asc(schema.quoteItems.position), asc(schema.quoteItems.id));
     if (!items.length) throw new Error("This quote has no lines.");
 
@@ -139,6 +143,9 @@ export async function markDelivered(orderId: number, input: z.input<typeof deliv
     const [o] = await tx.select().from(schema.salesOrders).where(eq(schema.salesOrders.id, orderId)).for("update");
     if (!o) throw new Error("That order no longer exists.");
     if (o.status !== "open") throw new Error(o.status === "cancelled" ? "This order was cancelled." : `This order was already delivered (${o.dnNumber}).`);
+    // the delivery note needs somewhere it went: the order's delivery address, or the customer's address / emirate
+    const [c] = await tx.select({ address: schema.companies.address, emirate: schema.companies.emirate }).from(schema.companies).where(eq(schema.companies.id, o.companyId));
+    if (!(d.deliveryAddress ?? o.deliveryAddress).trim() && !c?.address.trim() && !c?.emirate.trim()) throw new Error("Add the delivery address before marking it delivered.");
     const seq = await nextSeq(tx, "delivery", schema.salesOrders, schema.salesOrders.dnYear, schema.salesOrders.dnSeq, year);
     const dnNumber = yearNumber("ZDN", year, seq);
     await tx

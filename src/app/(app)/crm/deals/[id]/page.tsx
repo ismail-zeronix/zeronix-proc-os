@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   Building2,
   CalendarCheck,
+  CircleCheck,
   CalendarClock,
   CirclePlus,
   Clock,
@@ -15,6 +16,8 @@ import {
   Plus,
   StickyNote,
   Tag,
+  User,
+  UserCheck,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -33,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db, schema } from "@/db";
 import { requireApp } from "@/lib/auth/session";
 import { viewerOf } from "@/lib/auth/visibility";
-import { dayLabel } from "@/lib/dates";
+import { dayLabel, dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { aed, daysSince, stageLabel } from "@/lib/sales";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
@@ -52,8 +55,10 @@ const ICON: Record<string, typeof Phone> = {
   note: StickyNote,
   stage: ArrowRightLeft,
   created: CirclePlus,
+  owner: UserCheck,
+  task: CircleCheck,
 };
-const LABEL: Record<string, string> = { call: "Call", whatsapp: "WhatsApp", email: "Email", meeting: "Meeting", note: "Note", stage: "Stage", created: "Created" };
+const LABEL: Record<string, string> = { call: "Call", whatsapp: "WhatsApp", email: "Email", meeting: "Meeting", note: "Note", stage: "Stage", created: "Created", owner: "Owner", task: "Follow-up" };
 
 export async function generateMetadata({ params }: PageProps<"/crm/deals/[id]">) {
   const deal = await getDeal(Number((await params).id), viewerOf(await requireApp("crm"))).catch(() => null);
@@ -84,8 +89,15 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
     projectTypes(),
   ]);
   const lines = quotes[0] ? await quoteLines(quotes[0].id) : [];
+  const today = dubaiToday();
   const openTasks = tasks.filter((t) => t.status === "open") as TaskRow[];
   const canMail = apps.includes("mail");
+  // quote and order numbers named in an activity become links to their records in Sales
+  const docs = new Map<string, string>([...quotes.map((q) => [q.number, `/sales/quotes/${q.id}`] as const), ...orders.map((o) => [o.number, `/sales/orders/${o.id}`] as const)]);
+  const docsIn = (body: string) =>
+    apps.includes("sales") ? [...new Set(body.match(/Z(?:Q|SO)-d{4}-d{3,}/g) ?? [])].flatMap((n) => (docs.has(n) ? [{ number: n, href: docs.get(n)! }] : [])) : [];
+  // tasks come soonest first
+  const nextTask = openTasks[0] ?? null;
   const canDelete = user.role === "admin" || deal.assignees.some((a) => a.id === user.id);
   const mailTo = contact?.email ? `/mail/compose?to=${encodeURIComponent(contact.email)}&deal=${deal.id}&subject=${encodeURIComponent(deal.title)}` : "";
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
@@ -111,17 +123,31 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
-        <Link href={`/crm/companies/${deal.companyId}`} className={`${meta} hover:text-foreground hover:underline`}>
+        <Link href={`/crm/companies/${deal.companyId}`} className={`${meta} font-medium text-foreground hover:underline`} title="Company">
           <Building2 /> {deal.companyName}
         </Link>
-        <span className={meta}>
-          <Wallet /> {aed(deal.valueAed)}
-        </span>
-        {deal.expectedClose && (
-          <span className={meta} title="Expected close">
-            <CalendarClock /> {dayLabel(deal.expectedClose)}
+        {contact ? (
+          <Link href={`/crm/companies/${deal.companyId}`} className={`${meta} hover:text-foreground hover:underline`} title="Primary contact">
+            <User /> {contact.name}
+            {contact.jobTitle ? ` · ${contact.jobTitle}` : ""}
+          </Link>
+        ) : (
+          <span className={`${meta} text-amber-700 dark:text-amber-400`} title="Pick the primary contact in Details">
+            <User /> No primary contact
           </span>
         )}
+        <span className={meta} title="Deal value">
+          <Wallet /> {aed(deal.valueAed)}
+        </span>
+        <span className={meta} title="Owner">
+          <UserCheck /> {deal.ownerName || "No owner"}
+        </span>
+        <span className={meta} title="Expected close">
+          <CalendarClock /> {deal.expectedClose ? `Closes ${dayLabel(deal.expectedClose)}` : "No close date"}
+        </span>
+        <span className={`${meta} ${nextTask?.dueDate && nextTask.dueDate < today ? "text-red-700 dark:text-red-400" : ""}`} title={nextTask ? `Next follow-up: ${nextTask.title}` : "No follow-up booked"}>
+          <CalendarCheck /> {nextTask ? `Next: ${nextTask.dueDate ? dayLabel(nextTask.dueDate) : "no date"}` : "No follow-up"}
+        </span>
         {deal.source && (
           <span className={meta}>
             <Tag /> {deal.source}
@@ -179,6 +205,15 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
                         <div className="text-sm whitespace-pre-line">
                           <MentionText body={a.body} me={user.id} />
                         </div>
+                        {docsIn(a.body).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {docsIn(a.body).map((d) => (
+                              <AppLink key={d.href} href={d.href} className="rounded-sm border px-1.5 py-0.5 font-mono text-[11px] hover:bg-muted">
+                                {d.number}
+                              </AppLink>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </li>
                   );

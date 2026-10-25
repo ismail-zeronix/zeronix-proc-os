@@ -3,6 +3,7 @@ import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MOVED_FROM_SALES } from "../next.config";
 import { navFor, searchPages } from "@/lib/app-nav";
+import { customerGaps, trnProblem } from "@/lib/sales";
 
 let cookieValue: string | undefined;
 vi.mock("server-only", () => ({}));
@@ -53,6 +54,15 @@ describe("Sales became CRM, money moved to Accounts", () => {
     expect(money).toEqual(expect.arrayContaining(["/accounts", "/accounts/to-invoice", "/accounts/invoices", "/accounts/payments", "/accounts/bills", "/accounts/reports"]));
     expect(money.some((h) => h.startsWith("/sales"))).toBe(false);
     expect(searchPages(["sales"]).some((p) => p.href === "/accounts/invoices")).toBe(false);
+  });
+
+  it("lists what a customer lacks, and which gaps block the invoice", () => {
+    expect(trnProblem("")).toBeNull();
+    expect(trnProblem("100-2003-0040-0500")).toBeNull();
+    expect(trnProblem("12345")).toMatch(/15 digits/);
+    const g = customerGaps({ trn: "", address: "", emirate: "" }, null);
+    expect(g.map((x) => [x.key, x.blocksInvoice])).toEqual([["address", true], ["trn", false], ["contact", false]]);
+    expect(customerGaps({ trn: "100200300400500", address: "", emirate: "Dubai" }, { email: "a@b.ae", phone: "", whatsapp: "" })).toEqual([]);
   });
 
   it("keeps CRM to deals, companies and contacts", () => {
@@ -120,7 +130,7 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
 
   const orderOf = async (label: string) => {
     await as(seller);
-    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, contactName: "Omar", requirement: "switches" });
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, emirate: "Dubai", contactName: "Omar", requirement: "switches" });
     await Q.addItem(dealId, { description: "Switch", qty: 2, costAed: 400, unitPriceAed: 500 });
     const q = await Q.createQuote(dealId, { vatPct: 5 });
     const o = await O.convertQuoteToOrder(q.id, { termsDays: 30 });
@@ -163,5 +173,40 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
     expect(after).toMatchObject({ trn: "100200300400500", address: "Office 12, Al Quoz 3, Dubai", ownerId: before.ownerId });
     await as(colleague);
     await expect(S.updateCompany(deal.companyId, { name: before.name })).rejects.toThrow(/not assigned to you/);
+  });
+
+  it("marks a deal won safely: same company, winning quote accepted, missing details become a task", async () => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Winner LLC`, contactName: "Rania", requirement: "printers" });
+    await Q.addItem(dealId, { description: "Printer", qty: 1, unitPriceAed: 900 });
+    const q = await Q.createQuote(dealId, { vatPct: 5 });
+    const [before] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const check = await S.wonCheck(dealId);
+    expect(check.company.id).toBe(before.companyId);
+    expect(check.gaps.map((g) => g.key)).toEqual(expect.arrayContaining(["address", "trn", "contactReach"]));
+    await expect(S.markDealWon(dealId, {})).rejects.toThrow(/winning quote/);
+    const r = await S.markDealWon(dealId, { quoteId: q.id });
+    expect(r.gaps.length).toBeGreaterThan(0);
+    const [deal] = await db.select({ stage: schema.deals.stage, companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    expect(deal).toEqual({ stage: "won", companyId: before.companyId });
+    const [quote] = await db.select({ status: schema.quotes.status }).from(schema.quotes).where(D.eq(schema.quotes.id, q.id));
+    expect(quote.status).toBe("accepted");
+    const tasks = await db.select({ title: schema.tasks.title, priority: schema.tasks.priority }).from(schema.tasks).where(D.and(D.eq(schema.tasks.relatedType, "deal"), D.eq(schema.tasks.relatedId, dealId)));
+    expect(tasks.some((t) => t.title.startsWith("Complete customer details") && t.priority === "high")).toBe(true);
+    // the same company now shows as a customer in Sales: nothing was copied
+    expect((await AD.listCustomers({ id: seller, seesAll: false })).filter((c) => c.id === before.companyId)).toHaveLength(1);
+    await expect(S.markDealWon(dealId, { terms: "PO 55" })).rejects.toThrow(/already won/);
+  });
+
+  it("wins without a quote when the terms are written down, and refuses an order for a bad TRN", async () => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Terms LLC`, emirate: "Dubai", contactName: "Ali", requirement: "cables" });
+    await S.markDealWon(dealId, { terms: "PO 77, AED 4,000, 30 days" });
+    const { id: d2 } = await S.createDeal({ companyName: `${tag} BadTrn LLC`, emirate: "Dubai", contactName: "Sami", requirement: "toner" });
+    const [c] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, d2));
+    await db.update(schema.companies).set({ trn: "12345" }).where(D.eq(schema.companies.id, c.companyId));
+    await Q.addItem(d2, { description: "Toner", qty: 1, unitPriceAed: 100 });
+    const q = await Q.createQuote(d2, { vatPct: 5 });
+    await expect(O.convertQuoteToOrder(q.id, { termsDays: 30 })).rejects.toThrow(/15 digits/);
   });
 });

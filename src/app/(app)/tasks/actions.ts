@@ -98,11 +98,15 @@ export async function updateTask(id: number, input: TaskInput) {
 }
 
 export async function setTaskDone(id: number, done: boolean) {
-  await ownTask(id);
+  const { me, task } = await ownTask(id);
   await db
     .update(schema.tasks)
     .set({ status: done ? "done" : "open", doneAt: done ? new Date() : null })
     .where(eq(schema.tasks.id, id));
+  // a deal's follow-up being done (or reopened) shows on the deal's activity
+  if (task.relatedType === "deal" && task.relatedId && (task.status === "done") !== done) {
+    await db.insert(schema.activities).values({ type: "task", body: `${done ? "Follow-up done" : "Follow-up reopened"}: ${task.title}`, dealId: task.relatedId, userId: me.id });
+  }
   refresh();
 }
 

@@ -12,7 +12,8 @@ import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
-import { ACTIVITY_TYPES, CHECKS, isOpen, isStage, normName, stageLabel, type StageKey } from "@/lib/sales";
+import { ACTIVITY_TYPES, CHECKS, customerGaps, isOpen, isStage, normName, stageLabel, type CustomerGap, type StageKey } from "@/lib/sales";
+import { addDays, money } from "@/lib/quotation";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 const id = z.number().int().positive();
@@ -355,7 +356,7 @@ export async function setAssignees(dealId: number, userIds: number[]) {
     if (ids.length) await tx.insert(schema.dealAssignees).values(ids.map((userId, position) => ({ dealId, userId, position })));
     await tx.update(schema.deals).set({ ownerId: ids[0] ?? null }).where(eq(schema.deals.id, dealId));
     await tx.insert(schema.activities).values({
-      type: "note",
+      type: "owner",
       body: ids.length ? `Assigned to ${ids.map((i) => names.find((n) => n.id === i)?.name ?? "?").join(", ")}.` : "Unassigned.",
       dealId,
       companyId: deal.companyId,
@@ -387,6 +388,8 @@ export async function moveDeal(dealId: number, stage: string, lostReason = "") {
   const [deal] = await db.select({ stage: schema.deals.stage, companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
   if (!deal) throw new Error("That deal no longer exists.");
   if (deal.stage === stage) return;
+  // the deal page asks through Mark as won (markDealWon); a plain move to Won still flags missing customer details
+  const won = stage === "won" ? await customerOf(dealId) : null;
   await db.transaction(async (tx) => {
     await tx
       .update(schema.deals)
@@ -404,6 +407,7 @@ export async function moveDeal(dealId: number, stage: string, lostReason = "") {
       companyId: deal.companyId,
       userId: me.id,
     });
+    if (won) await followUpGaps(tx, dealId, won.company.name, won.gaps, won.deal.ownerId, me.id);
   });
   refresh();
 }
@@ -478,3 +482,90 @@ export async function deleteDeal(dealId: number) {
   refresh();
 }
 
+
+// ---------- winning a deal ----------
+
+/** The deal's company and primary contact, and what the customer record still lacks. */
+async function customerOf(dealId: number) {
+  const [d] = await db
+    .select({ id: schema.deals.id, title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, contactId: schema.deals.contactId, ownerId: schema.deals.ownerId })
+    .from(schema.deals)
+    .where(eq(schema.deals.id, dealId));
+  if (!d) throw new Error("That deal no longer exists.");
+  const [company] = await db.select().from(schema.companies).where(eq(schema.companies.id, d.companyId));
+  if (!company) throw new Error("This deal has no company. Pick the customer on the deal first.");
+  const [contact] = d.contactId ? await db.select().from(schema.contacts).where(eq(schema.contacts.id, d.contactId)) : [];
+  return { deal: d, company, contact: contact ?? null, gaps: customerGaps(company, contact ?? null) };
+}
+
+/** What the "Mark as won" dialog shows before anything changes: the customer (the existing company), quotes, and gaps. */
+export async function wonCheck(dealId: number) {
+  await assertApp("crm");
+  await assertDeal(dealId);
+  const { deal, company, contact, gaps } = await customerOf(dealId);
+  const quotes = await db
+    .select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total })
+    .from(schema.quotes)
+    .where(and(eq(schema.quotes.dealId, dealId), ne(schema.quotes.status, "rejected")));
+  return { stage: deal.stage, company: { id: company.id, name: company.name }, contactName: contact?.name ?? "", quotes, gaps };
+}
+
+/** After a win: one follow-up task for the deal owner listing what the customer record still lacks (none if complete). */
+async function followUpGaps(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], dealId: number, companyName: string, gaps: CustomerGap[], ownerId: number | null, me: number) {
+  if (!gaps.length) return;
+  const blocking = gaps.filter((g) => g.blocksInvoice);
+  await tx.insert(schema.tasks).values({
+    title: `Complete customer details: ${companyName}`,
+    notes: `Missing: ${gaps.map((g) => g.label).join(", ")}.${blocking.length ? ` The tax invoice cannot be issued until ${blocking.map((g) => g.label.toLowerCase()).join(" and ")} ${blocking.length === 1 ? "is" : "are"} fixed.` : ""} Fix them in Sales › Customers › Billing details, or on the CRM company page.`,
+    dueDate: addDays(dubaiToday(), 1),
+    priority: blocking.length ? "high" : "normal",
+    assignedTo: ownerId ?? me,
+    createdBy: me,
+    relatedType: "deal",
+    relatedId: dealId,
+  });
+}
+
+const wonSchema = z.object({
+  quoteId: id.nullable().optional(),
+  /** When nothing was quoted in the portal: what was agreed (amount, PO, terms). */
+  terms: z.string().trim().max(500).default(""),
+});
+
+/**
+ * Marks a deal Won, safely: the customer is the deal's existing company (never a new one, so it shows in Sales at
+ * once); the winning quote is accepted (or the agreed terms are written down); missing customer details do not block
+ * the win but are listed on the timeline and given to the owner as a task. Orders and invoices check their own fields.
+ */
+export async function markDealWon(dealId: number, input: z.input<typeof wonSchema>) {
+  const me = await assertApp("crm");
+  await assertDeal(dealId);
+  const d = wonSchema.parse(input);
+  const { deal, company, gaps } = await customerOf(dealId);
+  if (deal.stage === "won") throw new Error("This deal is already won.");
+  const [quote] = d.quoteId
+    ? await db.select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, d.quoteId))
+    : [];
+  if (d.quoteId && (!quote || quote.dealId !== dealId)) throw new Error("That quote is not on this deal.");
+  if (quote?.status === "rejected") throw new Error(`${quote.number} was rejected. Pick the quote the customer accepted.`);
+  if (!quote && d.terms.length < 3) throw new Error("Pick the winning quote, or write down what was agreed.");
+
+  await db.transaction(async (tx) => {
+    if (quote && quote.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: new Date() }).where(eq(schema.quotes.id, quote.id));
+    await tx.update(schema.deals).set({ stage: "won", stageChangedAt: new Date(), closedAt: new Date(), lostReason: "" }).where(eq(schema.deals.id, dealId));
+    await tx.insert(schema.activities).values({
+      type: "stage",
+      body:
+        `Moved from ${stageLabel(deal.stage)} to Won` +
+        (quote ? ` with quote ${quote.number} (${money(quote.total)}).` : `. Agreed: ${d.terms}`) +
+        (gaps.length ? ` Customer details missing: ${gaps.map((g) => g.label).join(", ")}.` : ""),
+      dealId,
+      companyId: company.id,
+      userId: me.id,
+    });
+    await followUpGaps(tx, dealId, company.name, gaps, deal.ownerId, me.id);
+  });
+  refresh();
+  revalidatePath("/sales", "layout");
+  return { gaps };
+}

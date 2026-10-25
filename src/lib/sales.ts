@@ -143,3 +143,27 @@ export const STAGE_SHORT: Record<string, string> = {
 export function daysSince(d: Date | string, now = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(d).getTime()) / 86400_000));
 }
+
+/** A UAE TRN is 15 digits (spaces and dashes allowed when typed). Empty = the customer is not VAT-registered. */
+export const trnProblem = (trn: string): string | null => {
+  const t = trn.replace(/[\s-]/g, "");
+  return !t || /^\d{15}$/.test(t) ? null : `TRN "${trn}" is not 15 digits.`;
+};
+
+export interface CustomerGap {
+  key: "address" | "trn" | "trnFormat" | "contact" | "contactReach";
+  label: string;
+  /** Blocks the tax invoice until fixed; the rest only gets a follow-up task. */
+  blocksInvoice: boolean;
+}
+
+/** What is missing on a customer before documents go out. Winning the deal is never blocked by it. */
+export function customerGaps(c: { trn: string; address: string; emirate: string }, contact: { email: string; phone: string; whatsapp: string } | null): CustomerGap[] {
+  const gaps: CustomerGap[] = [];
+  if (!c.address.trim() && !c.emirate.trim()) gaps.push({ key: "address", label: "Billing address", blocksInvoice: true });
+  if (!c.trn.trim()) gaps.push({ key: "trn", label: "TRN (if they are VAT-registered)", blocksInvoice: false });
+  else if (trnProblem(c.trn)) gaps.push({ key: "trnFormat", label: "TRN must be 15 digits", blocksInvoice: true });
+  if (!contact) gaps.push({ key: "contact", label: "Primary contact person", blocksInvoice: false });
+  else if (!contact.email.trim() && !contact.phone.trim() && !contact.whatsapp.trim()) gaps.push({ key: "contactReach", label: "Contact email or phone", blocksInvoice: false });
+  return gaps;
+}

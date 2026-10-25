@@ -9,6 +9,7 @@ import { dubaiToday } from "@/lib/dates";
 import { nextSeq, takeInvoiceNumber } from "@/lib/doc-numbers";
 import { checkPaymentAmount, dueDateFor, invoiceState, methodLabel, termsLabel, yearNumber } from "@/lib/invoicing";
 import { money, round2 } from "@/lib/quotation";
+import { trnProblem } from "@/lib/sales";
 import { getSetting } from "@/lib/settings";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
@@ -53,6 +54,11 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
     if (o.status === "invoiced") throw new Error("This order already has an invoice.");
     if (o.deliveredOn && d.issueDate < o.deliveredOn) throw new Error("The invoice date cannot be before the delivery date.");
     const [company] = await tx.select().from(schema.companies).where(eq(schema.companies.id, o.companyId));
+    // a UAE tax invoice needs the customer's address, and a registered customer's TRN must be valid
+    const customerAddress = d.customerAddress || o.deliveryAddress || company.address || (company.emirate ? `${company.emirate}, United Arab Emirates` : "");
+    if (!customerAddress) throw new Error(`Add ${company.name}'s billing address (Sales › Customers › Billing details) before issuing the invoice.`);
+    const badTrn = trnProblem(company.trn);
+    if (badTrn) throw new Error(`${badTrn} Fix it in Sales › Customers › Billing details before issuing the invoice.`);
     const items = await tx.select().from(schema.salesOrderItems).where(eq(schema.salesOrderItems.orderId, orderId)).orderBy(asc(schema.salesOrderItems.position), asc(schema.salesOrderItems.id));
     const [deal] = await tx.select({ ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, o.dealId));
 
@@ -70,7 +76,7 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
         termsDays: d.termsDays,
         dueDate,
         customerName: company.name,
-        customerAddress: d.customerAddress || o.deliveryAddress || company.address || (company.emirate ? `${company.emirate}, United Arab Emirates` : ""),
+        customerAddress,
         customerTrn: company.trn,
         customerRef: o.customerRef,
         vatPct: o.vatPct,
