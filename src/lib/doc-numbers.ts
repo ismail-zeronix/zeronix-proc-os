@@ -9,7 +9,7 @@ import { SETTING_DEFAULTS } from "@/lib/settings";
 type Tx = Parameters<Parameters<typeof Db.transaction>[0]>[0];
 
 /** One lock key per series, so two people saving at the same moment wait for each other instead of taking the same number. */
-const LOCKS = { order: 7021, delivery: 7022, invoice: 7023, credit: 7024, receipt: 7025, project: 7031 } as const;
+const LOCKS = { order: 7021, delivery: 7022, invoice: 7023, credit: 7024, receipt: 7025, bill: 7026, voucher: 7027, project: 7031 } as const;
 
 /** The next running number of a per-year series (orders, delivery notes, credit notes, receipts). Call inside the transaction that saves it. */
 export async function nextSeq(tx: Tx, series: keyof typeof LOCKS, table: PgTable, yearCol: PgColumn, seqCol: PgColumn, year: number): Promise<number> {

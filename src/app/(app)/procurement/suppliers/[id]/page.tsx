@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db, schema } from "@/db";
 import { getSession, requireApp } from "@/lib/auth/session";
+import { AppLink } from "@/components/app-link";
 import { ago, money } from "@/lib/format";
 import { getSetting } from "@/lib/settings";
 import { supplierOffers } from "@/lib/supplier-stats";
@@ -22,7 +23,7 @@ const STATUS = { queued: "Queued", parsing: "Reading", review: "Needs review", s
 const th = "px-3 py-1.5 font-medium";
 
 export default async function SupplierPage({ params }: PageProps<"/procurement/suppliers/[id]">) {
-  await requireApp("procurement");
+  const { finance } = await requireApp("procurement");
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const [supplier] = await db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id));
@@ -88,6 +89,11 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted-foreground">
         {supplier.contactName && <span>{supplier.contactName}</span>}
+        {finance && (
+          <AppLink href={`/accounts/suppliers/${id}`} className="font-medium text-foreground hover:underline" title="Bills, payments and what we owe them">
+            Bills and payments
+          </AppLink>
+        )}
         {supplier.phone && (
           <span className={meta}>
             <Phone /> {supplier.phone}

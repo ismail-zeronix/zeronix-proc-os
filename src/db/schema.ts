@@ -52,6 +52,14 @@ export const suppliers = pgTable("suppliers", {
   defaultCurrency: text("default_currency").notNull().default("AED"),
   notes: text("notes").notNull().default(""),
   isActive: boolean("is_active").notNull().default(true),
+  // what Accounts needs to pay them (Purchases); the same supplier as in Procurement, never a copy
+  trn: text("trn").notNull().default(""),
+  email: text("email").notNull().default(""),
+  address: text("address").notNull().default(""),
+  /** Days we have to pay their bills (0 = cash). */
+  termsDays: integer("terms_days").notNull().default(30),
+  bankName: text("bank_name").notNull().default(""),
+  iban: text("iban").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -759,6 +767,97 @@ export const payments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("payments_year_seq_idx").on(t.year, t.seq), index("payments_invoice_idx").on(t.invoiceId), index("payments_company_idx").on(t.companyId)],
+);
+
+/**
+ * Money we owe or spent (Accounts › Purchases), our number ZBL-2026-0001:
+ * - `bill`: a supplier's invoice, paid later (part or full);
+ * - `expense`: paid on the spot (rent, fuel, salaries...), saved together with its payment;
+ * - `opening`: a supplier bill still unpaid when the portal took over from Zoho (kept out of profit and VAT).
+ * A wrong entry is voided with a reason, never deleted. Linked to a customer order, its cost counts against that order.
+ */
+export const bills = pgTable(
+  "bills",
+  {
+    id: serial("id").primaryKey(),
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    number: text("number").notNull().unique(),
+    kind: text("kind", { enum: ["bill", "expense", "opening"] }).notNull().default("bill"),
+    supplierId: integer("supplier_id").references(() => suppliers.id),
+    /** Who was paid when there is no supplier record (landlord, DEWA, a staff member). */
+    paidTo: text("paid_to").notNull().default(""),
+    /** The supplier's own invoice number. */
+    supplierRef: text("supplier_ref").notNull().default(""),
+    billDate: date("bill_date").notNull(),
+    termsDays: integer("terms_days").notNull().default(0),
+    dueDate: date("due_date").notNull(),
+    /** Key from lib/purchases.ts CATEGORIES. */
+    category: text("category").notNull(),
+    orderId: integer("order_id").references(() => salesOrders.id),
+    dealId: integer("deal_id").references(() => deals.id),
+    vatPct: numeric("vat_pct", { precision: 5, scale: 2, mode: "number" }).notNull().default(0),
+    subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** open, void */
+    status: text("status").notNull().default("open"),
+    voidReason: text("void_reason").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    notes: text("notes").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("bills_year_seq_idx").on(t.year, t.seq),
+    // the same supplier invoice cannot be entered twice
+    uniqueIndex("bills_supplier_ref_idx").on(t.supplierId, t.supplierRef).where(sql`supplier_ref <> '' AND status <> 'void'`),
+    index("bills_supplier_idx").on(t.supplierId),
+    index("bills_due_idx").on(t.status, t.dueDate),
+    index("bills_order_idx").on(t.orderId),
+    index("bills_date_idx").on(t.billDate),
+  ],
+);
+
+export const billItems = pgTable(
+  "bill_items",
+  {
+    id: serial("id").primaryKey(),
+    billId: integer("bill_id")
+      .notNull()
+      .references(() => bills.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    description: text("description").notNull(),
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull().default(1),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 2, mode: "number" }).notNull(),
+  },
+  (t) => [index("bill_items_bill_idx").on(t.billId, t.position)],
+);
+
+/** Money paid out against a bill or expense (payment voucher ZPV-2026-0001). Voided with a reason, never deleted. */
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: serial("id").primaryKey(),
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    number: text("number").notNull().unique(),
+    billId: integer("bill_id")
+      .notNull()
+      .references(() => bills.id),
+    supplierId: integer("supplier_id").references(() => suppliers.id),
+    paidOn: date("paid_on").notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** cash, bank */
+    method: text("method").notNull(),
+    reference: text("reference").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("supplier_payments_year_seq_idx").on(t.year, t.seq), index("supplier_payments_bill_idx").on(t.billId), index("supplier_payments_supplier_idx").on(t.supplierId)],
 );
 
 /**

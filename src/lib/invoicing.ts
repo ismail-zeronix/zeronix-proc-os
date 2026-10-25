@@ -5,7 +5,7 @@
 import { addDays, round2 } from "@/lib/quotation";
 
 /** ZSO-2026-0001 style numbers for documents numbered per year inside the portal. */
-export function yearNumber(prefix: "ZSO" | "ZDN" | "ZCN" | "ZRV", year: number, seq: number): string {
+export function yearNumber(prefix: "ZSO" | "ZDN" | "ZCN" | "ZRV" | "ZBL" | "ZPV", year: number, seq: number): string {
   return `${prefix}-${year}-${String(seq).padStart(4, "0")}`;
 }
 

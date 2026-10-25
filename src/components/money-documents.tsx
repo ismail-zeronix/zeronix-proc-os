@@ -107,6 +107,89 @@ export function ReceiptDocument({ r, brand }: { r: ReceiptData; brand: QuoteBran
   );
 }
 
+export interface VoucherData {
+  number: string;
+  paidOn: string;
+  amount: number;
+  method: string;
+  reference: string;
+  notes: string;
+  payee: string;
+  payeeTrn: string | null;
+  billNumber: string;
+  billTotal: number;
+  supplierRef: string;
+  category: string;
+  /** Still to pay on the bill after this and earlier payments. */
+  balanceAfter: number;
+  byName: string | null;
+  voided: string | null;
+}
+
+/** Payment voucher for money paid out (a supplier bill or an expense), signed by whoever received it. */
+export function VoucherDocument({ v, brand }: { v: VoucherData; brand: QuoteBrand }) {
+  return (
+    <article className="relative bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10" aria-label={`Payment voucher ${v.number}`}>
+      {v.voided && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+          <span className="-rotate-30 rounded-xl border-8 border-red-600/30 px-8 py-2 text-7xl font-black tracking-widest text-red-600/25">VOID</span>
+        </div>
+      )}
+      <Head brand={brand} title="PAYMENT VOUCHER" number={v.number} meta={[["Date", longDay(v.paidOn)]]} />
+      <dl className="mt-6 grid grid-cols-[10rem_1fr] gap-x-4 gap-y-2.5">
+        <dt className="text-neutral-500">Paid to</dt>
+        <dd className="font-semibold">
+          {v.payee}
+          {v.payeeTrn && <span className="ml-2 text-xs font-normal text-neutral-500">TRN {v.payeeTrn}</span>}
+        </dd>
+        <dt className="text-neutral-500">The sum of</dt>
+        <dd>
+          <span className="text-lg font-semibold tabular-nums">{money(v.amount)}</span>
+          <div className="text-xs text-neutral-600 italic">{aedInWords(v.amount)}</div>
+        </dd>
+        <dt className="text-neutral-500">Paid by</dt>
+        <dd>
+          {methodLabel(v.method)}
+          {v.reference ? ` · Ref. ${v.reference}` : ""}
+        </dd>
+        <dt className="text-neutral-500">For</dt>
+        <dd>
+          {v.category} · {v.billNumber}
+          {v.supplierRef ? ` (their invoice ${v.supplierRef})` : ""} · {money(v.billTotal)}
+        </dd>
+        <dt className="text-neutral-500">Still to pay</dt>
+        <dd className="font-medium">{v.balanceAfter > 0 ? money(v.balanceAfter) : "Fully paid"}</dd>
+        {v.notes && (
+          <>
+            <dt className="text-neutral-500">Note</dt>
+            <dd>{v.notes}</dd>
+          </>
+        )}
+        {v.voided && (
+          <>
+            <dt className="text-red-700">Voided</dt>
+            <dd className="text-red-700">{v.voided}</dd>
+          </>
+        )}
+      </dl>
+      <section className="mt-14 grid grid-cols-3 gap-8 text-xs text-neutral-600">
+        <div>
+          <div className="h-10 border-b border-neutral-400" />
+          <div className="mt-1">Prepared by{v.byName ? `: ${v.byName}` : ""}</div>
+        </div>
+        <div>
+          <div className="h-10 border-b border-neutral-400" />
+          <div className="mt-1">Approved by</div>
+        </div>
+        <div>
+          <div className="h-10 border-b border-neutral-400" />
+          <div className="mt-1">Received by (name and signature)</div>
+        </div>
+      </section>
+    </article>
+  );
+}
+
 export interface StatementData {
   customer: { name: string; emirate: string; trn: string };
   from: string;

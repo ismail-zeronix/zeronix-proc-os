@@ -12,10 +12,11 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { UrlTabs } from "@/components/url-tabs";
 import { nextInvoiceNumber } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
-import { financeViewerOf, viewerOf } from "@/lib/auth/visibility";
+import { financeViewerOf } from "@/lib/auth/visibility";
 import { listFiles } from "@/lib/files-data";
 import { termsLabel } from "@/lib/invoicing";
 import { getOrder } from "@/lib/orders-data";
+import { orderCosts } from "@/lib/purchases-data";
 import { getSetting } from "@/lib/settings";
 import { lineTotal, longDay, money } from "@/lib/quotation";
 
@@ -35,10 +36,12 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
   const { tab } = await searchParams;
   const canAccounts = access.finance;
   const canFiles = apps.includes("files");
-  const [files, nextNumber, ourTrn] = await Promise.all([
+  const [files, nextNumber, ourTrn, costs] = await Promise.all([
     canFiles ? listFiles(financeViewerOf(access), { relatedType: "order", relatedId: o.id }) : Promise.resolve([]),
     canAccounts && o.status === "delivered" ? nextInvoiceNumber() : Promise.resolve(""),
     getSetting("quote_trn"),
+    // what it really cost, from the supplier bills bought for it (the accounts team only)
+    canAccounts ? orderCosts(o.id) : Promise.resolve(null),
   ]);
   const active = o.invoices.find((i) => i.status !== "cancelled");
   const closed = o.status === "invoiced" || o.status === "cancelled";
@@ -183,14 +186,46 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/ac
                     {o.costTotal != null && (
                       <>
                         <div className="flex justify-between">
-                          <dt className="text-muted-foreground">Our cost</dt>
+                          <dt className="text-muted-foreground">Quoted cost</dt>
                           <dd className="tabular-nums">{money(o.costTotal)}</dd>
                         </div>
                         <div className="flex justify-between font-medium">
-                          <dt>Profit</dt>
+                          <dt>Expected profit</dt>
                           <dd className="tabular-nums">{money(profit!)}</dd>
                         </div>
                       </>
+                    )}
+                    {costs && (
+                      <div className="mt-1 grid gap-1 border-t pt-1.5">
+                        <div className="flex items-center justify-between">
+                          <dt className="text-muted-foreground">Supplier bills</dt>
+                          <dd>
+                            <Link href={`/accounts/bills/new?order=${o.id}`} className="text-xs font-medium hover:underline">
+                              + Add bill
+                            </Link>
+                          </dd>
+                        </div>
+                        {costs.bills.map((b) => (
+                          <div key={b.id} className="flex justify-between gap-2 text-xs">
+                            <Link href={`/accounts/bills/${b.id}`} className="truncate hover:underline">
+                              <span className="font-mono">{b.number}</span> · {b.payee}
+                            </Link>
+                            <span className="tabular-nums">{money(b.subtotal)}</span>
+                          </div>
+                        ))}
+                        {costs.bills.length > 0 && (
+                          <>
+                            <div className="flex justify-between">
+                              <dt className="text-muted-foreground">Real cost</dt>
+                              <dd className="tabular-nums">{money(costs.cost)}</dd>
+                            </div>
+                            <div className="flex justify-between font-medium">
+                              <dt>Real profit</dt>
+                              <dd className={`tabular-nums ${o.subtotal - costs.cost < 0 ? "text-destructive" : ""}`}>{money(o.subtotal - costs.cost)}</dd>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <dt>Made by</dt>
