@@ -28,6 +28,11 @@ export const users = pgTable("users", {
   apps: text("apps").array(),
   /** Which sales records they see: "own" = deals they are assigned to (and what hangs off them), "all" = everyone's. Admins always see all. */
   dataScope: text("data_scope", { enum: ["own", "all"] }).notNull().default("own"),
+  /**
+   * What they do in Accounts: "sales" = customers, quotes and orders of the deals they see; "finance" = everything
+   * (invoices, payments, purchases, reports) for every record. Admins are always finance.
+   */
+  accountsLevel: text("accounts_level", { enum: ["sales", "finance"] }).notNull().default("sales"),
   /** Shown in the email signature. */
   jobTitle: text("job_title").notNull().default(""),
   phone: text("phone").notNull().default(""),
@@ -344,6 +349,8 @@ export const companies = pgTable(
     phone: text("phone").notNull().default(""),
     tradeLicenseNo: text("trade_license_no").notNull().default(""),
     trn: text("trn").notNull().default(""),
+    /** Billing address printed on invoices (an order's delivery address wins when it has one). */
+    address: text("address").notNull().default(""),
     /** Where we first found them (see lib/sales.ts SOURCES). */
     source: text("source").notNull().default(""),
     notes: text("notes").notNull().default(""),

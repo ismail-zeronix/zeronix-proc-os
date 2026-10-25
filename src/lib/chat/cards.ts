@@ -78,12 +78,12 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: d.title,
           subtitle: d.company,
-          href: d.projectId && a.apps.includes("projects") && !a.apps.includes("sales") ? `/projects/list/${d.projectId}` : `/sales/deals/${id}`,
+          href: d.projectId && a.apps.includes("projects") && !a.apps.includes("crm") ? `/projects/list/${d.projectId}` : `/crm/deals/${id}`,
           status: { label: stageLabel(d.stage), tone: STAGE_TONE[d.stage] ?? "blue" },
           amount: d.valueAed != null ? aed(d.valueAed) : undefined,
           facts: [`${TEMPERATURE_LABEL[temp]} lead`],
           people,
-          actions: a.apps.includes("tasks") && a.apps.includes("sales") ? [{ key: "followup", label: "Follow-up task" }] : [],
+          actions: a.apps.includes("tasks") && a.apps.includes("crm") ? [{ key: "followup", label: "Follow-up task" }] : [],
         };
       }
       case "quote": {
@@ -94,18 +94,18 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
           .where(eq(schema.quotes.id, id));
         if (!q) return missing(type, id);
-        if (!(await canSeeDeal(v, q.dealId))) return restricted(type, id);
+        if (!(await canSeeDeal(financeViewerOf(a), q.dealId))) return restricted(type, id);
         return {
           ref,
           type,
           id,
           title: q.number,
           subtitle: `${q.company} · ${q.title}`,
-          href: `/sales/quotes/${id}`,
+          href: `/accounts/quotes/${id}`,
           status: { label: quoteStatusLabel(q.status), tone: QUOTE_TONE[q.status] ?? "slate" },
           amount: aed(q.total),
           facts: q.validUntil && (q.status === "draft" || q.status === "sent") ? [`Valid until ${dayLabel(q.validUntil, today)}`] : [],
-          actions: !a.apps.includes("sales")
+          actions: !a.apps.includes("accounts")
             ? []
             : q.status === "draft"
               ? [{ key: "sent", label: "Mark sent" }]
@@ -131,11 +131,11 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: o.number,
           subtitle: o.company,
-          href: `/sales/orders/${id}`,
+          href: `/accounts/orders/${id}`,
           status: { label: orderStatusLabel(o.status), tone: ORDER_TONE[o.status] ?? "blue" },
           amount: aed(o.total),
           facts: o.dn ? [`Delivery note ${o.dn}`] : [],
-          actions: a.apps.includes("sales") && o.status === "open" ? [{ key: "delivered", label: "Mark delivered today" }] : [],
+          actions: a.apps.includes("accounts") && o.status === "open" ? [{ key: "delivered", label: "Mark delivered today" }] : [],
         };
       }
       case "invoice": {
@@ -144,7 +144,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           .from(schema.invoices)
           .where(eq(schema.invoices.id, id));
         if (!i) return missing(type, id);
-        const finance = a.seesAll || a.apps.includes("accounts");
+        const finance = a.seesAll || a.finance;
         if (!finance && !(i.dealId && (await canSeeDeal(v, i.dealId)))) return restricted(type, id);
         const [paid] = await db
           .select({ s: sql<number>`coalesce(sum(${schema.payments.amount}), 0)::float` })
@@ -157,7 +157,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: i.number,
           subtitle: i.customer,
-          href: a.apps.includes("accounts") ? `/accounts/invoices/${id}` : `/print/invoice/${id}`,
+          href: a.finance ? `/accounts/invoices/${id}` : `/print/invoice/${id}`,
           status: { label: st.label, tone: INVOICE_TONE[st.key] ?? "blue" },
           amount: aed(i.total),
           facts: st.balance > 0 && st.paid > 0 ? [`${aed(st.balance)} still owed`] : [],
@@ -177,7 +177,7 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
           id,
           title: c.name,
           subtitle: [c.industry, c.emirate].filter(Boolean).join(" · ") || "Company",
-          href: `/sales/companies/${id}`,
+          href: `/crm/companies/${id}`,
           facts: c.owner ? [`Owner: ${c.owner}`] : [],
         };
       }

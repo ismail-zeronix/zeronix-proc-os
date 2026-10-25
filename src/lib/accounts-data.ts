@@ -6,6 +6,7 @@ import { ageBucket, AGE_BUCKETS, buildStatement, invoiceState, type AgeBucket, t
 import { paidByInvoice } from "@/lib/orders-data";
 import { longDay, round2 } from "@/lib/quotation";
 import { getSettings } from "@/lib/settings";
+import { companyVisible, type Viewer } from "@/lib/auth/visibility";
 
 export interface InvoiceRow {
   id: number;
@@ -13,6 +14,7 @@ export interface InvoiceRow {
   companyId: number;
   customerName: string;
   orderId: number;
+  dealId: number;
   issueDate: string;
   dueDate: string;
   termsDays: number;
@@ -31,6 +33,7 @@ export async function listInvoices(opts: { companyId?: number } = {}): Promise<I
       companyId: schema.invoices.companyId,
       customerName: schema.invoices.customerName,
       orderId: schema.invoices.orderId,
+      dealId: schema.invoices.dealId,
       issueDate: schema.invoices.issueDate,
       dueDate: schema.invoices.dueDate,
       termsDays: schema.invoices.termsDays,
@@ -242,4 +245,45 @@ export async function accountsBadges() {
     db.select({ n: sql<number>`count(*)::int` }).from(schema.salesOrders).where(eq(schema.salesOrders.status, "delivered")),
   ]);
   return { overdue: inv.filter((i) => i.state.key === "overdue").length, toInvoice: toInvoice.n };
+}
+
+export interface CustomerRow {
+  id: number;
+  name: string;
+  emirate: string;
+  trn: string;
+  orders: number;
+  invoices: number;
+  owed: number;
+  overdue: number;
+  lastPaid: string | null;
+}
+
+/**
+ * Customers: companies with a won deal or an order (a company turns into a customer by itself, nothing is copied), with
+ * what each owes. Only the ones the viewer may see; biggest overdue, then biggest balance first.
+ */
+export async function listCustomers(v: Viewer): Promise<CustomerRow[]> {
+  const companies = await db.execute<{ id: number; name: string; emirate: string; trn: string; orders: number }>(sql`
+    SELECT c.id, c.name, c.emirate, c.trn,
+      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS orders
+    FROM companies c
+    WHERE (EXISTS (SELECT 1 FROM sales_orders o WHERE o.company_id = c.id)
+        OR EXISTS (SELECT 1 FROM deals d WHERE d.company_id = c.id AND d.stage = 'won'))
+      AND ${companyVisible(v, sql`c.id`)}`);
+  const ids = new Set(companies.rows.map((c) => c.id));
+  const [invoices, payments] = await Promise.all([listInvoices(), listPayments(5000)]);
+  const byId = new Map<number, CustomerRow>(companies.rows.map((c) => [c.id, { ...c, invoices: 0, owed: 0, overdue: 0, lastPaid: null }]));
+  for (const i of invoices) {
+    const c = byId.get(i.companyId);
+    if (!c || !ids.has(i.companyId)) continue;
+    if (i.status !== "cancelled") c.invoices++;
+    c.owed = round2(c.owed + i.state.balance);
+    if (i.state.key === "overdue") c.overdue = round2(c.overdue + i.state.balance);
+  }
+  for (const p of payments) {
+    const c = byId.get(p.companyId);
+    if (c && !p.voidedAt && (!c.lastPaid || p.paidOn > c.lastPaid)) c.lastPaid = p.paidOn;
+  }
+  return [...byId.values()].sort((a, b) => b.overdue - a.overdue || b.owed - a.owed || a.name.localeCompare(b.name));
 }

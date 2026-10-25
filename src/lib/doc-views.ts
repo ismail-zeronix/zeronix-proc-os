@@ -12,7 +12,7 @@ const items = (rows: { id: number; description: string; qty: number; unitPrice: 
 
 function customerLines(o: Order): string[] {
   return [
-    o.company.emirate ? `${o.company.emirate}, United Arab Emirates` : "",
+    o.company.address || (o.company.emirate ? `${o.company.emirate}, United Arab Emirates` : ""),
     o.contact ? `Attn: ${o.contact.name}${o.contact.jobTitle ? `, ${o.contact.jobTitle}` : ""}` : "",
     o.contact?.phone || o.company.phone || "",
   ];

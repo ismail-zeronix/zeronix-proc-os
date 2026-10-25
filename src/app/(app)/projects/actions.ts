@@ -16,7 +16,7 @@ const day = z.string().trim().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Pick a valid date
 function refresh() {
   revalidatePath("/projects", "layout");
   revalidatePath("/tasks");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
   revalidatePath("/");
 }
 

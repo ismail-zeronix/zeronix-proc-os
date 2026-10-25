@@ -295,7 +295,7 @@ export async function salesUsers() {
     .from(schema.users)
     .where(eq(schema.users.isActive, true))
     .orderBy(asc(schema.users.name));
-  return rows.filter((u) => allowedApps(u).includes("sales")).map((u) => ({ id: u.id, name: u.name }));
+  return rows.filter((u) => allowedApps(u).includes("crm")).map((u) => ({ id: u.id, name: u.name }));
 }
 
 

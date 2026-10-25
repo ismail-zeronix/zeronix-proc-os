@@ -311,7 +311,7 @@ export async function listChannelsFor(userId: number): Promise<ChannelSummary[]>
         ? {
             type: r.record_type ?? "deal",
             id: r.record_id,
-            href: r.project_id ? `/projects/list/${r.project_id}?tab=chat` : `/sales/deals/${r.record_id}?tab=chat`,
+            href: r.project_id ? `/projects/list/${r.project_id}?tab=chat` : `/crm/deals/${r.record_id}?tab=chat`,
             subtitle: r.company_name ?? "",
           }
         : null;
@@ -370,7 +370,7 @@ export async function channelSummary(channelId: number, userId: number): Promise
     record: {
       type: "deal",
       id: row.recordId!,
-      href: row.projectId ? `/projects/list/${row.projectId}?tab=chat` : `/sales/deals/${row.recordId}?tab=chat`,
+      href: row.projectId ? `/projects/list/${row.projectId}?tab=chat` : `/crm/deals/${row.recordId}?tab=chat`,
       subtitle: row.company ?? "",
     },
     lastMessageAt: null,

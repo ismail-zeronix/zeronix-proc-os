@@ -25,7 +25,7 @@ describe.skipIf(!live)("project checklist (needs the dev database)", () => {
   let eq: typeof import("drizzle-orm").eq;
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
-  let S: typeof import("@/app/(app)/sales/actions");
+  let S: typeof import("@/app/(app)/crm/actions");
   let P: typeof import("@/app/(app)/projects/actions");
   let C: typeof import("@/app/(app)/projects/checklist-actions");
   let A: typeof import("@/app/(app)/admin/project-type-actions");
@@ -48,7 +48,7 @@ describe.skipIf(!live)("project checklist (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, and } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
+    S = await import("@/app/(app)/crm/actions");
     P = await import("@/app/(app)/projects/actions");
     C = await import("@/app/(app)/projects/checklist-actions");
     A = await import("@/app/(app)/admin/project-type-actions");
@@ -88,7 +88,7 @@ describe.skipIf(!live)("project checklist (needs the dev database)", () => {
 
   it("a new project gets its type's checklist, survey dated from today, work undated until the start date", async () => {
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} Clinic`, requirement: "12 doors", kind: "project", projectType: "access_control", ownerIds: [seller] });
+    const r = await S.createDeal({ companyName: `${tag} Clinic`, requirement: "12 doors", kind: "project", projectType: "access_control", ownerIds: [seller] });
     projectId = r.projectId!;
     dealId = r.id;
     const list = await D.checklistOf(projectId);
@@ -177,7 +177,7 @@ describe.skipIf(!live)("project checklist (needs the dev database)", () => {
     await A.updateTemplate(tpl.id, { title: "Roof and shading survey", offsetDays: 2, required: false });
     // a new project of that type starts with those sections and tasks
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} Farm`, requirement: "rooftop solar", kind: "project", projectType: key });
+    const r = await S.createDeal({ companyName: `${tag} Farm`, requirement: "rooftop solar", kind: "project", projectType: key });
     const p = await D.getProject(r.projectId!, { id: seller, seesAll: false });
     expect(p?.boqSections).toEqual(["Panels", "Inverter", "Mounting"]);
     const list = await D.checklistOf(r.projectId!);
@@ -187,7 +187,7 @@ describe.skipIf(!live)("project checklist (needs the dev database)", () => {
 
   it("deleting the deal removes the project checklist", async () => {
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} Shop`, requirement: "cameras", kind: "project", projectType: "cctv" });
+    const r = await S.createDeal({ companyName: `${tag} Shop`, requirement: "cameras", kind: "project", projectType: "cctv" });
     expect((await D.checklistOf(r.projectId!)).length).toBeGreaterThan(0);
     await S.deleteDeal(r.id);
     const left = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, r.projectId!));

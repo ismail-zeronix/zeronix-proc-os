@@ -146,7 +146,7 @@ describe.skipIf(!live)("chat channels, deal threads, replies and reactions (need
   let inArray: typeof import("drizzle-orm").inArray;
   let eq: typeof import("drizzle-orm").eq;
   let A: typeof import("@/app/(app)/chat/actions");
-  let S: typeof import("@/app/(app)/sales/actions");
+  let S: typeof import("@/app/(app)/crm/actions");
   let C: typeof import("@/lib/chat/channels");
   let M: typeof import("@/lib/chat/messages");
   let ali: number, bina: number, carl: number, boss: number, companyId: number, dealId: number;
@@ -166,7 +166,7 @@ describe.skipIf(!live)("chat channels, deal threads, replies and reactions (need
     ({ db, schema } = await import("@/db"));
     ({ inArray, eq } = await import("drizzle-orm"));
     A = await import("@/app/(app)/chat/actions");
-    S = await import("@/app/(app)/sales/actions");
+    S = await import("@/app/(app)/crm/actions");
     C = await import("@/lib/chat/channels");
     M = await import("@/lib/chat/messages");
     const mk = async (name: string, role: "admin" | "sales" = "sales") =>
@@ -290,7 +290,7 @@ describe.skipIf(!live)("mention cards (needs the dev database)", () => {
   let inArray: typeof import("drizzle-orm").inArray;
   let eq: typeof import("drizzle-orm").eq;
   let A: typeof import("@/app/(app)/chat/actions");
-  let S: typeof import("@/app/(app)/sales/actions");
+  let S: typeof import("@/app/(app)/crm/actions");
   let T: typeof import("@/app/(app)/tasks/actions");
   let K: typeof import("@/lib/chat/cards");
   let N: typeof import("@/lib/chat/mentions");
@@ -319,7 +319,7 @@ describe.skipIf(!live)("mention cards (needs the dev database)", () => {
     ({ db, schema } = await import("@/db"));
     ({ inArray, eq } = await import("drizzle-orm"));
     A = await import("@/app/(app)/chat/actions");
-    S = await import("@/app/(app)/sales/actions");
+    S = await import("@/app/(app)/crm/actions");
     T = await import("@/app/(app)/tasks/actions");
     K = await import("@/lib/chat/cards");
     N = await import("@/lib/chat/mentions");

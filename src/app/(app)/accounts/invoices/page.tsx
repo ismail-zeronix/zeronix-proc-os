@@ -2,7 +2,7 @@ import { InvoiceTable } from "@/components/invoice-table";
 import { PageToolbar } from "@/components/page-toolbar";
 import { Segmented } from "@/components/segmented";
 import { listInvoices } from "@/lib/accounts-data";
-import { requireApp } from "@/lib/auth/session";
+import { requireFinance } from "@/lib/auth/session";
 
 export const metadata = { title: "Invoices · Zeronix Accounts" };
 
@@ -16,7 +16,7 @@ const VIEWS = [
 
 /** Every tax invoice, filtered by where it stands today. */
 export default async function InvoicesPage({ searchParams }: PageProps<"/accounts/invoices">) {
-  await requireApp("accounts");
+  await requireFinance();
   const v = (await searchParams).view;
   const view = VIEWS.find((x) => x.key === v) ?? VIEWS[0];
   const all = await listInvoices();

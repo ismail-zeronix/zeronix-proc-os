@@ -47,7 +47,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type Block, blockLabel, BLOCK_TYPES, type BlockType, cloneBlock, headingNumbers, newBlock } from "@/lib/proposal";
-import { createQuote, reviseQuote } from "../../../../sales/quote-actions";
+import { createQuote, reviseQuote } from "../../../../accounts/quote-actions";
 import { applyTemplate, deleteProposalTemplate, saveAsTemplate, saveProposal } from "../../../proposal-actions";
 import { BlockBody, type ProposalContext } from "./blocks";
 
@@ -412,7 +412,7 @@ export function ProposalEditor({
       if (dirty.current || conflicted.current) throw new Error("Save the proposal first.");
       const r = quote ? await reviseQuote(quote.id) : await createQuote(dealId);
       toast.success(quote ? `Quote ${r.number} updated with this proposal${"wasSent" in r && r.wasSent ? ". Send it to the customer again." : ""}` : `Quote ${r.number} made with this proposal`, {
-        action: canOpenQuote ? { label: "Open the quote", onClick: () => router.push(`/sales/quotes/${r.id}`) } : { label: "Print", onClick: () => window.open(`/print/quote/${r.id}`, "_blank") },
+        action: canOpenQuote ? { label: "Open the quote", onClick: () => router.push(`/accounts/quotes/${r.id}`) } : { label: "Print", onClick: () => window.open(`/print/quote/${r.id}`, "_blank") },
       });
       // the button now updates this quote instead of making a new one
       router.refresh();

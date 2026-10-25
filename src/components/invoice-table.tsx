@@ -6,8 +6,11 @@ import { UserAvatar } from "@/components/user-avatar";
 import type { InvoiceRow } from "@/lib/accounts-data";
 import { longDay, money } from "@/lib/quotation";
 
-/** Invoices with what is still owed and how late. Used by Accounts overview, the invoices list and a customer page. */
-export function InvoiceTable({ rows, empty, showCustomer = true }: { rows: InvoiceRow[]; empty: string; showCustomer?: boolean }) {
+/**
+ * Invoices with what is still owed and how late. Used by Accounts overview, the invoices list and a customer page.
+ * Below the finance level an invoice opens as its printable copy (the invoice page is for the accounts team).
+ */
+export function InvoiceTable({ rows, empty, showCustomer = true, finance = true }: { rows: InvoiceRow[]; empty: string; showCustomer?: boolean; finance?: boolean }) {
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
       <Table>
@@ -26,7 +29,7 @@ export function InvoiceTable({ rows, empty, showCustomer = true }: { rows: Invoi
           {rows.map((i) => (
             <TableRow key={i.id} className={i.state.key === "cancelled" ? "opacity-60" : ""}>
               <TableCell className="py-1.5">
-                <Link href={`/accounts/invoices/${i.id}`} className="font-mono text-sm font-medium hover:underline">
+                <Link href={finance ? `/accounts/invoices/${i.id}` : `/print/invoice/${i.id}`} target={finance ? undefined : "_blank"} className="font-mono text-sm font-medium hover:underline">
                   {i.number}
                 </Link>
                 <div className="text-xs text-muted-foreground">{longDay(i.issueDate)}</div>

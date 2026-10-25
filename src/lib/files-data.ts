@@ -56,9 +56,9 @@ export async function listFiles(
     ids("invoice").length ? db.select({ id: schema.invoices.id, label: schema.invoices.number }).from(schema.invoices).where(inArray(schema.invoices.id, ids("invoice"))) : [],
   ]);
   const look: Record<string, { list: { id: number; label: string }[]; href: (id: number) => string }> = {
-    company: { list: companies, href: (id) => `/sales/companies/${id}` },
-    deal: { list: deals, href: (id) => `/sales/deals/${id}` },
-    order: { list: orders, href: (id) => `/sales/orders/${id}` },
+    company: { list: companies, href: (id) => `/crm/companies/${id}` },
+    deal: { list: deals, href: (id) => `/crm/deals/${id}` },
+    order: { list: orders, href: (id) => `/accounts/orders/${id}` },
     invoice: { list: invoices, href: (id) => `/accounts/invoices/${id}` },
   };
   return rows.map((r) => {

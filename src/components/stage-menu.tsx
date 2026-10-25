@@ -3,7 +3,7 @@
 import { ArrowRightLeft } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { moveDeal } from "@/app/(app)/sales/actions";
+import { moveDeal } from "@/app/(app)/crm/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

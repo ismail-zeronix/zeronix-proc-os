@@ -85,7 +85,7 @@ export default async function ProposalPage({ params }: PageProps<"/projects/list
       typeLabel={p.typeLabel}
       dealId={p.dealId}
       quote={inPlay ? { id: inPlay.id, number: inPlay.number, status: inPlay.status } : null}
-      canOpenQuote={access.apps.includes("sales")}
+      canOpenQuote={access.apps.includes("accounts")}
     />
   );
 }

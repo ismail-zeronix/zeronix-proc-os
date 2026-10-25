@@ -1,0 +1,163 @@
+import "dotenv/config";
+import { SignJWT } from "jose";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { MOVED_FROM_SALES } from "../next.config";
+import { navFor, searchPages } from "@/lib/app-nav";
+
+let cookieValue: string | undefined;
+vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined) }) }));
+vi.mock("next/navigation", () => ({
+  redirect: () => {
+    throw new Error("redirect");
+  },
+  notFound: () => {
+    throw new Error("notFound");
+  },
+}));
+
+/** Where Next sends a path: the first rule whose source matches (":path*" = the rest of the path). */
+function redirected(path: string): string | null {
+  for (const r of MOVED_FROM_SALES) {
+    const [src, query] = [r.source, r.destination];
+    if (src.endsWith("/:path*")) {
+      const base = src.slice(0, -"/:path*".length);
+      if (path.startsWith(base + "/")) return query.replace(":path*", path.slice(base.length + 1));
+    } else if (path === src) return query;
+  }
+  return null;
+}
+
+describe("Sales became CRM, money moved to Accounts", () => {
+  it("sends old Sales links to their new homes", () => {
+    expect(redirected("/sales")).toBe("/crm");
+    expect(redirected("/sales/deals/12")).toBe("/crm/deals/12");
+    expect(redirected("/sales/pipeline")).toBe("/crm/deals");
+    expect(redirected("/sales/companies/3")).toBe("/crm/companies/3");
+    expect(redirected("/sales/quotes")).toBe("/accounts/quotes");
+    expect(redirected("/sales/quotes/7")).toBe("/accounts/quotes/7");
+    expect(redirected("/sales/orders/9")).toBe("/accounts/orders/9");
+    expect(redirected("/accounts/to-invoice")).toBe("/accounts/orders?view=delivered");
+    expect(redirected("/salesforce")).toBeNull();
+  });
+
+  it("shows the sales level only customers, quotes and orders in Accounts", () => {
+    const sales = navFor("accounts", false).flatMap((g) => g.items.map((i) => i.href));
+    expect(sales).toEqual(["/accounts/customers", "/accounts/quotes", "/accounts/orders"]);
+    expect(navFor("accounts", false).map((g) => g.label)).toEqual(["Sales"]);
+    const finance = navFor("accounts", true).flatMap((g) => g.items.map((i) => i.href));
+    expect(finance).toEqual(expect.arrayContaining(["/accounts", "/accounts/invoices", "/accounts/payments", "/accounts/bills", "/accounts/reports"]));
+    expect(searchPages(["accounts"], false).some((p) => p.href === "/accounts/invoices")).toBe(false);
+  });
+
+  it("keeps CRM to deals, companies and contacts", () => {
+    expect(navFor("crm", false).flatMap((g) => g.items.map((i) => i.label))).toEqual(["Overview", "Deals", "Companies", "Contacts"]);
+  });
+});
+
+const live = !!process.env.DATABASE_URL && !!process.env.AUTH_SECRET;
+
+describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
+  let db: typeof import("@/db").db;
+  let schema: typeof import("@/db").schema;
+  let pool: typeof import("@/db").pool;
+  let D: typeof import("drizzle-orm");
+  let S: typeof import("@/app/(app)/crm/actions");
+  let Q: typeof import("@/app/(app)/accounts/quote-actions");
+  let O: typeof import("@/app/(app)/accounts/order-actions");
+  let A: typeof import("@/app/(app)/accounts/actions");
+  let AD: typeof import("@/lib/accounts-data");
+  let seller = 0, colleague = 0, accountant = 0;
+  let userIds: number[] = [];
+  let today = "";
+  const tag = `ZZCRMACC${Date.now()}`;
+
+  const as = async (id: number) => {
+    cookieValue = await new SignJWT({ name: `${tag}-${id}`, email: `${tag}-${id}@example.test`, role: "sales" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setSubject(String(id))
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  };
+
+  beforeAll(async () => {
+    ({ db, schema, pool } = await import("@/db"));
+    D = await import("drizzle-orm");
+    S = await import("@/app/(app)/crm/actions");
+    Q = await import("@/app/(app)/accounts/quote-actions");
+    O = await import("@/app/(app)/accounts/order-actions");
+    A = await import("@/app/(app)/accounts/actions");
+    AD = await import("@/lib/accounts-data");
+    today = (await import("@/lib/dates")).dubaiToday();
+    const mk = async (name: string, apps: string[], accountsLevel: "sales" | "finance") =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps, accountsLevel }).returning({ id: schema.users.id }))[0].id;
+    seller = await mk("seller", ["crm", "accounts"], "sales");
+    colleague = await mk("colleague", ["crm", "accounts"], "sales");
+    accountant = await mk("accountant", ["accounts"], "finance"); // no CRM at all
+    userIds = [seller, colleague, accountant];
+    await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
+  });
+
+  afterAll(async () => {
+    const { inArray, like, and, eq } = D;
+    const cids = (await db.select({ id: schema.companies.id }).from(schema.companies).where(like(schema.companies.name, `${tag}%`))).map((c) => c.id);
+    if (cids.length) {
+      await db.delete(schema.salesOrders).where(inArray(schema.salesOrders.companyId, cids));
+      const deals = await db.select({ id: schema.deals.id }).from(schema.deals).where(inArray(schema.deals.companyId, cids));
+      if (deals.length) await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), inArray(schema.tasks.relatedId, deals.map((d) => d.id))));
+      await db.delete(schema.companies).where(inArray(schema.companies.id, cids));
+    }
+    await db.delete(schema.attendancePunches).where(inArray(schema.attendancePunches.userId, userIds));
+    await db.delete(schema.users).where(inArray(schema.users.id, userIds));
+    await pool.end();
+  });
+
+  const orderOf = async (label: string) => {
+    await as(seller);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, contactName: "Omar", requirement: "switches" });
+    await Q.addItem(dealId, { description: "Switch", qty: 2, costAed: 400, unitPriceAed: 500 });
+    const q = await Q.createQuote(dealId, { vatPct: 5 });
+    const o = await O.convertQuoteToOrder(q.id, { termsDays: 30 });
+    return { dealId, quoteId: q.id, orderId: o.id };
+  };
+
+  it("lets the sales level quote and order its own deals, but not invoice", async () => {
+    const { orderId } = await orderOf("Own");
+    await O.markDelivered(orderId, { deliveredOn: today, receivedBy: "Store" });
+    await expect(A.issueInvoice(orderId, { issueDate: today, termsDays: 30 })).rejects.toThrow(/accounts team/);
+  });
+
+  it("keeps a colleague's orders private at the sales level, open to finance", async () => {
+    const { orderId, quoteId } = await orderOf("Private");
+    await as(colleague);
+    await expect(O.markDelivered(orderId, { deliveredOn: today })).rejects.toThrow(/not assigned to you/);
+    await expect(Q.setQuoteStatus(quoteId, "sent")).rejects.toThrow(/not assigned to you/);
+    await as(accountant);
+    await O.markDelivered(orderId, { deliveredOn: today, receivedBy: "Gate" });
+    const [o] = await db.select({ status: schema.salesOrders.status }).from(schema.salesOrders).where(D.eq(schema.salesOrders.id, orderId));
+    expect(o.status).toBe("delivered");
+  });
+
+  it("lists a won company as a customer, only for people who may see it", async () => {
+    const { dealId } = await orderOf("Customer");
+    const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const ids = async (v: { id: number; seesAll: boolean }) => (await AD.listCustomers(v)).map((c) => c.id);
+    expect(await ids({ id: seller, seesAll: false })).toContain(deal.companyId);
+    expect(await ids({ id: colleague, seesAll: false })).not.toContain(deal.companyId);
+    expect(await ids({ id: accountant, seesAll: true })).toContain(deal.companyId);
+  });
+
+  it("lets finance fix billing details without CRM, and keeps the company owner", async () => {
+    const { dealId } = await orderOf("Billing");
+    const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const [before] = await db.select().from(schema.companies).where(D.eq(schema.companies.id, deal.companyId));
+    await as(accountant);
+    await S.updateCompany(deal.companyId, { name: before.name, trn: "100200300400500", address: "Office 12, Al Quoz 3, Dubai" });
+    const [after] = await db.select().from(schema.companies).where(D.eq(schema.companies.id, deal.companyId));
+    expect(after).toMatchObject({ trn: "100200300400500", address: "Office 12, Al Quoz 3, Dubai", ownerId: before.ownerId });
+    await as(colleague);
+    await expect(S.updateCompany(deal.companyId, { name: before.name })).rejects.toThrow(/not assigned to you/);
+  });
+});

@@ -42,11 +42,11 @@ export const APPS = [
     color: "var(--series-1)",
   },
   {
-    key: "sales",
-    label: "Sales",
-    href: "/sales",
+    key: "crm",
+    label: "CRM",
+    href: "/crm",
     icon: Handshake,
-    blurb: "Leads, deals and quotes",
+    blurb: "Leads, deals, companies",
     defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-3)",
@@ -106,9 +106,9 @@ export const APPS = [
     label: "Accounts",
     href: "/accounts",
     icon: Receipt,
-    blurb: "Invoices, payments, money owed",
-    // issuing invoices and recording payments: admins, plus whoever the admin gives this app to
-    defaultFor: ["admin"],
+    blurb: "Quotes, orders, invoices, bills",
+    // everyone makes quotes and orders here; invoices, payments, purchases and reports need the finance level (users.accounts_level)
+    defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-2)",
   },
@@ -167,7 +167,7 @@ export function appByKey(key: AppKey): AppDef {
   return APPS.find((a) => a.key === key)!;
 }
 
-/** The app a portal path belongs to (`/sales/deals/3` → Sales); undefined for Home and pages outside the apps. */
+/** The app a portal path belongs to (`/crm/deals/3` → Sales); undefined for Home and pages outside the apps. */
 export function appOfPath(path: string): AppDef | undefined {
   return APPS.find((a) => path === a.href || path.startsWith(a.href + "/") || path.startsWith(a.href + "?"));
 }

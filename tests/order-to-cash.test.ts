@@ -26,9 +26,9 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
   let like: typeof import("drizzle-orm").like;
-  let S: typeof import("@/app/(app)/sales/actions");
-  let Q: typeof import("@/app/(app)/sales/quote-actions");
-  let O: typeof import("@/app/(app)/sales/order-actions");
+  let S: typeof import("@/app/(app)/crm/actions");
+  let Q: typeof import("@/app/(app)/accounts/quote-actions");
+  let O: typeof import("@/app/(app)/accounts/order-actions");
   let A: typeof import("@/app/(app)/accounts/actions");
   let AD: typeof import("@/lib/accounts-data");
   let today = "";
@@ -52,7 +52,7 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
   /** A deal with two priced lines and a quote: 2 x 1000 + 1 x 500 = 2500, VAT 5% = 125, total 2625. */
   const quotedDeal = async (label: string) => {
     await as(seller);
-    const { id: dealId } = await S.createEnquiry({ companyName: `${tag} ${label} LLC`, contactName: "Ahmed", requirement: "laptops" });
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} ${label} LLC`, contactName: "Ahmed", requirement: "laptops" });
     await Q.addItem(dealId, { description: "Laptop", qty: 2, costAed: 900, unitPriceAed: 1000 });
     await Q.addItem(dealId, { description: "Dock", qty: 1, unitPriceAed: 500 });
     const q = await Q.createQuote(dealId, { vatPct: 5 });
@@ -69,16 +69,16 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, like, and } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
-    Q = await import("@/app/(app)/sales/quote-actions");
-    O = await import("@/app/(app)/sales/order-actions");
+    S = await import("@/app/(app)/crm/actions");
+    Q = await import("@/app/(app)/accounts/quote-actions");
+    O = await import("@/app/(app)/accounts/order-actions");
     A = await import("@/app/(app)/accounts/actions");
     AD = await import("@/lib/accounts-data");
     today = (await import("@/lib/dates")).dubaiToday();
-    const mk = async (name: string, apps: string[]) =>
-      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps }).returning({ id: schema.users.id }))[0].id;
-    seller = await mk("seller", ["sales"]);
-    accountant = await mk("accountant", ["sales", "accounts"]);
+    const mk = async (name: string, apps: string[], accountsLevel: "sales" | "finance" = "sales") =>
+      (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps, accountsLevel }).returning({ id: schema.users.id }))[0].id;
+    seller = await mk("seller", ["crm", "accounts"]);
+    accountant = await mk("accountant", ["crm", "accounts"], "finance");
     userIds = [seller, accountant];
     await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
     savedSeries = await db.select({ key: schema.settings.key, value: schema.settings.value }).from(schema.settings).where(inArray(schema.settings.key, ["invoice_prefix", "invoice_next_number", "invoice_digits", "quote_trn"]));
@@ -145,7 +145,7 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     await as(seller);
     await O.markDelivered(o.id, { deliveredOn: today, receivedBy: "Reception" });
     await expect(O.markDelivered(o.id, { deliveredOn: today })).rejects.toThrow(/already delivered/);
-    await expect(A.issueInvoice(o.id, { issueDate: today, termsDays: 7 })).rejects.toThrow(/access/);
+    await expect(A.issueInvoice(o.id, { issueDate: today, termsDays: 7 })).rejects.toThrow(/accounts team/);
   });
 
   it("numbers invoices from the admin series, sets the due date and a collection task", async () => {

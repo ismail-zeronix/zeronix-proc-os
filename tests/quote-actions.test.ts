@@ -26,8 +26,8 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
   let like: typeof import("drizzle-orm").like;
-  let S: typeof import("@/app/(app)/sales/actions");
-  let Q: typeof import("@/app/(app)/sales/quote-actions");
+  let S: typeof import("@/app/(app)/crm/actions");
+  let Q: typeof import("@/app/(app)/accounts/quote-actions");
   let seller: number, salesOnly: number, boss: number;
   let userIds: number[] = [];
   let supplierId = 0;
@@ -47,7 +47,7 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
   };
   const newDeal = async (label: string) => {
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} ${label} Trading LLC`, contactName: "Ahmed", requirement: "laptops" });
+    const r = await S.createDeal({ companyName: `${tag} ${label} Trading LLC`, contactName: "Ahmed", requirement: "laptops" });
     return r.id;
   };
   const offer = async (price: number | null, currency: string) =>
@@ -61,12 +61,12 @@ describe.skipIf(!live)("quote actions (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, like, and } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
-    Q = await import("@/app/(app)/sales/quote-actions");
+    S = await import("@/app/(app)/crm/actions");
+    Q = await import("@/app/(app)/accounts/quote-actions");
     const mk = async (name: string, role: "admin" | "sales", apps: string[] | null) =>
       (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role, apps }).returning({ id: schema.users.id }))[0].id;
-    seller = await mk("seller", "sales", ["sales", "procurement"]);
-    salesOnly = await mk("salesonly", "sales", ["sales"]);
+    seller = await mk("seller", "sales", ["crm", "accounts", "procurement"]);
+    salesOnly = await mk("salesonly", "sales", ["crm", "accounts"]);
     boss = await mk("boss", "admin", null);
     userIds = [seller, salesOnly, boss];
     // actions refuse to run for someone who has not punched in today

@@ -15,8 +15,8 @@ import { dayLabel } from "@/lib/dates";
 import type { BoqLineRow } from "@/lib/projects-data";
 import { lineTotal, round2 } from "@/lib/quotation";
 import type { QuoteSummary } from "@/lib/quotes-data";
-import { createQuote, reviseQuote } from "../../../sales/quote-actions";
-import { FindPrice } from "../../../sales/deals/[id]/find-price";
+import { createQuote, reviseQuote } from "../../../accounts/quote-actions";
+import { FindPrice } from "../../../accounts/quotes/new/find-price";
 import {
   addBoqLine,
   addBoqLineFromOffer,
@@ -569,7 +569,7 @@ export function BoqEditor({
   const open = quotes.find((q) => q.status === "draft" || q.status === "sent");
   const quoteLink = (id: number, text: React.ReactNode) =>
     canOpenQuotes ? (
-      <Link href={`/sales/quotes/${id}`} className="font-mono font-medium hover:underline">
+      <Link href={`/accounts/quotes/${id}`} className="font-mono font-medium hover:underline">
         {text}
       </Link>
     ) : (

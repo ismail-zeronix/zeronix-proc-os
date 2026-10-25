@@ -37,7 +37,7 @@ export async function createUser(input: z.input<typeof userSchema>) {
 /** `apps: null` = use the role's defaults; an array = exactly these apps. */
 export async function updateUser(
   id: number,
-  patch: { role?: "admin" | "sales"; isActive?: boolean; password?: string; apps?: string[] | null; dataScope?: "own" | "all" },
+  patch: { role?: "admin" | "sales"; isActive?: boolean; password?: string; apps?: string[] | null; dataScope?: "own" | "all"; accountsLevel?: "sales" | "finance" },
 ) {
   const me = await requireAdmin();
   if (id === me.id && (patch.role === "sales" || patch.isActive === false)) {
@@ -47,6 +47,7 @@ export async function updateUser(
   if (patch.role) set.role = patch.role;
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
   if (patch.dataScope) set.dataScope = z.enum(["own", "all"]).parse(patch.dataScope);
+  if (patch.accountsLevel) set.accountsLevel = z.enum(["sales", "finance"]).parse(patch.accountsLevel);
   if (patch.apps !== undefined) {
     const valid = new Set<string>(GRANTABLE_APPS.map((a) => a.key));
     set.apps = patch.apps === null ? null : [...new Set(patch.apps)].filter((k) => valid.has(k));
@@ -141,7 +142,7 @@ export async function saveQuoteSettings(input: z.input<typeof quoteSettingsSchem
   if (d.quote_email_subject !== undefined) await setSetting("quote_email_subject", d.quote_email_subject);
   if (d.quote_email_body !== undefined) await setSetting("quote_email_body", d.quote_email_body);
   revalidatePath("/admin", "layout");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
 }
 
 const hm = z.string().regex(/^([01]d|2[0-3]):[0-5]d$/, "Use HH:MM, 24-hour (e.g. 09:30)");

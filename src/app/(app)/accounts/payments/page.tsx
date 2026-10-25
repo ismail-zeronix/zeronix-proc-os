@@ -5,7 +5,7 @@ import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { listPayments } from "@/lib/accounts-data";
-import { requireApp } from "@/lib/auth/session";
+import { requireFinance } from "@/lib/auth/session";
 import { methodLabel } from "@/lib/invoicing";
 import { longDay, money, round2 } from "@/lib/quotation";
 
@@ -13,7 +13,7 @@ export const metadata = { title: "Payments · Zeronix Accounts" };
 
 /** Every receipt, newest first. Voided ones stay on the list, crossed out. */
 export default async function PaymentsPage() {
-  await requireApp("accounts");
+  await requireFinance();
   const rows = await listPayments();
   const live = rows.filter((p) => !p.voidedAt);
   const total = (m: string) => round2(live.filter((p) => p.method === m).reduce((s, p) => s + p.amount, 0));

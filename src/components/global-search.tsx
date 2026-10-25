@@ -32,14 +32,15 @@ interface SalesHits {
 }
 
 /** Ctrl/⌘+K (or "/") anywhere: jump to a page, a product (Procurement), or a company, person or deal (Sales). */
-export function GlobalSearch({ apps }: { apps: AppKey[] }) {
+export function GlobalSearch({ apps, finance = false }: { apps: AppKey[]; finance?: boolean }) {
   const router = useRouter();
   const hasProducts = apps.includes("procurement");
-  const hasSales = apps.includes("sales");
+  const hasCrm = apps.includes("crm");
+  const hasSales = hasCrm || apps.includes("accounts");
   const pages = [
     { href: "/", label: "Home", icon: LayoutGrid, group: "Zeronix" },
     { href: "/chat", label: "Chat", icon: MessageCircle, group: "Zeronix" },
-    ...searchPages(apps).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
+    ...searchPages(apps, finance).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
   ];
   const groups = [...new Set(pages.map((p) => p.group))];
   const [open, setOpen] = useState(false);
@@ -121,7 +122,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.deals.length ? (
                   <CommandGroup heading="Deals">
                     {sales.data.deals.map((d) => (
-                      <CommandItem key={`d${d.id}`} value={`d${d.id}`} onSelect={() => go(`/sales/deals/${d.id}`)}>
+                      <CommandItem key={`d${d.id}`} value={`d${d.id}`} onSelect={() => go(`/crm/deals/${d.id}`)}>
                         <Handshake />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{d.title}</div>
@@ -136,7 +137,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.quotes?.length ? (
                   <CommandGroup heading="Quotes">
                     {sales.data.quotes.map((x) => (
-                      <CommandItem key={`q${x.id}`} value={`q${x.id}`} onSelect={() => go(`/sales/quotes/${x.id}`)}>
+                      <CommandItem key={`q${x.id}`} value={`q${x.id}`} onSelect={() => go(`/accounts/quotes/${x.id}`)}>
                         <FileText />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{x.number}</div>
@@ -152,7 +153,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.orders?.length ? (
                   <CommandGroup heading="Orders">
                     {sales.data.orders.map((x) => (
-                      <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`/sales/orders/${x.id}`)}>
+                      <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`/accounts/orders/${x.id}`)}>
                         <FileText />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{x.number}</div>
@@ -185,7 +186,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.companies.length ? (
                   <CommandGroup heading="Companies">
                     {sales.data.companies.map((c) => (
-                      <CommandItem key={`c${c.id}`} value={`c${c.id}`} onSelect={() => go(`/sales/companies/${c.id}`)}>
+                      <CommandItem key={`c${c.id}`} value={`c${c.id}`} onSelect={() => go(hasCrm ? `/crm/companies/${c.id}` : `/accounts/customers/${c.id}`)}>
                         <Building2 /> {c.name}
                         <span className="ml-auto text-xs text-muted-foreground">{[c.emirate, c.industry].filter(Boolean).join(" · ")}</span>
                       </CommandItem>
@@ -195,7 +196,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.contacts.length ? (
                   <CommandGroup heading="People">
                     {sales.data.contacts.map((p) => (
-                      <CommandItem key={`p${p.id}`} value={`person${p.id}`} onSelect={() => go(`/sales/companies/${p.companyId}`)}>
+                      <CommandItem key={`p${p.id}`} value={`person${p.id}`} onSelect={() => go(`/crm/companies/${p.companyId}`)}>
                         <User /> {p.name}
                         <span className="ml-auto truncate text-xs text-muted-foreground">{p.companyName}</span>
                       </CommandItem>

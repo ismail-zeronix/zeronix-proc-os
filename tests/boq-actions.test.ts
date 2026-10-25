@@ -26,8 +26,8 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
   let asc: typeof import("drizzle-orm").asc;
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
-  let S: typeof import("@/app/(app)/sales/actions");
-  let Q: typeof import("@/app/(app)/sales/quote-actions");
+  let S: typeof import("@/app/(app)/crm/actions");
+  let Q: typeof import("@/app/(app)/accounts/quote-actions");
   let B: typeof import("@/app/(app)/projects/boq-actions");
   let D: typeof import("@/lib/projects-data");
   let userIds: number[] = [];
@@ -57,8 +57,8 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, asc, inArray, and } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
-    Q = await import("@/app/(app)/sales/quote-actions");
+    S = await import("@/app/(app)/crm/actions");
+    Q = await import("@/app/(app)/accounts/quote-actions");
     B = await import("@/app/(app)/projects/boq-actions");
     D = await import("@/lib/projects-data");
     const mk = async (name: string, apps: string[] | null) =>
@@ -92,7 +92,7 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
 
   it("a new CCTV project starts with the CCTV sections", async () => {
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} Villa`, requirement: "CCTV, network, alarm", kind: "project", projectType: "cctv" });
+    const r = await S.createDeal({ companyName: `${tag} Villa`, requirement: "CCTV, network, alarm", kind: "project", projectType: "cctv" });
     projectId = r.projectId!;
     dealId = r.id;
     const p = await D.getProject(projectId, { id: seller, seesAll: false });
@@ -152,7 +152,7 @@ describe.skipIf(!live)("project BOQ (needs the dev database)", () => {
     // someone with only the Projects app can make the quote from the BOQ
     await db.insert(schema.dealAssignees).values({ dealId, userId: projectsOnly, position: 5 });
     await as(projectsOnly, "projects-only");
-    await expect(S.createEnquiry({ companyName: `${tag} Nope`, requirement: "x" })).rejects.toThrow(/access/);
+    await expect(S.createDeal({ companyName: `${tag} Nope`, requirement: "x" })).rejects.toThrow(/access/);
     const q = await Q.createQuote(dealId);
     const items = await db.select().from(schema.quoteItems).where(eq(schema.quoteItems.quoteId, q.id)).orderBy(asc(schema.quoteItems.position));
     expect(items.map((i) => i.section)).toEqual(["Cameras & recording", "Cameras & recording", "Cabling & accessories", "Installation", "Alarm system"]);

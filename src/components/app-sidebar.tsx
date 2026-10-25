@@ -15,15 +15,17 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { APP_NAV, BADGE_LABELS, type NavItem } from "@/lib/app-nav";
+import { BADGE_LABELS, navFor, type NavItem } from "@/lib/app-nav";
 import { appByKey, type AppKey } from "@/lib/apps";
 
 /** The left menu of one app. Pages come from lib/app-nav.ts; `badges` maps a badge name to its number. */
-export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<string, number> }) {
+export function AppSidebar({ app, badges = {}, finance = false }: { app: AppKey; badges?: Record<string, number>; finance?: boolean }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const def = appByKey(app);
-  const groups = APP_NAV[app] ?? [];
+  // below the finance level Accounts opens on Quotes (its overview is the money dashboard)
+  const home = app === "accounts" && !finance ? "/accounts/quotes" : def.href;
+  const groups = navFor(app, finance);
   const close = () => isMobile && setOpenMobile(false);
   const under = (base: string) => pathname.startsWith(base + "/");
   const active = (n: NavItem) =>
@@ -34,7 +36,7 @@ export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link href={def.href} onClick={close} />}>
+            <SidebarMenuButton size="lg" render={<Link href={home} onClick={close} />}>
               <div
                 className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white"
                 style={{ background: def.color }}

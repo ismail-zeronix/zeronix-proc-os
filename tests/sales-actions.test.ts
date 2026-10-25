@@ -25,7 +25,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   let eq: typeof import("drizzle-orm").eq;
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
-  let A: typeof import("@/app/(app)/sales/actions");
+  let A: typeof import("@/app/(app)/crm/actions");
   let T: typeof import("@/app/(app)/tasks/actions");
   let userIds: number[] = [];
   let seller: number, colleague: number, outsider: number, boss: number;
@@ -45,13 +45,13 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, and } = await import("drizzle-orm"));
-    A = await import("@/app/(app)/sales/actions");
+    A = await import("@/app/(app)/crm/actions");
     T = await import("@/app/(app)/tasks/actions");
     const mk = async (name: string, role: "admin" | "sales", apps: string[] | null) =>
       (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role, apps }).returning({ id: schema.users.id }))[0].id;
     seller = await mk("seller", "sales", null);
     colleague = await mk("colleague", "sales", null);
-    outsider = await mk("outsider", "sales", ["procurement", "tasks"]); // no Sales app
+    outsider = await mk("outsider", "sales", ["procurement", "tasks"]); // no CRM app
     boss = await mk("boss", "admin", null);
     userIds = [seller, colleague, outsider, boss];
     // actions refuse to run for someone who has not punched in today
@@ -76,7 +76,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("creates the company, person, deal, first log entry and a follow-up task in one go", async () => {
     await as(seller, "seller");
-    const res = await A.createEnquiry({
+    const res = await A.createDeal({
       companyName: `${tag} Alpha Trading LLC`,
       emirate: "Dubai",
       contactName: "Ahmed Khan",
@@ -103,7 +103,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("reuses an existing company when the name is the same apart from spelling", async () => {
     await as(seller, "seller");
-    const res = await A.createEnquiry({ companyName: `${tag} ALPHA trading l.l.c.`, requirement: "servers" });
+    const res = await A.createDeal({ companyName: `${tag} ALPHA trading l.l.c.`, requirement: "servers" });
     expect(res.reusedCompany).toContain("Alpha Trading");
     const rows = await db.select().from(schema.companies).where(eq(schema.companies.nameNorm, (await import("@/lib/sales")).normName(`${tag} Alpha Trading`)));
     expect(rows).toHaveLength(1);
@@ -111,12 +111,12 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("asks for a company", async () => {
     await as(seller, "seller");
-    await expect(A.createEnquiry({ requirement: "x" })).rejects.toThrow(/company/i);
+    await expect(A.createDeal({ requirement: "x" })).rejects.toThrow(/company/i);
   });
 
   it("moves a brand-new deal to Contacted when a call is logged, and books the follow-up", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Beta`, contactName: "Sara", requirement: "monitors" });
+    const { id } = await A.createDeal({ companyName: `${tag} Beta`, contactName: "Sara", requirement: "monitors" });
     await A.logActivity(id, { type: "call", body: "Spoke to Sara, needs 10 monitors", followUp: "2030-01-15" });
     const [deal] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
     expect(deal.stage).toBe("contacted");
@@ -125,7 +125,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     const tasks = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, id));
     expect(tasks.some((t) => t.dueDate === "2030-01-15" && t.title.startsWith("Follow up"))).toBe(true);
     // a note does not count as contacting the customer
-    const { id: id2 } = await A.createEnquiry({ companyName: `${tag} Gamma`, requirement: "x" });
+    const { id: id2 } = await A.createDeal({ companyName: `${tag} Gamma`, requirement: "x" });
     await A.logActivity(id2, { type: "note", body: "internal note" });
     const [d2] = await db.select().from(schema.deals).where(eq(schema.deals.id, id2));
     expect(d2.stage).toBe("new");
@@ -133,7 +133,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("needs a reason to mark a deal lost, records closing, and clears it when reopened", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Delta`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Delta`, requirement: "x" });
     await expect(A.moveDeal(id, "lost")).rejects.toThrow(/reason/i);
     await expect(A.moveDeal(id, "nonsense")).rejects.toThrow(/stage/i);
     await A.moveDeal(id, "lost", "Price too high");
@@ -155,7 +155,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("keeps only the known checklist items", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Epsilon`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Epsilon`, requirement: "x" });
     await A.setChecks(id, { need: true, trn: true, hacker: true, budget: false } as Record<string, boolean>);
     const [d] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
     expect(d.checks).toEqual({ need: true, trn: true });
@@ -179,7 +179,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("blocks everything for a user without the Sales app", async () => {
     await as(outsider, "outsider");
-    await expect(A.createEnquiry({ companyName: `${tag} Nope`, requirement: "x" })).rejects.toThrow(/access/i);
+    await expect(A.createDeal({ companyName: `${tag} Nope`, requirement: "x" })).rejects.toThrow(/access/i);
     await expect(A.createCompany({ name: `${tag} Nope2` })).rejects.toThrow(/access/i);
     await expect(A.moveDeal(1, "won")).rejects.toThrow(/access/i);
     await expect(T.createTask({ title: "x", related: { type: "deal", id: 1 } })).rejects.toThrow(/access/i);
@@ -187,7 +187,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("lets only the owner or an admin delete a deal, and removes its tasks", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Iota`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Iota`, requirement: "x" });
     await as(colleague, "colleague");
     // a deal you are not on is hidden from you, so you cannot delete it either
     await expect(A.deleteDeal(id)).rejects.toThrow(/not assigned to you/);
@@ -209,7 +209,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
   it("can give a deal to several people, main owner first, and only people who can open Sales", async () => {
     // sharing a deal is for admins (and "All data" users)
     await as(boss, "boss", "admin");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Mu`, requirement: "x", ownerIds: [colleague, seller] });
+    const { id } = await A.createDeal({ companyName: `${tag} Mu`, requirement: "x", ownerIds: [colleague, seller] });
     let rows = await db.select().from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, id));
     expect(rows.sort((a, b) => a.position - b.position).map((r) => r.userId)).toEqual([colleague, seller]);
     let [d] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
@@ -227,7 +227,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     expect(note?.body).toContain("seller");
 
     await expect(A.setAssignees(id, [outsider])).rejects.toThrow(/cannot work on Sales/);
-    await expect(A.createEnquiry({ companyName: `${tag} Nu`, requirement: "x", ownerIds: [outsider] })).rejects.toThrow(/cannot work on Sales/);
+    await expect(A.createDeal({ companyName: `${tag} Nu`, requirement: "x", ownerIds: [outsider] })).rejects.toThrow(/cannot work on Sales/);
 
     await A.setAssignees(id, []);
     [d] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
@@ -239,7 +239,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     await as(boss, "boss", "admin");
     const { listDeals } = await import("@/lib/sales-data");
     const all = { id: boss, seesAll: true };
-    const { id } = await A.createEnquiry({ companyName: `${tag} Xi`, requirement: "x", ownerIds: [colleague, seller] });
+    const { id } = await A.createDeal({ companyName: `${tag} Xi`, requirement: "x", ownerIds: [colleague, seller] });
     expect((await listDeals(all, { memberId: seller })).some((d) => d.id === id)).toBe(true);
     expect((await listDeals(all, { memberId: colleague })).some((d) => d.id === id)).toBe(true);
     expect((await listDeals(all, { memberId: boss })).some((d) => d.id === id)).toBe(false);
@@ -249,21 +249,21 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("starts a deal at the column's stage (and skips the contact-them-today task)", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Omicron`, requirement: "x", stage: "sourcing" });
+    const { id } = await A.createDeal({ companyName: `${tag} Omicron`, requirement: "x", stage: "sourcing" });
     const [d] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
     expect(d.stage).toBe("sourcing");
     expect(await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, id))).toHaveLength(0);
     const log = (await db.select().from(schema.activities).where(eq(schema.activities.dealId, id)))[0];
-    expect(log.body).toContain("Sourcing");
+    expect(log.body).toContain("Pricing");
     // a closed stage cannot be a starting stage
-    const { id: id2 } = await A.createEnquiry({ companyName: `${tag} Pi`, requirement: "x", stage: "won" });
+    const { id: id2 } = await A.createDeal({ companyName: `${tag} Pi`, requirement: "x", stage: "won" });
     const [d2] = await db.select().from(schema.deals).where(eq(schema.deals.id, id2));
     expect(d2.stage).toBe("new");
   });
 
   it("lets anyone on the deal delete it", async () => {
     await as(boss, "boss", "admin");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Rho`, requirement: "x", ownerIds: [seller, colleague] });
+    const { id } = await A.createDeal({ companyName: `${tag} Rho`, requirement: "x", ownerIds: [seller, colleague] });
     await as(colleague, "colleague");
     await A.deleteDeal(id);
     expect(await db.select().from(schema.deals).where(eq(schema.deals.id, id))).toHaveLength(0);
@@ -271,7 +271,7 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
 
   it("attaches a follow-up task to a deal from the Tasks app", async () => {
     await as(seller, "seller");
-    const { id } = await A.createEnquiry({ companyName: `${tag} Lambda`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Lambda`, requirement: "x" });
     await T.createTask({ title: "Send brochure", dueDate: "2030-02-01", related: { type: "deal", id } });
     const rows = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, id));
     expect(rows.map((t) => t.title).sort()).toContain("Send brochure");

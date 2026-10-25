@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { setAssignees } from "@/app/(app)/sales/actions";
+import { setAssignees } from "@/app/(app)/crm/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AvatarStack, UserAvatar } from "@/components/user-avatar";
 

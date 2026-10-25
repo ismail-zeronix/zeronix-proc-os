@@ -11,7 +11,7 @@ import { removeStoredFile } from "@/lib/files-store";
 
 function refresh() {
   revalidatePath("/files");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
   revalidatePath("/accounts", "layout");
 }
 

@@ -3,8 +3,8 @@
 export const STAGES = [
   { key: "new", label: "New", hint: "Just arrived, not yet contacted" },
   { key: "contacted", label: "Contacted", hint: "We spoke or messaged them" },
-  { key: "requirement", label: "Requirement confirmed", hint: "We know exactly what, how many, by when" },
-  { key: "sourcing", label: "Sourcing", hint: "Getting prices from suppliers" },
+  { key: "requirement", label: "Qualified", hint: "We know exactly what, how many, by when" },
+  { key: "sourcing", label: "Pricing", hint: "Getting prices from suppliers and making the quote" },
   { key: "quoted", label: "Quote sent", hint: "Waiting for their answer" },
   { key: "negotiation", label: "Negotiation", hint: "Price, terms or delivery being discussed" },
   { key: "won", label: "Won", hint: "Order received" },
@@ -131,8 +131,8 @@ export function aedShort(value: number | null | undefined): string {
 export const STAGE_SHORT: Record<string, string> = {
   new: "New",
   contacted: "Contacted",
-  requirement: "Confirmed",
-  sourcing: "Sourcing",
+  requirement: "Qualified",
+  sourcing: "Pricing",
   quoted: "Quoted",
   negotiation: "Negotiating",
   won: "Won",

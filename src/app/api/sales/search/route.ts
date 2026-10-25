@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { hasApp } from "@/lib/auth/session";
+import { loadAccess } from "@/lib/auth/session";
 import { companyVisible, currentViewer, dealVisible } from "@/lib/auth/visibility";
 import { searchCompanies } from "@/lib/sales-data";
 
@@ -9,10 +9,14 @@ const like = (q: string) => `%${q.replace(/[\%_]/g, (c) => `\${c}`)}%`;
 
 /**
  * Sales search for the company picker (`kind=company`) and for Ctrl K (`kind=all`: companies, contacts, deals and quotes).
- * Only finds what the person may see (see lib/auth/visibility.ts); Accounts users find every invoice.
+ * Only finds what the person may see (see lib/auth/visibility.ts): deals and people with CRM, quotes and orders with
+ * Accounts, every invoice at the finance level.
  */
 export async function GET(req: NextRequest) {
-  if (!(await hasApp("sales"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await loadAccess();
+  const crm = !!access?.apps.includes("crm");
+  const docs = !!access?.apps.includes("accounts");
+  if (!crm && !docs) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const v = await currentViewer();
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const kind = req.nextUrl.searchParams.get("kind") ?? "company";
@@ -20,10 +24,11 @@ export async function GET(req: NextRequest) {
 
   if (kind === "company") return Response.json({ companies: await searchCompanies(v, q, 8), contacts: [], deals: [], quotes: [], orders: [], invoices: [] });
 
-  const accounts = await hasApp("accounts");
+  const accounts = !!access?.finance;
+  const none = Promise.resolve([]);
   const [companies, contacts, deals, quotes, orders, invoices] = await Promise.all([
     searchCompanies(v, q, 5),
-    db
+    !crm ? none : db
       .select({ id: schema.contacts.id, name: schema.contacts.name, email: schema.contacts.email, companyId: schema.contacts.companyId, companyName: schema.companies.name })
       .from(schema.contacts)
       .innerJoin(schema.companies, eq(schema.companies.id, schema.contacts.companyId))
@@ -34,13 +39,13 @@ export async function GET(req: NextRequest) {
         ),
       )
       .limit(5),
-    db
+    !crm ? none : db
       .select({ id: schema.deals.id, title: schema.deals.title, stage: schema.deals.stage, companyName: schema.companies.name })
       .from(schema.deals)
       .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
       .where(and(or(ilike(schema.deals.title, like(q)), ilike(schema.companies.name, like(q))), dealVisible(v, schema.deals.id)))
       .limit(5),
-    db
+    !docs ? none : db
       .select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, companyName: schema.companies.name })
       .from(schema.quotes)
       .innerJoin(schema.deals, eq(schema.deals.id, schema.quotes.dealId))
@@ -48,7 +53,7 @@ export async function GET(req: NextRequest) {
       .where(and(or(ilike(schema.quotes.number, like(q)), ilike(schema.companies.name, like(q))), dealVisible(v, schema.quotes.dealId)))
       .orderBy(desc(schema.quotes.createdAt))
       .limit(5),
-    db
+    !docs ? none : db
       .select({ id: schema.salesOrders.id, number: schema.salesOrders.number, status: schema.salesOrders.status, total: schema.salesOrders.total, companyName: schema.companies.name })
       .from(schema.salesOrders)
       .innerJoin(schema.companies, eq(schema.companies.id, schema.salesOrders.companyId))
@@ -60,7 +65,7 @@ export async function GET(req: NextRequest) {
       )
       .orderBy(desc(schema.salesOrders.createdAt))
       .limit(5),
-    db
+    !docs ? none : db
       .select({ id: schema.invoices.id, number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, companyName: schema.invoices.customerName })
       .from(schema.invoices)
       .where(

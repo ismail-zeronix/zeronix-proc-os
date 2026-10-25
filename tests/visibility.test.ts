@@ -25,8 +25,8 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
   let eq: typeof import("drizzle-orm").eq;
-  let A: typeof import("@/app/(app)/sales/actions");
-  let Q: typeof import("@/app/(app)/sales/quote-actions");
+  let A: typeof import("@/app/(app)/crm/actions");
+  let Q: typeof import("@/app/(app)/accounts/quote-actions");
   let S: typeof import("@/lib/sales-data");
   let QD: typeof import("@/lib/quotes-data");
   let V: typeof import("@/lib/auth/visibility");
@@ -47,8 +47,8 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ inArray, and, eq } = await import("drizzle-orm"));
-    A = await import("@/app/(app)/sales/actions");
-    Q = await import("@/app/(app)/sales/quote-actions");
+    A = await import("@/app/(app)/crm/actions");
+    Q = await import("@/app/(app)/accounts/quote-actions");
     S = await import("@/lib/sales-data");
     QD = await import("@/lib/quotes-data");
     V = await import("@/lib/auth/visibility");
@@ -87,7 +87,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
   it("keeps a salesman's deal, company, contacts and quotes away from other salesmen", async () => {
     await as(ali);
-    const { id } = await A.createEnquiry({ companyName: `${tag} Alpha LLC`, contactName: "Omar", requirement: "20 laptops" });
+    const { id } = await A.createDeal({ companyName: `${tag} Alpha LLC`, contactName: "Omar", requirement: "20 laptops" });
     await Q.addItem(id, { description: "Laptop", qty: 20, unitPriceAed: 2000 });
     const quote = await Q.createQuote(id);
     const deal = (await S.getDeal(id, own(ali)))!;
@@ -121,7 +121,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
   it("shows everything to admins and 'All data' users", async () => {
     await as(ali);
-    const { id } = await A.createEnquiry({ companyName: `${tag} Beta LLC`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Beta LLC`, requirement: "x" });
     const all = { id: manager, seesAll: true };
     expect((await S.listDeals(all)).some((d) => d.id === id)).toBe(true);
     expect(await S.getDeal(id, all)).not.toBeNull();
@@ -136,7 +136,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
   it("shares the deal and everything on it once the admin adds a second salesman", async () => {
     await as(ali);
-    const { id } = await A.createEnquiry({ companyName: `${tag} Gamma LLC`, requirement: "x" });
+    const { id } = await A.createDeal({ companyName: `${tag} Gamma LLC`, requirement: "x" });
     await Q.addItem(id, { description: "Monitor", qty: 2, unitPriceAed: 500 });
     const quote = await Q.createQuote(id);
     const companyId = (await S.getDeal(id, own(ali)))!.companyId;
@@ -160,10 +160,10 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
   it("only shows a company's other deals to the people on them", async () => {
     await as(ali);
-    const first = await A.createEnquiry({ companyName: `${tag} Delta LLC`, requirement: "first" });
+    const first = await A.createDeal({ companyName: `${tag} Delta LLC`, requirement: "first" });
     const companyId = (await S.getDeal(first.id, own(ali)))!.companyId;
     await as(boss, "admin");
-    const second = await A.createEnquiry({ companyId, requirement: "second", ownerIds: [sara] });
+    const second = await A.createDeal({ companyId, requirement: "second", ownerIds: [sara] });
     // Sara sees the company through her deal, but not Ali's deal there
     const c = (await S.getCompany(companyId, own(sara)))!;
     expect(c.deals.map((d) => d.id)).toEqual([second.id]);
@@ -172,15 +172,15 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
   it("says who has a customer instead of letting a second salesman take it", async () => {
     await as(ali);
-    await A.createEnquiry({ companyName: `${tag} Epsilon LLC`, requirement: "x" });
+    await A.createDeal({ companyName: `${tag} Epsilon LLC`, requirement: "x" });
     await as(sara);
-    await expect(A.createEnquiry({ companyName: `${tag} epsilon llc`, requirement: "y" })).rejects.toThrow(/already a customer, handled by .*ali/);
+    await expect(A.createDeal({ companyName: `${tag} epsilon llc`, requirement: "y" })).rejects.toThrow(/already a customer, handled by .*ali/);
     await expect(A.createCompany({ name: `${tag} Epsilon L.L.C` })).rejects.toThrow(/Ask an admin/);
   });
 
   it("gives a salesman's new deal to them, whoever they pick", async () => {
     await as(ali);
-    const { id } = await A.createEnquiry({ companyName: `${tag} Zeta LLC`, requirement: "x", ownerIds: [sara] });
+    const { id } = await A.createDeal({ companyName: `${tag} Zeta LLC`, requirement: "x", ownerIds: [sara] });
     const d = (await S.getDeal(id, own(ali)))!;
     expect(d.assignees.map((a) => a.id)).toEqual([ali]);
   });

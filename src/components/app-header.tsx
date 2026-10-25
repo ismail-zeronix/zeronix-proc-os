@@ -29,6 +29,7 @@ import { APPS, type AppKey, type Role } from "@/lib/apps";
 export function AppHeader({
   user,
   apps,
+  finance = false,
   visible,
   withSidebar = false,
   punch,
@@ -36,6 +37,8 @@ export function AppHeader({
   user: { name: string; email: string; role: Role };
   /** Every app the user may open (drives search). */
   apps: AppKey[];
+  /** Accounts at the finance level (finance pages in search). */
+  finance?: boolean;
   /** Apps shown in the switcher, in order. */
   visible: string[];
   withSidebar?: boolean;
@@ -99,7 +102,7 @@ export function AppHeader({
         </PopoverContent>
       </Popover>
 
-      <GlobalSearch apps={apps} />
+      <GlobalSearch apps={apps} finance={finance} />
       <div className="flex-1" />
       {punch && <HeaderClock {...punch} />}
       {apps.includes("tasks") && <QuickAddTask />}

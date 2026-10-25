@@ -206,7 +206,7 @@ export function TaskItem({
           )}
           {task.priority === "high" && !done && <Badge variant="destructive">High</Badge>}
           {!hideRelated && task.relatedType === "deal" && task.relatedId && task.relatedTitle && (
-            <AppLink href={`/sales/deals/${task.relatedId}`} className="flex min-w-0 max-w-full items-center gap-1 hover:text-foreground hover:underline">
+            <AppLink href={`/crm/deals/${task.relatedId}`} className="flex min-w-0 max-w-full items-center gap-1 hover:text-foreground hover:underline">
               <Handshake className="size-3 shrink-0" /> <span className="truncate">{task.relatedTitle}</span>
             </AppLink>
           )}

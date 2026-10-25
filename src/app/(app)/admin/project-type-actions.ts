@@ -16,7 +16,7 @@ import { isChecklistGroup } from "@/lib/projects";
 function refresh() {
   revalidatePath("/admin/settings");
   revalidatePath("/projects", "layout");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
 }
 
 const label = z.string().trim().min(2, "Give the type a name").max(60);

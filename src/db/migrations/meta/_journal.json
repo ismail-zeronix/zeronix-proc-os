@@ -197,6 +197,13 @@
       "when": 1792893581447,
       "tag": "0027_chat_search",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792902395083,
+      "tag": "0028_crm_accounts",
+      "breakpoints": true
     }
   ]
 }

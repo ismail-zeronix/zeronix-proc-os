@@ -3,14 +3,14 @@ import { ProposalDocument } from "@/components/proposal/proposal-document";
 import { ProposalPrintFrame } from "@/components/proposal/proposal-print";
 import { QuoteDocument } from "@/components/quote-document";
 import { requireAnyApp } from "@/lib/auth/any-app";
-import { viewerOf } from "@/lib/auth/visibility";
+import { financeViewerOf } from "@/lib/auth/visibility";
 import { snapshotOfQuote } from "@/lib/proposals-data";
 import { proposalBrand, quoteBrand, toDoc } from "@/lib/quote-view";
 import { getQuote } from "@/lib/quotes-data";
 import { PrintBar } from "@/components/print-bar";
 
 export async function generateMetadata({ params }: PageProps<"/print/quote/[id]">) {
-  const q = await getQuote(Number((await params).id), viewerOf(await requireAnyApp("sales", "projects"))).catch(() => null);
+  const q = await getQuote(Number((await params).id), financeViewerOf(await requireAnyApp("accounts", "projects"))).catch(() => null);
   return { title: q ? `Quotation ${q.number}` : "Quotation" };
 }
 
@@ -20,13 +20,13 @@ export async function generateMetadata({ params }: PageProps<"/print/quote/[id]"
  */
 export default async function PrintQuote({ params }: PageProps<"/print/quote/[id]">) {
   // project quotes are made and sent from the Projects app too
-  const access = await requireAnyApp("sales", "projects");
+  const access = await requireAnyApp("accounts", "projects");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
-  const q = await getQuote(id, viewerOf(access));
+  const q = await getQuote(id, financeViewerOf(access));
   if (!q) notFound();
   const [brand, snapshot] = await Promise.all([quoteBrand(), snapshotOfQuote(q.id)]);
-  const back = access.apps.includes("sales") ? `/sales/quotes/${q.id}` : `/projects/list`;
+  const back = access.apps.includes("accounts") ? `/accounts/quotes/${q.id}` : `/projects/list`;
   if (snapshot) {
     return (
       <ProposalPrintFrame back={back} label={`Proposal ${q.number}`} pdfHref={`/api/quotes/${q.id}/pdf`}>

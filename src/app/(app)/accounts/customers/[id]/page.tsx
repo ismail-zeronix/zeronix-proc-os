@@ -1,33 +1,61 @@
-import { Printer } from "lucide-react";
+import { Pencil, Printer } from "lucide-react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { AppLink } from "@/components/app-link";
 import { BackButton } from "@/components/back-button";
-import { notFound } from "next/navigation";
 import { InvoiceTable } from "@/components/invoice-table";
 import { StatementDocument } from "@/components/money-documents";
+import { InvoiceStateBadge, OrderStatusBadge } from "@/components/order-bits";
+import { QuoteStatusBadge } from "@/components/quote-bits";
 import { StatStrip } from "@/components/stat-strip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UrlTabs } from "@/components/url-tabs";
+import { db, schema } from "@/db";
+import { eq } from "drizzle-orm";
 import { companyBalance, listInvoices, statement } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
-import { dubaiToday } from "@/lib/dates";
+import { canSeeCompany, dealVisible, financeViewerOf } from "@/lib/auth/visibility";
+import { dayLabel, dubaiToday } from "@/lib/dates";
+import { listOrders } from "@/lib/orders-data";
 import { money } from "@/lib/quotation";
+import { listQuotes } from "@/lib/quotes-data";
 import { quoteBrand } from "@/lib/quote-view";
+import { CompanyDialog } from "../../../crm/companies/company-ui";
 
 const isDay = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-/** One customer for Accounts: balance, invoices, and the statement of account for a period (print or save as PDF). */
+export const metadata = { title: "Customer · Zeronix Accounts" };
+
+/**
+ * One customer in Accounts: billing details, what they owe, their quotes, orders and invoices, and the statement of
+ * account for a period (print or save as PDF). The same company record as in CRM, never a copy.
+ */
 export default async function CustomerAccountPage({ params, searchParams }: PageProps<"/accounts/customers/[id]">) {
-  const { apps } = await requireApp("accounts");
+  const access = await requireApp("accounts");
+  const { apps, finance } = access;
+  const v = financeViewerOf(access);
   const id = Number((await params).id);
-  if (!Number.isInteger(id) || id < 1) notFound();
+  if (!Number.isInteger(id) || id < 1 || !(await canSeeCompany(v, id))) notFound();
   const sp = await searchParams;
   const today = dubaiToday();
   const to = isDay(sp.to) ? sp.to : today;
   const from = isDay(sp.from) && sp.from <= to ? sp.from : `${to.slice(0, 4)}-01-01`;
-  const [s, invoices, bal, brand] = await Promise.all([statement(id, from, to), listInvoices({ companyId: id }), companyBalance(id), quoteBrand()]);
-  if (!s) notFound();
+  const [s, allInvoices, bal, brand, [company], orders, allQuotes] = await Promise.all([
+    statement(id, from, to),
+    listInvoices({ companyId: id }),
+    companyBalance(id),
+    quoteBrand(),
+    db.select().from(schema.companies).where(eq(schema.companies.id, id)),
+    listOrders(v, { companyId: id }),
+    listQuotes(v),
+  ]);
+  if (!s || !company) notFound();
+  // below the finance level: only the invoices of deals they are on
+  const visibleDeals = finance ? null : new Set((await db.select({ id: schema.deals.id }).from(schema.deals).where(dealVisible(v, schema.deals.id))).map((d) => d.id));
+  const invoices = visibleDeals ? allInvoices.filter((i) => visibleDeals.has(i.dealId)) : allInvoices;
+  const quotes = allQuotes.filter((q) => q.companyId === id);
   const paidIn = s.lines.filter((l) => l.kind === "payment").reduce((n, l) => n + l.credit, 0);
   const invoicedIn = s.lines.filter((l) => l.kind === "invoice").reduce((n, l) => n + l.debit, 0);
 
@@ -36,19 +64,27 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <BackButton fallback="/accounts/customers" />
         <div className="grid min-w-0 flex-1 leading-tight">
-          <h1 className="truncate text-base font-semibold">{s.company.name}</h1>
+          <h1 className="truncate text-base font-semibold">{company.name}</h1>
           <span className="truncate text-xs text-muted-foreground">
-            {[s.company.emirate, s.company.trn && `TRN ${s.company.trn}`].filter(Boolean).join(" · ") || "No TRN saved"}
-            {apps.includes("sales") && (
+            {[company.trn ? `TRN ${company.trn}` : "No TRN saved", company.address || company.emirate].filter(Boolean).join(" · ")}
+            {apps.includes("crm") && (
               <>
                 {" · "}
-                <AppLink href={`/sales/companies/${id}`} className="hover:underline">
-                  company page
+                <AppLink href={`/crm/companies/${id}`} className="hover:underline">
+                  contacts and deals
                 </AppLink>
               </>
             )}
           </span>
         </div>
+        <CompanyDialog
+          company={{ id: company.id, name: company.name, industry: company.industry, emirate: company.emirate, website: company.website, phone: company.phone, tradeLicenseNo: company.tradeLicenseNo, trn: company.trn, address: company.address, source: company.source, notes: company.notes }}
+          trigger={
+            <Button variant="outline" size="sm" title="TRN, billing address and other details">
+              <Pencil /> Billing details
+            </Button>
+          }
+        />
       </div>
 
       <StatStrip
@@ -60,34 +96,89 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
         ]}
       />
 
-      <InvoiceTable rows={invoices} showCustomer={false} empty="No invoices for this customer." />
-
-      <section className="grid gap-2 rounded-xl border bg-card p-3" aria-label="Statement of account">
-        <form className="flex flex-wrap items-end gap-2" action={`/accounts/customers/${id}`}>
-          <h2 className="mr-auto text-sm font-semibold">Statement of account</h2>
-          <div className="grid gap-1">
-            <Label htmlFor="st-from" className="text-xs">
-              From
-            </Label>
-            <Input id="st-from" name="from" type="date" defaultValue={from} className="h-8 w-40" />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor="st-to" className="text-xs">
-              To
-            </Label>
-            <Input id="st-to" name="to" type="date" defaultValue={to} max={today} className="h-8 w-40" />
-          </div>
-          <Button type="submit" variant="outline" size="sm">
-            Show
-          </Button>
-          <Button size="sm" nativeButton={false} render={<Link href={`/print/statement/${id}?from=${from}&to=${to}`} target="_blank" />}>
-            <Printer /> Print / PDF
-          </Button>
-        </form>
-        <div className="overflow-hidden rounded-lg border">
-          <StatementDocument brand={brand} s={{ customer: { name: s.company.name, emirate: s.company.emirate, trn: s.company.trn }, from, to, opening: s.opening, lines: s.lines, closing: s.closing }} />
-        </div>
-      </section>
+      <UrlTabs
+        initial={sp.tab}
+        tabs={[
+          {
+            key: "invoices",
+            label: `Invoices (${invoices.length})`,
+            content: <InvoiceTable rows={invoices} showCustomer={false} finance={finance} empty="No invoices for this customer." />,
+          },
+          {
+            key: "orders",
+            label: `Orders (${orders.length})`,
+            content: (
+              <ul className="divide-y rounded-lg border bg-card">
+                {orders.map((o) => (
+                  <li key={o.id}>
+                    <Link href={`/accounts/orders/${o.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
+                      <span className="font-mono font-medium">{o.number}</span>
+                      <OrderStatusBadge status={o.status} />
+                      {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{o.dealTitle}</span>
+                      <span className="tabular-nums">{money(o.total)}</span>
+                    </Link>
+                  </li>
+                ))}
+                {!orders.length && <li className="px-3 py-6 text-center text-sm text-muted-foreground">No orders yet.</li>}
+              </ul>
+            ),
+          },
+          {
+            key: "quotes",
+            label: `Quotes (${quotes.length})`,
+            content: (
+              <ul className="divide-y rounded-lg border bg-card">
+                {quotes.map((q) => (
+                  <li key={q.id}>
+                    <Link href={`/accounts/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
+                      <span className="font-mono font-medium">{q.number}</span>
+                      <QuoteStatusBadge status={q.shownStatus} />
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{q.dealTitle}</span>
+                      <span className="text-xs text-muted-foreground">valid until {dayLabel(q.validUntil)}</span>
+                      <span className="tabular-nums">{money(q.total)}</span>
+                    </Link>
+                  </li>
+                ))}
+                {!quotes.length && <li className="px-3 py-6 text-center text-sm text-muted-foreground">No quotes yet.</li>}
+              </ul>
+            ),
+          },
+          {
+            key: "statement",
+            label: "Statement",
+            content: (
+              <section className="grid gap-2 rounded-xl border bg-card p-3" aria-label="Statement of account">
+                <form className="flex flex-wrap items-end gap-2" action={`/accounts/customers/${id}`}>
+                  <input type="hidden" name="tab" value="statement" />
+                  <h2 className="mr-auto text-sm font-semibold">Statement of account</h2>
+                  <div className="grid gap-1">
+                    <Label htmlFor="st-from" className="text-xs">
+                      From
+                    </Label>
+                    <Input id="st-from" name="from" type="date" defaultValue={from} className="h-8 w-40" />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="st-to" className="text-xs">
+                      To
+                    </Label>
+                    <Input id="st-to" name="to" type="date" defaultValue={to} max={today} className="h-8 w-40" />
+                  </div>
+                  <Button type="submit" variant="outline" size="sm">
+                    Show
+                  </Button>
+                  <Button size="sm" nativeButton={false} render={<Link href={`/print/statement/${id}?from=${from}&to=${to}`} target="_blank" />}>
+                    <Printer /> Print / PDF
+                  </Button>
+                </form>
+                <div className="overflow-hidden rounded-lg border">
+                  <StatementDocument brand={brand} s={{ customer: { name: s.company.name, emirate: s.company.emirate, trn: s.company.trn }, from, to, opening: s.opening, lines: s.lines, closing: s.closing }} />
+                </div>
+              </section>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

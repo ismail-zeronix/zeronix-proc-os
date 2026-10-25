@@ -20,14 +20,14 @@ export interface Viewer {
 
 export const viewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll: a.seesAll });
 
-/** Accounts (finance) works on every order and invoice, so it sees all of them and their files, whoever the deal belongs to. */
-export const financeViewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll: a.seesAll || a.apps.includes("accounts") });
+/** Accounts at the finance level works on every order and invoice, so it sees all of them and their files, whoever the deal belongs to. */
+export const financeViewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll: a.seesAll || a.finance });
 
-/** The signed-in person as a Viewer (for server actions and route handlers). */
-export async function currentViewer(): Promise<Viewer> {
+/** The signed-in person as a Viewer (for server actions and route handlers). `finance`: Accounts at the finance level sees every record. */
+export async function currentViewer(finance = false): Promise<Viewer> {
   const access = await loadAccess();
   if (!access) throw new Error("You are not signed in");
-  return viewerOf(access);
+  return finance ? financeViewerOf(access) : viewerOf(access);
 }
 
 /** SQL condition: the deal with this id is one the viewer may see. */
@@ -75,14 +75,14 @@ export async function canSeeCompany(v: Viewer, companyId: number): Promise<boole
 const GONE = "That record does not exist or is not assigned to you.";
 
 /** For server actions: throws unless the signed-in person may see (and so work on) this deal. */
-export async function assertDeal(dealId: number): Promise<Viewer> {
-  const v = await currentViewer();
+export async function assertDeal(dealId: number, finance = false): Promise<Viewer> {
+  const v = await currentViewer(finance);
   if (!(await canSeeDeal(v, dealId))) throw new Error(GONE);
   return v;
 }
 
-export async function assertCompany(companyId: number): Promise<Viewer> {
-  const v = await currentViewer();
+export async function assertCompany(companyId: number, finance = false): Promise<Viewer> {
+  const v = await currentViewer(finance);
   if (!(await canSeeCompany(v, companyId))) throw new Error(GONE);
   return v;
 }
@@ -93,10 +93,10 @@ export async function dealOf(table: "quotes" | "sales_orders" | "deal_items", id
   return r.rows[0]?.deal_id ?? null;
 }
 
-export async function assertDealOf(table: "quotes" | "sales_orders" | "deal_items", id: number): Promise<Viewer> {
+export async function assertDealOf(table: "quotes" | "sales_orders" | "deal_items", id: number, finance = false): Promise<Viewer> {
   const dealId = await dealOf(table, id);
   if (dealId == null) throw new Error(GONE);
-  return assertDeal(dealId);
+  return assertDeal(dealId, finance);
 }
 
 export async function assertContact(contactId: number): Promise<Viewer> {

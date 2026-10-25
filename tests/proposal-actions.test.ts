@@ -25,7 +25,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
   let eq: typeof import("drizzle-orm").eq;
   let and: typeof import("drizzle-orm").and;
   let inArray: typeof import("drizzle-orm").inArray;
-  let S: typeof import("@/app/(app)/sales/actions");
+  let S: typeof import("@/app/(app)/crm/actions");
   let A: typeof import("@/app/(app)/projects/proposal-actions");
   let D: typeof import("@/lib/proposals-data");
   let L: typeof import("@/lib/proposal");
@@ -45,7 +45,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, and, inArray } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
+    S = await import("@/app/(app)/crm/actions");
     A = await import("@/app/(app)/projects/proposal-actions");
     D = await import("@/lib/proposals-data");
     L = await import("@/lib/proposal");
@@ -78,7 +78,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
 
   it("starts from the standard proposal, once per project", async () => {
     await as(seller, "seller");
-    const r = await S.createEnquiry({ companyName: `${tag} Villa`, requirement: "CCTV for the villa\nalarm on two doors", kind: "project", projectType: "cctv" });
+    const r = await S.createDeal({ companyName: `${tag} Villa`, requirement: "CCTV for the villa\nalarm on two doors", kind: "project", projectType: "cctv" });
     projectId = r.projectId!;
     const { id } = await A.startProposal(projectId, null);
     proposalId = id;
@@ -126,7 +126,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
     const t = templates.find((x) => x.name === `${tag} Villa CCTV`)!;
     expect(t.typeKey).toBe("cctv");
     expect((await D.proposalTemplates("networking")).some((x) => x.id === t.id)).toBe(false);
-    const r = await S.createEnquiry({ companyName: `${tag} Office`, requirement: "cameras", kind: "project", projectType: "cctv" });
+    const r = await S.createDeal({ companyName: `${tag} Office`, requirement: "cameras", kind: "project", projectType: "cctv" });
     await A.startProposal(r.projectId!, t.id);
     const a = (await D.proposalOf(projectId))!;
     const b = (await D.proposalOf(r.projectId!))!;
@@ -152,7 +152,7 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
   it("a quote made from the BOQ freezes the proposal; updating the quote refreshes the copy", async () => {
     await as(seller, "seller");
     const B = await import("@/app/(app)/projects/boq-actions");
-    const Q = await import("@/app/(app)/sales/quote-actions");
+    const Q = await import("@/app/(app)/accounts/quote-actions");
     await B.addBoqLine(projectId, { section: "Cameras & recording", description: "Dome camera", lineType: "material", unit: "nos", qty: 4, costAed: 200, unitPriceAed: 300, optional: false });
     const [deal] = await db.select({ id: schema.projects.dealId }).from(schema.projects).where(eq(schema.projects.id, projectId));
     const quote = await Q.createQuote(deal.id);
@@ -176,8 +176,8 @@ describe.skipIf(!live)("proposals (needs the dev database)", () => {
 
   it("product quotes keep the product terms and get no proposal copy", async () => {
     await as(seller, "seller");
-    const Q = await import("@/app/(app)/sales/quote-actions");
-    const r = await S.createEnquiry({ companyName: `${tag} Shop`, requirement: "5 laptops" });
+    const Q = await import("@/app/(app)/accounts/quote-actions");
+    const r = await S.createDeal({ companyName: `${tag} Shop`, requirement: "5 laptops" });
     await db.insert(schema.dealItems).values({ dealId: r.id, description: "Laptop", qty: 5, unitPriceAed: 3000 });
     const quote = await Q.createQuote(r.id);
     expect(await D.snapshotOfQuote(quote.id)).toBeNull();

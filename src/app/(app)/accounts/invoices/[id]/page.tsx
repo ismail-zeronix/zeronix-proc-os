@@ -9,7 +9,7 @@ import { SalesDocument } from "@/components/sales-document";
 import { StatStrip } from "@/components/stat-strip";
 import { Button } from "@/components/ui/button";
 import { getInvoice } from "@/lib/accounts-data";
-import { requireApp } from "@/lib/auth/session";
+import { requireFinance } from "@/lib/auth/session";
 import { financeViewerOf } from "@/lib/auth/visibility";
 import { invoiceDoc } from "@/lib/doc-views";
 import { listFiles } from "@/lib/files-data";
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: PageProps<"/accounts/invoices
 
 /** One tax invoice: what is owed and by when, the payments with their receipts, and the document as the customer sees it. */
 export default async function InvoicePage({ params }: PageProps<"/accounts/invoices/[id]">) {
-  const access = await requireApp("accounts");
+  const access = await requireFinance();
   const { user, apps } = access;
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();

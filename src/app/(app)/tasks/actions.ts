@@ -29,7 +29,7 @@ export type TaskInput = z.input<typeof taskSchema>;
 
 function refresh() {
   revalidatePath("/tasks");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
   revalidatePath("/projects", "layout");
   revalidatePath("/");
 }
@@ -41,7 +41,7 @@ export async function createTask(input: TaskInput) {
     throw new Error("Only an admin can give a task to someone else.");
   }
   if (d.related) {
-    await assertApp("sales");
+    await assertApp("crm");
     await assertDeal(d.related.id);
     const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, d.related.id));
     if (!deal) throw new Error("That deal no longer exists.");

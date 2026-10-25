@@ -142,3 +142,12 @@ export async function quoteDefaults() {
     trn: s.quote_trn,
   };
 }
+
+/** The lines of one quote as they were sent (the frozen copy, not the deal's working lines). */
+export async function quoteLines(quoteId: number) {
+  return db
+    .select({ id: schema.quoteItems.id, description: schema.quoteItems.description, qty: schema.quoteItems.qty, unitPrice: schema.quoteItems.unitPrice, section: schema.quoteItems.section })
+    .from(schema.quoteItems)
+    .where(eq(schema.quoteItems.quoteId, quoteId))
+    .orderBy(asc(schema.quoteItems.position));
+}

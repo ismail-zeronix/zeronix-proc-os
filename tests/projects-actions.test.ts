@@ -25,7 +25,7 @@ describe.skipIf(!live)("projects (needs the dev database)", () => {
   let eq: typeof import("drizzle-orm").eq;
   let inArray: typeof import("drizzle-orm").inArray;
   let and: typeof import("drizzle-orm").and;
-  let S: typeof import("@/app/(app)/sales/actions");
+  let S: typeof import("@/app/(app)/crm/actions");
   let P: typeof import("@/app/(app)/projects/actions");
   let D: typeof import("@/lib/projects-data");
   let userIds: number[] = [];
@@ -45,7 +45,7 @@ describe.skipIf(!live)("projects (needs the dev database)", () => {
   beforeAll(async () => {
     ({ db, schema, pool } = await import("@/db"));
     ({ eq, inArray, and } = await import("drizzle-orm"));
-    S = await import("@/app/(app)/sales/actions");
+    S = await import("@/app/(app)/crm/actions");
     P = await import("@/app/(app)/projects/actions");
     D = await import("@/lib/projects-data");
     const mk = async (name: string) =>
@@ -75,7 +75,7 @@ describe.skipIf(!live)("projects (needs the dev database)", () => {
 
   it("a project deal opens a numbered project", async () => {
     await as(seller, "seller");
-    const res = await S.createEnquiry({ companyName: `${tag} Warehouse LLC`, requirement: "16 IP cameras", kind: "project", projectType: "cctv", valueAed: 45000 });
+    const res = await S.createDeal({ companyName: `${tag} Warehouse LLC`, requirement: "16 IP cameras", kind: "project", projectType: "cctv", valueAed: 45000 });
     expect(res.projectId).toBeTruthy();
     dealId = res.id;
     projectId = res.projectId!;
@@ -91,7 +91,7 @@ describe.skipIf(!live)("projects (needs the dev database)", () => {
 
   it("needs a project type", async () => {
     await as(seller, "seller");
-    await expect(S.createEnquiry({ companyName: `${tag} No Type LLC`, kind: "project", requirement: "cabling" })).rejects.toThrow(/project type/);
+    await expect(S.createDeal({ companyName: `${tag} No Type LLC`, kind: "project", requirement: "cabling" })).rejects.toThrow(/project type/);
   });
 
   it("shows the project to its team only", async () => {
@@ -142,7 +142,7 @@ describe.skipIf(!live)("projects (needs the dev database)", () => {
 
   it("an existing product deal can become a project and back, keeping its number", async () => {
     await as(seller, "seller");
-    const res = await S.createEnquiry({ companyName: `${tag} Office LLC`, requirement: "10 laptops" });
+    const res = await S.createDeal({ companyName: `${tag} Office LLC`, requirement: "10 laptops" });
     expect(res.projectId).toBeNull();
     const made = await S.setDealKind(res.id, "project", "networking");
     expect(made.projectId).toBeTruthy();

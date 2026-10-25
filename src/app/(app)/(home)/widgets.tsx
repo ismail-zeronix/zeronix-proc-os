@@ -269,7 +269,7 @@ export async function ThisWeekSales({ userId, team }: { userId: number; team: bo
   // admins see the whole team here, so the pipeline must open on the team too or the numbers will not match
   const to = (stage = "") => {
     const q = new URLSearchParams({ ...(team ? { who: "all" } : {}), ...(stage ? { stage } : {}) }).toString();
-    return q ? `/sales/pipeline?${q}` : "/sales/pipeline";
+    return q ? `/crm/deals?${q}` : "/crm/deals";
   };
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -295,7 +295,7 @@ export async function PipelineCard({ userId, team }: { userId: number; team: boo
           {p.openCount} open deal{p.openCount === 1 ? "" : "s"} · {aed(p.openValue)} · {p.scope}
         </CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={team ? "/sales" : "/sales?who=mine"} />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={team ? "/crm" : "/crm?who=mine"} />}>
             Overview <ArrowRight />
           </Button>
         </CardAction>
@@ -317,7 +317,7 @@ export async function PipelineCard({ userId, team }: { userId: number; team: boo
         {p.openCount === 0 && (
           <Empty>
             No open deals.{" "}
-            <Link href="/sales/new" className="underline">
+            <Link href="/crm/new" className="underline">
               Add a deal
             </Link>
             .
@@ -343,7 +343,7 @@ export async function DealsAttentionCard({ userId, team }: { userId: number; tea
       </CardHeader>
       <CardContent className="grid gap-1">
         {p.attention.map((a) => (
-          <Link key={a.id} href={`/sales/deals/${a.id}`} className="rounded-md px-2 py-2 hover:bg-muted">
+          <Link key={a.id} href={`/crm/deals/${a.id}`} className="rounded-md px-2 py-2 hover:bg-muted">
             <div className="truncate text-sm font-medium">{a.title}</div>
             <div className="truncate text-xs text-muted-foreground">
               {a.companyName} · {a.reason}

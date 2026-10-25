@@ -64,7 +64,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   // checklist tasks go to the project team; admins and "All data" users may pick anyone in Sales
   const team = access.seesAll ? people : p.assignees;
   const checklistOpen = checklist.filter((t) => t.status === "open").length;
-  const canSales = apps.includes("sales");
+  const canSales = apps.includes("crm");
   const canTask = canSales && apps.includes("tasks");
   const openTasks = tasks.filter((t) => t.status === "open") as TaskRow[];
   const doneTasks = tasks.filter((t) => t.status === "done") as TaskRow[];
@@ -212,7 +212,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                 content: (
                   <div className="grid gap-1">
                     {quotes.map((q) => (
-                      <AppLink key={`q${q.id}`} href={`/sales/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
+                      <AppLink key={`q${q.id}`} href={`/accounts/quotes/${q.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
                         <span className="text-sm">
                           Quote <span className="font-mono font-medium">{q.number}</span> <span className="text-xs text-muted-foreground">· {ago(q.createdAt)}</span>
                         </span>
@@ -222,7 +222,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                       </AppLink>
                     ))}
                     {orders.map((o) => (
-                      <AppLink key={`o${o.id}`} href={`/sales/orders/${o.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
+                      <AppLink key={`o${o.id}`} href={`/accounts/orders/${o.id}`} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
                         <span className="text-sm">
                           Order <span className="font-mono font-medium">{o.number}</span>
                         </span>
@@ -247,7 +247,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
               },
               {
                 key: "timeline",
-                label: `Timeline (${activities.length})`,
+                label: `Activity (${activities.length})`,
                 content: (
                   <ol className="grid max-h-[calc(100svh-24rem)] min-h-40 gap-2.5 overflow-y-auto pt-1">
                     {activities.map((a) => {
@@ -282,7 +282,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
             <h2 className="mb-1.5 text-sm font-medium">Customer</h2>
             <div className="grid gap-1.5 text-sm">
               {canSales ? (
-                <AppLink href={`/sales/companies/${p.companyId}`} className={`${meta} font-medium hover:underline`}>
+                <AppLink href={`/crm/companies/${p.companyId}`} className={`${meta} font-medium hover:underline`}>
                   <Building2 /> {p.companyName}
                 </AppLink>
               ) : (
@@ -312,7 +312,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                 </div>
               )}
               {canSales && (
-                <AppLink href={`/sales/deals/${p.dealId}`} className={`${meta} text-xs text-muted-foreground hover:text-foreground hover:underline`}>
+                <AppLink href={`/crm/deals/${p.dealId}`} className={`${meta} text-xs text-muted-foreground hover:text-foreground hover:underline`}>
                   <Handshake /> Open the deal
                 </AppLink>
               )}

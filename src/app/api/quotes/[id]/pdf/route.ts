@@ -11,7 +11,7 @@ import { getQuote } from "@/lib/quotes-data";
 
 /** Downloads a quote as the customer gets it: a project quote as its frozen proposal, a product quote as the quotation. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/quotes/[id]/pdf">) {
-  if (!(await hasApp("sales")) && !(await hasApp("projects"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await hasApp("accounts")) && !(await hasApp("projects"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const id = Number((await ctx.params).id);
   const access = await loadAccess();
   // a quote on someone else's deal reads like one that does not exist

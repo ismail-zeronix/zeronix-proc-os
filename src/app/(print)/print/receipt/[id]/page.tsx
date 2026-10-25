@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ReceiptDocument } from "@/components/money-documents";
 import { PrintPage } from "@/components/print-page";
 import { getInvoice, getPayment } from "@/lib/accounts-data";
-import { requireApp } from "@/lib/auth/session";
+import { requireFinance } from "@/lib/auth/session";
 import { round2 } from "@/lib/quotation";
 import { quoteBrand } from "@/lib/quote-view";
 
@@ -10,7 +10,7 @@ export const metadata = { title: "Receipt" };
 
 /** Receipt voucher for one payment. The balance shown is what was still owed right after this payment. */
 export default async function PrintReceipt({ params }: PageProps<"/print/receipt/[id]">) {
-  await requireApp("accounts");
+  await requireFinance();
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const p = await getPayment(id);

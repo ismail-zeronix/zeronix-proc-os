@@ -10,9 +10,9 @@ describe("allowedApps", () => {
   it("gives sales the role defaults when no list is saved", () => {
     const keys = allowedApps({ role: "sales", apps: null });
     expect(keys).toContain("procurement");
-    expect(keys).toContain("sales");
+    expect(keys).toContain("crm");
     expect(keys).not.toContain("admin");
-    expect(keys).not.toContain("accounts");
+    expect(keys).toContain("accounts"); // quotes and orders; the finance level is a separate switch
   });
 
   it("uses the admin's explicit list for a sales user, in registry order", () => {
@@ -28,7 +28,8 @@ describe("allowedApps", () => {
   it("ignores unknown keys", () => {
     expect(allowedApps({ role: "sales", apps: ["nope", "tasks"] })).toEqual(["tasks"]);
     expect(isAppKey("nope")).toBe(false);
-    expect(isAppKey("sales")).toBe(true);
+    expect(isAppKey("crm")).toBe(true);
+    expect(isAppKey("sales")).toBe(false);
   });
 
   it("does not offer the admin app as a per-user toggle", () => {

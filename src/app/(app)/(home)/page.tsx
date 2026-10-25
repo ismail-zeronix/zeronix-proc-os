@@ -29,26 +29,26 @@ import {
 export const metadata = { title: "Home · Zeronix" };
 
 export default async function HomePage() {
-  const { user, apps, seesAll } = await requireAccess();
+  const { user, apps, seesAll, finance } = await requireAccess();
   const tiles = visibleApps({ role: user.role, apps });
   const hasProcurement = apps.includes("procurement");
-  const hasSales = apps.includes("sales");
+  const hasSales = apps.includes("crm");
   const hasTasks = apps.includes("tasks");
   const hasMail = apps.includes("mail");
 
   // a few cheap numbers for the badges on the tiles
-  const [toReview, newEnquiries, dueTasks, mailUnread, punch, hours, overdueInvoices] = await Promise.all([
+  const [toReview, newDeals, dueTasks, mailUnread, punch, hours, overdueInvoices] = await Promise.all([
     hasProcurement ? listCounts().then((c) => c.review + c.failed) : 0,
     hasSales ? salesPulse(user.id, seesAll).then((p) => p.newCount) : 0,
     hasTasks ? dueTasksFor(user.id).then((d) => d.tasks.length) : 0,
     hasMail ? unreadCount(user.id) : 0,
     punchState(user.id),
     workHours(),
-    apps.includes("accounts") ? accountsBadges().then((b) => b.overdue) : 0,
+    finance ? accountsBadges().then((b) => b.overdue) : 0,
   ]);
   const badges: Record<string, { n: number; label: string }> = {
     procurement: { n: toReview, label: `${toReview} to review` },
-    sales: { n: newEnquiries, label: `${newEnquiries} new deal${newEnquiries === 1 ? "" : "s"}` },
+    sales: { n: newDeals, label: `${newDeals} new deal${newDeals === 1 ? "" : "s"}` },
     tasks: { n: dueTasks, label: `${dueTasks} due today` },
     mail: { n: mailUnread, label: `${mailUnread} unread` },
     accounts: { n: overdueInvoices, label: `${overdueInvoices} invoice${overdueInvoices === 1 ? "" : "s"} overdue` },

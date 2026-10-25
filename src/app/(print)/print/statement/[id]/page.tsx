@@ -3,6 +3,7 @@ import { StatementDocument } from "@/components/money-documents";
 import { PrintPage } from "@/components/print-page";
 import { statement } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
+import { canSeeCompany, financeViewerOf } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
 import { quoteBrand } from "@/lib/quote-view";
 
@@ -12,9 +13,9 @@ const isDay = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2
 
 /** Statement of account for a customer (id = company). Default period: 1 January this year to today. */
 export default async function PrintStatement({ params, searchParams }: PageProps<"/print/statement/[id]">) {
-  await requireApp("accounts");
+  const access = await requireApp("accounts");
   const id = Number((await params).id);
-  if (!Number.isInteger(id) || id < 1) notFound();
+  if (!Number.isInteger(id) || id < 1 || !(await canSeeCompany(financeViewerOf(access), id))) notFound();
   const sp = await searchParams;
   const today = dubaiToday();
   const to = isDay(sp.to) ? sp.to : today;

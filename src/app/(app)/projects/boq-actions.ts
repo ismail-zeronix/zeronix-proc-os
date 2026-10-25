@@ -45,7 +45,7 @@ export type BoqLineInput = z.input<typeof lineSchema>;
 function refresh(projectId: number) {
   revalidatePath(`/projects/list/${projectId}`);
   revalidatePath("/projects", "layout");
-  revalidatePath("/sales", "layout");
+  revalidatePath("/crm", "layout");
 }
 
 /** The project and its deal, after checking the signed-in person may work on it. */

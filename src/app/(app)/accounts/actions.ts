@@ -4,7 +4,7 @@ import { and, asc, eq, isNull, like, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
-import { assertApp } from "@/lib/auth/session";
+import { assertFinance } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { nextSeq, takeInvoiceNumber } from "@/lib/doc-numbers";
 import { checkPaymentAmount, dueDateFor, invoiceState, methodLabel, termsLabel, yearNumber } from "@/lib/invoicing";
@@ -15,11 +15,11 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
 
 function refresh(ids: { dealId?: number; orderId?: number; invoiceId?: number; companyId?: number }) {
   revalidatePath("/accounts", "layout");
-  revalidatePath("/sales", "layout");
-  if (ids.dealId) revalidatePath(`/sales/deals/${ids.dealId}`);
-  if (ids.orderId) revalidatePath(`/sales/orders/${ids.orderId}`);
+  revalidatePath("/crm", "layout");
+  if (ids.dealId) revalidatePath(`/crm/deals/${ids.dealId}`);
+  if (ids.orderId) revalidatePath(`/accounts/orders/${ids.orderId}`);
   if (ids.invoiceId) revalidatePath(`/accounts/invoices/${ids.invoiceId}`);
-  if (ids.companyId) revalidatePath(`/sales/companies/${ids.companyId}`);
+  if (ids.companyId) revalidatePath(`/crm/companies/${ids.companyId}`);
   revalidatePath("/");
 }
 
@@ -38,7 +38,7 @@ export type IssueInput = z.input<typeof issueSchema>;
  * for the due date.
  */
 export async function issueInvoice(orderId: number, input: IssueInput) {
-  const me = await assertApp("accounts");
+  const me = await assertFinance();
   const d = issueSchema.parse(input);
   const today = dubaiToday();
   if (d.issueDate > today) throw new Error("The invoice date cannot be in the future.");
@@ -70,7 +70,7 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
         termsDays: d.termsDays,
         dueDate,
         customerName: company.name,
-        customerAddress: d.customerAddress || o.deliveryAddress || (company.emirate ? `${company.emirate}, United Arab Emirates` : ""),
+        customerAddress: d.customerAddress || o.deliveryAddress || company.address || (company.emirate ? `${company.emirate}, United Arab Emirates` : ""),
         customerTrn: company.trn,
         customerRef: o.customerRef,
         vatPct: o.vatPct,
@@ -111,7 +111,7 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
  * the payments first. The order goes back to Delivered, so a corrected invoice can be issued.
  */
 export async function cancelInvoice(invoiceId: number, reason: string) {
-  const me = await assertApp("accounts");
+  const me = await assertFinance();
   const why = z.string().trim().min(3, "Say why the invoice is cancelled").max(300).parse(reason);
   const today = dubaiToday();
   const year = Number(today.slice(0, 4));
@@ -167,7 +167,7 @@ export type PaymentInput = z.input<typeof paymentSchema>;
 
 /** Records money received (full or part) and gives the receipt its number (ZRV-year-0001). Fully paid closes the collection task. */
 export async function recordPayment(invoiceId: number, input: PaymentInput) {
-  const me = await assertApp("accounts");
+  const me = await assertFinance();
   const d = paymentSchema.parse(input);
   const today = dubaiToday();
   if (d.paidOn > today) throw new Error("The payment date cannot be in the future.");
@@ -216,7 +216,7 @@ export async function recordPayment(invoiceId: number, input: PaymentInput) {
 
 /** A payment entered by mistake is voided (kept, crossed out) with a reason; the invoice balance goes back up. */
 export async function voidPayment(paymentId: number, reason: string) {
-  const me = await assertApp("accounts");
+  const me = await assertFinance();
   const why = z.string().trim().min(3, "Say why the payment is voided").max(300).parse(reason);
   const result = await db.transaction(async (tx) => {
     const [p] = await tx.select().from(schema.payments).where(eq(schema.payments.id, paymentId)).for("update");

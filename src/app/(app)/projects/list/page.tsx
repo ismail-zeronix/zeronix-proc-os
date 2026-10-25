@@ -12,7 +12,7 @@ import { type Phase, PHASES, phaseLabel } from "@/lib/projects";
 import { listProjects, type ProjectRow, projectTypes } from "@/lib/projects-data";
 import { aed, aedShort, stageLabel } from "@/lib/sales";
 import { salesUsers } from "@/lib/sales-data";
-import { EnquiryDialog } from "../../sales/new/enquiry-dialog";
+import { DealDialog } from "../../crm/new/deal-dialog";
 import { ProjectStatusMenu, TaskProgress, TypeFilter } from "../project-ui";
 
 export const metadata = { title: "Projects · Zeronix Projects" };
@@ -30,7 +30,7 @@ export default async function ProjectListPage({ searchParams }: PageProps<"/proj
   const board = one("view") === "board";
   const phase = PHASES.some((p) => p.key === one("phase")) ? (one("phase") as Phase) : "";
   const type = one("type");
-  const canSales = apps.includes("sales");
+  const canSales = apps.includes("crm");
 
   const [rows, types, team] = await Promise.all([
     listProjects(viewerOf(access), { memberId: all ? undefined : user.id, typeKey: type || undefined }),
@@ -49,7 +49,7 @@ export default async function ProjectListPage({ searchParams }: PageProps<"/proj
     for (const [k, v] of Object.entries(cur)) if (v) p.set(k, v);
     return p.size ? `/projects/list?${p}` : "/projects/list";
   };
-  const add = (stage = "new") => (canSales ? <EnquiryDialog users={users} meId={user.id} stage={stage} projectTypes={typeOptions} kind="project" /> : null);
+  const add = (stage = "new") => (canSales ? <DealDialog users={users} meId={user.id} stage={stage} projectTypes={typeOptions} kind="project" /> : null);
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">

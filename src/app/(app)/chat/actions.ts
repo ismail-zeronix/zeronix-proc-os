@@ -2,8 +2,8 @@
 
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { markDelivered } from "@/app/(app)/sales/order-actions";
-import { setQuoteStatus } from "@/app/(app)/sales/quote-actions";
+import { markDelivered } from "@/app/(app)/accounts/order-actions";
+import { setQuoteStatus } from "@/app/(app)/accounts/quote-actions";
 import { createTask, setTaskDone } from "@/app/(app)/tasks/actions";
 import { db, schema } from "@/db";
 import { assertDeal } from "@/lib/auth/visibility";

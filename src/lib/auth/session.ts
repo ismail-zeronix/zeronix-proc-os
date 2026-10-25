@@ -25,6 +25,8 @@ export interface Access {
   apps: AppKey[];
   /** True when they see every sales record (admins, and users set to "All data"); false = only the deals they are on. */
   seesAll: boolean;
+  /** Accounts at the finance level: invoices, payments, purchases and reports, for every record. Admins always. */
+  finance: boolean;
 }
 
 /** The signed-in user's current role and apps, read from the database once per request. Null = not signed in or deactivated. */
@@ -39,13 +41,20 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       isActive: schema.users.isActive,
       apps: schema.users.apps,
       dataScope: schema.users.dataScope,
+      accountsLevel: schema.users.accountsLevel,
     })
     .from(schema.users)
     .where(eq(schema.users.id, session.id))
     .limit(1);
   if (!row || !row.isActive) return null;
   const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role };
-  return { user, apps: allowedApps({ role: row.role, apps: row.apps }), seesAll: row.role === "admin" || row.dataScope === "all" };
+  const apps = allowedApps({ role: row.role, apps: row.apps });
+  return {
+    user,
+    apps,
+    seesAll: row.role === "admin" || row.dataScope === "all",
+    finance: row.role === "admin" || (apps.includes("accounts") && row.accountsLevel === "finance"),
+  };
 });
 
 /** For pages and layouts: any signed-in, active user. Deactivated users are signed out (their cookie is cleared). */
@@ -59,6 +68,13 @@ export async function requireAccess(): Promise<Access> {
 export async function requireApp(key: AppKey): Promise<Access> {
   const access = await requireAccess();
   if (!access.apps.includes(key)) notFound();
+  return access;
+}
+
+/** For finance pages in Accounts (invoices, payments, purchases, reports): others get "page does not exist". */
+export async function requireFinance(): Promise<Access> {
+  const access = await requireApp("accounts");
+  if (!access.finance) notFound();
   return access;
 }
 
@@ -95,6 +111,14 @@ export async function assertApp(key: AppKey): Promise<SessionUser> {
 export async function assertAnyApp(...keys: AppKey[]): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !keys.some((k) => access.apps.includes(k))) throw new Error("You do not have access to this");
+  if (!(await isPunchedIn(access.user.id))) throw new Error(NOT_PUNCHED_IN);
+  return access.user;
+}
+
+/** For finance server actions (invoices, payments, bills, expenses): Accounts at the finance level, punched in. */
+export async function assertFinance(): Promise<SessionUser> {
+  const access = await loadAccess();
+  if (!access || !access.finance) throw new Error("Only the accounts team can do this");
   if (!(await isPunchedIn(access.user.id))) throw new Error(NOT_PUNCHED_IN);
   return access.user;
 }

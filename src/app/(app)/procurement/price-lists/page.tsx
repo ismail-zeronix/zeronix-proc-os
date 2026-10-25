@@ -126,8 +126,8 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
             </Button>
           )}
         </form>
-        <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href="/procurement/import" />} aria-label="Paste a price list" title="Paste a price list">
-          <ClipboardPaste />
+        <Button size="sm" nativeButton={false} render={<Link href="/procurement/import" />} title="Paste or upload a supplier price list">
+          <ClipboardPaste /> Add price list
         </Button>
       </div>
 
