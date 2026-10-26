@@ -122,7 +122,7 @@ export function quoteWhatsApp(q: QuoteDoc): string {
   });
   lines.push("");
   lines.push(`Subtotal: ${money(q.subtotal)}`);
-  if (q.vatPct > 0) lines.push(`VAT ${num(q.vatPct)}%: ${money(q.vatAmount)}`);
+  lines.push(q.vatPct > 0 ? `VAT ${num(q.vatPct)}%: ${money(q.vatAmount)}` : "VAT 0% (zero-rated)");
   lines.push(`*Total: ${money(q.total)}*`);
   lines.push("");
   lines.push(`Valid until ${longDay(q.validUntil)}. Subject to stock.`);

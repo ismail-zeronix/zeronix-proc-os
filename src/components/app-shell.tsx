@@ -15,7 +15,8 @@ export async function AppShell({ app, badges, children }: { app: AppKey; badges?
       <AppSidebar app={app} badges={badges} />
       <SidebarInset>
         <PortalHeader withSidebar />
-        <div className="mx-auto w-full min-w-0 max-w-[1800px] flex-1 p-3 md:p-4">{children}</div>
+        {/* bottom padding keeps the last row of every page clear of the round chat button */}
+        <div className="mx-auto w-full min-w-0 max-w-[1800px] flex-1 p-3 pb-20 md:p-4 md:pb-20">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

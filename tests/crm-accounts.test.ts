@@ -249,4 +249,18 @@ describe.skipIf(!live)("Accounts levels (needs the dev database)", () => {
     await expect(Q.saveQuote(null, { ...base, dealId })).rejects.toThrow(/already open/);
     await expect(Q.saveQuote(null, { ...base, lines: [{ description: "Free", qty: 1, unitPriceAed: 0 }] })).rejects.toThrow(/selling price/);
   });
+
+  it("lets a salesperson edit a quote in their name for a customer they cannot pick themselves", async () => {
+    await as(colleague);
+    const { id: dealId } = await S.createDeal({ companyName: `${tag} Theirs LLC`, emirate: "Dubai", contactName: "Nora", requirement: "-" });
+    const [d] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(D.eq(schema.deals.id, dealId));
+    const base = { companyId: d.companyId, ownerId: seller, validUntil: "2099-12-31", termsDays: 0, vatPct: 5, lines: [{ description: "Cable", qty: 2, unitPriceAed: 20 }] };
+    const q = await Q.saveQuote(null, base);
+    await as(seller);
+    await expect(Q.customerChoices(d.companyId)).rejects.toThrow(/not yours/);
+    expect((await Q.customerChoices(d.companyId, q.id)).contacts.length).toBe(1);
+    const e = await Q.saveQuote(q.id, { ...base, lines: [{ description: "Cable", qty: 3, unitPriceAed: 20 }] });
+    expect(e.number).toBe(q.number);
+    await expect(Q.saveQuote(null, base)).rejects.toThrow(/not yours/);
+  });
 });

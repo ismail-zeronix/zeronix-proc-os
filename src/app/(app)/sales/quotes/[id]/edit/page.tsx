@@ -20,7 +20,7 @@ export default async function EditQuotePage({ params }: PageProps<"/sales/quotes
   const [order, project] = await Promise.all([orderOfQuote(id), q.dealId ? projectOfDeal(q.dealId) : Promise.resolve(null)]);
   // project quotes are changed from their BOQ; answered or ordered quotes are final
   if (project || order || (q.status !== "draft" && q.status !== "sent")) redirect(`/sales/quotes/${id}`);
-  const [people, defaults, lines, choices] = await Promise.all([salesPeople(), quoteDefaults(), quoteLines(id), customerChoices(q.companyId)]);
+  const [people, defaults, lines, choices] = await Promise.all([salesPeople(), quoteDefaults(), quoteLines(id), customerChoices(q.companyId, id)]);
   // keep the current salesperson even if they no longer use Sales, so saving does not silently change it
   const owner = q.ownerId ?? q.createdBy ?? access.user.id;
 

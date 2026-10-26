@@ -202,7 +202,8 @@ Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move 
 - [x] 15.5 Opening balances from Zoho (customer invoices and supplier bills) [2026-10-25]
 - [x] 15.6 Sales app split from Accounts: CRM = leads and deals, Sales = customers, quotes, orders, Accounts = invoices, payments, purchases, reports (the Accounts levels are gone) [2026-10-25]
 - [x] 15.7 Mark as won (existing company, winning quote or agreed terms, missing details become a task); TRN and address checks on orders and invoices; deal header and linked timeline [2026-10-25]
-- [ ] 15.8 Owner: enter opening balances at the cut-over date; give Accounts only to the accounts person
+- [x] 15.8 Standalone quotes (no deal needed): quotes and orders may have no CRM deal; quote carries customer, contact, salesperson, payment terms, notes; one two-column quote page for new and edit; CRM Leads page with Qualify [2026-10-26]
+- [ ] 15.9 Owner: enter opening balances at the cut-over date; give Accounts only to the accounts person
 
 ## Later
 - [ ] L.2 Prospecting app (new-licence feeds, review, convert to deal)

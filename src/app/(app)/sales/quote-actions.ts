@@ -454,11 +454,14 @@ export type SaveQuoteInput = z.input<typeof saveSchema>;
  */
 export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
   const me = await assertApp("sales");
+  if (quoteId) await assertDealOf("quotes", quoteId, true);
   const r = saveSchema.safeParse(input);
   if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the quote.");
   const d = r.data;
   const v = await currentViewer(true);
-  if (!(await canSeeCompany(v, d.companyId))) throw new Error("That customer does not exist or is not yours.");
+  // editing a quote you may see keeps its customer, even one you could not pick yourself (a quote in your name)
+  const [current] = quoteId ? await db.select({ companyId: schema.quotes.companyId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId)) : [];
+  if (current?.companyId !== d.companyId && !(await canSeeCompany(v, d.companyId))) throw new Error("That customer does not exist or is not yours.");
   if (d.validUntil < dubaiToday()) throw new Error("The valid-until date is in the past.");
   const [owner] = await db.select({ id: schema.users.id, role: schema.users.role, apps: schema.users.apps, isActive: schema.users.isActive }).from(schema.users).where(eq(schema.users.id, d.ownerId));
   if (!owner?.isActive || !allowedApps(owner).includes("sales")) throw new Error("Pick a salesperson who uses Sales.");
@@ -466,7 +469,6 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
     const [c] = await db.select({ companyId: schema.contacts.companyId }).from(schema.contacts).where(eq(schema.contacts.id, d.contactId));
     if (c?.companyId !== d.companyId) throw new Error("That contact is not at this customer.");
   }
-  if (quoteId) await assertDealOf("quotes", quoteId, true);
   const dealId = d.dealId ?? null;
   if (dealId) {
     await assertDeal(dealId, true);
@@ -564,11 +566,20 @@ export async function offerLine(offerId: number, qty = 1, marginPct?: number) {
   return { description: (o.specSummary ? `${label}, ${o.specSummary}` : label).slice(0, 400), qty: n, costAed: cost, unitPriceAed: sellPrice(cost, margin), supplierName: o.supplierName };
 }
 
-/** For the quote page once a customer is picked: their contacts, and the deals a quote may be linked to (not lost, not projects). */
-export async function customerChoices(companyId: number) {
+/**
+ * For the quote page once a customer is picked: their contacts, and the deals a quote may be linked to (not lost, not
+ * projects). `quoteId`: opening a quote you may see, whose customer you might not be able to pick yourself.
+ */
+export async function customerChoices(companyId: number, quoteId?: number) {
   await assertApp("sales");
   const v = await currentViewer(true);
-  if (!(await canSeeCompany(v, companyId))) throw new Error("That customer does not exist or is not yours.");
+  let viaQuote = false;
+  if (quoteId) {
+    await assertDealOf("quotes", quoteId, true);
+    const [q] = await db.select({ companyId: schema.quotes.companyId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
+    viaQuote = q?.companyId === companyId;
+  }
+  if (!viaQuote && !(await canSeeCompany(v, companyId))) throw new Error("That customer does not exist or is not yours.");
   const [contacts, deals] = await Promise.all([
     db
       .select({ id: schema.contacts.id, name: schema.contacts.name, jobTitle: schema.contacts.jobTitle })

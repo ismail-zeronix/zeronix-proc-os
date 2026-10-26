@@ -20,7 +20,7 @@ export function toDoc(q: Loaded): QuoteDocData {
     total: q.total,
     terms: q.terms,
     items: q.items.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice, section: i.section, unit: i.unit })),
-    company: { name: q.company.name, emirate: q.company.emirate, trn: q.company.trn, phone: q.company.phone },
+    company: { name: q.company.name, emirate: q.company.emirate, address: q.company.address, trn: q.company.trn, phone: q.company.phone },
     contact: q.contact ? { name: q.contact.name, jobTitle: q.contact.jobTitle, email: q.contact.email, phone: q.contact.phone } : null,
     author: q.author,
   };

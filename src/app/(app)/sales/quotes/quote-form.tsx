@@ -199,7 +199,7 @@ export function QuoteForm({
       </div>
 
       {/* both columns run to the same bottom line, at least the height of the screen */}
-      <div className="grid gap-3 lg:min-h-[calc(100svh-9.5rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
+      <div className="grid gap-3 lg:min-h-[calc(100svh-13rem)] lg:grid-cols-[20rem_minmax(0,1fr)]">
         {/* left: who and on what terms; the totals sit at the bottom of the panel */}
         <aside className="flex flex-col overflow-hidden rounded-xl border bg-card" aria-label="Customer, terms and totals">
           <section className={group}>

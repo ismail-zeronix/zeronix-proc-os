@@ -13,7 +13,7 @@ export interface QuoteDocData {
   terms: string;
   /** `section` and `unit` come from a project BOQ; product quotes leave them empty. */
   items: { id: number; description: string; qty: number; unitPrice: number; section?: string; unit?: string }[];
-  company: { name: string; emirate: string; trn: string; phone: string };
+  company: { name: string; emirate: string; address: string; trn: string; phone: string };
   contact: { name: string; jobTitle: string; email: string; phone: string } | null;
   author: { name: string; email: string; jobTitle: string; phone: string; mobile: string } | null;
 }
@@ -75,7 +75,7 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
         <div>
           <div className="text-[11px] font-semibold tracking-wider text-neutral-500 uppercase">To</div>
           <div className="font-semibold">{q.company.name}</div>
-          {q.company.emirate && <div>{q.company.emirate}, UAE</div>}
+          {q.company.address ? <div className="whitespace-pre-line">{q.company.address}</div> : q.company.emirate && <div>{q.company.emirate}, UAE</div>}
           {q.company.trn && <div>TRN: {q.company.trn}</div>}
           {q.contact && (
             <div className="mt-1">
@@ -137,12 +137,11 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
           <span className="text-neutral-600">Subtotal</span>
           <span className="tabular-nums">{money(q.subtotal)}</span>
         </div>
-        {q.vatPct > 0 && (
-          <div className="flex justify-between">
-            <span className="text-neutral-600">VAT {q.vatPct}%</span>
-            <span className="tabular-nums">{money(q.vatAmount)}</span>
-          </div>
-        )}
+        {/* a zero-rated supply still says so on the document */}
+        <div className="flex justify-between">
+          <span className="text-neutral-600">{q.vatPct > 0 ? `VAT ${q.vatPct}%` : "VAT 0% (zero-rated)"}</span>
+          <span className="tabular-nums">{money(q.vatAmount)}</span>
+        </div>
         <div className="flex justify-between border-t-2 pt-1.5 text-base font-semibold" style={{ borderColor: accent }}>
           <span>Total</span>
           <span className="tabular-nums">{money(q.total)}</span>

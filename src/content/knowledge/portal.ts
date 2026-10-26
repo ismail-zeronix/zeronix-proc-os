@@ -1,6 +1,6 @@
 import type { Article } from "./types";
 
-const REVIEWED = "2026-10-25";
+const REVIEWED = "2026-10-26";
 
 export const PORTAL: Article[] = [
   {
@@ -23,9 +23,10 @@ export const PORTAL: Article[] = [
       { h: "During the day" },
       {
         ol: [
-          "Every new lead goes into CRM → Deals → New deal, even a WhatsApp message. Use Ctrl K to check the company is not already there.",
+          "Every new enquiry goes into CRM → Leads → New lead, even a WhatsApp message. Use Ctrl K to check the company is not already there. Once you know what, how many and by when, press Qualify: it moves to CRM → Deals.",
           "Log every call, message and meeting on the deal's Activity tab, and set a follow-up task with a date.",
-          "Make the quote in Sales → Quotes → New quote (or Make quote on the deal's Quotes tab). Find price brings in supplier prices; the margin is added for you.",
+          "Make the quote in Sales → Quotes → New quote. Pick the customer; link the CRM deal when you are quoting a lead, or leave it as an instant quote for an existing customer. Find price brings in supplier prices; the margin is added for you.",
+          "You can make a quote in a colleague's name (Salesperson): it is theirs, signed by them, and you can still see it.",
           "Print the quote or copy it as WhatsApp text, and mark it Sent. The deal's Quotes tab shows it, read only.",
         ],
       },
@@ -42,7 +43,7 @@ export const PORTAL: Article[] = [
         table: {
           head: ["App", "What is in it"],
           rows: [
-            ["CRM", "Deals (the pipeline), companies and contacts: everything before the customer says yes"],
+            ["CRM", "Leads, deals (the pipeline), companies and contacts: everything before the customer says yes"],
             ["Sales", "Customers (companies whose deal is won), quotes and orders"],
             ["Accounts", "The accounts team: invoices, payments, supplier bills, expenses and reports"],
             ["Procurement", "Supplier price lists and Compare prices"],
@@ -80,7 +81,7 @@ export const PORTAL: Article[] = [
         table: {
           head: ["Step", "Who", "Where"],
           rows: [
-            ["1. Make the quote: lines, Find price, Make quote", "Sales", "Sales → Quotes → New quote"],
+            ["1. Make the quote: customer, (deal), lines, Find price, Make quote", "Sales", "Sales → Quotes → New quote, or New quote on the customer page"],
             ["2. Customer confirms: Convert to order (PO number, credit terms, delivery address)", "Sales", "The quote page"],
             ["3. Upload the customer's PO / LPO", "Sales", "Order → Files tab"],
             ["4. Proforma invoice, if they pay before delivery", "Sales", "Order → Proforma"],
