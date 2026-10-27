@@ -32,8 +32,8 @@ COPY --from=build /app/src/db/migrations ./src/db/migrations
 COPY --from=build /app/dist-scripts ./scripts
 COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN sed -i 's/\r$//' docker-entrypoint.sh \
- && mkdir -p .next/cache data/files \
- && chown -R node:node .next/cache data
+ && mkdir -p .next/cache .next/server/route-cache data/files \
+ && chown -R node:node .next/cache .next/server/route-cache data
 USER node
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/docker-entrypoint.sh"]
