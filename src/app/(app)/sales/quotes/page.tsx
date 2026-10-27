@@ -6,6 +6,7 @@ import { Segmented } from "@/components/segmented";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UserAvatar } from "@/components/user-avatar";
 import { requireApp } from "@/lib/auth/session";
 import { financeViewerOf } from "@/lib/auth/visibility";
 import { dayLabel } from "@/lib/dates";
@@ -64,7 +65,7 @@ export default async function QuotesPage({ searchParams }: PageProps<"/sales/quo
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Valid until</TableHead>
-                  <TableHead>Made by</TableHead>
+                  <TableHead>Salesperson</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -79,12 +80,12 @@ export default async function QuotesPage({ searchParams }: PageProps<"/sales/quo
                       <Link href={`/sales/customers/${q.companyId}`} className="font-medium hover:underline">
                         {q.companyName}
                       </Link>
-                      {crm ? (
+                      {q.dealId && crm ? (
                         <AppLink href={`/crm/deals/${q.dealId}`} className="block truncate text-xs text-muted-foreground hover:underline">
                           {q.dealTitle}
                         </AppLink>
                       ) : (
-                        <span className="block truncate text-xs text-muted-foreground">{q.dealTitle}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{q.dealTitle || "Instant quote"}</span>
                       )}
                     </TableCell>
                     <TableCell className="py-1.5">
@@ -92,7 +93,16 @@ export default async function QuotesPage({ searchParams }: PageProps<"/sales/quo
                     </TableCell>
                     <TableCell className="py-1.5 text-right tabular-nums">{money(q.total)}</TableCell>
                     <TableCell className="py-1.5">{dayLabel(q.validUntil)}</TableCell>
-                    <TableCell className="py-1.5">{q.createdByName || "-"}</TableCell>
+                    <TableCell className="py-1.5">
+                      {q.createdByName ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <UserAvatar name={q.createdByName} size={22} />
+                          <span className="hidden truncate lg:inline">{q.createdByName}</span>
+                        </span>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -109,7 +119,7 @@ export default async function QuotesPage({ searchParams }: PageProps<"/sales/quo
                   </div>
                   <div className="truncate text-sm">{q.companyName}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {q.dealTitle} · valid until {dayLabel(q.validUntil)}
+                    {q.dealTitle || "Instant quote"} · valid until {dayLabel(q.validUntil)}
                   </div>
                 </Link>
               </li>

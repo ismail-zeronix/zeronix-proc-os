@@ -151,7 +151,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                   </CommandGroup>
                 ) : null}
                 {sales.data?.orders?.length ? (
-                  <CommandGroup heading="Orders">
+                  <CommandGroup heading="Sales orders">
                     {sales.data.orders.map((x) => (
                       <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`/sales/orders/${x.id}`)}>
                         <FileText />

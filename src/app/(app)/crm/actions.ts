@@ -8,6 +8,7 @@ import { assertAnyApp, assertApp } from "@/lib/auth/session";
 import { assertCompany, assertContact, assertDeal, canSeeCompany, currentViewer } from "@/lib/auth/visibility";
 import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
+import { companyOwners, saveCompanyOwners } from "@/lib/company-owners";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
@@ -104,12 +105,17 @@ export async function updateCompany(companyId: number, input: CompanyInput) {
   const d = companySchema.parse(input);
   const dup = await duplicateCompany(d.name, companyId);
   if (dup) throw new Error(`"${dup.name}" already exists. Two companies cannot have the same name.`);
-  await db
-    .update(schema.companies)
+  const handOver = v.seesAll && d.ownerId !== undefined;
+  await db.transaction(async (tx) => {
     // only admins and "All data" users hand a company to someone else
     // (left out of the form = keep the owner; the edit dialog does not send one)
-    .set({ ...d, nameNorm: normName(d.name), ownerId: v.seesAll && d.ownerId !== undefined ? d.ownerId : undefined })
-    .where(eq(schema.companies.id, companyId));
+    await tx.update(schema.companies).set({ ...d, nameNorm: normName(d.name), ownerId: undefined }).where(eq(schema.companies.id, companyId));
+    if (handOver) {
+      // the new main owner goes first, the other owners stay
+      const rest = (await companyOwners(companyId)).map((o) => o.id).filter((i) => i !== d.ownerId);
+      await saveCompanyOwners(tx, companyId, d.ownerId ? [d.ownerId, ...rest] : rest);
+    }
+  });
   refresh();
 }
 

@@ -27,7 +27,7 @@ describe("quote email templates", () => {
     const body = fillTemplate(DEFAULT_QUOTE_EMAIL_BODY, values);
     expect(body).toContain("Dear Ahmed Khan,");
     expect(body).toContain("1. Lenovo ThinkPad X1 Carbon Gen 13 (Qty 15)\n2. Dock (Qty 2)");
-    expect(body).toContain("Total: AED 118,912.5");
+    expect(body).toContain("Total: AED 118,912.50");
     expect(body).toContain("Valid until: 28 Oct 2026");
     expect(body).not.toMatch(/\{[a-z_]+\}/);
   });

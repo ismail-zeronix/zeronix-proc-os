@@ -1,13 +1,28 @@
 import { Lightbulb } from "lucide-react";
-import type { Block } from "@/content/knowledge";
+import { type Block, headingId } from "@/content/knowledge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-/** Renders an article's blocks (headings, paragraphs, lists, tables, tip boxes). */
+/** Renders an article's blocks (headings, paragraphs, lists, tables, tip boxes, screenshots). */
 export function ArticleView({ blocks }: { blocks: Block[] }) {
   return (
     <div className="grid gap-4 text-sm leading-relaxed">
       {blocks.map((b, i) => {
-        if ("h" in b) return <h2 key={i} className="mt-2 text-lg font-semibold tracking-tight">{b.h}</h2>;
+        if ("h" in b)
+          return (
+            <h2 key={i} id={headingId(b.h)} className="mt-2 scroll-mt-16 text-lg font-semibold tracking-tight">
+              {b.h}
+            </h2>
+          );
+        if ("img" in b)
+          return (
+            <figure key={i} className="grid gap-1.5">
+              <a href={b.img} target="_blank" rel="noreferrer" title="Open full size" className="block overflow-hidden rounded-lg border bg-muted shadow-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element -- static screenshots, shown at their own size */}
+                <img src={b.img} alt={b.alt} loading="lazy" className="block h-auto w-full" />
+              </a>
+              {b.caption && <figcaption className="text-xs text-muted-foreground">{b.caption}</figcaption>}
+            </figure>
+          );
         if ("p" in b) return <p key={i}>{b.p}</p>;
         if ("ul" in b)
           return (

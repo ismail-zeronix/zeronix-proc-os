@@ -22,7 +22,7 @@ import { lineTotal, longDay, money } from "@/lib/quotation";
 
 export async function generateMetadata({ params }: PageProps<"/sales/orders/[id]">) {
   const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
-  return { title: `${o?.number ?? "Order"} · Zeronix Sales` };
+  return { title: `${o?.number ?? "Sales order"} · Zeronix Sales` };
 }
 
 /** One sales order: delivery, invoice and money in one place, with the customer's PO and other files. */
@@ -53,13 +53,16 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/sa
         <BackButton fallback="/sales/orders" />
         <h1 className="font-mono text-lg font-semibold tracking-tight">{o.number}</h1>
         <OrderStatusBadge status={o.status} />
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={o.deal.title}>
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={o.deal?.title}>
           <Link href={`/sales/customers/${o.companyId}`} className="hover:text-foreground hover:underline">
             {o.company.name}
           </Link>
           {" · "}
-          {apps.includes("crm") ? (
-            <AppLink href={`/crm/deals/${o.dealId}`} className="hover:text-foreground hover:underline" title="Open the deal">
+          {!o.deal ? (
+            // an order from an instant quote has no deal
+            "Instant quote"
+          ) : apps.includes("crm") ? (
+            <AppLink href={`/crm/deals/${o.deal.id}`} className="hover:text-foreground hover:underline" title="Open the deal">
               {o.deal.title}
             </AppLink>
           ) : (

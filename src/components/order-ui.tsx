@@ -54,7 +54,7 @@ export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accep
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" title="The customer confirmed: make a sales order" />}>
-        <ClipboardCheck /> Convert to order
+        <ClipboardCheck /> Convert to sales order
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -69,7 +69,7 @@ export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accep
             e.preventDefault();
             run(
               () => convertQuoteToOrder(quoteId, { ...f, customerRefDate: f.customerRefDate || null }),
-              "Order created",
+              "Sales order created",
               (r) => {
                 setOpen(false);
                 router.push(`/sales/orders/${(r as { id: number }).id}`);
@@ -101,7 +101,7 @@ export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accep
           </div>
           <DialogFooter>
             <Button type="submit" pending={pending}>
-              <ClipboardCheck /> Make the order
+              <ClipboardCheck /> Make the sales order
             </Button>
           </DialogFooter>
         </form>
@@ -117,12 +117,12 @@ export function EditOrderDialog({ order }: { order: { id: number; customerRef: s
   const [f, setF] = useState({ ...order, customerRefDate: order.customerRefDate ?? "" });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" size="icon-sm" aria-label="Edit the order details" title="Edit PO, terms, address" />}>
+      <DialogTrigger render={<Button variant="outline" size="icon-sm" aria-label="Edit the sales order details" title="Edit PO, terms, address" />}>
         <Pencil />
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Order details</DialogTitle>
+          <DialogTitle>Sales order details</DialogTitle>
           <DialogDescription>The lines and prices come from the quote and do not change here.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-[1fr_9.5rem] gap-3">
@@ -160,7 +160,7 @@ export function EditOrderDialog({ order }: { order: { id: number; customerRef: s
                     deliveryAddress: f.deliveryAddress,
                     notes: f.notes,
                   }),
-                "Order saved",
+                "Sales order saved",
                 () => setOpen(false),
               )
             }
@@ -186,7 +186,7 @@ export function MarkDeliveredDialog({ orderId, deliveryAddress }: { orderId: num
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delivered</DialogTitle>
-          <DialogDescription>The whole order goes in one delivery. The delivery note gets its number now; print it for the customer to sign.</DialogDescription>
+          <DialogDescription>The whole sales order goes in one delivery. The delivery note gets its number now; print it for the customer to sign.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-[9.5rem_1fr] gap-3">
           <div className="grid gap-1.5">
@@ -219,12 +219,12 @@ export function CancelOrderButton({ orderId, number }: { orderId: number; number
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label={`Cancel order ${number}`}
-      title="Cancel the order"
+      aria-label={`Cancel sales order ${number}`}
+      title="Cancel the sales order"
       pending={pending}
       onClick={() => {
         const why = prompt(`Cancel ${number}? Why is it cancelled?`);
-        if (why) run(() => cancelOrder(orderId, why), "Order cancelled");
+        if (why) run(() => cancelOrder(orderId, why), "Sales order cancelled");
       }}
     >
       <Ban />
@@ -302,7 +302,7 @@ export function IssueInvoiceDialog({
             onClick={() =>
               run(
                 () => issueInvoice(orderId, f),
-                inAccounts ? "Invoice issued" : "Invoice issued. It is on this order's Invoice tab.",
+                inAccounts ? "Invoice issued" : "Invoice issued. It is on this sales order's Invoice tab.",
                 (r) => {
                   setOpen(false);
                   if (inAccounts) router.push(`/accounts/invoices/${(r as { id: number }).id}`);

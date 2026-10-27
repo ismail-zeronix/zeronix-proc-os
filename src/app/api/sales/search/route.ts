@@ -5,7 +5,7 @@ import { loadAccess } from "@/lib/auth/session";
 import { companyVisible, currentViewer, dealVisible, invoiceVisible, orderVisible, quoteVisible } from "@/lib/auth/visibility";
 import { searchCompanies } from "@/lib/sales-data";
 
-const like = (q: string) => `%${q.replace(/[\%_]/g, (c) => `\${c}`)}%`;
+const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /**
  * Sales search for the company picker (`kind=company`) and for Ctrl K (`kind=all`: companies, contacts, deals and quotes).

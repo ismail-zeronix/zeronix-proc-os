@@ -363,6 +363,24 @@ export const companies = pgTable(
   (t) => [index("companies_name_norm_idx").on(t.nameNorm)],
 );
 
+/**
+ * Everyone who looks after a customer, in display order. The first one is also stored as companies.owner_id (the main
+ * owner); a company with no rows here falls back to that column alone.
+ */
+export const companyOwners = pgTable(
+  "company_owners",
+  {
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.userId] }), index("company_owners_user_idx").on(t.userId)],
+);
+
 /** A person at a company. */
 export const contacts = pgTable(
   "contacts",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { aedShort } from "@/lib/sales";
 import { DataTable, TipBox, ViewSwitch } from "./chart-bits";
 
 export interface TrendSeries {
@@ -17,8 +18,9 @@ type Point = { label: string } & Record<string, number | string>;
  * Lines over time on ONE axis (never two). 2px lines, a hairline solid grid, a vertical crosshair with a tooltip
  * that lists every series, an end marker on the latest point, a legend, and the same data as a table.
  */
-export function TrendPanel({ title, hint, points, series }: { title: string; hint?: string; points: Point[]; series: TrendSeries[] }) {
+export function TrendPanel({ title, hint, points, series, format = "count" }: { title: string; hint?: string; points: Point[]; series: TrendSeries[]; format?: "count" | "aed" }) {
   const [table, setTable] = useState(false);
+  const fmt = (v: unknown) => (format === "aed" ? aedShort(Number(v)) : String(v ?? 0));
   const last = points.length - 1;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card">
@@ -45,12 +47,12 @@ export function TrendPanel({ title, hint, points, series }: { title: string; hin
               <LineChart data={points} margin={{ top: 10, right: 14, bottom: 0, left: -12 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: "var(--border)" }} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} minTickGap={24} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={44} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={format === "aed" ? 52 : 44} tickFormatter={(v) => fmt(v).replace("AED ", "")} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
                 <Tooltip
                   cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
                   content={({ active, payload, label }) =>
                     active && payload?.length ? (
-                      <TipBox title={String(label)} rows={series.map((s) => ({ color: s.color, value: String(payload.find((p) => p.dataKey === s.key)?.value ?? 0), label: s.label }))} />
+                      <TipBox title={String(label)} rows={series.map((s) => ({ color: s.color, value: fmt(payload.find((p) => p.dataKey === s.key)?.value ?? 0), label: s.label }))} />
                     ) : null
                   }
                 />

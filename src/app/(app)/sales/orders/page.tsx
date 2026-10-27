@@ -17,7 +17,7 @@ import { listOrders } from "@/lib/orders-data";
 import { money } from "@/lib/quotation";
 import { getSetting } from "@/lib/settings";
 
-export const metadata = { title: "Orders · Zeronix Sales" };
+export const metadata = { title: "Sales orders · Zeronix Sales" };
 
 const VIEWS = [
   { key: "open", label: "To deliver", match: (s: string) => s === "open" },
@@ -55,7 +55,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/sales/ord
 
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Orders" meta={`${rows.length} shown${invoicing ? ` · next invoice ${nextNumber}` : " · make an order from an accepted quote"}`}>
+      <PageToolbar title="Sales orders" meta={`${rows.length} shown${invoicing ? ` · next invoice ${nextNumber}` : " · make a sales order from an accepted quote"}`}>
         <Segmented
           items={VIEWS.map((x) => ({
             href: x.key === "all" ? "/sales/orders" : `/sales/orders?view=${x.key}`,
@@ -69,7 +69,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/sales/ord
         <Table>
           <TableHeader>
             <TableRow className="text-xs">
-              <TableHead>Order</TableHead>
+              <TableHead>Sales order</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead className="hidden md:table-cell">PO</TableHead>
               <TableHead className="text-right">Total</TableHead>
@@ -98,8 +98,8 @@ export default async function OrdersPage({ searchParams }: PageProps<"/sales/ord
                     <Link href={`/sales/customers/${o.companyId}`} className="block truncate font-medium hover:underline">
                       {o.companyName}
                     </Link>
-                    <div className="truncate text-xs text-muted-foreground" title={o.dealTitle}>
-                      {o.dealTitle}
+                    <div className="truncate text-xs text-muted-foreground" title={o.dealTitle || undefined}>
+                      {o.dealTitle || "Instant quote"}
                     </div>
                   </TableCell>
                   <TableCell className="hidden py-1.5 text-xs md:table-cell">
@@ -152,9 +152,9 @@ export default async function OrdersPage({ searchParams }: PageProps<"/sales/ord
                 <TableCell colSpan={8}>
                   <Empty>
                     {!all.length
-                      ? "No orders yet. Open an accepted quote and press Convert to order."
+                      ? "No sales orders yet. Open an accepted quote and press Convert to sales order."
                       : toInvoice
-                        ? "Nothing to invoice. Orders show here once they are marked delivered."
+                        ? "Nothing to invoice. Sales orders show here once they are marked delivered."
                         : "Nothing in this view."}
                   </Empty>
                 </TableCell>

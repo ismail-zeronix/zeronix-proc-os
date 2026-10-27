@@ -1,12 +1,13 @@
 import "server-only";
 import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { ownersJson, type Owner } from "@/lib/company-owners";
 import { dubaiToday } from "@/lib/dates";
 import { ageBucket, AGE_BUCKETS, buildStatement, invoiceState, type AgeBucket, type InvoiceState } from "@/lib/invoicing";
 import { paidByInvoice } from "@/lib/orders-data";
 import { longDay, round2 } from "@/lib/quotation";
 import { getSettings } from "@/lib/settings";
-import { companyVisible, type Viewer } from "@/lib/auth/visibility";
+import { companyVisible, dealVisible, quoteVisible, type Viewer } from "@/lib/auth/visibility";
 
 export interface InvoiceRow {
   id: number;
@@ -257,7 +258,25 @@ export interface CustomerRow {
   name: string;
   emirate: string;
   trn: string;
+  industry: string;
+  address: string;
+  /** Main owner first. */
+  owners: Owner[];
+  /** The decision maker, else the first contact. */
+  contact: { name: string; jobTitle: string; phone: string; email: string } | null;
+  contacts: number;
+  openDeals: number;
+  /** Sent quotes still waiting for an answer, and their value before VAT. */
+  openQuotes: number;
+  openQuotesValue: number;
   orders: number;
+  /** Orders not delivered yet. */
+  toDeliver: number;
+  /** Every order that was not cancelled, with VAT. */
+  sales: number;
+  lastOrder: string | null;
+  /** First won deal or first order. */
+  since: string | null;
   invoices: number;
   owed: number;
   overdue: number;
@@ -266,12 +285,30 @@ export interface CustomerRow {
 
 /**
  * Customers: companies with a won deal or an order (a company turns into a customer by itself, nothing is copied), with
- * what each owes. Only the ones the viewer may see; biggest overdue, then biggest balance first.
+ * who looks after them, what is going on and what each owes. Only the ones the viewer may see; biggest overdue, then
+ * biggest balance first.
  */
 export async function listCustomers(v: Viewer): Promise<CustomerRow[]> {
-  const companies = await db.execute<{ id: number; name: string; emirate: string; trn: string; orders: number }>(sql`
-    SELECT c.id, c.name, c.emirate, c.trn,
-      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS orders
+  const today = dubaiToday();
+  // counts of deals and quotes only include the ones the viewer may see
+  const quoteOk = quoteVisible(v, { dealId: sql`q.deal_id`, ownerId: sql`q.owner_id`, createdBy: sql`q.created_by` });
+  const companies = await db.execute<Omit<CustomerRow, "invoices" | "owed" | "overdue" | "lastPaid">>(sql`
+    SELECT c.id, c.name, c.emirate, c.trn, c.industry, c.address,
+      ${ownersJson(sql`c.id`, sql`c.owner_id`)} AS owners,
+      (SELECT json_build_object('name', p.name, 'jobTitle', p.job_title, 'phone', coalesce(nullif(p.phone, ''), p.whatsapp), 'email', p.email)
+        FROM contacts p WHERE p.company_id = c.id ORDER BY p.is_decision_maker DESC, p.id LIMIT 1) AS contact,
+      (SELECT count(*)::int FROM contacts p WHERE p.company_id = c.id) AS contacts,
+      (SELECT count(*)::int FROM deals d WHERE d.company_id = c.id AND d.stage NOT IN ('won', 'lost') AND ${dealVisible(v, sql`d.id`)}) AS "openDeals",
+      (SELECT count(*)::int FROM quotes q WHERE q.company_id = c.id AND q.status = 'sent' AND q.valid_until >= ${today} AND ${quoteOk}) AS "openQuotes",
+      (SELECT coalesce(sum(q.subtotal), 0)::float FROM quotes q WHERE q.company_id = c.id AND q.status = 'sent' AND q.valid_until >= ${today} AND ${quoteOk}) AS "openQuotesValue",
+      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS orders,
+      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status = 'open') AS "toDeliver",
+      (SELECT coalesce(sum(o.total), 0)::float FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS sales,
+      (SELECT to_char(max(o.created_at) AT TIME ZONE 'Asia/Dubai', 'YYYY-MM-DD') FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS "lastOrder",
+      to_char(least(
+        (SELECT min(o.created_at) FROM sales_orders o WHERE o.company_id = c.id),
+        (SELECT min(coalesce(d.closed_at, d.created_at)) FROM deals d WHERE d.company_id = c.id AND d.stage = 'won')
+      ) AT TIME ZONE 'Asia/Dubai', 'YYYY-MM-DD') AS since
     FROM companies c
     WHERE (EXISTS (SELECT 1 FROM sales_orders o WHERE o.company_id = c.id)
         OR EXISTS (SELECT 1 FROM invoices i WHERE i.company_id = c.id)

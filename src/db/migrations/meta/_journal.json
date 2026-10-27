@@ -246,6 +246,13 @@
       "when": 1792921800061,
       "tag": "0034_quotes_company_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792976179791,
+      "tag": "0035_company_owners",
+      "breakpoints": true
     }
   ]
 }

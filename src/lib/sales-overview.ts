@@ -95,7 +95,7 @@ export const salesOverview = cache(async (userId: number, team: boolean, range: 
         count(*) FILTER (WHERE d.stage NOT IN ('won','lost'))::int AS open_n,
         coalesce(sum(d.value_aed) FILTER (WHERE d.stage NOT IN ('won','lost')), 0)::float AS open_v
       FROM deals d JOIN users u ON u.id = d.owner_id WHERE ${scope}
-      GROUP BY u.id, u.name ORDER BY won_v DESC, open_v DESC LIMIT 8`),
+      GROUP BY u.id, u.name ORDER BY open_v DESC, won_v DESC LIMIT 8`),
     db.execute<{ id: number; title: string; due: string; deal_id: number; deal_title: string; assignee: string }>(sql`
       SELECT t.id, t.title, t.due_date::text AS due, d.id AS deal_id, d.title AS deal_title, u.name AS assignee
       FROM tasks t JOIN deals d ON d.id = t.related_id JOIN users u ON u.id = t.assigned_to

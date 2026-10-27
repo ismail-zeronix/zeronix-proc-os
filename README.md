@@ -135,9 +135,11 @@ To run Ollama in Docker too (memory-capped by `OLLAMA_MEM_LIMIT`, model pulled a
 docker compose --profile ollama up -d --build
 ```
 
-The web container applies migrations and seeds the admin user on start. Set `COOKIE_SECURE=true` when serving over HTTPS.
+The web container applies migrations and seeds the admin user on start (`MIGRATE_ON_START=true`). Set `COOKIE_SECURE=true` when serving over HTTPS.
 
-`GET /api/health` (public, no data) checks the web server and the database; Docker uses it as the web container healthcheck and you can point an uptime monitor at it.
+`GET /api/health` (public, no data) answers `{"status":"ok"}` when the server runs; Docker uses it as the web container healthcheck. `GET /api/health/db` also checks the database.
+
+**Production (OVH, behind Caddy):** see [production/README.md](production/README.md): `docker-compose.prod.yml`, `production/deploy.sh`, `production/backup-postgres.sh`, `production/rollback.sh`.
 
 ### Backups
 

@@ -23,6 +23,12 @@ export const MOVED_FROM_SALES = [
 ];
 
 const nextConfig: NextConfig = {
+  // The Docker build sets NEXT_OUTPUT=standalone (small image, `node server.js`). Local `npm run build` / `npm start`
+  // stay as they were: standalone output needs symlink rights on Windows and does not run under `next start`.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  poweredByHeader: false,
+  // `npm run dev -- -H 0.0.0.0` serves the office LAN; without this, pages opened by IP load without their dev JS.
+  allowedDevOrigins: ["192.168.*.*"],
   serverExternalPackages: ["pg", "pg-boss", "bcryptjs"],
   // The login gate (proxy.ts) buffers request bodies, 10 MB by default and silently cut off beyond that.
   // Email attachments (15 MB) and Excel price lists (15 MB) need more room.

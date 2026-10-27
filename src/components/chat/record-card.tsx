@@ -46,7 +46,7 @@ const ICON: Record<string, typeof Handshake> = {
   task: ListChecks,
   chat: MessageCircle,
 };
-const TYPE_LABEL: Record<string, string> = { deal: "Deal", quote: "Quote", order: "Order", invoice: "Invoice", company: "Company", product: "Product", task: "Task", chat: "Message" };
+const TYPE_LABEL: Record<string, string> = { deal: "Deal", quote: "Quote", order: "Sales order", invoice: "Invoice", company: "Company", product: "Product", task: "Task", chat: "Message" };
 
 const TONE: Record<CardTone, string> = {
   blue: "bg-blue-500/15 text-blue-700 dark:text-blue-400",

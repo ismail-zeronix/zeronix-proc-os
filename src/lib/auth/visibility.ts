@@ -9,7 +9,7 @@ import { loadAccess, type Access } from "./session";
  * - Admins, and users the admin set to "All data", see everything.
  * - Everybody else sees the deals they are assigned to. Several people on one deal all see it and work on it together.
  * - Everything that hangs off a deal follows the deal: its timeline, tasks, lines, quotes, orders and invoices.
- * - A company is visible to its owner and to anyone with a deal there; its contacts follow the company.
+ * - A company is visible to its owners and to anyone with a deal there; its contacts follow the company.
  *
  * Lists filter with the SQL helpers below; detail pages and server actions check one record with `canSee*` / `assert*`.
  */
@@ -36,10 +36,11 @@ export function dealVisible(v: Viewer, dealId: SQLWrapper): SQL {
   return sql`EXISTS (SELECT 1 FROM deal_assignees va WHERE va.deal_id = ${dealId} AND va.user_id = ${v.id})`;
 }
 
-/** SQL condition: the company with this id is one the viewer may see (they own it, or are on one of its deals). */
+/** SQL condition: the company with this id is one the viewer may see (they are one of its owners, or are on one of its deals). */
 export function companyVisible(v: Viewer, companyId: SQLWrapper): SQL {
   if (v.seesAll) return sql`TRUE`;
   return sql`(EXISTS (SELECT 1 FROM companies vc WHERE vc.id = ${companyId} AND vc.owner_id = ${v.id})
+    OR EXISTS (SELECT 1 FROM company_owners vco WHERE vco.company_id = ${companyId} AND vco.user_id = ${v.id})
     OR EXISTS (SELECT 1 FROM deals vd JOIN deal_assignees va ON va.deal_id = vd.id WHERE vd.company_id = ${companyId} AND va.user_id = ${v.id}))`;
 }
 

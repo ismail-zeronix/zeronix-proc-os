@@ -92,7 +92,7 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
           </Button>
         )}
         {order ? (
-          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={`/sales/orders/${order.id}`} />} title="This quote became an order">
+          <Button variant="secondary" size="sm" nativeButton={false} render={<Link href={`/sales/orders/${order.id}`} />} title="This quote became a sales order">
             <ClipboardList /> {order.number}
           </Button>
         ) : (

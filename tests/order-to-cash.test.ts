@@ -123,8 +123,8 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     const [deal] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, dealId));
     expect(deal.stage).toBe("won");
     await expect(O.convertQuoteToOrder(quoteId, { termsDays: 30 })).rejects.toThrow(/already order/);
-    await expect(Q.deleteQuote(quoteId)).rejects.toThrow(/became order/);
-    await expect(Q.setQuoteStatus(quoteId, "rejected")).rejects.toThrow(/became order/);
+    await expect(Q.deleteQuote(quoteId)).rejects.toThrow(/became sales order/);
+    await expect(Q.setQuoteStatus(quoteId, "rejected")).rejects.toThrow(/became sales order/);
   });
 
   it("will not issue a tax invoice before our TRN is set", async () => {

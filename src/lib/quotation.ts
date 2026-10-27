@@ -89,7 +89,8 @@ export function effectiveStatus(status: string, validUntil: string, today: strin
   return status === "sent" && validUntil < today ? "expired" : status;
 }
 
-const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+// whole dirhams stay short (AED 4,525); anything with fils always shows two decimals (AED 6,701.10, not 6,701.1)
+const num = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: Math.round(n * 100) % 100 ? 2 : 0, maximumFractionDigits: 2 });
 export const money = (n: number) => `AED ${num(n)}`;
 
 function longDay(day: string): string {

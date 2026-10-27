@@ -35,7 +35,7 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/cr
   const monthly = range > 90;
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="mr-1 text-sm font-semibold">CRM overview</h1>
         <Segmented
@@ -57,17 +57,17 @@ export default async function SalesOverviewPage({ searchParams }: PageProps<"/cr
 
       <Kpis o={o} range={range} rangeLabel={rangeLabel.label} />
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2 [&>section]:h-full">
           <HBarPanel title="Open pipeline by stage" hint="Where today's open deals are" views={stageViews(o)} />
         </div>
         <div className="grid gap-3">
           <LeadMix o={o} />
-          <Leaderboard o={o} rangeLabel={rangeLabel.label} />
+          <Leaderboard o={o} />
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <TrendPanel
             title="New deals and wins"
@@ -195,13 +195,14 @@ function LeadMix({ o }: { o: Overview }) {
   );
 }
 
-function Leaderboard({ o, rangeLabel }: { o: Overview; rangeLabel: string }) {
-  const max = Math.max(1, ...o.team_.map((p) => p.wonValue));
+/** Open deals per owner (what each person is working on). Money from sales orders is on the Sales overview. */
+function Leaderboard({ o }: { o: Overview }) {
+  const max = Math.max(1, ...o.team_.map((p) => p.openValue));
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">Won by owner</h2>
-        <span className="text-xs text-muted-foreground">{rangeLabel}</span>
+        <h2 className="text-sm font-medium">Pipeline by owner</h2>
+        <span className="text-xs text-muted-foreground">open deals</span>
       </div>
       <ul className="grid gap-2">
         {o.team_.map((p) => (
@@ -210,15 +211,15 @@ function Leaderboard({ o, rangeLabel }: { o: Overview; rangeLabel: string }) {
             <div className="min-w-0">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm">{p.name}</span>
-                <span className="text-xs text-muted-foreground">{p.openCount} open · {aedShort(p.openValue)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {p.openCount} open · {p.wonCount} won
+                </span>
               </div>
               <div className="mt-1 h-1.5 rounded-full bg-muted">
-                <div className="h-full rounded-full" style={{ width: `${(p.wonValue / max) * 100}%`, background: "var(--series-1)" }} />
+                <div className="h-full rounded-full" style={{ width: `${(p.openValue / max) * 100}%`, background: "var(--series-1)" }} />
               </div>
             </div>
-            <span className="text-sm font-semibold tabular-nums" title={`${p.wonCount} won`}>
-              {aedShort(p.wonValue)}
-            </span>
+            <span className="text-sm font-semibold tabular-nums">{aedShort(p.openValue)}</span>
           </li>
         ))}
         {!o.team_.length && <li className="text-sm text-muted-foreground">No deals have an owner yet.</li>}
@@ -238,13 +239,13 @@ function Attention({ o, team }: { o: Overview; team: boolean }) {
           <h2 className="flex items-center gap-1.5 text-sm font-medium">
             <AlertTriangle className="size-4 text-muted-foreground" /> Needs attention
           </h2>
-          <TabsList>
+          <TabsList className="max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="overdue">Overdue follow-ups ({o.overdue.length})</TabsTrigger>
             <TabsTrigger value="quiet">Going quiet ({o.quiet.length})</TabsTrigger>
             <TabsTrigger value="soon">Closing soon ({o.closingSoon.length})</TabsTrigger>
           </TabsList>
         </div>
-        <TabsContent value="overdue" className="grid gap-0.5">
+        <TabsContent value="overdue" className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {o.overdue.slice(0, 8).map((t) => (
             <Link key={t.id} href={`/crm/deals/${t.dealId}`} className={row}>
               <span className="min-w-0 flex-1 truncate text-sm">
@@ -259,7 +260,7 @@ function Attention({ o, team }: { o: Overview; team: boolean }) {
           {!o.overdue.length && <p className="px-2 py-3 text-sm text-muted-foreground">No follow-ups are overdue.</p>}
           {more(o.overdue.length, 8)}
         </TabsContent>
-        <TabsContent value="quiet" className="grid gap-0.5">
+        <TabsContent value="quiet" className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {o.quiet.slice(0, 8).map((d) => (
             <Link key={d.id} href={`/crm/deals/${d.id}`} className={row}>
               <span className="min-w-0 flex-1 truncate text-sm">
@@ -273,7 +274,7 @@ function Attention({ o, team }: { o: Overview; team: boolean }) {
           {!o.quiet.length && <p className="px-2 py-3 text-sm text-muted-foreground">Every open deal has had activity in the last 3 days.</p>}
           {more(o.quiet.length, 8)}
         </TabsContent>
-        <TabsContent value="soon" className="grid gap-0.5">
+        <TabsContent value="soon" className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {o.closingSoon.slice(0, 8).map((d) => (
             <Link key={d.id} href={`/crm/deals/${d.id}`} className={row}>
               <span className="min-w-0 flex-1 truncate text-sm">

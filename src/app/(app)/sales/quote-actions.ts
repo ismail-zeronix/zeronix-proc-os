@@ -337,7 +337,7 @@ export async function setQuoteStatus(quoteId: number, status: string) {
     if (!q) throw new Error("That quote no longer exists.");
     if (q.status === next) return { dealId: q.dealId, stage: null as string | null };
     const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
-    if (order) throw new Error(`This quote became order ${order.number}, so it stays Accepted. Cancel the order instead.`);
+    if (order) throw new Error(`This quote became sales order ${order.number}, so it stays Accepted. Cancel the order instead.`);
     // an instant quote has no deal: no stage to move, no other quotes to keep in line
     const [deal] = q.dealId ? await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, q.dealId)) : [];
     const now = new Date();
@@ -415,7 +415,7 @@ export async function deleteQuote(quoteId: number) {
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
   if (!q) return;
   const [order] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
-  if (order) throw new Error(`This quote became order ${order.number} and cannot be deleted.`);
+  if (order) throw new Error(`This quote became sales order ${order.number} and cannot be deleted.`);
   if (q.status !== "draft" && me.role !== "admin") throw new Error("Only an admin can delete a quote that was sent. Mark it rejected instead.");
   await db.delete(schema.quotes).where(and(eq(schema.quotes.id, quoteId)));
   refresh(q.dealId);

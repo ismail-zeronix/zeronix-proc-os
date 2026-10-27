@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppLink } from "@/components/app-link";
 import { BackButton } from "@/components/back-button";
+import { CustomerOwnersMenu } from "@/components/customer-owners";
 import { InvoiceTable } from "@/components/invoice-table";
 import { OpeningInvoiceDialog } from "@/components/opening-ui";
 import { StatementDocument } from "@/components/money-documents";
@@ -18,11 +19,13 @@ import { eq } from "drizzle-orm";
 import { companyBalance, listInvoices, statement } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
 import { canSeeCompany, financeViewerOf } from "@/lib/auth/visibility";
+import { companyOwners } from "@/lib/company-owners";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { listOrders } from "@/lib/orders-data";
 import { money } from "@/lib/quotation";
 import { listQuotes } from "@/lib/quotes-data";
 import { quoteBrand } from "@/lib/quote-view";
+import { customerOwnerUsers } from "@/lib/sales-data";
 import { CompanyDialog } from "../../../crm/companies/company-ui";
 
 const isDay = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -43,7 +46,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
   const today = dubaiToday();
   const to = isDay(sp.to) ? sp.to : today;
   const from = isDay(sp.from) && sp.from <= to ? sp.from : `${to.slice(0, 4)}-01-01`;
-  const [s, allInvoices, bal, brand, [company], orders, allQuotes] = await Promise.all([
+  const [s, allInvoices, bal, brand, [company], orders, allQuotes, owners, users] = await Promise.all([
     statement(id, from, to),
     listInvoices({ companyId: id }),
     companyBalance(id),
@@ -51,6 +54,8 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
     db.select().from(schema.companies).where(eq(schema.companies.id, id)),
     listOrders(v, { companyId: id }),
     listQuotes(v),
+    companyOwners(id),
+    customerOwnerUsers(),
   ]);
   if (!s || !company) notFound();
   // without Accounts: only the invoices of orders they may see
@@ -59,12 +64,14 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
   const quotes = allQuotes.filter((q) => q.companyId === id);
   const paidIn = s.lines.filter((l) => l.kind === "payment").reduce((n, l) => n + l.credit, 0);
   const invoicedIn = s.lines.filter((l) => l.kind === "invoice").reduce((n, l) => n + l.debit, 0);
+  // open on the first tab with something in it
+  const tab = sp.tab ?? (invoices.length ? "invoices" : orders.length ? "orders" : quotes.length ? "quotes" : "invoices");
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <BackButton fallback="/sales/customers" />
-        <div className="grid min-w-0 flex-1 leading-tight">
+        <div className="grid min-w-48 flex-1 leading-tight">
           <h1 className="truncate text-base font-semibold">{company.name}</h1>
           <span className="truncate text-xs text-muted-foreground">
             {[company.trn ? `TRN ${company.trn}` : "No TRN saved", company.address || company.emirate].filter(Boolean).join(" · ")}
@@ -78,6 +85,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
             )}
           </span>
         </div>
+        <CustomerOwnersMenu companyId={id} owners={owners} users={users} canEdit={access.seesAll} />
         {finance && <OpeningInvoiceDialog company={{ id: company.id, name: company.name }} />}
         <Button size="sm" nativeButton={false} render={<Link href={`/sales/quotes/new?company=${company.id}`} />} title="A quick quote for this customer, no deal needed">
           <FilePlus2 /> New quote
@@ -102,7 +110,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
       />
 
       <UrlTabs
-        initial={sp.tab}
+        initial={tab}
         tabs={[
           {
             key: "invoices",
@@ -111,7 +119,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
           },
           {
             key: "orders",
-            label: `Orders (${orders.length})`,
+            label: `Sales orders (${orders.length})`,
             content: (
               <ul className="divide-y rounded-lg border bg-card">
                 {orders.map((o) => (
@@ -120,12 +128,12 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
                       <span className="font-mono font-medium">{o.number}</span>
                       <OrderStatusBadge status={o.status} />
                       {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{o.dealTitle}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{o.dealTitle || "Instant quote"}</span>
                       <span className="tabular-nums">{money(o.total)}</span>
                     </Link>
                   </li>
                 ))}
-                {!orders.length && <li className="px-3 py-6 text-center text-sm text-muted-foreground">No orders yet.</li>}
+                {!orders.length && <li className="px-3 py-6 text-center text-sm text-muted-foreground">No sales orders yet.</li>}
               </ul>
             ),
           },
@@ -139,7 +147,7 @@ export default async function CustomerAccountPage({ params, searchParams }: Page
                     <Link href={`/sales/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-muted">
                       <span className="font-mono font-medium">{q.number}</span>
                       <QuoteStatusBadge status={q.shownStatus} />
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{q.dealTitle}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{q.dealTitle || "Instant quote"}</span>
                       <span className="text-xs text-muted-foreground">valid until {dayLabel(q.validUntil)}</span>
                       <span className="tabular-nums">{money(q.total)}</span>
                     </Link>

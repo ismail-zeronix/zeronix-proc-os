@@ -298,6 +298,16 @@ export async function salesUsers() {
   return rows.filter((u) => allowedApps(u).includes("crm")).map((u) => ({ id: u.id, name: u.name }));
 }
 
+/** People who can look after a customer: anyone active with CRM or Sales. */
+export async function customerOwnerUsers() {
+  const rows = await db
+    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, apps: schema.users.apps })
+    .from(schema.users)
+    .where(eq(schema.users.isActive, true))
+    .orderBy(asc(schema.users.name));
+  return rows.filter((u) => allowedApps(u).some((a) => a === "crm" || a === "sales")).map((u) => ({ id: u.id, name: u.name }));
+}
+
 
 export interface StageTotal {
   stage: StageKey;

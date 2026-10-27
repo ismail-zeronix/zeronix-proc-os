@@ -5,7 +5,7 @@ const REVIEWED = "2026-10-21";
 export const SALES: Article[] = [
   {
     slug: "dealing-with-corporates",
-    section: "sales",
+    section: "playbook",
     title: "Dealing with corporates",
     summary: "Who decides, how an RFQ and LPO work, vendor registration, payment terms and how to be easy to buy from.",
     tags: ["corporate", "rfq", "lpo", "vendor", "procurement", "tender", "payment terms", "credit", "pdc", "decision maker"],
@@ -59,7 +59,7 @@ export const SALES: Article[] = [
   },
   {
     slug: "how-to-talk",
-    section: "sales",
+    section: "playbook",
     title: "How to talk to a customer",
     summary: "Opening lines, discovery questions, and short answers to the objections you will hear every week.",
     tags: ["call", "script", "opening", "discovery", "questions", "objection", "price", "follow up", "whatsapp", "email"],
@@ -131,7 +131,7 @@ export const SALES: Article[] = [
   },
   {
     slug: "genuine-lead",
-    section: "sales",
+    section: "playbook",
     title: "Is this lead genuine?",
     summary: "A checklist to tell a real buyer from a time-waster or a scam in the first conversation.",
     tags: ["genuine", "lead", "qualify", "scam", "fraud", "verify", "trn", "trade licence", "red flags", "bant"],
@@ -182,7 +182,7 @@ export const SALES: Article[] = [
   },
   {
     slug: "sales-mindset",
-    section: "sales",
+    section: "playbook",
     title: "Sales mindset and daily routine",
     summary: "How to think about no, follow-up, discipline and trust, plus a simple daily routine.",
     tags: ["mindset", "motivation", "discipline", "routine", "follow up", "closing", "rejection", "habits"],

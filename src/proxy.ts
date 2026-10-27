@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/token";
 export async function proxy(req: NextRequest) {
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = req.nextUrl.pathname === "/login";
-  if (req.nextUrl.pathname === "/api/health") return NextResponse.next();
+  if (req.nextUrl.pathname === "/api/health" || req.nextUrl.pathname === "/api/health/db") return NextResponse.next();
   if (!user && !isLogin) {
     if (req.nextUrl.pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

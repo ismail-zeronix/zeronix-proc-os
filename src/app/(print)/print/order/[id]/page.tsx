@@ -10,7 +10,7 @@ import { quoteBrand } from "@/lib/quote-view";
 export async function generateMetadata({ params, searchParams }: PageProps<"/print/order/[id]">) {
   const o = await getOrder(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
   const dn = (await searchParams).doc === "delivery";
-  return { title: o ? (dn ? `Delivery note ${o.dnNumber ?? o.number}` : `Proforma ${o.number}`) : "Order" };
+  return { title: o ? (dn ? `Delivery note ${o.dnNumber ?? o.number}` : `Proforma ${o.number}`) : "Sales order" };
 }
 
 /** Proforma invoice (default) or delivery note (?doc=delivery) of an order. */

@@ -67,9 +67,10 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
     {
       label: "Sales",
       items: [
+        { href: "/sales", label: "Overview", icon: LayoutDashboard, exact: true },
         { href: "/sales/customers", label: "Customers", icon: UsersRound },
         { href: "/sales/quotes", label: "Quotes", icon: FileText, also: ["/sales/quotes/new"] },
-        { href: "/sales/orders", label: "Orders", icon: ClipboardList },
+        { href: "/sales/orders", label: "Sales orders", icon: ClipboardList },
       ],
     },
   ],
@@ -127,7 +128,7 @@ export const BADGE_LABELS: Record<string, string> = {
   alerts: "new this week",
   queue: "price lists waiting for AI",
   overdue: "invoices overdue",
-  toInvoice: "delivered orders waiting for an invoice",
+  toInvoice: "delivered sales orders waiting for an invoice",
   billsDue: "supplier bills due this week or overdue",
   // Projects
   projOverdue: "projects with an overdue task",

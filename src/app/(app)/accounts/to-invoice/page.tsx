@@ -38,7 +38,7 @@ export default async function ToInvoicePage() {
         <Table>
           <TableHeader>
             <TableRow className="text-xs">
-              <TableHead>Order</TableHead>
+              <TableHead>Sales order</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead className="hidden md:table-cell">Delivered</TableHead>
               <TableHead className="hidden sm:table-cell">Terms</TableHead>
@@ -89,7 +89,7 @@ export default async function ToInvoicePage() {
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Empty>Nothing to invoice. Orders show here once they are marked delivered.</Empty>
+                  <Empty>Nothing to invoice. Sales orders show here once they are marked delivered.</Empty>
                 </TableCell>
               </TableRow>
             )}

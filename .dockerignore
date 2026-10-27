@@ -2,9 +2,16 @@ node_modules
 .next
 .git
 .env
-.env.local
+.env.*
+!.env.example
 *.log
+*.tsbuildinfo
 _*.ts
 _*.mjs
 data
 backups
+tests
+coverage
+production
+.vscode
+.claude

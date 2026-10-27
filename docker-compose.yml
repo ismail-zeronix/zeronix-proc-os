@@ -45,6 +45,8 @@ services:
       MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-200}
       MAIL_WEBMAIL_URL: ${MAIL_WEBMAIL_URL:-https://mail.hostinger.com}
       RUN_WORKER: "true"
+      # apply migrations and seed the first admin on every start (production runs them from production/deploy.sh)
+      MIGRATE_ON_START: "true"
       # Files app uploads, kept on a volume so they survive rebuilds
       FILES_DIR: /app/data/files
     volumes:

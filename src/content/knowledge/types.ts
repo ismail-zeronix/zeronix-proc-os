@@ -5,9 +5,11 @@ export type Block =
   | { ul: string[] }
   | { ol: string[] }
   | { table: { head: string[]; rows: string[][] } }
-  | { tip: string };
+  | { tip: string }
+  /** A screenshot from public/help/ (e.g. "/help/crm-deal.webp"), taken from demo data, never real customers. */
+  | { img: string; alt: string; caption?: string };
 
-export type SectionKey = "portal" | "hardware" | "sales" | "uae";
+export type SectionKey = "portal" | "crm" | "sales" | "projects" | "hardware" | "playbook" | "uae";
 
 export interface Article {
   slug: string;
