@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "data_scope" text DEFAULT 'own' NOT NULL;

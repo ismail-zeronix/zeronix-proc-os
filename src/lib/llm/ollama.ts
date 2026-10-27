@@ -6,12 +6,14 @@ export interface OllamaOptions {
   numCtx?: number;
   keepAlive?: string;
   timeoutMs?: number;
+  /** Aborts an in-flight request (used when an admin presses Stop). */
+  signal?: AbortSignal;
 }
 
 export class OllamaProvider implements LlmProvider {
   name = "ollama";
   model: string;
-  private opts: Required<OllamaOptions>;
+  private opts: Required<Omit<OllamaOptions, "signal">> & Pick<OllamaOptions, "signal">;
 
   constructor(opts: OllamaOptions) {
     this.opts = { numCtx: 4096, keepAlive: "5m", timeoutMs: 180_000, ...opts };
@@ -22,7 +24,9 @@ export class OllamaProvider implements LlmProvider {
     const res = await fetch(`${this.opts.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      signal: AbortSignal.timeout(this.opts.timeoutMs),
+      signal: this.opts.signal
+        ? AbortSignal.any([AbortSignal.timeout(this.opts.timeoutMs), this.opts.signal])
+        : AbortSignal.timeout(this.opts.timeoutMs),
       body: JSON.stringify({
         model: this.opts.model,
         messages,

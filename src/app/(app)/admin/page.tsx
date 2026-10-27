@@ -1,96 +1,136 @@
-import { asc, eq, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
-import { db, schema } from "@/db";
-import { getSession } from "@/lib/auth/session";
-import { getLlm } from "@/lib/llm";
-import { getSettings } from "@/lib/settings";
-import { AdminSettings, AdminUsers } from "./admin-ui";
-import { AiControl, FeedSchedules } from "./automation-ui";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { monthLabel, pickMonth } from "@/components/attendance/attendance-card";
+import { cellLook } from "@/components/attendance/status-cell";
+import { TeamMatrix } from "@/components/attendance/team-matrix";
+import { PageToolbar } from "@/components/page-toolbar";
+import { StatStrip } from "@/components/stat-strip";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UserAvatar } from "@/components/user-avatar";
+import { formatDuration, formatHm, shiftMonth } from "@/lib/attendance";
+import { teamMonth, todayLine, workHours } from "@/lib/attendance-data";
+import { requireApp } from "@/lib/auth/session";
+import { dubaiToday } from "@/lib/dates";
 
-export const metadata = { title: "Admin · Zeronix Procurement" };
+export const metadata = { title: "Admin · Zeronix" };
 
-async function ollamaModels(): Promise<string[]> {
-  try {
-    const res = await fetch(`${process.env.OLLAMA_URL ?? "http://localhost:11434"}/api/tags`, {
-      signal: AbortSignal.timeout(4000),
-      cache: "no-store",
-    });
-    const data = (await res.json()) as { models?: { name: string; size: number }[] };
-    return (data.models ?? []).map((m) => m.name).sort();
-  } catch {
-    return [];
-  }
-}
-
-/** When a started AI looks at the queue next (ISO), or null when stopped or already due. */
-function nextLook(s: { ai_running: string; ai_last_run_at: string; ai_interval_minutes: string }): string | null {
-  const last = Date.parse(s.ai_last_run_at);
-  const at = last + (Number(s.ai_interval_minutes) || 5) * 60_000;
-  return s.ai_running === "true" && Number.isFinite(last) && at > Date.now() ? new Date(at).toISOString() : null;
-}
-
-export default async function AdminPage() {
-  const me = await getSession();
-  if (me?.role !== "admin") redirect("/compare");
-  const [users, settings, models, queue, feeds] = await Promise.all([
-    db
-      .select({
-        id: schema.users.id,
-        name: schema.users.name,
-        email: schema.users.email,
-        role: schema.users.role,
-        isActive: schema.users.isActive,
-      })
-      .from(schema.users)
-      .orderBy(asc(schema.users.name)),
-    getSettings(),
-    ollamaModels(),
-    db
-      .select({ status: schema.priceLists.status, n: sql<number>`count(*)::int` })
-      .from(schema.priceLists)
-      .where(sql`${schema.priceLists.status} IN ('queued', 'parsing')`)
-      .groupBy(schema.priceLists.status),
-    db
-      .select({
-        supplierId: schema.supplierFeeds.supplierId,
-        supplier: schema.suppliers.name,
-        intervalMinutes: schema.supplierFeeds.intervalMinutes,
-        enabled: schema.supplierFeeds.enabled,
-        lastCheckedAt: schema.supplierFeeds.lastCheckedAt,
-        lastStatus: schema.supplierFeeds.lastStatus,
-        lastMessage: schema.supplierFeeds.lastMessage,
-      })
-      .from(schema.supplierFeeds)
-      .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.supplierFeeds.supplierId))
-      .orderBy(asc(schema.suppliers.name)),
+/** Admin overview: who is in today, with late and early-leave reasons, and the team's month as a heatmap. */
+export default async function AdminOverviewPage({ searchParams }: PageProps<"/admin">) {
+  await requireApp("admin");
+  const today = dubaiToday();
+  const thisMonth = today.slice(0, 7);
+  const { month, lastMonth } = pickMonth((await searchParams).month);
+  const [team, hours, teamNow] = await Promise.all([
+    teamMonth(month),
+    workHours(),
+    month === thisMonth ? null : teamMonth(thisMonth),
   ]);
-  const llm = getLlm(settings.llm_model);
-  // both only ask Ollama what it has: neither loads the model
-  const [health, modelLoaded] = await Promise.all([llm.health(), llm.isLoaded()]);
-  const nextLookAt = nextLook(settings);
-  const count = (status: string) => queue.find((q) => q.status === status)?.n ?? 0;
+  const now = (teamNow ?? team).map((r) => {
+    const cell = r.data.cells.find((c) => c.day === today);
+    return { ...r, cell, line: todayLine(cell) };
+  });
+  const inNow = now.filter((r) => r.line.punchedIn).length;
+  const late = now.filter((r) => r.cell?.status === "late").length;
+  const notIn = now.filter((r) => r.cell?.status === "today").length;
+  const away = now.filter((r) => r.cell && ["absent", "medical", "other"].includes(r.cell.status)).length;
 
   return (
-    <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="text-sm text-muted-foreground">AI control, live feeds, users and comparison settings.</p>
-      </div>
-      <AiControl
-        ai={{
-          running: settings.ai_running === "true",
-          intervalMinutes: Number(settings.ai_interval_minutes) || 5,
-          lastRunAt: settings.ai_last_run_at || null,
-          nextLookAt,
-          waiting: count("queued"),
-          reading: count("parsing"),
-          modelLoaded,
-          model: settings.llm_model,
-        }}
+    <div className="grid gap-3">
+      <PageToolbar
+        title="Team today"
+        meta={`Work ${formatHm(hours.start)}–${formatHm(hours.end)} · break ${formatHm(hours.breakStart)}–${formatHm(hours.breakEnd)}`}
       />
-      <FeedSchedules feeds={feeds.map((f) => ({ ...f, lastCheckedAt: f.lastCheckedAt?.toISOString() ?? null }))} />
-      <AdminSettings settings={settings} models={models} health={health} />
-      <AdminUsers users={users} meId={me.id} />
+      <StatStrip
+        items={[
+          { label: "Punched in now", value: `${inNow} of ${now.length}` },
+          { label: "Late today", value: late, hint: late ? "reasons below" : "everyone on time" },
+          { label: "Not in yet", value: notIn },
+          { label: "Away today", value: away, hint: "absent, medical or other leave" },
+        ]}
+      />
+
+      <div className="overflow-x-auto rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow className="text-xs">
+              <TableHead>Person</TableHead>
+              <TableHead>Now</TableHead>
+              <TableHead className="hidden sm:table-cell">First in</TableHead>
+              <TableHead className="hidden sm:table-cell">Last out</TableHead>
+              <TableHead className="text-right">Worked</TableHead>
+              <TableHead className="hidden md:table-cell">Note</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {now.map(({ user, cell, line }) => {
+              const first = cell?.sessions[0];
+              const last = cell?.sessions.at(-1);
+              const notes = [
+                first?.late && first.inReason ? `Late: ${first.inReason}` : "",
+                ...(cell?.sessions.filter((s) => s.early && s.outReason).map((s) => `Left ${s.out}: ${s.outReason}`) ?? []),
+                cell?.absence && !cell.sessions.length ? cell.absence.note : "",
+              ].filter(Boolean);
+              const look = cell ? cellLook(cell.status) : null;
+              return (
+                <TableRow key={user.id}>
+                  <TableCell className="py-1.5">
+                    <Link href={`/admin/users/${user.id}`} className="flex items-center gap-2 hover:underline">
+                      <UserAvatar name={user.name} size={24} />
+                      <span className="font-medium">{user.name}</span>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="py-1.5 text-xs whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`size-2 rounded-full ${line.punchedIn ? "bg-emerald-500" : "bg-muted-foreground/40"}`} aria-hidden />
+                      {line.label}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden py-1.5 text-xs whitespace-nowrap tabular-nums sm:table-cell">
+                    {first ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        {look && cell && (cell.status === "late" || cell.status === "present") && (
+                          <span className={`size-2.5 rounded-[3px] ${look.className}`} style={look.style} title={cell.status === "late" ? "Late" : "On time"} />
+                        )}
+                        {first.in}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden py-1.5 text-xs tabular-nums sm:table-cell">{last?.out ?? "-"}</TableCell>
+                  <TableCell className="py-1.5 text-right text-xs tabular-nums">{cell?.minutes ? formatDuration(cell.minutes) : "-"}</TableCell>
+                  <TableCell className="hidden max-w-80 py-1.5 text-xs text-muted-foreground md:table-cell">
+                    <span className="line-clamp-2" title={notes.join(" · ")}>
+                      {notes.join(" · ") || "-"}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <section className="grid gap-2 rounded-lg border bg-card p-3" aria-label="Team attendance this month">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold">Attendance</h2>
+          <div className="ml-auto flex items-center gap-0.5">
+            <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={`/admin?month=${shiftMonth(month, -1)}`} scroll={false} aria-label="Previous month" title="Previous month" />}>
+              <ChevronLeft />
+            </Button>
+            <span className="min-w-28 text-center text-sm font-medium">{monthLabel(month)}</span>
+            {month < lastMonth ? (
+              <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={`/admin?month=${shiftMonth(month, 1)}`} scroll={false} aria-label="Next month" title="Next month" />}>
+                <ChevronRight />
+              </Button>
+            ) : (
+              <span className="size-7" />
+            )}
+          </div>
+        </div>
+        <TeamMatrix rows={team} month={month} today={today} />
+      </section>
     </div>
   );
 }

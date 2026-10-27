@@ -1,4 +1,8 @@
+"use client"
+
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { Loader2Icon } from "lucide-react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
@@ -39,18 +43,47 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * `pending`: the screen is busy with an action (usually the isPending from useTransition). The button is disabled while it is
+ * true, and the one that was clicked shows a spinner in place of its icon, so people see something is happening and cannot
+ * click twice. No delay is added: the spinner lasts exactly as long as the action.
+ */
 function Button({
   className,
   variant = "default",
   size = "default",
+  pending,
+  disabled,
+  onClick,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { pending?: boolean }) {
+  const [clicked, setClicked] = React.useState(false)
+  // forget the click once the action is over, or straight away if the click did not start one
+  React.useEffect(() => {
+    if (clicked && !pending) setClicked(false)
+  }, [clicked, pending])
+  const loading = !!pending && clicked
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-loading={loading || undefined}
+      aria-busy={loading || undefined}
+      disabled={disabled || pending}
+      onClick={(e) => {
+        if (pending !== undefined) setClicked(true)
+        onClick?.(e)
+      }}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        loading && "disabled:opacity-80 [&>svg:not([data-spinner])]:hidden"
+      )}
       {...props}
-    />
+    >
+      {loading && <Loader2Icon data-spinner className="animate-spin" />}
+      {children}
+    </ButtonPrimitive>
   )
 }
 

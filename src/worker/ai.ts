@@ -5,7 +5,12 @@ import { getSetting, getSettings, setSetting } from "@/lib/settings";
 import { runParse, StopRequested } from "./jobs";
 
 const TICK_MS = 20_000;
-const g = globalThis as unknown as { __aiTimer?: NodeJS.Timeout; __aiBusy?: boolean };
+const g = globalThis as unknown as { __aiTimer?: NodeJS.Timeout; __aiBusy?: boolean; __aiAbort?: AbortController };
+
+/** Cancels the model request that is generating right now (only in the process that runs the cycle). */
+export function abortCurrentRead() {
+  g.__aiAbort?.abort();
+}
 
 export interface AiCycleResult {
   ran: boolean;
@@ -50,6 +55,9 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
     }
 
     const began = Date.now();
+    const abort = new AbortController();
+    g.__aiAbort = abort;
+    let claimed = false;
     let processed = 0;
     let stopped = false;
     for (;;) {
@@ -60,9 +68,10 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
       }
       const id = await claimNext();
       if (id == null) break;
+      claimed = true;
       console.log(`[ai] reading price list ${id}`);
       try {
-        await runParse(id);
+        await runParse(id, abort.signal);
         processed++;
       } catch (e) {
         if (e instanceof StopRequested) {
@@ -72,9 +81,11 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
         console.error(`[ai] list ${id} failed:`, (e as Error).message);
       }
     }
-    if (processed || opts.manual) await unloadModel();
+    // free the RAM as soon as the pass ends, also after a Stop
+    if (claimed || opts.manual) await unloadModel();
     return { ran: true, processed, note: stopped ? "Stopped by an admin" : processed ? `Read ${processed} list${processed === 1 ? "" : "s"}` : "Nothing was waiting" };
   } finally {
+    g.__aiAbort = undefined;
     g.__aiBusy = false;
   }
 }

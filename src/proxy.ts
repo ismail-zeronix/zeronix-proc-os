@@ -8,7 +8,7 @@ export async function proxy(req: NextRequest) {
   const isLogin = pathname === "/login";
   const isSetup = pathname === "/setup";
 
-  if (pathname === "/api/health") return NextResponse.next();
+  if (pathname === "/api/health" || pathname === "/api/health/db") return NextResponse.next();
 
   if (!user && !isLogin && !isSetup) {
     if (pathname.startsWith("/api/")) {

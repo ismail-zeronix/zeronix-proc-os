@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db";
-import { getSession } from "@/lib/auth/session";
+import { hasApp } from "@/lib/auth/session";
 import { getSetting } from "@/lib/settings";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/price-lists/[id]">) {
-  if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await hasApp("procurement"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const id = Number((await ctx.params).id);
   const [row] = await db
     .select({ pl: schema.priceLists, supplierName: schema.suppliers.name })

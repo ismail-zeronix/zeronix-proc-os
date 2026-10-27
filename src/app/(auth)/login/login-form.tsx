@@ -16,8 +16,8 @@ export function LoginForm({ next }: { next?: string }) {
         <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <PackageSearch className="size-5" />
         </div>
-        <CardTitle className="text-xl">Zeronix Procurement</CardTitle>
-        <CardDescription>Sign in to compare supplier prices.</CardDescription>
+        <CardTitle className="text-xl">Zeronix Portal</CardTitle>
+        <CardDescription>Sign in to continue.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={action} className="grid gap-4">
@@ -31,7 +31,7 @@ export function LoginForm({ next }: { next?: string }) {
             <Input id="password" name="password" type="password" autoComplete="current-password" required />
           </div>
           {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button type="submit" pending={pending} className="w-full">
             {pending ? "Signing in…" : "Sign in"}
           </Button>
         </form>

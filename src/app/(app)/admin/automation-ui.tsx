@@ -1,7 +1,7 @@
 "use client";
 
 import { Play, RefreshCw, Square } from "lucide-react";
-import Link from "next/link";
+import { AppLink } from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AI_INTERVALS, FEED_INTERVALS } from "@/lib/feed/intervals";
 import { ago } from "@/lib/format";
-import { syncFeedNow } from "../suppliers/feed-actions";
+import { syncFeedNow } from "../procurement/suppliers/feed-actions";
 import { requeueStuckLists, runAiNow, setAiInterval, setFeedSchedule, startAi, stopAi } from "./actions";
 
 function useAction() {
@@ -79,11 +79,11 @@ export function AiControl({ ai }: { ai: AiState }) {
       <CardContent className="grid gap-4">
         <div className="flex flex-wrap items-end gap-3">
           {ai.running ? (
-            <Button variant="destructive" disabled={pending} onClick={() => run(() => stopAi(), "AI reading stopped")}>
+            <Button variant="destructive" pending={pending} onClick={() => run(() => stopAi(), "AI reading stopped")}>
               <Square /> Stop
             </Button>
           ) : (
-            <Button disabled={pending} onClick={() => run(() => startAi(), "AI reading started")}>
+            <Button pending={pending} onClick={() => run(() => startAi(), "AI reading started")}>
               <Play /> Start
             </Button>
           )}
@@ -103,7 +103,7 @@ export function AiControl({ ai }: { ai: AiState }) {
           </div>
           <Button
             variant="outline"
-            disabled={pending || ai.waiting === 0}
+            pending={pending} disabled={ai.waiting === 0}
             onClick={() => run(() => runAiNow(), "Reading the waiting lists now")}
           >
             <RefreshCw className={busy ? "animate-spin" : ""} /> Read waiting lists now
@@ -126,7 +126,7 @@ export function AiControl({ ai }: { ai: AiState }) {
             <Button
               variant="outline"
               size="sm"
-              disabled={pending}
+              pending={pending}
               onClick={() => run(() => requeueStuckLists(), "Back in the queue")}
             >
               Requeue
@@ -189,9 +189,9 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
                 {feeds.map((f) => (
                   <TableRow key={f.supplierId}>
                     <TableCell className="max-w-[260px]">
-                      <Link href={`/suppliers/${f.supplierId}`} className="block truncate font-medium hover:underline">
+                      <AppLink href={`/procurement/suppliers/${f.supplierId}`} className="block truncate font-medium hover:underline">
                         {f.supplier}
-                      </Link>
+                      </AppLink>
                       {!f.enabled && <Badge variant="outline">Stopped</Badge>}
                     </TableCell>
                     <TableCell>
@@ -221,7 +221,7 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={pending}
+                        pending={pending}
                         onClick={() =>
                           run(async () => {
                             const r = await syncFeedNow(f.supplierId);
@@ -235,7 +235,7 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={pending}
+                          pending={pending}
                           onClick={() => run(() => setFeedSchedule(f.supplierId, { enabled: false }), "Feed stopped")}
                         >
                           <Square /> Stop
@@ -243,7 +243,7 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
                       ) : (
                         <Button
                           size="sm"
-                          disabled={pending}
+                          pending={pending}
                           onClick={() => run(() => setFeedSchedule(f.supplierId, { enabled: true }), "Feed started")}
                         >
                           <Play /> Start

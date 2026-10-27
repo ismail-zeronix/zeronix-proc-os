@@ -1,0 +1,93 @@
+# ZeronixOS production stack on the OVH server (/srv/docker/zeronix). See production/README.md.
+#
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#   (or put COMPOSE_FILE=docker-compose.prod.yml in the server's .env and drop the -f)
+#
+# Nothing here publishes a host port. Caddy (a separate stack, not managed here) reaches the app over the external
+# proxy-net network as zeronix-app:3000. PostgreSQL sits on an internal network only the app can reach.
+# Service names are prefixed "zeronix-" because Docker gives every service a DNS alias equal to its name on each
+# network it joins; a plain "app" on proxy-net could collide with another stack's "app" (e.g. SouqFeed).
+
+name: zeronixos
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  zeronix-app:
+    build: .
+    image: zeronix-app:${APP_IMAGE_TAG:-latest}
+    container_name: zeronix-app
+    restart: unless-stopped
+    depends_on:
+      zeronix-postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: postgres://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@zeronix-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      # served over HTTPS by Caddy, so the session cookie is Secure
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.hostinger.com}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-465}
+      MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-200}
+      MAIL_WEBMAIL_URL: ${MAIL_WEBMAIL_URL:-https://mail.hostinger.com}
+      # No Ollama on the server. A hosted AI model API will be added later (AI_* in .env.example); until then the
+      # AI price-list reader is simply unavailable and everything else works.
+      RUN_WORKER: "true"
+      MIGRATE_ON_START: "false"
+      FILES_DIR: /app/data/files
+    volumes:
+      - files:/app/data/files
+    expose:
+      - "3000"
+    networks:
+      - backend
+      - proxy-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *logging
+
+  zeronix-postgres:
+    image: postgres:16-alpine
+    container_name: zeronix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    # no ports: reachable only from the app on the internal backend network
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+networks:
+  # internal: no route to the outside world; the app gets outbound access (mail, feeds, AI API) through proxy-net
+  backend:
+    internal: true
+  proxy-net:
+    external: true
+
+volumes:
+  pgdata:
+  files:

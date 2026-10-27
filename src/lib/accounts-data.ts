@@ -1,0 +1,332 @@
+import "server-only";
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { db, schema } from "@/db";
+import { ownersJson, type Owner } from "@/lib/company-owners";
+import { dubaiToday } from "@/lib/dates";
+import { ageBucket, AGE_BUCKETS, buildStatement, invoiceState, type AgeBucket, type InvoiceState } from "@/lib/invoicing";
+import { paidByInvoice } from "@/lib/orders-data";
+import { longDay, round2 } from "@/lib/quotation";
+import { getSettings } from "@/lib/settings";
+import { companyVisible, dealVisible, quoteVisible, type Viewer } from "@/lib/auth/visibility";
+
+export interface InvoiceRow {
+  id: number;
+  number: string;
+  companyId: number;
+  customerName: string;
+  orderId: number | null;
+  kind: "sale" | "opening";
+  dealId: number | null;
+  issueDate: string;
+  dueDate: string;
+  termsDays: number;
+  total: number;
+  status: string;
+  ownerName: string | null;
+  state: InvoiceState;
+}
+
+/** Every invoice with today's state (paid, part paid, due, overdue, cancelled), newest first. */
+export async function listInvoices(opts: { companyId?: number } = {}): Promise<InvoiceRow[]> {
+  const rows = await db
+    .select({
+      id: schema.invoices.id,
+      number: schema.invoices.number,
+      companyId: schema.invoices.companyId,
+      customerName: schema.invoices.customerName,
+      orderId: schema.invoices.orderId,
+      dealId: schema.invoices.dealId,
+      kind: schema.invoices.kind,
+      issueDate: schema.invoices.issueDate,
+      dueDate: schema.invoices.dueDate,
+      termsDays: schema.invoices.termsDays,
+      total: schema.invoices.total,
+      status: schema.invoices.status,
+      ownerName: schema.users.name,
+    })
+    .from(schema.invoices)
+    .leftJoin(schema.deals, eq(schema.deals.id, schema.invoices.dealId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.deals.ownerId))
+    .where(opts.companyId ? eq(schema.invoices.companyId, opts.companyId) : undefined)
+    .orderBy(desc(schema.invoices.issueDate), desc(schema.invoices.id));
+  const paid = await paidByInvoice(rows.map((r) => r.id));
+  const today = dubaiToday();
+  return rows.map((r) => ({ ...r, state: invoiceState(r, paid.get(r.id) ?? 0, today) }));
+}
+
+/** The invoice page: invoice, lines, payments (also voided ones), the credit note if cancelled, and the order. */
+export async function getInvoice(id: number) {
+  const [inv] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, id));
+  if (!inv) return null;
+  const [items, pays, [credit], [order], [company], author] = await Promise.all([
+    db.select().from(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, id)).orderBy(asc(schema.invoiceItems.position), asc(schema.invoiceItems.id)),
+    db
+      .select({
+        id: schema.payments.id,
+        number: schema.payments.number,
+        paidOn: schema.payments.paidOn,
+        amount: schema.payments.amount,
+        method: schema.payments.method,
+        reference: schema.payments.reference,
+        notes: schema.payments.notes,
+        voidedAt: schema.payments.voidedAt,
+        voidReason: schema.payments.voidReason,
+        byName: schema.users.name,
+      })
+      .from(schema.payments)
+      .leftJoin(schema.users, eq(schema.users.id, schema.payments.createdBy))
+      .where(eq(schema.payments.invoiceId, id))
+      .orderBy(asc(schema.payments.paidOn), asc(schema.payments.id)),
+    db.select().from(schema.creditNotes).where(eq(schema.creditNotes.invoiceId, id)),
+    // an opening invoice (carried from Zoho) has no order
+    inv.orderId
+      ? db
+          .select({ id: schema.salesOrders.id, number: schema.salesOrders.number, dnNumber: schema.salesOrders.dnNumber, dealId: schema.salesOrders.dealId })
+          .from(schema.salesOrders)
+          .where(eq(schema.salesOrders.id, inv.orderId))
+      : Promise.resolve([]),
+    db.select({ phone: schema.companies.phone }).from(schema.companies).where(eq(schema.companies.id, inv.companyId)),
+    inv.createdBy ? db.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, inv.createdBy)).then((r) => r[0] ?? null) : Promise.resolve(null),
+  ]);
+  const paid = round2(pays.filter((p) => !p.voidedAt).reduce((s, p) => s + p.amount, 0));
+  return { ...inv, items, payments: pays, credit: credit ?? null, order, companyPhone: company?.phone ?? "", author, state: invoiceState(inv, paid, dubaiToday()) };
+}
+
+export interface Receivables {
+  open: InvoiceRow[];
+  owed: number;
+  overdue: number;
+  dueSoon: number;
+  collectedThisMonth: number;
+  buckets: { key: AgeBucket; label: string; amount: number; count: number }[];
+}
+
+/** What customers owe today: open invoices (most overdue first), totals, and the amounts by how late they are. */
+export async function receivables(): Promise<Receivables> {
+  const today = dubaiToday();
+  const all = await listInvoices();
+  const open = all
+    .filter((i) => i.state.balance > 0)
+    .sort((a, b) => b.state.daysOverdue - a.state.daysOverdue || a.dueDate.localeCompare(b.dueDate));
+  const buckets = AGE_BUCKETS.map((b) => ({ ...b, amount: 0, count: 0 }));
+  for (const i of open) {
+    const b = buckets.find((x) => x.key === ageBucket(i.state.daysOverdue))!;
+    b.amount = round2(b.amount + i.state.balance);
+    b.count++;
+  }
+  const monthStart = today.slice(0, 8) + "01";
+  const [c] = await db
+    .select({ s: sql<number>`coalesce(sum(${schema.payments.amount}), 0)::float` })
+    .from(schema.payments)
+    .where(and(isNull(schema.payments.voidedAt), gte(schema.payments.paidOn, monthStart)));
+  return {
+    open,
+    owed: round2(open.reduce((s, i) => s + i.state.balance, 0)),
+    overdue: round2(open.filter((i) => i.state.key === "overdue").reduce((s, i) => s + i.state.balance, 0)),
+    dueSoon: round2(open.filter((i) => i.state.key !== "overdue" && i.state.daysToDue <= 7).reduce((s, i) => s + i.state.balance, 0)),
+    collectedThisMonth: round2(c.s),
+    buckets,
+  };
+}
+
+/** Receipts, newest first. */
+export async function listPayments(limit = 500) {
+  return db
+    .select({
+      id: schema.payments.id,
+      number: schema.payments.number,
+      paidOn: schema.payments.paidOn,
+      amount: schema.payments.amount,
+      method: schema.payments.method,
+      reference: schema.payments.reference,
+      voidedAt: schema.payments.voidedAt,
+      invoiceId: schema.payments.invoiceId,
+      invoiceNumber: schema.invoices.number,
+      companyId: schema.payments.companyId,
+      customerName: schema.invoices.customerName,
+      byName: schema.users.name,
+    })
+    .from(schema.payments)
+    .innerJoin(schema.invoices, eq(schema.invoices.id, schema.payments.invoiceId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.payments.createdBy))
+    .orderBy(desc(schema.payments.paidOn), desc(schema.payments.id))
+    .limit(limit);
+}
+
+/** One receipt with what the receipt voucher prints. */
+export async function getPayment(id: number) {
+  const [p] = await db
+    .select({
+      id: schema.payments.id,
+      number: schema.payments.number,
+      paidOn: schema.payments.paidOn,
+      amount: schema.payments.amount,
+      method: schema.payments.method,
+      reference: schema.payments.reference,
+      notes: schema.payments.notes,
+      voidedAt: schema.payments.voidedAt,
+      voidReason: schema.payments.voidReason,
+      invoiceId: schema.payments.invoiceId,
+      invoiceNumber: schema.invoices.number,
+      invoiceTotal: schema.invoices.total,
+      customerName: schema.invoices.customerName,
+      customerTrn: schema.invoices.customerTrn,
+      byName: schema.users.name,
+    })
+    .from(schema.payments)
+    .innerJoin(schema.invoices, eq(schema.invoices.id, schema.payments.invoiceId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.payments.createdBy))
+    .where(eq(schema.payments.id, id));
+  return p ?? null;
+}
+
+/**
+ * Statement of account for one customer between two days: the balance brought forward, then invoices, credit notes and
+ * payments in date order with the running balance.
+ */
+export async function statement(companyId: number, from: string, to: string) {
+  const [company] = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId));
+  if (!company) return null;
+  const [invs, credits, pays] = await Promise.all([
+    db
+      .select({ date: schema.invoices.issueDate, number: schema.invoices.number, amount: schema.invoices.total, due: schema.invoices.dueDate, ref: schema.invoices.customerRef })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.companyId, companyId)),
+    db
+      .select({ date: schema.creditNotes.issueDate, number: schema.creditNotes.number, amount: schema.creditNotes.total, invoice: schema.invoices.number })
+      .from(schema.creditNotes)
+      .innerJoin(schema.invoices, eq(schema.invoices.id, schema.creditNotes.invoiceId))
+      .where(eq(schema.invoices.companyId, companyId)),
+    db
+      .select({ date: schema.payments.paidOn, number: schema.payments.number, amount: schema.payments.amount, invoice: schema.invoices.number, method: schema.payments.method, ref: schema.payments.reference })
+      .from(schema.payments)
+      .innerJoin(schema.invoices, eq(schema.invoices.id, schema.payments.invoiceId))
+      .where(and(eq(schema.payments.companyId, companyId), isNull(schema.payments.voidedAt))),
+  ]);
+  const entries = [
+    ...invs.map((i) => ({ date: i.date, kind: "invoice" as const, number: i.number, amount: i.amount, note: `Due ${longDay(i.due)}${i.ref ? ` · PO ${i.ref}` : ""}` })),
+    ...credits.map((c) => ({ date: c.date, kind: "credit" as const, number: c.number, amount: c.amount, note: `Cancels ${c.invoice}` })),
+    ...pays.map((p) => ({ date: p.date, kind: "payment" as const, number: p.number, amount: p.amount, note: `For ${p.invoice}${p.ref ? ` · ${p.ref}` : ""}` })),
+  ];
+  const before = buildStatement(entries.filter((e) => e.date < from));
+  const within = buildStatement(
+    entries.filter((e) => e.date >= from && e.date <= to),
+    before.closing,
+  );
+  return { company, from, to, opening: before.closing, lines: within.lines, closing: within.closing };
+}
+
+/** Bank details and our TRN, printed on invoices and statements. */
+export async function documentDetails() {
+  const s = await getSettings();
+  return {
+    trn: s.quote_trn,
+    bank: { name: s.bank_name, accountName: s.bank_account_name, accountNumber: s.bank_account_number, iban: s.bank_iban, swift: s.bank_swift },
+  };
+}
+
+/** Customers with something owed, for a company page badge: balance and overdue amount. */
+export async function companyBalance(companyId: number) {
+  const rows = await listInvoices({ companyId });
+  const open = rows.filter((r) => r.state.balance > 0);
+  return {
+    invoices: rows.length,
+    owed: round2(open.reduce((s, r) => s + r.state.balance, 0)),
+    overdue: round2(open.filter((r) => r.state.key === "overdue").reduce((s, r) => s + r.state.balance, 0)),
+  };
+}
+
+
+/** The number the next invoice will get (for the "Make invoice" dialog). */
+export async function nextInvoiceNumber(): Promise<string> {
+  const s = await getSettings();
+  const { invoiceNumber } = await import("@/lib/invoicing");
+  return invoiceNumber(s.invoice_prefix, Math.max(1, Math.floor(Number(s.invoice_next_number)) || 1), Math.floor(Number(s.invoice_digits)) || 5);
+}
+
+/** Numbers for the Accounts sidebar badges. */
+export async function accountsBadges() {
+  const [inv, [toInvoice]] = await Promise.all([
+    listInvoices(),
+    db.select({ n: sql<number>`count(*)::int` }).from(schema.salesOrders).where(eq(schema.salesOrders.status, "delivered")),
+  ]);
+  return { overdue: inv.filter((i) => i.state.key === "overdue").length, toInvoice: toInvoice.n };
+}
+
+export interface CustomerRow {
+  id: number;
+  name: string;
+  emirate: string;
+  trn: string;
+  industry: string;
+  address: string;
+  /** Main owner first. */
+  owners: Owner[];
+  /** The decision maker, else the first contact. */
+  contact: { name: string; jobTitle: string; phone: string; email: string } | null;
+  contacts: number;
+  openDeals: number;
+  /** Sent quotes still waiting for an answer, and their value before VAT. */
+  openQuotes: number;
+  openQuotesValue: number;
+  orders: number;
+  /** Orders not delivered yet. */
+  toDeliver: number;
+  /** Every order that was not cancelled, with VAT. */
+  sales: number;
+  lastOrder: string | null;
+  /** First won deal or first order. */
+  since: string | null;
+  invoices: number;
+  owed: number;
+  overdue: number;
+  lastPaid: string | null;
+}
+
+/**
+ * Customers: companies with a won deal or an order (a company turns into a customer by itself, nothing is copied), with
+ * who looks after them, what is going on and what each owes. Only the ones the viewer may see; biggest overdue, then
+ * biggest balance first.
+ */
+export async function listCustomers(v: Viewer): Promise<CustomerRow[]> {
+  const today = dubaiToday();
+  // counts of deals and quotes only include the ones the viewer may see
+  const quoteOk = quoteVisible(v, { dealId: sql`q.deal_id`, ownerId: sql`q.owner_id`, createdBy: sql`q.created_by` });
+  const companies = await db.execute<Omit<CustomerRow, "invoices" | "owed" | "overdue" | "lastPaid">>(sql`
+    SELECT c.id, c.name, c.emirate, c.trn, c.industry, c.address,
+      ${ownersJson(sql`c.id`, sql`c.owner_id`)} AS owners,
+      (SELECT json_build_object('name', p.name, 'jobTitle', p.job_title, 'phone', coalesce(nullif(p.phone, ''), p.whatsapp), 'email', p.email)
+        FROM contacts p WHERE p.company_id = c.id ORDER BY p.is_decision_maker DESC, p.id LIMIT 1) AS contact,
+      (SELECT count(*)::int FROM contacts p WHERE p.company_id = c.id) AS contacts,
+      (SELECT count(*)::int FROM deals d WHERE d.company_id = c.id AND d.stage NOT IN ('won', 'lost') AND ${dealVisible(v, sql`d.id`)}) AS "openDeals",
+      (SELECT count(*)::int FROM quotes q WHERE q.company_id = c.id AND q.status = 'sent' AND q.valid_until >= ${today} AND ${quoteOk}) AS "openQuotes",
+      (SELECT coalesce(sum(q.subtotal), 0)::float FROM quotes q WHERE q.company_id = c.id AND q.status = 'sent' AND q.valid_until >= ${today} AND ${quoteOk}) AS "openQuotesValue",
+      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS orders,
+      (SELECT count(*)::int FROM sales_orders o WHERE o.company_id = c.id AND o.status = 'open') AS "toDeliver",
+      (SELECT coalesce(sum(o.total), 0)::float FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS sales,
+      (SELECT to_char(max(o.created_at) AT TIME ZONE 'Asia/Dubai', 'YYYY-MM-DD') FROM sales_orders o WHERE o.company_id = c.id AND o.status <> 'cancelled') AS "lastOrder",
+      to_char(least(
+        (SELECT min(o.created_at) FROM sales_orders o WHERE o.company_id = c.id),
+        (SELECT min(coalesce(d.closed_at, d.created_at)) FROM deals d WHERE d.company_id = c.id AND d.stage = 'won')
+      ) AT TIME ZONE 'Asia/Dubai', 'YYYY-MM-DD') AS since
+    FROM companies c
+    WHERE (EXISTS (SELECT 1 FROM sales_orders o WHERE o.company_id = c.id)
+        OR EXISTS (SELECT 1 FROM invoices i WHERE i.company_id = c.id)
+        OR EXISTS (SELECT 1 FROM deals d WHERE d.company_id = c.id AND d.stage = 'won'))
+      AND ${companyVisible(v, sql`c.id`)}`);
+  const ids = new Set(companies.rows.map((c) => c.id));
+  const [invoices, payments] = await Promise.all([listInvoices(), listPayments(5000)]);
+  const byId = new Map<number, CustomerRow>(companies.rows.map((c) => [c.id, { ...c, invoices: 0, owed: 0, overdue: 0, lastPaid: null }]));
+  for (const i of invoices) {
+    const c = byId.get(i.companyId);
+    if (!c || !ids.has(i.companyId)) continue;
+    if (i.status !== "cancelled") c.invoices++;
+    c.owed = round2(c.owed + i.state.balance);
+    if (i.state.key === "overdue") c.overdue = round2(c.overdue + i.state.balance);
+  }
+  for (const p of payments) {
+    const c = byId.get(p.companyId);
+    if (c && !p.voidedAt && (!c.lastPaid || p.paidOn > c.lastPaid)) c.lastPaid = p.paidOn;
+  }
+  return [...byId.values()].sort((a, b) => b.overdue - a.overdue || b.owed - a.owed || a.name.localeCompare(b.name));
+}

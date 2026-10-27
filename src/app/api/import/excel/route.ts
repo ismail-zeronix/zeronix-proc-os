@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { hasApp } from "@/lib/auth/session";
 import { parseWorkbook } from "@/lib/parse/excel";
 import { readWorkbook } from "@/lib/parse/excel-read";
 
@@ -12,7 +12,7 @@ const fail = (error: string, status: number) => NextResponse.json({ error }, { s
  * confirm. Nothing is stored here; `createExcelPriceList` stores it after the confirmation.
  */
 export async function POST(req: NextRequest) {
-  if (!(await getSession())) return fail("Unauthorized", 401);
+  if (!(await hasApp("procurement"))) return fail("Unauthorized", 401);
 
   let file: FormDataEntryValue | null;
   try {

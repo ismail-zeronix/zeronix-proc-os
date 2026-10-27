@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { isSetupComplete } from "@/lib/auth/setup";
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Sign in · Zeronix Procurement" };
+export const metadata = { title: "Sign in · Zeronix" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   if (!(await isSetupComplete())) redirect("/setup");

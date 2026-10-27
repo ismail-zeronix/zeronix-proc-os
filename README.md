@@ -1,14 +1,70 @@
-# Zeronix Procurement
+# Zeronix Portal
+
+A small company portal. The home screen (`/`) shows one tile per app; each app has its own sidebar. Plan: [PLATFORM-PLAN.md](PLATFORM-PLAN.md), progress: [TASKS.md](TASKS.md).
+
+## Apps and access
+
+Apps are listed in `src/lib/apps.ts` (add an app = one row there + a folder under `src/app/(app)/`). Roles are `admin` and `sales`: admins see every app; for a sales user an admin can pick the apps on **Admin > Users > Apps**, or leave "Use role defaults". Access is checked on the server for pages, server actions and API routes (`requireApp` / `assertApp` / `hasApp` in `src/lib/auth/session.ts`), against the database, so changes and deactivation apply immediately.
+
+## Sales
+
+**Sales** (`/sales`) tracks every opportunity as one *deal*; a lead is just a deal at stage **New enquiry**. Stages: New enquiry, Contacted, Requirement confirmed, Sourcing, Quote sent, Negotiation, Won, Lost (Lost asks for a reason). Everyone with the Sales app sees all companies, contacts and deals; "My deals" is the default filter. Values are in AED.
+
+- **Overview** (`/sales`): charts and numbers for the team or just you, over 30 days, 90 days or 12 months.
+- **Pipeline** (`/sales/pipeline`): a dense list by default, or a board by stage (icon toggle). "+" on a board column adds a deal at that stage. A deal can have several people; their avatars are stacked, and clicking them changes the team. The stage menu moves a deal and writes it to the timeline.
+- **New enquiry**: one screen creates (or reuses) the company, the person, the deal and a follow-up task for today. A company with the same name (ignoring LLC, spaces, punctuation) is never added twice.
+- **Deal page**: what they asked for, the **genuine-lead checklist** (need, authority, budget, timing, three ways to verify the company, and a warning flag) that gives a Hot / Warm / Cold label, a timeline for calls, WhatsApp, emails, meetings and notes, and follow-up tasks (they also show in Tasks and on Home). Logging a call or message on a brand-new enquiry moves it to Contacted.
+- **Quote tab** on a deal: the lines the customer wants, each with our cost, a margin and the selling price (AED, before VAT). **Find price** searches the Procurement price lists and adds the chosen supplier offer as a line (cost converted to AED, price = cost plus the default margin; needs the Procurement app). Lines can also be typed by hand. **Make quote** copies the lines into a numbered quote (`ZQ-2026-0001`, the number restarts every year) with VAT, a valid-until date and terms; later edits to the deal never change a quote already made.
+- **Quotes** (`/sales/quotes`): all quotes with a status filter. A quote page shows the document exactly as the customer sees it (logo and details from Admin → branding; no cost or margin on it), the profit inside the company only, a status menu (Draft, Sent, Accepted, Rejected; a sent quote past its date shows as Expired), **Print / PDF** (a clean page), **Copy as WhatsApp text** and **Email**. Marking a quote **Sent** moves the deal to Quote sent; **Accepted** marks the deal Won at the quoted amount; **Rejected** leaves the deal where it is so you choose between negotiating and Lost. Admin → Settings → Quotes sets the default margin, validity, VAT and terms; our TRN is under Settings → Documents.
+- **Write email** on a contact or deal opens Mail pre-filled; the sent email is logged on the deal.
+- **Home** shows this week's sales numbers, the pipeline by stage and deals with no activity for 3 days. Ctrl K finds companies, people, deals and quote numbers.
+- Rules live in `src/lib/sales.ts` (stages, sources, checklist, label); data queries in `src/lib/sales-data.ts`; changes in `src/app/(app)/sales/actions.ts` (deals) and `quote-actions.ts` (lines and quotes); quote rules (numbers, totals, WhatsApp text) in `src/lib/quotation.ts`.
+
+UI rules for every screen are in [UI-GUIDELINES.md](UI-GUIDELINES.md).
+
+## Orders, invoices and payments
+
+Quote → **sales order** → **delivery note** → **tax invoice** → **payments**. One order per quote, one delivery and one invoice per order. The team guide is in Knowledge → Using the portal.
+
+- **Convert to order** on a quote (Sales): customer PO number and date, credit terms (cash, 7, 15, 30, 45, 60 days), delivery address. The quote becomes Accepted and the deal Won; the lines are copied (`ZSO-2026-0001`). The order page has a proforma invoice, **Mark delivered** (gives `ZDN-2026-0001` and a delivery note with signature boxes), the customer PO and signed delivery note under Files, and Cancel (only before an invoice; the deal goes back to Negotiation).
+- **Accounts** app (`/accounts`, admins plus anyone given Accounts in Admin → Users): **To invoice** lists delivered orders; **Make invoice** issues the tax invoice with the number from **Admin → Settings → Documents** (prefix + next number + digits, so it continues the Zoho series; no gaps, safe when two people issue at once). The invoice is locked; a mistake is fixed with **Cancel invoice** (full credit note `ZCN-2026-0001`), then a new invoice. Our TRN must be set first.
+- **Payments**: cash or bank transfer (needs the reference), full or part; receipt voucher `ZRV-2026-0001`; a wrong entry is voided with a reason, never deleted. Due date = invoice date + credit days; after it the invoice is **Overdue**. The deal owner gets a "Collect payment" task on the due date, closed automatically when fully paid.
+- **Overview**: owed, overdue, due in 7 days, collected this month, ageing; **Customers**: balances and a statement of account for any period (print/PDF).
+- Rules in `src/lib/invoicing.ts`; numbering in `src/lib/doc-numbers.ts`; actions in `src/app/(app)/sales/order-actions.ts` and `src/app/(app)/accounts/actions.ts`; documents in `src/components/sales-document.tsx` and `money-documents.tsx`.
+
+## Files
+
+**Files** (`/files`) keeps shared documents in folders (customer POs, signed delivery notes, invoices and receipts, supplier and company documents). Up to 20 files of 20 MB each per upload: PDF, images, Word, Excel, PowerPoint, CSV, text, zip and emails. A file can be linked to an order or invoice and shows there too. Files are stored under `FILES_DIR` (default `./data/files`; in Docker the `files` volume) with random names; only the uploader or an admin can delete one.
+
+## Security notes
+
+- Nothing can be changed until the user punches in (checked in the browser and on the server).
+- 5 wrong passwords lock that email for 15 minutes; an admin password reset unlocks it. Users change their own password under My account → Password.
+- The database port is bound to 127.0.0.1 in `docker-compose.yml`; only the web container and this machine can reach it. The portal is meant for the office network (port 3200); put it behind HTTPS (Cloudflare Tunnel or Tailscale) and set `COOKIE_SECURE=true` before opening it to the internet.
+
+## Mail app and mailbox
+
+**Mail** (`/mail`) is a light mail client: the inbox (newest first, read live from the mail server), a reading pane, attachments to download, and Write / Reply / Reply all / Forward with attachments. Incoming HTML is sanitised on the server and shown in a locked-down iframe (no scripts; pictures from the internet stay hidden until "Load images"). Sending uses the user's own mailbox over SMTP (Hostinger by default), saves a copy in the Sent folder, and is limited to `MAIL_DAILY_LIMIT` recipients per person per 24 hours. Folder management, spam rules and searching other folders stay in webmail (link in the Mail header).
+
+**Signatures:** an admin sets the company branding on **Admin > Email branding** (logo upload, address, website, accent colour, logo position, confidentiality line). Each user adds their job title and phone numbers under **My account**. The signature is added to every email, with the logo attached inside the email so it shows outside the company network.
+
+### Connecting a mailbox
+
+Each user connects their own mailbox under **user menu > My account** (the login is tested first, then stored encrypted with a key made from `AUTH_SECRET`; changing `AUTH_SECRET` means re-entering it). The background worker reads the newest 20 inbox messages every 5 minutes (30 after an error; a wrong password pauses the mailbox so it cannot lock) and keeps only sender, subject, time and read state. The server defaults to Hostinger (`MAIL_IMAP_HOST`, `MAIL_IMAP_PORT`, `MAIL_WEBMAIL_URL` in `.env`).
+
+## Procurement
+
+The screens follow [UI-GUIDELINES.md](UI-GUIDELINES.md): **Compare** is one table (a sticky header, each product with its supplier offers under it) with a Filters popover and on/off pills; **Overview** has KPI tiles, tabs and two charts; **Add price list** is one compact form ("How it works" is a popover); supplier and product pages use tabs.
 
 Paste supplier WhatsApp price lists, let a **local AI model** turn them into structured rows, review, and compare prices across suppliers.
 
-- **Dashboard** (`/`): what needs you today (lists to review, failed, being read), suppliers that went quiet, and this week's price moves.
-- **Add a price list** (`/import`): two ways in. **Excel price list** for distributors (see below), and **Paste WhatsApp text** for everyone else: paste the message as-is (emojis, `*bold*`, `@2850/-`), or upload / drop a WhatsApp **chat export** (`.txt`) and pick the message that is the price list. The supplier is auto-detected from signatures like `Supplier : Aman Star IT DXB` (or the chat sender), and the received date from the chat. `[10:32, 19/10/2026] Name:` prefixes from copy-paste are stripped.
-- **Review** (`/import/[id]`): editable grid with a sticky header. Rows the rules doubt (price not in text, `512TB` storage, missing CPU) are highlighted. Products already known are matched automatically, similar ones are suggested ("Accept all matches", "Skip rows without price").
-- **Compare** (`/compare`): search by model, part number or spec (`FM0013DX`, `probook 440`, `i5 13420h 16gb`, `ultra 7`). Each product lists every supplier's latest offer, with the best price highlighted, a trend arrow against that supplier's previous quote, and "saves up to X vs dearest". Filter by supplier category, ready stock only, price, brand and more; sort by suppliers, cheapest, biggest saving or newest. **Export CSV** (opens in Excel) and **Copy quote** (WhatsApp-ready text). Offers without a price show "Price on request". Old offers are greyed out.
-- **Product** (`/products/[id]`): best / lowest-ever / average price and a price-over-time chart per supplier.
-- **Price alerts** (`/alerts`): price drops (with "now the cheapest" flag), price rises, and suppliers that stopped sending lists. A badge in the sidebar counts this week's changes.
-- **Suppliers** (`/suppliers`, `/suppliers/[id]`): each supplier has a **category** from the UAE IT trade, with filter chips and a badge everywhere (Compare, product, supplier page): Distributor, Big stockist, Market trader, DAFZA, JAFZA, SAIF Zone, Other free zone, Brand/OEM direct, Other. The detail page shows contact, how often they are the cheapest, their offers against the market best, and list history. Add or rename categories in `src/lib/supplier-types.ts`.
+- **Overview** (`/procurement`): what needs you today (lists to review, failed, being read), suppliers that went quiet, and this week's price moves.
+- **Add a price list** (`/procurement/import`): two ways in. **Excel price list** for distributors (see below), and **Paste WhatsApp text** for everyone else: paste the message as-is (emojis, `*bold*`, `@2850/-`), or upload / drop a WhatsApp **chat export** (`.txt`) and pick the message that is the price list. The supplier is auto-detected from signatures like `Supplier : Aman Star IT DXB` (or the chat sender), and the received date from the chat. `[10:32, 19/10/2026] Name:` prefixes from copy-paste are stripped.
+- **Review** (`/procurement/import/[id]`): editable grid with a sticky header. Rows the rules doubt (price not in text, `512TB` storage, missing CPU) are highlighted. Products already known are matched automatically, similar ones are suggested ("Accept all matches", "Skip rows without price").
+- **Compare** (`/procurement/compare`): search by model, part number or spec (`FM0013DX`, `probook 440`, `i5 13420h 16gb`, `ultra 7`). Each product lists every supplier's latest offer, with the best price highlighted, a trend arrow against that supplier's previous quote, and "saves up to X vs dearest". Filter by supplier category, ready stock only, price, brand and more; sort by suppliers, cheapest, biggest saving or newest. **Export CSV** (opens in Excel) and **Copy quote** (WhatsApp-ready text). Offers without a price show "Price on request". Old offers are greyed out.
+- **Product** (`/procurement/products/[id]`): best / lowest-ever / average price and a price-over-time chart per supplier.
+- **Price alerts** (`/procurement/alerts`): price drops (with "now the cheapest" flag), price rises, and suppliers that stopped sending lists. A badge in the sidebar counts this week's changes.
+- **Suppliers** (`/procurement/suppliers`, `/procurement/suppliers/[id]`): each supplier has a **category** from the UAE IT trade, with filter chips and a badge everywhere (Compare, product, supplier page): Distributor, Big stockist, Market trader, DAFZA, JAFZA, SAIF Zone, Other free zone, Brand/OEM direct, Other. The detail page shows contact, how often they are the cheapest, their offers against the market best, and list history. Add or rename categories in `src/lib/supplier-types.ts`.
 - **Search anywhere**: press `Ctrl K` (or `/`) to jump to a product or page.
 - Also: price list history with filters and the original text, and an admin page for users, AI model and the "old offer" age.
 
@@ -60,8 +116,7 @@ ollama pull qwen3.5:4b
 docker compose up -d db         # Postgres on localhost:5433
 npm install
 npm run db:migrate
-npm run db:seed                 # creates ADMIN_EMAIL / ADMIN_PASSWORD from .env
-npm run dev                     # http://localhost:3100
+npm run dev                     # http://localhost:3100, first visit opens /setup to create the admin
 ```
 
 The background schedulers (AI queue and live feeds) run inside the Next.js server (`RUN_WORKER=true`). The local model only runs after an admin presses **Start** on the Admin page (or "Read waiting lists now"); until then pasted WhatsApp lists wait in the queue and the model stays unloaded. To run it as its own process, set `RUN_WORKER=false` and start `npm run worker`.
@@ -69,7 +124,7 @@ The background schedulers (AI queue and live feeds) run inside the Next.js serve
 ## Run with Docker
 
 ```bash
-cp .env.example .env            # set AUTH_SECRET, ADMIN_PASSWORD
+cp .env.example .env            # set AUTH_SECRET
 docker compose up -d --build    # db + web on http://localhost:3100, uses Ollama on the host
 ```
 
@@ -79,16 +134,20 @@ To run Ollama in Docker too (memory-capped by `OLLAMA_MEM_LIMIT`, model pulled a
 docker compose --profile ollama up -d --build
 ```
 
-The web container applies migrations and seeds the admin user on start. Set `COOKIE_SECURE=true` when serving over HTTPS.
+The web container applies migrations and seeds the admin user on start (`MIGRATE_ON_START=true`). Set `COOKIE_SECURE=true` when serving over HTTPS.
 
-`GET /api/health` (public, no data) checks the web server and the database; Docker uses it as the web container healthcheck and you can point an uptime monitor at it.
+`GET /api/health` (public, no data) answers `{"status":"ok"}` when the server runs; Docker uses it as the web container healthcheck. `GET /api/health/db` also checks the database.
+
+**Production (OVH, behind Caddy):** see [production/README.md](production/README.md): `docker-compose.prod.yml`, `production/deploy.sh`, `production/backup-postgres.sh`, `production/rollback.sh`.
 
 ### Backups
 
 ```bash
-docker compose --profile backup up -d     # nightly pg_dump into ./backups, keeps BACKUP_KEEP_DAYS (default 14)
-# restore:
+docker compose --profile backup up -d     # nightly: database dump + uploaded files into ./backups, kept BACKUP_KEEP_DAYS (default 14)
+# restore the database:
 gunzip -c backups/procurement-YYYYMMDD-HHMM.sql.gz | docker compose exec -T db psql -U zeronix procurement
+# restore the uploaded files:
+docker compose run --rm -v ./backups:/b --entrypoint sh web -c "tar xzf /b/files-YYYYMMDD-HHMM.tar.gz -C /app/data/files"
 ```
 
 Copy `./backups` off the machine as well; a backup on the same disk does not survive a disk failure.
@@ -119,6 +178,8 @@ src/lib/search.ts  compare query, trend (previous quote), sort
 src/lib/alerts.ts  price moves, quiet suppliers, list counts
 src/lib/export.ts  CSV export and pasteable quote text
 src/worker/        schedulers: AI queue (admin Start/Stop), live feeds
-src/app/(app)/     dashboard, compare, import, alerts, products, price-lists, suppliers, admin
+src/app/(app)/(home)/ home screen          src/app/(app)/admin/  users, apps, AI, settings
+src/app/(app)/procurement/   overview, compare, import, alerts, products, price-lists, suppliers
+src/lib/apps.ts, app-nav.ts  app registry + access rules, per-app sidebar pages
 src/db/            Drizzle schema + migrations
 ```
