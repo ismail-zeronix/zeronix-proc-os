@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { isSetupComplete } from "@/lib/auth/setup";
 import { SetupForm } from "./setup-form";
 
+// Never prerender: the build has no database to check for the first admin.
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Welcome · Zeronix Procurement" };
 
 export default async function SetupPage() {
