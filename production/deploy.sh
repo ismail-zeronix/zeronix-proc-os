@@ -59,9 +59,8 @@ if [ "${SKIP_BACKUP:-0}" != "1" ] && [ -n "$RUNNING_IMAGE" ]; then
   bash "$ROOT/production/backup-postgres.sh"
 fi
 
-log "Running migrations and first-admin seed with the new image"
+log "Running migrations with the new image"
 "${COMPOSE[@]}" run --rm --no-deps "$APP" node scripts/migrate.js
-"${COMPOSE[@]}" run --rm --no-deps "$APP" node scripts/seed.js
 
 log "Starting the new app"
 "${COMPOSE[@]}" up -d --no-build "$APP"

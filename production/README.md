@@ -56,7 +56,7 @@ backup profiles). It is separate from production.
 ## 3. Production Docker setup
 
 - `Dockerfile`: multi-stage. `deps` runs `npm ci`; `build` runs `next build` with `NEXT_OUTPUT=standalone` and bundles
-  `scripts/migrate.ts` and `scripts/seed.ts` to plain JS with esbuild; `run` is `node:22-alpine` with Chromium (for
+  `scripts/migrate.ts` to plain JS with esbuild; `run` is `node:22-alpine` with Chromium (for
   PDF quotes), the standalone server, static files and migrations only. It runs as the `node` user and listens on
   `0.0.0.0:3000` with `NODE_ENV=production`. No secrets are baked in, and `.env` is excluded by `.dockerignore`.
 - `docker-compose.prod.yml`: project name `zeronixos`, services `zeronix-app` and `zeronix-postgres`, restart
@@ -77,7 +77,6 @@ set on the server, and compose refuses to start without the ones marked required
 | `POSTGRES_USER`, `POSTGRES_DB` | yes | e.g. `zeronix`, `zeronixos` |
 | `POSTGRES_PASSWORD` | yes | URL-safe random: `openssl rand -hex 24` (it goes into `DATABASE_URL`) |
 | `AUTH_SECRET` | yes | `openssl rand -base64 32`; also encrypts saved mailbox passwords, so don't rotate it casually |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | yes | first admin, only used while the users table is empty; change the password after the first login |
 | `COOKIE_SECURE` | no | defaults to `true` in production (HTTPS through Caddy) |
 | `MAIL_*` | no | Hostinger defaults |
 | `DB_POOL_MAX` | no | default 10 |
@@ -100,8 +99,8 @@ docker compose -f docker-compose.prod.yml exec zeronix-postgres sh -c 'psql -U "
 - Create in development: change `src/db/schema.ts`, then `npm run db:generate` (writes `src/db/migrations/NNNN_*.sql`),
   then `npm run db:migrate` locally. Commit the SQL and `meta/` files.
 - Production: `production/deploy.sh` backs up the database first, then runs `node scripts/migrate.js` (enables
-  `pg_trgm`, applies pending migrations) and `node scripts/seed.js` (first admin only) in a one-off container from the
-  **new** image, before the new app starts. The app container does not migrate on start (`MIGRATE_ON_START=false`).
+  `pg_trgm`, applies pending migrations) in a one-off container from the **new** image, before the new app starts. No
+  admin is seeded: on an empty database the portal sends the first visitor to `/setup` to create the administrator. The app container does not migrate on start (`MIGRATE_ON_START=false`).
 - Migrations only go forward. Write them so the previous app version still works where possible (add columns before
   dropping old ones), which keeps an image rollback safe.
 

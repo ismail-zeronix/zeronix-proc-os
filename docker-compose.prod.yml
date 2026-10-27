@@ -35,9 +35,6 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       # served over HTTPS by Caddy, so the session cookie is Secure
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      # first admin only (used when the users table is empty)
-      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
       MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
       MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.hostinger.com}

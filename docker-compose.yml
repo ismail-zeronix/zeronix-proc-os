@@ -31,8 +31,6 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-zeronix}:${POSTGRES_PASSWORD:-zeronix}@db:5432/${POSTGRES_DB:-procurement}
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@zeronix.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
       # host.docker.internal = Ollama on the host machine; use http://ollama:11434 with the "ollama" profile
       OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}

@@ -13,8 +13,9 @@ ENV NEXT_TELEMETRY_DISABLED=1 NEXT_OUTPUT=standalone
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
-# Migrations and the first-admin seed run outside Next.js; bundle them to plain JS so the final image needs no tsx
-RUN node_modules/.bin/esbuild scripts/migrate.ts scripts/seed.ts --bundle --platform=node --target=node22 \
+# Migrations run outside Next.js; bundle them to plain JS so the final image needs no tsx.
+# No admin is seeded: the first administrator is created in the /setup wizard.
+RUN node_modules/.bin/esbuild scripts/migrate.ts --bundle --platform=node --target=node22 \
       --format=cjs --external:pg-native --outdir=dist-scripts
 
 FROM node:22-alpine AS run

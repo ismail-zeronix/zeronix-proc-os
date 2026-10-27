@@ -1,20 +1,25 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/token";
 
-/** Optimistic auth gate: unauthenticated visitors go to /login. Pages still check the session. */
+/** Public access is limited to health, login, and one-time first-run setup. */
 export async function proxy(req: NextRequest) {
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const isLogin = req.nextUrl.pathname === "/login";
-  if (req.nextUrl.pathname === "/api/health" || req.nextUrl.pathname === "/api/health/db") return NextResponse.next();
-  if (!user && !isLogin) {
-    if (req.nextUrl.pathname.startsWith("/api/")) {
+  const pathname = req.nextUrl.pathname;
+  const isLogin = pathname === "/login";
+  const isSetup = pathname === "/setup";
+
+  if (pathname === "/api/health" || pathname === "/api/health/db") return NextResponse.next();
+
+  if (!user && !isLogin && !isSetup) {
+    if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const url = new URL("/login", req.url);
-    if (req.nextUrl.pathname !== "/") url.searchParams.set("next", req.nextUrl.pathname);
+    if (pathname !== "/") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
-  if (user && isLogin) return NextResponse.redirect(new URL("/", req.url));
+
+  if (user && (isLogin || isSetup)) return NextResponse.redirect(new URL("/", req.url));
   return NextResponse.next();
 }
 

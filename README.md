@@ -116,8 +116,7 @@ ollama pull qwen3.5:4b
 docker compose up -d db         # Postgres on localhost:5433
 npm install
 npm run db:migrate
-npm run db:seed                 # creates ADMIN_EMAIL / ADMIN_PASSWORD from .env
-npm run dev                     # http://localhost:3100
+npm run dev                     # http://localhost:3100, first visit opens /setup to create the admin
 ```
 
 The background schedulers (AI queue and live feeds) run inside the Next.js server (`RUN_WORKER=true`). The local model only runs after an admin presses **Start** on the Admin page (or "Read waiting lists now"); until then pasted WhatsApp lists wait in the queue and the model stays unloaded. To run it as its own process, set `RUN_WORKER=false` and start `npm run worker`.
@@ -125,7 +124,7 @@ The background schedulers (AI queue and live feeds) run inside the Next.js serve
 ## Run with Docker
 
 ```bash
-cp .env.example .env            # set AUTH_SECRET, ADMIN_PASSWORD
+cp .env.example .env            # set AUTH_SECRET
 docker compose up -d --build    # db + web on http://localhost:3100, uses Ollama on the host
 ```
 
