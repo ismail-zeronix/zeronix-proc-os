@@ -22,7 +22,8 @@ export function PasswordForm() {
         if (!valid) return;
         start(async () => {
           try {
-            await changeMyPassword({ current: f.current, next: f.next });
+            const res = await changeMyPassword({ current: f.current, next: f.next });
+            if (res.error) return void toast.error(res.error);
             setF(blank);
             toast.success("Password changed. Use the new one next time you sign in.");
           } catch (err) {

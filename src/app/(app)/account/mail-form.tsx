@@ -15,10 +15,11 @@ export function MailForm({ connected, imapUser, defaultEmail }: { connected: boo
   const [password, setPassword] = useState("");
   const [editing, setEditing] = useState(!connected);
 
-  const run = (fn: () => Promise<unknown>, ok: string, after?: () => void) =>
+  const run = (fn: () => Promise<{ error?: string } | void>, ok: string, after?: () => void) =>
     start(async () => {
       try {
-        await fn();
+        const res = await fn();
+        if (res?.error) return void toast.error(res.error);
         toast.success(ok);
         after?.();
       } catch (e) {
