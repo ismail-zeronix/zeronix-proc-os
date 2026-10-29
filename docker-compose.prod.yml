@@ -35,6 +35,8 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       # served over HTTPS by Caddy, so the session cookie is Secure
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # websites allowed to use the website chat widget (widget/README.md)
+      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae}
       MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
       MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.hostinger.com}

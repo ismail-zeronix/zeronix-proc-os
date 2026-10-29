@@ -1155,6 +1155,63 @@ export const chatPrefs = pgTable("chat_prefs", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });
 
+// ---------- Website chat ----------
+
+/**
+ * One visitor's chat from the website widget (www.zeronix.ae). It starts `waiting` as soon as the visitor lands (the
+ * sales team's portals ring), becomes `active` when an agent accepts it, and `closed` when either side ends it. The
+ * visitor is known only by `token`, a random secret kept in their browser.
+ */
+export const webChats = pgTable(
+  "web_chats",
+  {
+    id: serial("id").primaryKey(),
+    token: text("token").notNull().unique(),
+    status: text("status", { enum: ["waiting", "active", "closed"] }).notNull().default("waiting"),
+    /** The lead form, filled in before the visitor can write. */
+    name: text("name").notNull().default(""),
+    email: text("email").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    company: text("company").notNull().default(""),
+    leadAt: timestamp("lead_at", { withTimezone: true }),
+    /** Where they are on the site right now, and where they came from. */
+    pageUrl: text("page_url").notNull().default(""),
+    pageTitle: text("page_title").notNull().default(""),
+    referrer: text("referrer").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    /** Who accepted it. */
+    agentId: integer("agent_id").references(() => users.id, { onDelete: "set null" }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    /** visitor, agent or idle (the visitor left without a lead). */
+    closedBy: text("closed_by"),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    /** Bumped while the visitor's page is open; online = seen in the last minute. */
+    visitorSeenAt: timestamp("visitor_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /** How far the agent has read (visitor messages after it are unread). */
+    agentLastReadId: integer("agent_last_read_id").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId)],
+);
+
+/** A line in a website chat: from the visitor, from the agent, or written by the portal ("Ismail joined"). */
+export const webChatMessages = pgTable(
+  "web_chat_messages",
+  {
+    id: serial("id").primaryKey(),
+    chatId: integer("chat_id")
+      .notNull()
+      .references(() => webChats.id, { onDelete: "cascade" }),
+    sender: text("sender", { enum: ["visitor", "agent", "system"] }).notNull(),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("web_chat_messages_chat_idx").on(t.chatId, t.id)],
+);
+
 
 /**
  * Server errors (Admin › Errors), written by instrumentation.ts onRequestError: which page or action failed, for whom and

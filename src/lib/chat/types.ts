@@ -1,5 +1,7 @@
 /** Shapes shared by the chat server code and the widget (no server imports here). */
 
+import type { WebMessage } from "@/lib/webchat/types";
+
 export type ChannelKind = "dm" | "group" | "record" | "system";
 export type MessageKind = "text" | "card" | "system";
 
@@ -120,7 +122,11 @@ export type ChatEvent =
   | { t: "channel.update"; channelId: number }
   | { t: "presence"; userId: number; status: PresenceStatus }
   /** A record changed (e.g. from a card button): cards showing it re-read it. */
-  | { t: "card.refresh"; ref: string };
+  | { t: "card.refresh"; ref: string }
+  /** Website chat: a visitor arrived, left, sent the lead form, or a chat was accepted or closed. Re-read the list. */
+  | { t: "web.update"; chatId: number }
+  | { t: "web.message"; message: WebMessage }
+  | { t: "web.typing"; chatId: number };
 
 /** online = the portal is open; away = its tab has been in the background a while; dnd = do not disturb. */
 export type PresenceStatus = "online" | "away" | "dnd" | "offline";

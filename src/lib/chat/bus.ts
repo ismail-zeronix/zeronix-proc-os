@@ -1,6 +1,7 @@
 import "server-only";
 import { Client } from "pg";
 import { pool } from "@/db";
+import type { VisitorEvent } from "@/lib/webchat/types";
 import type { ChatEvent, PresenceStatus } from "./types";
 
 /**
@@ -9,7 +10,7 @@ import type { ChatEvent, PresenceStatus } from "./types";
  * keeps one LISTEN connection (outside the pool) and hands events to the browsers it has open streams for.
  *
  * Events are addressed to user ids. A message that is too big for a NOTIFY payload (8 KB) is sent as its id and
- * read back from the database on arrival.
+ * read back from the database on arrival. Website visitors (lib/webchat) are addressed by their chat id instead.
  */
 
 const CHANNEL = "chat";
@@ -21,12 +22,18 @@ interface Envelope {
   to: number[] | "all";
   evt?: ChatEvent;
   messageId?: number;
+  /** For a website visitor's widget: their chat id and the event. */
+  visitor?: number;
+  vevt?: VisitorEvent;
 }
 
 type Listener = (evt: ChatEvent | { t: "resync" }) => void;
+type VisitorListener = (evt: VisitorEvent) => void;
 
 interface Bus {
   listeners: Map<number, Set<Listener>>;
+  /** Website chat id → the visitor's open widget streams. */
+  visitors: Map<number, Set<VisitorListener>>;
   /** People whose portal tab has been in the background for a while. */
   away: Set<number>;
   client: Client | null;
@@ -35,8 +42,9 @@ interface Bus {
 
 // one per process, also across dev hot reloads
 const g = globalThis as unknown as { chatBus?: Bus };
-const bus: Bus = (g.chatBus ??= { listeners: new Map(), away: new Set(), client: null, connecting: null });
-bus.away ??= new Set(); // a bus made before this field existed (dev hot reload)
+const bus: Bus = (g.chatBus ??= { listeners: new Map(), visitors: new Map(), away: new Set(), client: null, connecting: null });
+bus.away ??= new Set(); // a bus made before these fields existed (dev hot reload)
+bus.visitors ??= new Map();
 
 /** Someone's status as others should see it while connected (set by presence.ts: do not disturb, away, online). */
 let statusOf: (userId: number) => Promise<PresenceStatus> = async () => "online";
@@ -69,6 +77,16 @@ async function onNotify(payload: string | undefined) {
   try {
     env = JSON.parse(payload);
   } catch {
+    return;
+  }
+  if (env.visitor && env.vevt) {
+    for (const fn of bus.visitors.get(env.visitor) ?? []) {
+      try {
+        fn(env.vevt);
+      } catch {
+        // a closed stream
+      }
+    }
     return;
   }
   if (env.evt) return deliver(env.to, env.evt);
@@ -117,6 +135,33 @@ export async function publish(to: number[] | "all", evt: ChatEvent): Promise<voi
     console.error("[chat] publish failed", e);
   }
 }
+
+/** Sends an event to a website visitor's open widget (in every process). */
+export async function publishToVisitor(chatId: number, evt: VisitorEvent): Promise<void> {
+  const payload = JSON.stringify({ to: [], visitor: chatId, vevt: evt } satisfies Envelope);
+  if (Buffer.byteLength(payload) > MAX_PAYLOAD) return; // lines are capped well below this; the widget re-reads on reconnect
+  try {
+    await pool.query("SELECT pg_notify($1, $2)", [CHANNEL, payload]);
+  } catch (e) {
+    console.error("[chat] publish to visitor failed", e);
+  }
+}
+
+/** Starts listening for a website visitor's events (one call per open widget). Returns the function that stops it. */
+export function subscribeVisitor(chatId: number, fn: VisitorListener): () => void {
+  void connect().catch((e) => console.error("[chat] listen failed", e));
+  let set = bus.visitors.get(chatId);
+  if (!set) bus.visitors.set(chatId, (set = new Set()));
+  set.add(fn);
+  return () => {
+    const s = bus.visitors.get(chatId);
+    s?.delete(fn);
+    if (s && !s.size) bus.visitors.delete(chatId);
+  };
+}
+
+/** True while the visitor has the widget open in this process. */
+export const visitorConnected = (chatId: number) => !!bus.visitors.get(chatId)?.size;
 
 /** Starts listening for a user's events (one call per open browser tab). Returns the function that stops it. */
 export function subscribe(userId: number, fn: Listener): () => void {
