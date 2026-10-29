@@ -1191,6 +1191,16 @@ export const webChats = pgTable(
     visitorSeenAt: timestamp("visitor_seen_at", { withTimezone: true }).notNull().defaultNow(),
     /** How far the agent has read (visitor messages after it are unread). */
     agentLastReadId: integer("agent_last_read_id").notNull().default(0),
+    /** Pages of the site the visitor opened during this chat, oldest first (at most 30). */
+    pages: jsonb("pages").$type<{ url: string; title: string; at: string }[]>().notNull().default([]),
+    /** The visitor's rating after the chat (1-5 stars), the feedback chips they picked and their own words. */
+    rating: integer("rating"),
+    feedbackTags: text("feedback_tags").array().notNull().default(sql`'{}'::text[]`),
+    feedback: text("feedback").notNull().default(""),
+    /** The whole chat and the visitor's details as JSON, written when it ends (and again with the rating). */
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>(),
+    /** The CRM lead made from this chat ("Save to leads"). */
+    dealId: integer("deal_id").references(() => deals.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId)],

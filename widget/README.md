@@ -19,15 +19,18 @@ Paste one line into the `<head>` of every page (in WordPress: a header/footer sc
 
 Replace `PORTAL-DOMAIN` with the portal's public address. The widget works out the portal address from this `src`.
 
-Optional settings on the same tag:
+It uses the zeronix.ae theme (teal `#019297`, dark `#042A2D`, green `#4CAF50`, cream `#F2F1ED`, Raleway). Optional settings on the same tag:
 
 ```html
 <script
   src="https://PORTAL-DOMAIN/widget/zeronix-chat.js"
-  data-color="#1f5fbf"
+  data-color="#019297"
+  data-dark="#042A2D"
   data-title="Zeronix Sales"
-  data-greeting="Hi there 👋 Looking for laptops, servers or IT solutions? Chat with our sales team."
-  data-teaser-delay="6"
+  data-greeting="Hi there 👋 Welcome to Zeronix. Ask us anything."
+  data-quick="I need a quote|Is this in stock?|Talk to a sales person"
+  data-popup-delay="20"
+  data-popup-scroll="60"
   data-position="right"
   defer
 ></script>
@@ -35,11 +38,16 @@ Optional settings on the same tag:
 
 | Attribute | Default | Meaning |
 | --- | --- | --- |
-| `data-color` | `#1f5fbf` | Button and header colour |
+| `data-color` | `#019297` | Buttons and the visitor's bubbles |
+| `data-dark` | `#042A2D` | Header |
 | `data-title` | `Zeronix Sales` | Header title |
-| `data-greeting` | (above) | The small invitation that pops up next to the button |
-| `data-teaser-delay` | `6` | Seconds before the invitation shows; `0` turns it off |
+| `data-greeting` | (a welcome line) | The first message the visitor sees |
+| `data-quick` | three quick replies | Buttons under the greeting, separated by `|` |
+| `data-popup-delay` | `20` | Seconds on the site before the chat pops up; `0` = never |
+| `data-popup-scroll` | `60` | Or when they have scrolled this far down a page (%); `0` = never |
 | `data-position` | `right` | `right` or `left` |
+
+The chat pops up once per visit (browser tab session). On a computer it opens; on a phone it shows a small invitation next to the button instead, so the page is not covered.
 
 ## Portal settings
 
@@ -51,8 +59,9 @@ Optional settings on the same tag:
 
 1. The page loads → `POST /api/widget/session` starts (or resumes) the visitor's chat. The token is kept in the visitor's `localStorage`, so moving between pages keeps the same chat. Every agent's portal rings.
 2. `GET /api/widget/stream?token=…` (Server-Sent Events) carries agent replies, "typing", accepted/ended and who is online. While it is open the visitor counts as on the site; about 15 s after it closes for good, the ringing stops.
-3. The visitor sends the lead form (`/api/widget/lead`), then chats (`/api/widget/send`). They can end it (`/api/widget/close`).
+3. The visitor sees the greeting first. As soon as they start typing (or tap a quick reply), a short form appears in the chat (name, email, phone, company); their question is sent with it (`/api/widget/lead`). Then they chat (`/api/widget/send`).
 4. An agent presses **Accept**. The ringing stops everywhere, and the chat opens on the visitor's screen with the agent's first name and job title.
+5. "End" asks inside the chat (no browser pop-up) and offers a call back instead. After the chat ends (either side), the visitor can rate it: 1-5 stars, ready-made feedback chips and a comment (`/api/widget/feedback`). The whole chat, the visitor's details, the pages they visited and the rating are kept as JSON on the chat (`web_chats.snapshot`).
 
 Requests are sent as `text/plain` JSON, so browsers send no CORS preflight. Limits per IP: 20 new chats an hour, 10 lead forms an hour, 30 messages a minute. A hidden honeypot field drops bot form fills. Visitors who left without sending the form are deleted after 7 days.
 

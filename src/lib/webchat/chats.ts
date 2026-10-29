@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
 import { publish, publishToVisitor } from "@/lib/chat/bus";
 import { presenceMap } from "@/lib/chat/presence";
-import { webPreview, type VisitorState, type WebChatSummary, type WebMessage } from "./types";
+import { FEEDBACK_TAGS, webPreview, type VisitorState, type WebChatSummary, type WebMessage, type WebVisitorInfo } from "./types";
 
 /**
  * The website chat (the widget on www.zeronix.ae). A visitor's chat is created the moment they land, so the sales team
@@ -30,7 +30,7 @@ export async function agentIds(): Promise<number[]> {
 }
 
 /** Tells every agent's portal to re-read the Website list. */
-async function notifyAgents(chatId: number) {
+export async function notifyAgents(chatId: number) {
   await publish(await agentIds(), { t: "web.update", chatId });
 }
 
@@ -96,7 +96,32 @@ export async function visitorState(c: Chat): Promise<VisitorState> {
     agent: agent && { name: firstName(agent.name), title: agent.title || "Sales" },
     messages: await messagesOf(c.id),
     team: await onlineTeam(),
+    rated: c.rating != null,
   };
+}
+
+/** The visitor panel beside a chat in the portal. */
+export function visitorInfo(c: Chat): WebVisitorInfo {
+  return {
+    userAgent: c.userAgent,
+    ip: c.ip,
+    referrer: c.referrer,
+    pages: c.pages,
+    createdAt: c.createdAt.toISOString(),
+    acceptedAt: c.acceptedAt?.toISOString() ?? null,
+    closedAt: c.closedAt?.toISOString() ?? null,
+    closedBy: c.closedBy,
+    rating: c.rating,
+    feedbackTags: c.feedbackTags,
+    feedback: c.feedback,
+    dealId: c.dealId,
+  };
+}
+
+/** Adds a page to the visitor's trail (the same page twice in a row counts once). */
+function withPage(pages: Chat["pages"], url: string, title: string): Chat["pages"] {
+  if (!url || pages.at(-1)?.url === url) return pages;
+  return [...pages, { url, title, at: new Date().toISOString() }].slice(-30);
 }
 
 interface Arrival {
@@ -119,7 +144,7 @@ export async function arrive(a: Arrival): Promise<Chat> {
     const wasOnline = isOnline(known);
     const [row] = await db
       .update(schema.webChats)
-      .set({ ...page, visitorSeenAt: new Date(), ip: a.ip || known.ip })
+      .set({ ...page, pages: withPage(known.pages, page.pageUrl, page.pageTitle), visitorSeenAt: new Date(), ip: a.ip || known.ip })
       .where(eq(schema.webChats.id, known.id))
       .returning();
     // the list shows the page they are on; a visitor coming back makes the portals ring again
@@ -136,6 +161,7 @@ export async function arrive(a: Arrival): Promise<Chat> {
     .values({
       token: randomBytes(24).toString("base64url"),
       ...page,
+      pages: withPage([], page.pageUrl, page.pageTitle),
       ...lead,
       referrer: a.referrer.slice(0, 1000),
       userAgent: a.userAgent.slice(0, 400),
@@ -241,8 +267,43 @@ export async function closeChat(chatId: number, by: "visitor" | "agent", agentNa
     .returning();
   if (!row) return;
   await addLine(chatId, "system", by === "visitor" ? "The visitor ended the chat" : `${agentName ? firstName(agentName) : "Sales"} ended the chat`);
+  await saveSnapshot(chatId);
   await publishToVisitor(chatId, { t: "state", status: "closed", agent: null });
   await notifyAgents(chatId);
+}
+
+/**
+ * Keeps the whole chat with the visitor's details, pages and rating as one JSON document on the row, so it stays
+ * readable as it was even if users or settings change later.
+ */
+export async function saveSnapshot(chatId: number): Promise<void> {
+  const c = await chatById(chatId);
+  if (!c) return;
+  const agent = await agentOf(c);
+  const snapshot = {
+    chatId: c.id,
+    visitor: { name: c.name, email: c.email, phone: c.phone, company: c.company, leadAt: c.leadAt?.toISOString() ?? null },
+    site: { landing: c.pages[0]?.url ?? c.pageUrl, lastPage: c.pageUrl, referrer: c.referrer, pages: c.pages },
+    device: { userAgent: c.userAgent, ip: c.ip },
+    agent: agent && { id: agent.id, name: agent.name },
+    startedAt: c.createdAt.toISOString(),
+    acceptedAt: c.acceptedAt?.toISOString() ?? null,
+    closedAt: c.closedAt?.toISOString() ?? null,
+    closedBy: c.closedBy,
+    feedback: { rating: c.rating, tags: c.feedbackTags, comment: c.feedback },
+    messages: (await messagesOf(c.id, true)).map((m) => ({ at: m.createdAt, from: m.sender, name: m.name, text: m.body })),
+  };
+  await db.update(schema.webChats).set({ snapshot }).where(eq(schema.webChats.id, chatId));
+}
+
+/** The visitor's stars and feedback after the chat has ended. */
+export async function saveFeedback(c: Chat, rating: number, tags: string[], comment: string): Promise<void> {
+  if (c.status !== "closed") throw new Error("Please end the chat first.");
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error("Pick from 1 to 5 stars.");
+  const feedbackTags = [...new Set(tags.filter((t) => FEEDBACK_TAGS.includes(t)))];
+  await db.update(schema.webChats).set({ rating, feedbackTags, feedback: comment.slice(0, 1000) }).where(eq(schema.webChats.id, c.id));
+  await saveSnapshot(c.id);
+  await notifyAgents(c.id);
 }
 
 export async function markWebRead(chatId: number, userId: number, upTo: number): Promise<void> {
@@ -304,6 +365,8 @@ export async function listChats(userId: number): Promise<WebChatSummary[]> {
       unread: unreadOf.get(row.id) ?? 0,
       createdAt: row.createdAt.toISOString(),
       closedAt: row.closedAt?.toISOString() ?? null,
+      rating: row.rating,
+      dealId: row.dealId,
     };
   });
 }

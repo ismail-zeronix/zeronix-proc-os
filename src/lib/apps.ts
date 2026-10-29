@@ -5,6 +5,7 @@ import {
   Handshake,
   ListChecks,
   Mail,
+  MessageCircle,
   PackageSearch,
   Radar,
   Receipt,
@@ -28,6 +29,8 @@ export interface AppDef {
   status: "live" | "soon";
   /** CSS variable (see globals.css) used to colour the tile icon. */
   color: string;
+  /** Every active user has it; not one of the apps an admin switches per user. */
+  always?: boolean;
 }
 
 /** Single source of truth for the portal's apps. Add an app = add a row here + a folder under src/app/(app)/. */
@@ -82,6 +85,18 @@ export const APPS = [
     defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-4)",
+  },
+  {
+    // team chat and website visitors; for everyone (the chat button is on every page too)
+    key: "chat",
+    label: "Chat",
+    href: "/chat",
+    icon: MessageCircle,
+    blurb: "Team and website chats",
+    defaultFor: ["admin", "sales"],
+    status: "live",
+    color: "var(--app-chat)",
+    always: true,
   },
   {
     key: "mail",
@@ -149,7 +164,7 @@ export const APPS = [
 export type AppKey = (typeof APPS)[number]["key"];
 
 /** Apps whose access an admin can switch per user (admin-only apps are not offered to sales users). */
-export const GRANTABLE_APPS = APPS.filter((a) => a.key !== "admin");
+export const GRANTABLE_APPS = APPS.filter((a) => a.key !== "admin" && !("always" in a));
 
 const KEYS = new Set<string>(APPS.map((a) => a.key));
 export const isAppKey = (k: string): k is AppKey => KEYS.has(k);
@@ -163,7 +178,7 @@ export interface AccessUser {
 /** Which apps the user may open. Admins always get everything. */
 export function allowedApps(user: AccessUser): AppKey[] {
   if (user.role === "admin") return APPS.map((a) => a.key);
-  if (user.apps) return APPS.filter((a) => a.key !== "admin" && user.apps!.includes(a.key)).map((a) => a.key);
+  if (user.apps) return APPS.filter((a) => a.key !== "admin" && ("always" in a || user.apps!.includes(a.key))).map((a) => a.key);
   return APPS.filter((a) => (a.defaultFor as readonly Role[]).includes(user.role)).map((a) => a.key);
 }
 

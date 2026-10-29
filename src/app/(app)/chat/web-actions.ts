@@ -1,9 +1,12 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { createDeal } from "@/app/(app)/crm/actions";
+import { db, schema } from "@/db";
 import { assertChat } from "@/lib/chat/access";
 import { setSetting } from "@/lib/settings";
-import { accept, agentSays, closeChat, markWebRead } from "@/lib/webchat/chats";
+import { accept, agentSays, chatById, closeChat, markWebRead, messagesOf, notifyAgents } from "@/lib/webchat/chats";
 import { MAX_WEB_BODY, type WebMessage } from "@/lib/webchat/types";
 
 /** Website chats are answered by people with the CRM app (the sales team). */
@@ -35,6 +38,43 @@ export async function closeWebChat(chatId: number): Promise<void> {
 export async function markWebChatRead(chatId: number, upTo: number): Promise<void> {
   const { user } = await assertAgent();
   await markWebRead(id.parse(chatId), user.id, id.parse(upTo));
+}
+
+/**
+ * "Save to leads": a CRM lead (deal at New, source Website) from the visitor's form, with the chat on its timeline and
+ * a follow-up task for today. Saving twice opens the same lead.
+ */
+export async function saveWebLead(chatId: number): Promise<{ dealId: number; reusedCompany: string | null }> {
+  const { user } = await assertAgent();
+  const c = await chatById(id.parse(chatId));
+  if (!c) throw new Error("That chat is gone.");
+  if (c.dealId) return { dealId: c.dealId, reusedCompany: null };
+  if (!c.leadAt) throw new Error("The visitor has not sent their details yet.");
+  const lines = await messagesOf(c.id, true);
+  const question = lines.find((m) => m.sender === "visitor")?.body ?? "";
+  const { id: dealId, reusedCompany } = await createDeal({
+    companyName: c.company || c.name,
+    contactName: c.name,
+    contactEmail: c.email,
+    contactPhone: c.phone,
+    source: "Website",
+    requirement: question,
+  });
+  const transcript = lines
+    .filter((m) => m.sender !== "system")
+    .map((m) => `${m.sender === "visitor" ? c.name || "Visitor" : (m.name ?? "Sales")}: ${m.body}`)
+    .join("\n");
+  const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
+  await db.insert(schema.activities).values({
+    type: "note",
+    body: `Website chat #${c.id}${c.pageUrl ? ` (from ${c.pageUrl})` : ""}\n\n${transcript}`.slice(0, 8000),
+    dealId,
+    companyId: deal?.companyId,
+    userId: user.id,
+  });
+  await db.update(schema.webChats).set({ dealId }).where(eq(schema.webChats.id, c.id));
+  await notifyAgents(c.id);
+  return { dealId, reusedCompany };
 }
 
 /** Admin: ring for every visitor, or only once they send the lead form. */
