@@ -117,7 +117,7 @@ async function render(path: string, session: string, opts: { footer?: string; co
         ? {
             displayHeaderFooter: true,
             headerTemplate: "<span></span>",
-            footerTemplate: `<div style="width:100%;font-size:8px;color:#777;padding:0 14mm;display:flex;justify-content:space-between;font-family:Arial,sans-serif"><span>${escapeHtml(footer)}</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
+            footerTemplate: `<div style="width:100%;font-size:8px;color:#777;padding:0 12mm;display:flex;justify-content:space-between;font-family:Arial,sans-serif"><span>${escapeHtml(footer)}</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`,
           }
         : {}),
     });

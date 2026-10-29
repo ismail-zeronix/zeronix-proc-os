@@ -54,7 +54,7 @@ export interface ReceiptData {
 /** Receipt voucher for money received. */
 export function ReceiptDocument({ r, brand }: { r: ReceiptData; brand: QuoteBrand }) {
   return (
-    <article className="relative bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10" aria-label={`Receipt ${r.number}`}>
+    <article className="relative bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10 print:p-0" aria-label={`Receipt ${r.number}`}>
       {r.voided && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
           <span className="-rotate-30 rounded-xl border-8 border-red-600/30 px-8 py-2 text-7xl font-black tracking-widest text-red-600/25">VOID</span>
@@ -129,7 +129,7 @@ export interface VoucherData {
 /** Payment voucher for money paid out (a supplier bill or an expense), signed by whoever received it. */
 export function VoucherDocument({ v, brand }: { v: VoucherData; brand: QuoteBrand }) {
   return (
-    <article className="relative bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10" aria-label={`Payment voucher ${v.number}`}>
+    <article className="relative bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10 print:p-0" aria-label={`Payment voucher ${v.number}`}>
       {v.voided && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
           <span className="-rotate-30 rounded-xl border-8 border-red-600/30 px-8 py-2 text-7xl font-black tracking-widest text-red-600/25">VOID</span>
@@ -203,7 +203,7 @@ export interface StatementData {
 export function StatementDocument({ s, brand }: { s: StatementData; brand: QuoteBrand }) {
   const accent = safeColor(brand.color);
   return (
-    <article className="bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10" aria-label={`Statement for ${s.customer.name}`}>
+    <article className="bg-white p-6 text-[13px] leading-relaxed text-neutral-800 sm:p-10 print:p-0" aria-label={`Statement for ${s.customer.name}`}>
       <Head
         brand={brand}
         title="STATEMENT OF ACCOUNT"

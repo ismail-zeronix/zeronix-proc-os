@@ -22,7 +22,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/quotes/[id]/pdf
   const snap = await snapshotOfQuote(q.id);
   let pdf: Buffer;
   try {
-    pdf = snap ? await proposalPdf(`/print/quote/${q.id}`, session, `Quotation No. ${q.number}`) : await printPageToPdf(`/print/quote/${q.id}`, session);
+    pdf = snap ? await proposalPdf(`/print/quote/${q.id}`, session, `Quotation No. ${q.number}`) : await printPageToPdf(`/print/quote/${q.id}`, session, { footer: `Quotation ${q.number}` });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

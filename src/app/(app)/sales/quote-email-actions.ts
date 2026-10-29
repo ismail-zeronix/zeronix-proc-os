@@ -61,7 +61,7 @@ export async function emailQuote(quoteId: number, raw: z.input<typeof input>): P
       const snap = await snapshotOfQuote(q.id);
       files.push({
         filename: quotePdfName(q.number, q.company.name, snap ? "Proposal" : "Quotation"),
-        content: snap ? await proposalPdf(`/print/quote/${q.id}`, session, `Quotation No. ${q.number}`) : await printPageToPdf(`/print/quote/${q.id}`, session),
+        content: snap ? await proposalPdf(`/print/quote/${q.id}`, session, `Quotation No. ${q.number}`) : await printPageToPdf(`/print/quote/${q.id}`, session, { footer: `Quotation ${q.number}` }),
         contentType: "application/pdf",
       });
     }
