@@ -44,6 +44,8 @@ export const SETTING_DEFAULTS = {
   bank_account_number: "",
   bank_iban: "",
   bank_swift: "",
+  /** Website chat: ring the sales team for every visitor who lands on the site ("visitors"), or only once they send the lead form ("leads"). */
+  webchat_ring: "visitors",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

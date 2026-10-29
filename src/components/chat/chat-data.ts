@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { previewOf } from "@/lib/chat/text";
 import { alertFor } from "./alerts";
+import { handleWebEvent } from "./web-data";
 import type { ChannelSummary, ChatEvent, ChatMessage, ChatUser, OpenGroup, PresenceStatus, Reaction } from "@/lib/chat/types";
 
 export type Member = ChatUser & { lastReadId: number; role: "owner" | "member" };
@@ -225,6 +226,11 @@ export function useChatStream(me: number) {
           break;
         case "presence":
           qc.setQueryData<{ users: Teammate[]; presence: Presence }>(chatKeys.users, (d) => d && { ...d, presence: { ...d.presence, [evt.userId]: evt.status } });
+          break;
+        case "web.update":
+        case "web.message":
+        case "web.typing":
+          handleWebEvent(qc, evt, me);
           break;
         case "resync":
           void qc.invalidateQueries({ queryKey: chatKeys.all });

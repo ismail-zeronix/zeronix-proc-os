@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Handshake, Info, Maximize2, MessageCircle, SquareArrowOutUpRight, SquarePen, X } from "lucide-react";
+import { AtSign, Globe, Handshake, Info, Maximize2, MessageCircle, SquareArrowOutUpRight, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useContext, useEffect, useSyncExternalStore } from "react";
@@ -16,6 +16,9 @@ import { NewChat } from "./new-chat";
 import { ChannelAvatar, ChatSurface, PanelHeader, STATUS_LABEL } from "./panel-bits";
 import { useAwayReporter, useMyPrefs } from "./alerts";
 import { MuteMenu, StatusMenu } from "./chat-menus";
+import { WebChatList, WebConversation, webBadge } from "./web-chat";
+import { useWebChats } from "./web-data";
+import { WebRinger } from "./web-ringer";
 
 const noop = () => () => {};
 
@@ -29,6 +32,7 @@ export function ChatWidget({ me }: { me: Me }) {
   const toggle = useChatStore((s) => s.toggle);
   const setOpen = useChatStore((s) => s.setOpen);
   const channels = useChannels();
+  const web = useWebChats();
   // persisted state is read from localStorage after the first render; wait so server and browser agree
   const ready = useSyncExternalStore(noop, () => true, () => false);
   useChatStream(me.id);
@@ -46,13 +50,16 @@ export function ChatWidget({ me }: { me: Me }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const unread = (channels.data ?? []).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0);
+  const unread = (channels.data ?? []).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0) + webBadge(web.data?.chats ?? []);
 
+  // website visitors ring on every page, the full chat page included
+  const ringer = web.data?.agent ? <WebRinger me={me.id} /> : null;
   // the full chat page shows the same conversations
-  if (!ready || pathname.startsWith("/chat")) return null;
+  if (!ready || pathname.startsWith("/chat")) return ringer;
 
   return (
     <>
+      {ringer}
       {open && (
         <div
           role="dialog"
@@ -99,6 +106,8 @@ export function ChatDetail({ me, channels, loading, fetching }: { me: Me; channe
   const id = view.kind === "channel" || view.kind === "info" ? view.id : null;
   const channel = id != null ? channels.find((c) => c.id === id) : undefined;
   const back = () => show({ kind: "list" });
+
+  if (view.kind === "web") return <WebConversation key={view.id} id={view.id} me={me} />;
 
   if (view.kind === "new") return <NewChat presence={presence} teammates={teammates.data?.users ?? []} loadingPeople={teammates.isPending} />;
 
@@ -177,8 +186,10 @@ export function ChannelList({
   const setOpen = useChatStore((s) => s.setOpen);
   const tab = useChatStore((s) => s.tab);
   const setTab = useChatStore((s) => s.setTab);
+  const web = useWebChats();
+  const isAgent = !!web.data?.agent;
   const inTab = (t: ChatTab) => channels.filter((c) => (t === "activity" ? c.kind === "system" : t === "threads" ? c.kind === "record" : c.kind === "dm" || c.kind === "group"));
-  const unreadIn = (t: ChatTab) => inTab(t).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0);
+  const unreadIn = (t: ChatTab) => (t === "website" ? webBadge(web.data?.chats ?? []) : inTab(t).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0));
   const shown = inTab(tab);
 
   return (
@@ -190,8 +201,11 @@ export function ChannelList({
               { key: "chats", label: "Chats", icon: MessageCircle },
               { key: "threads", label: "Deals", icon: Handshake },
               { key: "activity", label: "Activity", icon: AtSign },
+              { key: "website", label: "Website", icon: Globe },
             ] as const
-          ).map((t) => {
+          )
+            .filter((t) => t.key !== "website" || isAgent)
+            .map((t) => {
             const n = unreadIn(t.key);
             return (
               <button
@@ -229,6 +243,8 @@ export function ChannelList({
       {belowHeader}
       {body ? (
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+      ) : tab === "website" && isAgent ? (
+        <WebChatList me={me} />
       ) : tab === "activity" && inlineActivity ? (
         shown[0] ? (
           <Conversation key={shown[0].id} channel={shown[0]} me={me} />

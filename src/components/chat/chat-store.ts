@@ -3,8 +3,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export type ChatView = { kind: "list" } | { kind: "new" } | { kind: "channel"; id: number } | { kind: "info"; id: number };
-export type ChatTab = "chats" | "threads" | "activity";
+export type ChatView = { kind: "list" } | { kind: "new" } | { kind: "channel"; id: number } | { kind: "info"; id: number } | { kind: "web"; id: number };
+/** website = chats from visitors on www.zeronix.ae (sales team only). */
+export type ChatTab = "chats" | "threads" | "activity" | "website";
 
 interface ChatState {
   open: boolean;

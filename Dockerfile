@@ -28,6 +28,8 @@ ENV CHROMIUM_PATH=/usr/bin/chromium-browser
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+# the website chat widget (served at /widget/zeronix-chat.js)
+COPY --from=build /app/widget ./widget
 COPY --from=build /app/src/db/migrations ./src/db/migrations
 COPY --from=build /app/dist-scripts ./scripts
 COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh

@@ -253,6 +253,13 @@
       "when": 1792976179791,
       "tag": "0035_company_owners",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793312467930,
+      "tag": "0036_website_chat",
+      "breakpoints": true
     }
   ]
 }
