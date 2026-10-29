@@ -15,6 +15,8 @@ export interface DealRow {
   stage: StageKey;
   /** "project" deals also have a project in the Projects app. */
   kind: "product" | "project";
+  /** Where the lead came from (lib/sales.ts SOURCES). */
+  source: string;
   companyId: number;
   companyName: string;
   contactId: number | null;
@@ -40,6 +42,7 @@ const dealColumns = {
   title: schema.deals.title,
   stage: schema.deals.stage,
   kind: schema.deals.kind,
+  source: schema.deals.source,
   companyId: schema.deals.companyId,
   companyName: schema.companies.name,
   contactId: schema.deals.contactId,

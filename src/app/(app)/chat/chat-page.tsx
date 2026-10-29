@@ -7,6 +7,7 @@ import { ChatDetail, ChannelList } from "@/components/chat/chat-widget";
 import { useChannels, useTeammates } from "@/components/chat/chat-data";
 import { useChatStore } from "@/components/chat/chat-store";
 import type { Me } from "@/components/chat/message-row";
+import { WebVisitorPanel } from "@/components/chat/web-chat";
 import { ChatSurface } from "@/components/chat/panel-bits";
 import { dubaiToday, TZ } from "@/lib/dates";
 import type { SearchHit } from "@/lib/chat/search";
@@ -31,10 +32,13 @@ export function ChatPage({ me }: { me: Me }) {
   });
   const searching = debounced.length >= 2;
   const detailOpen = view.kind !== "list";
+  const webId = view.kind === "web" ? view.id : null;
 
   return (
     <ChatSurface.Provider value="page">
-      <div className="mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-cols-[minmax(0,1fr)] p-2 md:grid-cols-[22rem_minmax(0,1fr)] md:p-4">
+      <div
+        className={`mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-cols-[minmax(0,1fr)] p-2 md:grid-cols-[22rem_minmax(0,1fr)] md:p-4 ${webId ? "xl:grid-cols-[22rem_minmax(0,1fr)_20rem]" : ""}`}
+      >
         <aside className={`flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:rounded-r-none ${detailOpen ? "max-md:hidden" : ""}`}>
           <ChannelList
             me={me}
@@ -74,7 +78,9 @@ export function ChatPage({ me }: { me: Me }) {
             }
           />
         </aside>
-        <section className={`flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:rounded-l-none md:border-l-0 ${detailOpen ? "" : "max-md:hidden"}`}>
+        <section
+          className={`flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:rounded-l-none md:border-l-0 ${webId ? "xl:rounded-r-none" : ""} ${detailOpen ? "" : "max-md:hidden"}`}
+        >
           {detailOpen ? (
             <ChatDetail me={me} channels={channels.data ?? []} loading={channels.isPending} fetching={channels.isFetching} />
           ) : (
@@ -84,6 +90,11 @@ export function ChatPage({ me }: { me: Me }) {
             </div>
           )}
         </section>
+        {webId && (
+          <aside className="hidden min-h-0 flex-col overflow-hidden rounded-r-xl border border-l-0 bg-card xl:flex" aria-label="Visitor details">
+            <WebVisitorPanel id={webId} />
+          </aside>
+        )}
       </div>
     </ChatSurface.Provider>
   );

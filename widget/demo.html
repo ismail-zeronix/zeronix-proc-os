@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Zeronix chat widget demo</title>
     <!-- the same line the website gets; the portal address comes from the src -->
-    <script src="/widget/zeronix-chat.js" data-teaser-delay="3" defer></script>
+    <script src="/widget/zeronix-chat.js" data-popup-delay="8" data-popup-scroll="60" defer></script>
     <style>
       body { font-family: system-ui, sans-serif; margin: 0; color: #111827; background: #f1f5f9; }
       header { background: #0f172a; color: #fff; padding: 18px 24px; font-weight: 700; }
@@ -26,7 +26,11 @@
           <li>Fill in the form in the chat here, then press <b>Accept</b> in the portal.</li>
           <li>Reply from the portal's chat widget, <b>Website</b> tab.</li>
         </ol>
-        <p>Open this page in a private window to test as a brand-new visitor.</p>
+        <p>Open this page in a private window to test as a brand-new visitor. The chat pops up after 8 seconds, or when you scroll past 60% of the page.</p>
+      </div>
+      <div class="card" style="min-height: 120vh">
+        <h2>Long page</h2>
+        <p>Scroll down to test the scroll trigger, and type in the chat: the space bar must type a space, not scroll this page.</p>
       </div>
       <div class="card">
         <p>Move between pages without losing the chat: <a href="?page=laptops">Laptops</a> · <a href="?page=servers">Servers</a> · <a href="?page=contact">Contact</a></p>

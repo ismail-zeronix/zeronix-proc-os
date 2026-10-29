@@ -1,4 +1,4 @@
-import { Flame, Flag, Snowflake, Sun } from "lucide-react";
+import { Flag, Flame, Globe, Snowflake, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TEMPERATURE_LABEL, type Checks, type Temperature, temperature } from "@/lib/sales";
 
@@ -23,6 +23,16 @@ export function TempBadge({ checks }: { checks: Checks }) {
         </Badge>
       )}
     </span>
+  );
+}
+
+/** "Website" on leads that came in through the chat on www.zeronix.ae (Save to leads). */
+export function SourceBadge({ source }: { source: string }) {
+  if (source !== "Website") return null;
+  return (
+    <Badge variant="secondary" className="bg-teal-500/15 text-teal-700 dark:text-teal-400" title="Came in through the website chat">
+      <Globe /> Website
+    </Badge>
   );
 }
 

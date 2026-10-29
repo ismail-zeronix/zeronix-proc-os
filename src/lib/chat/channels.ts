@@ -244,6 +244,17 @@ export async function deleteDealThread(dealId: number): Promise<void> {
 
 // ---------- the list ----------
 
+/** Unread messages across my conversations (not muted), for the Chat tile on the home screen. */
+export async function unreadTotal(userId: number): Promise<number> {
+  const res = await db.execute<{ n: number }>(sql`
+    SELECT count(*)::int AS n FROM chat_members m
+    JOIN chat_channels c ON c.id = m.channel_id AND c.archived_at IS NULL
+    JOIN chat_messages x ON x.channel_id = m.channel_id AND x.id > m.last_read_id AND x.thread_id IS NULL AND x.deleted_at IS NULL
+      AND (x.user_id IS NULL OR x.user_id <> ${userId})
+    WHERE m.user_id = ${userId} AND (m.muted_until IS NULL OR m.muted_until < now())`);
+  return res.rows[0]?.n ?? 0;
+}
+
 /** The user's conversations, most recent first, with unread counts and the last message. Deal threads show once someone has written in them. */
 export async function listChannelsFor(userId: number): Promise<ChannelSummary[]> {
   const res = await db.execute<{

@@ -1,7 +1,7 @@
 import { CalendarClock, FolderKanban, Kanban, List } from "lucide-react";
 import Link from "next/link";
 import { AssignPopover } from "@/components/assign-popover";
-import { TempBadge } from "@/components/sales-bits";
+import { SourceBadge, TempBadge } from "@/components/sales-bits";
 import { Segmented } from "@/components/segmented";
 import { QualifyButton, StageMenu } from "@/components/stage-menu";
 import { Empty } from "@/components/stat-tile";
@@ -188,7 +188,10 @@ function DealCard({ d, users, canAssign }: { d: DealRow; users: Person[]; canAss
         {d.contactName && ` · ${d.contactName}`}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <TempBadge checks={d.checks} />
+        <span className="flex items-center gap-1">
+          <TempBadge checks={d.checks} />
+          <SourceBadge source={d.source} />
+        </span>
         <span className="text-xs font-semibold tabular-nums">{d.valueAed != null ? aedShort(d.valueAed) : <span className="font-normal text-muted-foreground">No value</span>}</span>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -251,7 +254,10 @@ function DealTable({ deals, users, canAssign, leads = false }: { deals: DealRow[
                   </div>
                 </TableCell>
                 <TableCell className="py-1.5">
-                  <TempBadge checks={d.checks} />
+                  <span className="flex items-center gap-1">
+                    <TempBadge checks={d.checks} />
+                    <SourceBadge source={d.source} />
+                  </span>
                 </TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums" title={aed(d.valueAed)}>
                   {d.valueAed != null ? aedShort(d.valueAed) : "-"}
@@ -290,7 +296,10 @@ function DealTable({ deals, users, canAssign, leads = false }: { deals: DealRow[
               <div className="w-48">
                 <StageMenu dealId={d.id} stage={d.stage} />
               </div>
-              <TempBadge checks={d.checks} />
+              <span className="flex items-center gap-1">
+                <TempBadge checks={d.checks} />
+                <SourceBadge source={d.source} />
+              </span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} readOnly={!canAssign} />

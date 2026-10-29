@@ -6,10 +6,13 @@
  *
  * The portal address is taken from this script's own src, so the same file works for testing and production.
  * Optional attributes on the <script> tag:
- *   data-color="#1f5fbf"          brand colour of the button and header
+ *   data-color="#019297"          main colour (buttons, the visitor's bubbles)
+ *   data-dark="#042A2D"           header colour
  *   data-title="Zeronix Sales"    header title
- *   data-greeting="..."           the small invitation shown next to the button
- *   data-teaser-delay="6"         seconds before the invitation shows (0 = never)
+ *   data-greeting="..."           the first message the visitor sees
+ *   data-quick="A|B|C"            quick replies under the greeting
+ *   data-popup-delay="20"         seconds on the site before the chat pops up (0 = never)
+ *   data-popup-scroll="60"        or once they scroll this far down the page, in % (0 = never)
  *   data-position="right"         right or left
  *
  * Plain JavaScript, no dependencies; everything is drawn inside a Shadow DOM so the site's CSS cannot change it.
@@ -27,23 +30,37 @@
     })();
   if (!script) return;
 
+  function attr(name, fallback) {
+    var v = script.getAttribute("data-" + name);
+    return v == null || v === "" ? fallback : v;
+  }
+
   var BASE = new URL(script.src, location.href).origin;
   var cfg = {
-    color: script.getAttribute("data-color") || "#1f5fbf",
-    title: script.getAttribute("data-title") || "Zeronix Sales",
-    greeting: script.getAttribute("data-greeting") || "Hi there 👋 Looking for laptops, servers or IT solutions? Chat with our sales team.",
-    teaserDelay: Number(script.getAttribute("data-teaser-delay") || 6),
-    left: script.getAttribute("data-position") === "left",
+    color: attr("color", "#019297"),
+    dark: attr("dark", "#042A2D"),
+    accent: "#4CAF50",
+    title: attr("title", "Zeronix Sales"),
+    greeting: attr("greeting", "Hi there 👋 Welcome to Zeronix. Looking for laptops, servers, networking or IT solutions? Ask us anything, our sales team replies in minutes."),
+    quick: attr("quick", "I need a quote|Is this in stock?|Talk to a sales person").split("|").filter(Boolean),
+    popupDelay: Number(attr("popup-delay", 20)),
+    popupScroll: Number(attr("popup-scroll", 60)),
+    left: attr("position", "right") === "left",
   };
+  // the same lists as FEEDBACK_GOOD / FEEDBACK_BAD in src/lib/webchat/types.ts (the server only keeps these)
+  var FEEDBACK_GOOD = ["Quick reply", "Friendly and helpful", "Got the information I needed", "Good prices"];
+  var FEEDBACK_BAD = ["Slow to reply", "My question was not answered", "Prices too high", "I would prefer a call"];
+
   var TOKEN_KEY = "zx-chat-token";
   var OPEN_KEY = "zx-chat-open";
+  var POPPED_KEY = "zx-chat-popped";
   var TEASER_KEY = "zx-chat-teaser";
 
   // ---------- storage (blocked in some private windows) ----------
   function get(store, key) {
     try {
       return window[store].getItem(key);
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -51,21 +68,30 @@
     try {
       if (value == null) window[store].removeItem(key);
       else window[store].setItem(key, value);
-    } catch (e) {
+    } catch {
       /* ignore */
     }
   }
 
   // ---------- state ----------
   var token = get("localStorage", TOKEN_KEY);
-  var state = null; // { status, leadDone, agent, messages, team }
+  var state = null; // { status, leadDone, agent, messages, team, rated }
   var open = get("sessionStorage", OPEN_KEY) === "1";
   var unread = 0;
   var source = null;
   var typingTimer = null;
   var lastTypingSent = 0;
   var sending = false;
+  var formOpen = false; // the lead form shows once the visitor starts typing
   var formError = "";
+  var sendError = "";
+  var confirmEnd = false;
+  var note = ""; // a short line under the messages ("We will call you back")
+  var rating = 0;
+  var hoverStar = 0;
+  var tags = [];
+  var ratingDone = false; // rated or skipped in this page
+  var thanks = false;
 
   // ---------- network ----------
   function post(path, body) {
@@ -78,11 +104,7 @@
     }).then(function (res) {
       return res.json().then(
         function (data) {
-          if (!res.ok) {
-            var err = new Error((data && data.error) || "Something went wrong. Please try again.");
-            err.status = res.status;
-            throw err;
-          }
+          if (!res.ok) throw new Error((data && data.error) || "Something went wrong. Please try again.");
           return data;
         },
         function () {
@@ -98,6 +120,7 @@
         token = data.token;
         set("localStorage", TOKEN_KEY, token);
         state = data.state;
+        ratingDone = !!state.rated;
         render();
         listen();
       })
@@ -114,13 +137,13 @@
       var evt;
       try {
         evt = JSON.parse(e.data);
-      } catch (err) {
+      } catch {
         return;
       }
       onEvent(evt);
     };
     source.onerror = function () {
-      // EventSource reconnects by itself; if the chat is gone (closed for good), start over after a pause
+      // EventSource reconnects by itself; if the chat is gone, start over after a pause
       if (source && source.readyState === 2) {
         source = null;
         setTimeout(start, 5000);
@@ -144,6 +167,7 @@
       var wasWaiting = state.status === "waiting";
       state.status = evt.status;
       if (evt.agent) state.agent = evt.agent;
+      if (evt.status === "closed") confirmEnd = false;
       // an agent picked up: open the chat so the visitor sees them
       if (wasWaiting && evt.status === "active" && !open) {
         setOpen(true);
@@ -175,7 +199,7 @@
         o.start(now + i * 0.12);
         o.stop(now + i * 0.12 + 0.3);
       });
-    } catch (e) {
+    } catch {
       /* the browser has not allowed sound yet */
     }
   }
@@ -186,76 +210,107 @@
   host.style.cssText = "position:fixed;z-index:2147483000;bottom:0;" + (cfg.left ? "left:0;" : "right:0;");
   var root = host.attachShadow ? host.attachShadow({ mode: "open" }) : host;
 
+  /*
+   * Keys and the mouse wheel stay inside the widget. Events from a Shadow DOM reach the page with the widget box as
+   * their target instead of the input, so page scripts (SmoothScroll on zeronix.ae) took a space typed in a field for
+   * "scroll down", and the wheel scrolled the page instead of the messages.
+   */
+  ["keydown", "keyup", "keypress", "wheel", "mousewheel", "DOMMouseScroll"].forEach(function (type) {
+    host.addEventListener(type, function (e) {
+      e.stopPropagation();
+    });
+  });
+
+  var side = cfg.left ? "left" : "right";
   var css =
     ":host{all:initial}" +
-    "*{box-sizing:border-box;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif}" +
-    ".launcher{position:fixed;bottom:20px;" + (cfg.left ? "left" : "right") + ":20px;width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;background:var(--c);color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;transition:transform .15s}" +
+    "*{box-sizing:border-box;font-family:Raleway,Montserrat,system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif}" +
+    "button{font:inherit}" +
+    ".launcher{position:fixed;bottom:20px;" + side + ":20px;width:60px;height:60px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,var(--c),var(--d));color:#fff;box-shadow:0 10px 28px rgba(4,42,45,.35);display:flex;align-items:center;justify-content:center;transition:transform .15s}" +
     ".launcher:hover{transform:scale(1.06)}" +
-    ".launcher:focus-visible{outline:3px solid rgba(0,0,0,.35);outline-offset:2px}" +
+    ".launcher:focus-visible{outline:3px solid var(--a);outline-offset:3px}" +
     ".launcher svg{width:26px;height:26px}" +
     ".badge{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;border-radius:10px;background:#e11d48;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px;border:2px solid #fff}" +
-    ".live{position:absolute;bottom:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#22c55e;border:2px solid #fff}" +
-    ".teaser{position:fixed;bottom:90px;" + (cfg.left ? "left" : "right") + ":20px;width:280px;background:#fff;color:#111827;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 32px 14px 14px;font-size:14px;line-height:1.45;cursor:pointer;animation:up .25s ease-out}" +
+    ".live{position:absolute;bottom:3px;right:3px;width:14px;height:14px;border-radius:50%;background:var(--a);border:2px solid #fff}" +
+    ".teaser{position:fixed;bottom:92px;" + side + ":20px;width:290px;background:#fff;color:var(--d);border-radius:16px;box-shadow:0 12px 32px rgba(4,42,45,.2);padding:14px 34px 14px 14px;font-size:14px;line-height:1.45;cursor:pointer;animation:up .25s ease-out;border-top:3px solid var(--c)}" +
     ".teaser .x{position:absolute;top:6px;right:6px;border:0;background:none;font-size:18px;line-height:1;color:#6b7280;cursor:pointer;padding:4px}" +
     ".teaser .who{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#4b5563}" +
-    ".panel{position:fixed;bottom:90px;" + (cfg.left ? "left" : "right") + ":20px;width:370px;height:560px;max-height:calc(100vh - 110px);background:#fff;color:#111827;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;animation:up .2s ease-out}" +
+    ".panel{position:fixed;bottom:92px;" + side + ":20px;width:380px;height:580px;max-height:calc(100vh - 112px);background:#fff;color:#1f2937;border-radius:18px;box-shadow:0 18px 50px rgba(4,42,45,.3);display:flex;flex-direction:column;overflow:hidden;animation:up .22s ease-out}" +
     "@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}" +
-    "@media (max-width:480px){.panel{inset:0;width:auto;height:auto;max-height:none;border-radius:0}.panel-open .launcher{display:none}.teaser{width:calc(100vw - 40px)}}" +
-    ".head{background:var(--c);color:#fff;padding:14px 12px 14px 16px;display:flex;align-items:center;gap:10px}" +
+    "@media (max-width:520px){.panel{inset:0;width:auto;height:auto;max-height:none;border-radius:0}.panel-open .launcher{display:none}.teaser{width:calc(100vw - 40px)}}" +
+    ".head{background:linear-gradient(135deg,var(--d) 0%,var(--c) 140%);color:#fff;padding:14px 12px 14px 16px;display:flex;align-items:center;gap:10px}" +
     ".head .t{flex:1;min-width:0}" +
-    ".head .t b{display:block;font-size:15px}" +
-    ".head .t span{display:block;font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-    ".icon{border:0;background:rgba(255,255,255,.15);color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px}" +
-    ".icon:hover{background:rgba(255,255,255,.28)}" +
+    ".head .t b{display:block;font-size:15px;font-weight:700;letter-spacing:.2px}" +
+    ".head .t span{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+    ".pulse{width:8px;height:8px;border-radius:50%;background:var(--a);flex-shrink:0;box-shadow:0 0 0 0 rgba(76,175,80,.7);animation:pl 2s infinite}" +
+    "@keyframes pl{0%{box-shadow:0 0 0 0 rgba(76,175,80,.6)}70%{box-shadow:0 0 0 7px rgba(76,175,80,0)}100%{box-shadow:0 0 0 0 rgba(76,175,80,0)}}" +
+    ".icon{border:0;background:rgba(255,255,255,.14);color:#fff;height:30px;min-width:30px;padding:0 9px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}" +
+    ".icon:hover{background:rgba(255,255,255,.26)}" +
     ".icon svg{width:16px;height:16px}" +
     ".stack{display:flex}" +
-    ".av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;border:2px solid #fff;flex-shrink:0;position:relative}" +
-    ".stack .av+.av{margin-left:-9px}" +
-    ".av.sm{width:24px;height:24px;font-size:10px;border-width:1.5px}" +
-    ".av .dot{position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:#22c55e;border:1.5px solid #fff}" +
-    ".body{flex:1;overflow-y:auto;padding:14px;background:#f8fafc}" +
-    ".intro{font-size:14px;line-height:1.5;margin:0 0 12px;color:#374151}" +
+    ".av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;border:2px solid #fff;flex-shrink:0;position:relative}" +
+    ".stack .av+.av{margin-left:-10px}" +
+    ".av.sm{width:26px;height:26px;font-size:10px;border-width:1.5px}" +
+    ".av .dot{position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:var(--a);border:1.5px solid #fff}" +
+    ".body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:14px;background:#F2F1ED}" +
+    ".msg{display:flex;margin:4px 0}" +
+    ".msg.me{justify-content:flex-end}" +
+    ".bubble{max-width:82%;padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}" +
+    ".me .bubble{background:var(--c);color:#fff;border-bottom-right-radius:5px}" +
+    ".them .bubble{background:#fff;color:#1f2937;border-bottom-left-radius:5px;box-shadow:0 1px 2px rgba(4,42,45,.08)}" +
+    ".them{gap:7px;align-items:flex-end}" +
+    ".name{font-size:11px;color:#6b7280;margin:8px 0 2px 33px}" +
+    ".sys{text-align:center;font-size:12px;color:#6b7280;margin:10px 0}" +
+    ".chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px 33px}" +
+    ".chip{border:1px solid var(--c);background:#fff;color:var(--d);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;line-height:1.2}" +
+    ".chip:hover,.chip.on{background:var(--c);color:#fff}" +
+    ".card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 10px rgba(4,42,45,.08);animation:up .2s ease-out}" +
+    ".card h4{margin:0 0 4px;font-size:14px;color:var(--d)}" +
+    ".card p{margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.45}" +
     "form.lead{display:grid;gap:9px}" +
     "label{display:grid;gap:3px;font-size:12px;font-weight:600;color:#374151}" +
-    "input,textarea{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:9px 10px;font-size:14px;font-weight:400;color:#111827;background:#fff;outline:none}" +
-    "input:focus,textarea:focus{border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 20%,transparent)}" +
+    "input,textarea{width:100%;border:1px solid #d6d8d3;border-radius:10px;padding:9px 11px;font-size:14px;font-weight:400;color:#111827;background:#fff;outline:none}" +
+    "input:focus,textarea:focus{border-color:var(--c);box-shadow:0 0 0 3px rgba(1,146,151,.18)}" +
     "textarea{resize:none}" +
     ".row2{display:grid;grid-template-columns:1fr 1fr;gap:9px}" +
     ".hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}" +
-    ".btn{border:0;border-radius:9px;background:var(--c);color:#fff;font-size:14px;font-weight:600;padding:11px 14px;cursor:pointer}" +
+    ".btn{border:0;border-radius:10px;background:var(--c);color:#fff;font-size:14px;font-weight:700;padding:11px 14px;cursor:pointer}" +
+    ".btn:hover{filter:brightness(1.07)}" +
     ".btn:disabled{opacity:.6;cursor:default}" +
+    ".btn.ghost{background:#fff;color:var(--d);border:1px solid #d6d8d3}" +
+    ".btn.dark{background:var(--d)}" +
+    ".row-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}" +
+    ".link{border:0;background:none;color:var(--c);font-size:13px;font-weight:600;cursor:pointer;padding:8px 0 0;text-decoration:underline}" +
     ".err{color:#dc2626;font-size:12px;margin:0}" +
-    ".note{font-size:11px;color:#6b7280;margin:0;text-align:center}" +
-    ".msg{display:flex;margin:4px 0}" +
-    ".msg.me{justify-content:flex-end}" +
-    ".bubble{max-width:80%;padding:8px 12px;border-radius:16px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere}" +
-    ".me .bubble{background:var(--c);color:#fff;border-bottom-right-radius:5px}" +
-    ".them .bubble{background:#fff;border:1px solid #e5e7eb;border-bottom-left-radius:5px}" +
-    ".them{gap:7px;align-items:flex-end}" +
-    ".name{font-size:11px;color:#6b7280;margin:8px 0 2px 31px}" +
-    ".sys{text-align:center;font-size:12px;color:#6b7280;margin:10px 0}" +
-    ".wait{display:flex;gap:10px;align-items:center;background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:10px 12px;font-size:13px;color:#475569;margin:10px 0}" +
-    ".dots span{display:inline-block;width:6px;height:6px;margin:0 1px;border-radius:50%;background:#94a3b8;animation:b 1.2s infinite}" +
+    ".note{font-size:12px;color:#4b5563;text-align:center;margin:8px 0}" +
+    ".wait{display:flex;gap:10px;align-items:center;background:#fff;border:1px dashed #b8c7c4;border-radius:12px;padding:10px 12px;font-size:13px;color:#475569;margin:10px 0}" +
+    ".dots span{display:inline-block;width:6px;height:6px;margin:0 1px;border-radius:50%;background:var(--c);animation:b 1.2s infinite}" +
     ".dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}" +
     "@keyframes b{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}" +
-    ".typing{font-size:12px;color:#6b7280;padding:0 16px;height:18px}" +
+    ".typing{font-size:12px;color:#6b7280;padding:0 16px;height:18px;background:#F2F1ED}" +
     ".compose{display:flex;gap:8px;padding:10px;border-top:1px solid #e5e7eb;background:#fff;align-items:flex-end}" +
-    ".compose textarea{max-height:110px;min-height:40px}" +
-    ".send{width:40px;height:40px;flex-shrink:0;border:0;border-radius:10px;background:var(--c);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}" +
+    ".compose textarea{max-height:110px;min-height:42px}" +
+    ".send{width:42px;height:42px;flex-shrink:0;border:0;border-radius:11px;background:var(--c);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}" +
     ".send:disabled{opacity:.5}" +
     ".send svg{width:18px;height:18px}" +
-    ".ended{padding:14px;border-top:1px solid #e5e7eb;background:#fff;text-align:center;display:grid;gap:8px;font-size:13px;color:#4b5563}" +
-    ".brand{font-size:10px;color:#9ca3af;text-align:center;padding:4px 0 6px;background:#fff}";
+    ".stars{display:flex;justify-content:center;gap:6px;margin:6px 0 12px}" +
+    ".star{border:0;background:none;cursor:pointer;padding:2px;color:#d1d5db;transition:transform .1s}" +
+    ".star:hover{transform:scale(1.15)}" +
+    ".star svg{width:34px;height:34px}" +
+    ".star.on{color:#f5b301}" +
+    ".center{text-align:center}" +
+    ".foot{padding:12px 14px;border-top:1px solid #e5e7eb;background:#fff}" +
+    ".brand{font-size:10px;color:#9ca3af;text-align:center;padding:5px 0 7px;background:#fff}";
 
   var ICON_CHAT =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-  var ICON_X =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
   var ICON_MIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>';
   var ICON_SEND =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>';
+  var ICON_STAR = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>';
 
-  var PALETTE = ["#2563eb", "#0f766e", "#b45309", "#7c3aed", "#be185d", "#0369a1", "#4d7c0f", "#b91c1c"];
+  var PALETTE = ["#019297", "#042A2D", "#0f766e", "#4CAF50", "#0369a1", "#7c3aed", "#b45309", "#be185d"];
 
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
@@ -295,30 +350,62 @@
     return stack;
   }
 
+  function online() {
+    return !!(state && state.team && state.team.length);
+  }
+
   function teamLine() {
     var team = (state && state.team) || [];
-    if (!team.length) return "We're away right now. Leave a message and we'll email you.";
+    if (!team.length) return "We are away. Leave a message, we reply by email";
     var names = team.map(function (p) { return p.name; });
-    if (names.length > 3) return names.slice(0, 2).join(", ") + " and " + (names.length - 2) + " more are online";
+    if (names.length > 3) return names.slice(0, 2).join(", ") + " and " + (names.length - 2) + " more online";
     return names.join(names.length === 2 ? " and " : ", ") + (names.length === 1 ? " is" : " are") + " online now";
   }
 
-  function setOpen(value) {
+  function setOpen(value, focus) {
     open = value;
     set("sessionStorage", OPEN_KEY, open ? "1" : null);
     if (open) {
       unread = 0;
-      set("sessionStorage", TEASER_KEY, "1"); // they found the chat; no need to invite again
+      set("sessionStorage", POPPED_KEY, "1"); // they have seen the chat; no need to pop it up again
+      set("sessionStorage", TEASER_KEY, null);
     }
     render();
-    if (open) focusInput();
+    if (open && focus !== false) focusInput();
   }
 
-  function focusInput() {
+  function focusInput(selector) {
     setTimeout(function () {
-      var input = root.querySelector("[data-focus]");
-      if (input) input.focus();
+      var input = root.querySelector(selector || "[data-focus]");
+      if (input) input.focus({ preventScroll: true });
     }, 30);
+  }
+
+  // ---------- pop up after a while on the site, or when they scroll far down ----------
+  function popup() {
+    if (open || !state || state.status === "closed" || get("sessionStorage", POPPED_KEY)) return;
+    set("sessionStorage", POPPED_KEY, "1");
+    // on a phone a full-screen chat would cover the page: a small invitation instead
+    if (window.innerWidth <= 520) {
+      set("sessionStorage", TEASER_KEY, "show");
+      render();
+    } else setOpen(true, false);
+  }
+
+  function watchForPopup() {
+    if (get("sessionStorage", POPPED_KEY)) return;
+    if (cfg.popupDelay > 0) setTimeout(popup, cfg.popupDelay * 1000);
+    if (cfg.popupScroll > 0) {
+      var onScroll = function () {
+        var doc = document.documentElement;
+        var seen = (window.scrollY + window.innerHeight) / Math.max(doc.scrollHeight, 1);
+        if (seen * 100 >= cfg.popupScroll && doc.scrollHeight > window.innerHeight * 1.3) {
+          window.removeEventListener("scroll", onScroll);
+          popup();
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
   }
 
   // ---------- typing ----------
@@ -340,19 +427,32 @@
   }
 
   // ---------- actions ----------
-  function sendLead(form) {
+  function sendLead() {
+    var form = root.querySelector("form.lead");
+    if (!form) return;
     var data = {};
-    ["name", "email", "phone", "company", "message", "website"].forEach(function (k) {
+    ["name", "email", "phone", "company", "website"].forEach(function (k) {
       data[k] = form.elements[k] ? form.elements[k].value : "";
     });
+    data.message = draft.trim();
     data.token = token;
+    if (data.name.trim().length < 2) {
+      formError = "Please enter your name.";
+      render();
+      return focusInput('[name="name"]');
+    }
     sending = true;
     formError = "";
     render();
     post("lead", data)
       .then(function (res) {
-        if (res.state) state = res.state;
+        if (res.state) {
+          state = res.state;
+          ratingDone = !!state.rated;
+        }
         sending = false;
+        formOpen = false;
+        draft = "";
         render();
         focusInput();
       })
@@ -363,11 +463,19 @@
       });
   }
 
-  function sendMessage(input) {
-    var text = input.value.trim();
+  function sendMessage(text) {
+    text = (text || "").trim();
     if (!text || sending) return;
+    if (!state.leadDone) {
+      // keep the question; it goes out with the form
+      draft = text;
+      openForm();
+      return;
+    }
     sending = true;
-    input.value = "";
+    sendError = "";
+    draft = "";
+    render();
     post("send", { token: token, body: text })
       .then(function (res) {
         sending = false;
@@ -377,18 +485,80 @@
       })
       .catch(function (e) {
         sending = false;
-        input.value = text;
-        alert(e.message);
+        draft = text;
+        sendError = e.message;
+        render();
       });
   }
 
+  function openForm() {
+    if (formOpen) return focusInput('[name="name"]');
+    formOpen = true;
+    render();
+    focusInput('[name="name"]');
+  }
+
+  function callBack() {
+    confirmEnd = false;
+    note = "Thanks, we will call you back shortly.";
+    post("send", { token: token, body: "📞 Please call me back." })
+      .then(function (res) {
+        if (!state.messages.some(function (m) { return m.id === res.message.id; })) state.messages.push(res.message);
+        render();
+      })
+      .catch(function (e) {
+        note = e.message;
+        render();
+      });
+    render();
+  }
+
   function endChat() {
-    if (!confirm("End this chat?")) return;
-    post("close", { token: token }).catch(function () {});
+    confirmEnd = false;
+    sending = true;
+    render();
+    post("close", { token: token })
+      .then(function () {
+        sending = false;
+        state.status = "closed";
+        render();
+      })
+      .catch(function (e) {
+        sending = false;
+        sendError = e.message;
+        render();
+      });
+  }
+
+  function sendRating(skip) {
+    var comment = root.querySelector('textarea[name="comment"]');
+    if (skip || !rating) {
+      ratingDone = true;
+      return render();
+    }
+    sending = true;
+    render();
+    post("feedback", { token: token, rating: rating, tags: tags, comment: comment ? comment.value : "" })
+      .then(function () {
+        sending = false;
+        ratingDone = true;
+        thanks = true;
+        render();
+      })
+      .catch(function () {
+        sending = false;
+        ratingDone = true;
+        render();
+      });
   }
 
   function newChat() {
     state = null;
+    rating = 0;
+    tags = [];
+    ratingDone = false;
+    thanks = false;
+    note = "";
     if (source) source.close();
     source = null;
     start();
@@ -404,17 +574,21 @@
     if (box) draft = box.value;
     var form = root.querySelector("form.lead");
     if (form)
-      ["name", "email", "phone", "company", "message"].forEach(function (k) {
+      ["name", "email", "phone", "company"].forEach(function (k) {
         leadDraft[k] = form.elements[k].value;
       });
+    var comment = root.querySelector('textarea[name="comment"]');
+    var commentText = comment ? comment.value : "";
     var focused = root.activeElement && root.activeElement.getAttribute && root.activeElement.getAttribute("name");
     var scroller = root.querySelector(".body");
-    var atBottom = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+    var atBottom = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
 
     root.innerHTML = "";
     root.appendChild(el("style", { text: css }));
     var wrap = el("div", { class: open ? "panel-open" : "" });
     wrap.style.setProperty("--c", cfg.color);
+    wrap.style.setProperty("--d", cfg.dark);
+    wrap.style.setProperty("--a", cfg.accent);
     root.appendChild(wrap);
     if (!state) return;
 
@@ -431,18 +605,20 @@
       },
     });
     if (!open && unread) launcher.appendChild(el("span", { class: "badge", text: String(unread) }));
-    else if (!open && state.team && state.team.length) launcher.appendChild(el("span", { class: "live" }));
+    else if (!open && online()) launcher.appendChild(el("span", { class: "live" }));
     wrap.appendChild(launcher);
 
+    var again = comment && root.querySelector('textarea[name="comment"]');
+    if (again) again.value = commentText;
     var body = root.querySelector(".body");
     if (body && atBottom) body.scrollTop = body.scrollHeight;
     if (focused) {
-      var again = root.querySelector('[name="' + focused + '"]');
-      if (again) {
-        again.focus();
+      var f = root.querySelector('[name="' + focused + '"]');
+      if (f) {
+        f.focus({ preventScroll: true });
         try {
-          again.setSelectionRange(again.value.length, again.value.length);
-        } catch (e) {
+          f.setSelectionRange(f.value.length, f.value.length);
+        } catch {
           /* email inputs have no caret position */
         }
       }
@@ -450,7 +626,6 @@
   }
 
   function teaser() {
-    var team = state.team || [];
     return el(
       "div",
       {
@@ -469,34 +644,69 @@
           text: "×",
           onclick: function (e) {
             e.stopPropagation();
-            set("sessionStorage", TEASER_KEY, "1");
+            set("sessionStorage", TEASER_KEY, null);
             render();
           },
         }),
-        team.length ? el("div", { class: "who" }, [teamStack(team, true), el("span", { text: teamLine() })]) : null,
+        online() ? el("div", { class: "who" }, [teamStack(state.team, true), el("span", { text: teamLine() })]) : null,
         el("div", { text: cfg.greeting }),
       ],
     );
   }
 
+  function greeting(body) {
+    var who = online() ? state.team[0].name : cfg.title;
+    body.appendChild(el("div", { class: "name", text: online() ? who + " · " + (state.team[0].title || "Sales") : cfg.title }));
+    body.appendChild(el("div", { class: "msg them" }, [avatar(who, true), el("div", { class: "bubble", text: cfg.greeting })]));
+    if (!state.leadDone && !formOpen && !draft && cfg.quick.length) {
+      var chips = el("div", { class: "chips" });
+      cfg.quick.forEach(function (q) {
+        chips.appendChild(
+          el("button", {
+            class: "chip",
+            type: "button",
+            text: q,
+            onclick: function () {
+              draft = q;
+              openForm();
+            },
+          }),
+        );
+      });
+      body.appendChild(chips);
+    }
+  }
+
   function panel() {
     var p = el("div", { class: "panel", role: "dialog", "aria-label": cfg.title });
     p.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        if (confirmEnd) {
+          confirmEnd = false;
+          render();
+        } else setOpen(false);
+      }
     });
 
     // header: who is helping, or who is online
-    var sub =
-      state.status === "active" && state.agent
-        ? state.agent.name + " · " + state.agent.title
-        : state.status === "closed"
-          ? "Chat ended"
-          : teamLine();
-    var people = state.status === "active" && state.agent ? [state.agent] : state.team || [];
+    var active = state.status === "active" && state.agent;
+    var people = active ? [state.agent] : state.team || [];
+    var sub = active ? state.agent.name + " · " + state.agent.title : state.status === "closed" ? "Chat ended" : teamLine();
     var head = el("div", { class: "head" }, [
       people.length ? teamStack(people) : null,
-      el("div", { class: "t" }, [el("b", { text: cfg.title }), el("span", { text: sub })]),
-      state.leadDone && state.status !== "closed" ? el("button", { class: "icon", type: "button", title: "End chat", "aria-label": "End chat", text: "End", onclick: endChat }) : null,
+      el("div", { class: "t" }, [el("b", { text: cfg.title }), el("span", null, [state.status !== "closed" && (active || online()) ? el("i", { class: "pulse" }) : null, sub])]),
+      state.leadDone && state.status !== "closed"
+        ? el("button", {
+            class: "icon",
+            type: "button",
+            title: "End chat",
+            text: "End",
+            onclick: function () {
+              confirmEnd = true;
+              render();
+            },
+          })
+        : null,
       el("button", {
         class: "icon",
         type: "button",
@@ -513,13 +723,13 @@
     var body = el("div", { class: "body" });
     p.appendChild(body);
 
-    if (!state.leadDone) {
-      body.appendChild(el("p", { class: "intro", text: (state.team && state.team.length ? "Our sales team is online. " : "") + "Tell us a little about you and we'll connect you straight away." }));
-      body.appendChild(leadForm());
-      p.appendChild(el("div", { class: "brand", text: "Your details are only used to reply to you." }));
+    // closed: rate the chat, then thanks / start again
+    if (state.status === "closed" && !ratingDone) {
+      body.appendChild(ratingCard());
       return p;
     }
 
+    greeting(body);
     state.messages.forEach(function (m, i) {
       if (m.sender === "system") return body.appendChild(el("div", { class: "sys", text: m.body }));
       var mine = m.sender === "visitor";
@@ -528,42 +738,63 @@
       body.appendChild(el("div", { class: "msg " + (mine ? "me" : "them") }, [mine ? null : avatar(m.name || "Sales", true), el("div", { class: "bubble", text: m.body })]));
     });
 
-    if (state.status === "waiting") {
-      var online = state.team && state.team.length;
+    if (!state.leadDone && formOpen) body.appendChild(leadCard());
+
+    if (state.leadDone && state.status === "waiting") {
       body.appendChild(
         el("div", { class: "wait" }, [
-          online ? el("span", { class: "dots" }, [el("span"), el("span"), el("span")]) : null,
+          online() ? el("span", { class: "dots" }, [el("span"), el("span"), el("span")]) : null,
           el("span", {
-            text: online
+            text: online()
               ? "Connecting you to our sales team…"
               : "Our team is away right now. We have your details and will get back to you by email soon. You can keep writing here.",
           }),
         ]),
       );
     }
+    if (note) body.appendChild(el("p", { class: "note", text: note }));
 
     if (state.status === "closed") {
+      if (thanks) body.appendChild(el("p", { class: "note", text: "Thank you for your feedback!" }));
       p.appendChild(
-        el("div", { class: "ended" }, [
-          el("span", { text: "This chat has ended. Thank you for contacting Zeronix." }),
+        el("div", { class: "foot center" }, [
+          el("p", { class: "note", text: "This chat has ended. Thank you for contacting Zeronix." }),
           el("button", { class: "btn", type: "button", text: "Start a new chat", onclick: newChat }),
         ]),
       );
       return p;
     }
 
+    if (confirmEnd) {
+      body.appendChild(endCard());
+      return p;
+    }
+
     p.appendChild(el("div", { class: "typing", "aria-live": "polite" }));
-    var input = el("textarea", { name: "body", rows: "1", maxlength: "2000", placeholder: "Write a message…", "aria-label": "Message", "data-focus": "1" });
+    if (sendError) p.appendChild(el("p", { class: "err", role: "alert", text: sendError, style: "padding:0 14px 4px;background:#F2F1ED" }));
+    var input = el("textarea", {
+      name: "body",
+      rows: "1",
+      maxlength: "2000",
+      placeholder: state.leadDone ? "Write a message…" : "Type your question…",
+      "aria-label": "Message",
+      "data-focus": "1",
+    });
     input.value = draft;
     input.addEventListener("input", function () {
       draft = input.value;
+      // they started typing: ask who they are, right in the chat
+      if (!state.leadDone && draft.trim() && !formOpen) {
+        formOpen = true;
+        render();
+        return;
+      }
       pingTyping();
     });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
-        sendMessage(input);
-        draft = "";
+        sendMessage(input.value);
       }
     });
     var sendBtn = el("button", {
@@ -572,57 +803,165 @@
       "aria-label": "Send",
       html: ICON_SEND,
       onclick: function () {
-        sendMessage(input);
-        draft = "";
+        sendMessage(input.value);
       },
     });
+    if (sending) sendBtn.disabled = true;
     p.appendChild(el("div", { class: "compose" }, [input, sendBtn]));
+    if (!state.leadDone) p.appendChild(el("div", { class: "brand", text: "Your details are only used to reply to you." }));
     return p;
   }
 
   function field(label, name, type, required, extra) {
-    var input = el(type === "textarea" ? "textarea" : "input", Object.assign({ name: name, autocomplete: name === "company" ? "organization" : name === "phone" ? "tel" : name }, extra || {}));
-    if (type !== "textarea") input.type = type;
+    var input = el("input", Object.assign({ name: name, type: type, autocomplete: name === "company" ? "organization" : name === "phone" ? "tel" : name }, extra || {}));
     if (required) input.required = true;
     input.value = leadDraft[name] || "";
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendLead();
+      }
+    });
     return el("label", null, [label + (required ? " *" : ""), input]);
   }
 
-  function leadForm() {
+  function leadCard() {
     var form = el("form", {
       class: "lead",
       novalidate: "",
       onsubmit: function (e) {
         e.preventDefault();
-        sendLead(form);
+        sendLead();
       },
     });
-    var name = field("Name", "name", "text", true, { maxlength: "120", "data-focus": "1" });
-    form.appendChild(name);
+    form.appendChild(field("Name", "name", "text", true, { maxlength: "120" }));
     form.appendChild(field("Email", "email", "email", true, { maxlength: "200" }));
     form.appendChild(el("div", { class: "row2" }, [field("Phone", "phone", "tel", false, { maxlength: "40" }), field("Company", "company", "text", false, { maxlength: "160" })]));
-    form.appendChild(field("How can we help?", "message", "textarea", false, { rows: "3", maxlength: "2000", placeholder: "e.g. 20 business laptops, quote needed" }));
     // people never see this; bots fill it in
     form.appendChild(el("div", { class: "hp", "aria-hidden": "true" }, [el("input", { name: "website", tabindex: "-1", autocomplete: "off" })]));
     if (formError) form.appendChild(el("p", { class: "err", role: "alert", text: formError }));
-    var btn = el("button", { class: "btn", type: "submit", text: sending ? "Starting…" : "Start chat" });
+    var btn = el("button", { class: "btn", type: "submit", text: sending ? "Connecting…" : draft.trim() ? "Send and start chat" : "Start chat" });
     if (sending) btn.disabled = true;
     form.appendChild(btn);
-    return form;
+    return el("div", { class: "card" }, [
+      el("h4", { text: "Before we connect you" }),
+      el("p", { text: online() ? "Tell us who you are and " + state.team[0].name + " will be right with you." : "Tell us who you are so we can reply, even after you leave." }),
+      form,
+    ]);
+  }
+
+  function endCard() {
+    var card = el("div", { class: "card center" }, [
+      el("h4", { text: "End this chat?" }),
+      el("p", { text: "You can always start a new one. Prefer to talk? We can call you back." }),
+      el("div", { class: "row-btns" }, [
+        el("button", {
+          class: "btn ghost",
+          type: "button",
+          text: "Keep chatting",
+          onclick: function () {
+            confirmEnd = false;
+            render();
+            focusInput();
+          },
+        }),
+        el("button", { class: "btn dark", type: "button", text: sending ? "Ending…" : "End chat", onclick: endChat }),
+      ]),
+      el("button", { class: "link", type: "button", text: "Request a call back instead", onclick: callBack }),
+    ]);
+    return card;
+  }
+
+  function ratingCard() {
+    var shown = hoverStar || rating;
+    var stars = el("div", { class: "stars", role: "radiogroup", "aria-label": "Rate this chat" });
+    [1, 2, 3, 4, 5].forEach(function (n) {
+      var b = el("button", {
+        class: "star" + (n <= shown ? " on" : ""),
+        type: "button",
+        role: "radio",
+        "aria-checked": String(n === rating),
+        "aria-label": n + (n === 1 ? " star" : " stars"),
+        html: ICON_STAR,
+        onclick: function () {
+          if ((rating >= 4) !== (n >= 4)) tags = []; // the chips change between good and bad
+          rating = n;
+          hoverStar = 0;
+          render();
+        },
+      });
+      b.addEventListener("mouseenter", function () {
+        hoverStar = n;
+        paintStars();
+      });
+      b.addEventListener("mouseleave", function () {
+        hoverStar = 0;
+        paintStars();
+      });
+      stars.appendChild(b);
+    });
+
+    var children = [el("h4", { text: "How was your chat?" }), el("p", { text: "Your rating helps us serve you better." }), stars];
+    if (rating) {
+      var chips = el("div", { class: "chips", style: "margin:0 0 10px;justify-content:center" });
+      (rating >= 4 ? FEEDBACK_GOOD : FEEDBACK_BAD).forEach(function (t) {
+        chips.appendChild(
+          el("button", {
+            class: "chip" + (tags.indexOf(t) >= 0 ? " on" : ""),
+            type: "button",
+            "aria-pressed": String(tags.indexOf(t) >= 0),
+            text: t,
+            onclick: function () {
+              var i = tags.indexOf(t);
+              if (i >= 0) tags.splice(i, 1);
+              else tags.push(t);
+              render();
+            },
+          }),
+        );
+      });
+      children.push(chips);
+      children.push(el("textarea", { name: "comment", rows: "2", maxlength: "1000", placeholder: "Anything else you would like to tell us? (optional)", style: "margin-bottom:10px" }));
+    }
+    children.push(
+      el("div", { class: "row-btns" }, [
+        el("button", {
+          class: "btn ghost",
+          type: "button",
+          text: "Skip",
+          onclick: function () {
+            sendRating(true);
+          },
+        }),
+        (function () {
+          var b = el("button", {
+            class: "btn",
+            type: "button",
+            text: sending ? "Sending…" : "Send feedback",
+            onclick: function () {
+              sendRating(false);
+            },
+          });
+          if (!rating || sending) b.disabled = true;
+          return b;
+        })(),
+      ]),
+    );
+    return el("div", { class: "card center" }, children);
+  }
+
+  // star hover without a full re-render
+  function paintStars() {
+    var shown = hoverStar || rating;
+    var all = root.querySelectorAll(".star");
+    for (var i = 0; i < all.length; i++) all[i].className = "star" + (i < shown ? " on" : "");
   }
 
   // ---------- go ----------
   function boot() {
     document.body.appendChild(host);
     render();
-    start().then(function () {
-      if (cfg.teaserDelay > 0 && !get("sessionStorage", TEASER_KEY))
-        setTimeout(function () {
-          if (open || get("sessionStorage", TEASER_KEY)) return;
-          set("sessionStorage", TEASER_KEY, "show");
-          render();
-        }, cfg.teaserDelay * 1000);
-    });
+    start().then(watchForPopup);
   }
   if (document.body) boot();
   else document.addEventListener("DOMContentLoaded", boot);

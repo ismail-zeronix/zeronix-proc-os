@@ -100,6 +100,7 @@ function Panel({ me, channels, loading, fetching, error }: { me: Me; channels: C
 /** Whatever is open that is not the list: a conversation, "New", channel details. Shared by the widget and the /chat page. */
 export function ChatDetail({ me, channels, loading, fetching }: { me: Me; channels: ChannelSummary[]; loading: boolean; fetching: boolean }) {
   const view = useChatStore((s) => s.view);
+  const surface = useContext(ChatSurface);
   const show = useChatStore((s) => s.show);
   const teammates = useTeammates();
   const presence = teammates.data?.presence ?? {};
@@ -107,7 +108,7 @@ export function ChatDetail({ me, channels, loading, fetching }: { me: Me; channe
   const channel = id != null ? channels.find((c) => c.id === id) : undefined;
   const back = () => show({ kind: "list" });
 
-  if (view.kind === "web") return <WebConversation key={view.id} id={view.id} me={me} />;
+  if (view.kind === "web") return <WebConversation key={view.id} id={view.id} me={me} detailsBeside={surface === "page"} />;
 
   if (view.kind === "new") return <NewChat presence={presence} teammates={teammates.data?.users ?? []} loadingPeople={teammates.isPending} />;
 

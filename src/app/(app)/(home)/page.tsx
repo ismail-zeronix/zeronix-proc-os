@@ -9,6 +9,7 @@ import { punchState, workHours } from "@/lib/attendance-data";
 import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
+import { unreadTotal } from "@/lib/chat/channels";
 import { unreadCount } from "@/lib/mail/unread";
 import { quoteOfTheDay } from "@/lib/quotes";
 import { salesPulse } from "@/lib/sales-data";
@@ -37,7 +38,7 @@ export default async function HomePage() {
   const hasMail = apps.includes("mail");
 
   // a few cheap numbers for the badges on the tiles
-  const [toReview, newDeals, dueTasks, mailUnread, punch, hours, overdueInvoices] = await Promise.all([
+  const [toReview, newDeals, dueTasks, mailUnread, punch, hours, overdueInvoices, chatUnread] = await Promise.all([
     hasProcurement ? listCounts().then((c) => c.review + c.failed) : 0,
     hasSales ? salesPulse(user.id, seesAll).then((p) => p.newCount) : 0,
     hasTasks ? dueTasksFor(user.id).then((d) => d.tasks.length) : 0,
@@ -45,12 +46,14 @@ export default async function HomePage() {
     punchState(user.id),
     workHours(),
     finance ? accountsBadges().then((b) => b.overdue) : 0,
+    unreadTotal(user.id),
   ]);
   const badges: Record<string, { n: number; label: string }> = {
     procurement: { n: toReview, label: `${toReview} to review` },
     sales: { n: newDeals, label: `${newDeals} new deal${newDeals === 1 ? "" : "s"}` },
     tasks: { n: dueTasks, label: `${dueTasks} due today` },
     mail: { n: mailUnread, label: `${mailUnread} unread` },
+    chat: { n: chatUnread, label: `${chatUnread} unread message${chatUnread === 1 ? "" : "s"}` },
     accounts: { n: overdueInvoices, label: `${overdueInvoices} invoice${overdueInvoices === 1 ? "" : "s"} overdue` },
   };
 

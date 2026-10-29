@@ -3,7 +3,7 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import type { ChatEvent, ChatPrefsView } from "@/lib/chat/types";
-import type { WebChatSummary, WebMessage } from "@/lib/webchat/types";
+import type { WebChatSummary, WebMessage, WebVisitorInfo } from "@/lib/webchat/types";
 import { chime, prefsKey } from "./alerts";
 
 export interface WebList {
@@ -16,7 +16,7 @@ export interface WebList {
 
 export interface WebThread {
   messages: WebMessage[];
-  info: { userAgent: string; ip: string; referrer: string; createdAt: string };
+  info: WebVisitorInfo;
 }
 
 // under ["chat"], so a reconnect's re-read covers these too

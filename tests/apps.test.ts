@@ -16,18 +16,23 @@ describe("allowedApps", () => {
     expect(keys).not.toContain("accounts"); // the money: only when an admin gives it
   });
 
-  it("uses the admin's explicit list for a sales user, in registry order", () => {
-    expect(allowedApps({ role: "sales", apps: ["tasks", "procurement"] })).toEqual(["procurement", "tasks"]);
-    expect(allowedApps({ role: "sales", apps: [] })).toEqual([]);
+  it("uses the admin's explicit list for a sales user, in registry order (Chat is always there)", () => {
+    expect(allowedApps({ role: "sales", apps: ["tasks", "procurement"] })).toEqual(["procurement", "tasks", "chat"]);
+    expect(allowedApps({ role: "sales", apps: [] })).toEqual(["chat"]);
+  });
+
+  it("gives everyone Chat and does not offer it as a per-user toggle", () => {
+    expect(allowedApps({ role: "sales", apps: ["mail"] })).toContain("chat");
+    expect(GRANTABLE_APPS.map((a) => a.key)).not.toContain("chat");
   });
 
   it("never lets a sales user into admin, even if the list says so", () => {
-    expect(allowedApps({ role: "sales", apps: ["admin", "procurement"] })).toEqual(["procurement"]);
+    expect(allowedApps({ role: "sales", apps: ["admin", "procurement"] })).toEqual(["procurement", "chat"]);
     expect(canOpen({ role: "sales", apps: ["admin"] }, "admin")).toBe(false);
   });
 
   it("ignores unknown keys", () => {
-    expect(allowedApps({ role: "sales", apps: ["nope", "tasks"] })).toEqual(["tasks"]);
+    expect(allowedApps({ role: "sales", apps: ["nope", "tasks"] })).toEqual(["tasks", "chat"]);
     expect(isAppKey("nope")).toBe(false);
     expect(isAppKey("crm")).toBe(true);
     expect(isAppKey("sales")).toBe(true);
