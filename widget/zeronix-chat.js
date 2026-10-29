@@ -60,7 +60,7 @@
   function get(store, key) {
     try {
       return window[store].getItem(key);
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -68,7 +68,7 @@
     try {
       if (value == null) window[store].removeItem(key);
       else window[store].setItem(key, value);
-    } catch (e) {
+    } catch {
       /* ignore */
     }
   }
@@ -137,7 +137,7 @@
       var evt;
       try {
         evt = JSON.parse(e.data);
-      } catch (err) {
+      } catch {
         return;
       }
       onEvent(evt);
@@ -199,7 +199,7 @@
         o.start(now + i * 0.12);
         o.stop(now + i * 0.12 + 0.3);
       });
-    } catch (e) {
+    } catch {
       /* the browser has not allowed sound yet */
     }
   }
@@ -618,7 +618,7 @@
         f.focus({ preventScroll: true });
         try {
           f.setSelectionRange(f.value.length, f.value.length);
-        } catch (e) {
+        } catch {
           /* email inputs have no caret position */
         }
       }
