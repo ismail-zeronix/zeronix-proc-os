@@ -144,9 +144,9 @@ export const APPS = [
     label: "Prospecting",
     href: "/prospecting",
     icon: Radar,
-    blurb: "Find new businesses",
+    blurb: "Find companies, research, cold email",
     defaultFor: ["admin"],
-    status: "soon",
+    status: "live",
     color: "var(--series-5)",
   },
   {

@@ -1251,3 +1251,168 @@ export const errorLog = pgTable(
   },
   (t) => [index("error_log_at_idx").on(t.at)],
 );
+
+// ---------- Prospecting (its own tables; nothing here touches the CRM until "Convert to lead") ----------
+
+/** Who we target: a group of companies with the offer that fits them and the people to find (seeded by migration 0039). */
+export const prospectSegments = pgTable("prospect_segments", {
+  key: text("key").primaryKey(),
+  label: text("label").notNull(),
+  /** What we sell them, in one line. */
+  offer: text("offer").notNull().default(""),
+  /** Job titles to look for, best first. */
+  keyRoles: text("key_roles").array().notNull().default(sql`'{}'::text[]`),
+  position: integer("position").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+/** Where prospects come from: a public site, an official API, a file import or manual research. */
+export const prospectSources = pgTable("prospect_sources", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  url: text("url").notNull().default(""),
+  /** scrape = the Python scraper may read it; api = official API only; manual = people only; import = files. */
+  access: text("access", { enum: ["scrape", "api", "manual", "import"] }).notNull().default("manual"),
+  /** Which segment it mostly feeds. */
+  segmentKey: text("segment_key").references(() => prospectSegments.key, { onDelete: "set null" }),
+  notes: text("notes").notNull().default(""),
+  /** When someone read the site's terms and robots rules; no scraping before this is set. */
+  termsCheckedAt: date("terms_checked_at"),
+  enabled: boolean("enabled").notNull().default(true),
+  /** Scraper settings for listing pages (P.2). */
+  config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A company we may approach. Lives only here; Convert to lead copies it into the CRM and keeps the link. */
+export const prospectCompanies = pgTable(
+  "prospect_companies",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** Same normalising as companies.name_norm, to spot duplicates. */
+    nameNorm: text("name_norm").notNull(),
+    /** Bare domain ("example.ae"): the main duplicate key and the do-not-contact key. */
+    domain: text("domain"),
+    website: text("website").notNull().default(""),
+    emirate: text("emirate").notNull().default(""),
+    freeZone: text("free_zone").notNull().default(""),
+    licenseNo: text("license_no").notNull().default(""),
+    licenseDate: date("license_date"),
+    /** Licensed activity or what they do, as published. */
+    activity: text("activity").notNull().default(""),
+    industry: text("industry").notNull().default(""),
+    segmentKey: text("segment_key").references(() => prospectSegments.key, { onDelete: "set null" }),
+    /** See lib/prospecting/constants.ts SIZE_BANDS. */
+    sizeBand: text("size_band").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    /** The company's general address (info@...). People's emails live on prospect_people. */
+    email: text("email").notNull().default(""),
+    address: text("address").notNull().default(""),
+    linkedinUrl: text("linkedin_url").notNull().default(""),
+    sourceId: integer("source_id").references(() => prospectSources.id, { onDelete: "set null" }),
+    /** The page this company was found on. */
+    sourceUrl: text("source_url").notNull().default(""),
+    /** Status key from lib/prospecting/constants.ts STATUSES. */
+    status: text("status").notNull().default("sourced"),
+    disqualifyReason: text("disqualify_reason").notNull().default(""),
+    /** 0-10 each; score is the weighted total (fit 40%, signal 40%, reach 20%). */
+    scoreFit: integer("score_fit").notNull().default(0),
+    scoreSignal: integer("score_signal").notNull().default(0),
+    scoreReach: integer("score_reach").notNull().default(0),
+    score: real("score").notNull().default(0),
+    ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+    /** The hook for the first email: one sentence that shows we looked at them. */
+    personalLine: text("personal_line").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    snoozeUntil: date("snooze_until"),
+    /** Filled by Convert to lead. */
+    crmCompanyId: integer("crm_company_id").references(() => companies.id, { onDelete: "set null" }),
+    crmDealId: integer("crm_deal_id").references(() => deals.id, { onDelete: "set null" }),
+    statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("prospect_companies_domain_uq").on(t.domain),
+    index("prospect_companies_name_norm_idx").on(t.nameNorm),
+    index("prospect_companies_status_idx").on(t.status),
+    index("prospect_companies_segment_idx").on(t.segmentKey),
+  ],
+);
+
+/** A person at a prospect company, ideally the decision maker. */
+export const prospectPeople = pgTable(
+  "prospect_people",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    title: text("title").notNull().default(""),
+    /** decision / influencer / gatekeeper */
+    roleKind: text("role_kind").notNull().default("decision"),
+    email: text("email").notNull().default(""),
+    /** verified / likely / guess / generic; a guess is never sent until someone confirms it. */
+    emailStatus: text("email_status").notNull().default("guess"),
+    /** Where the email was seen (page URL), for the audit trail. */
+    emailSource: text("email_source").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    linkedinUrl: text("linkedin_url").notNull().default(""),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("prospect_people_company_idx").on(t.companyId), index("prospect_people_email_idx").on(t.email)],
+);
+
+/** Evidence that something is happening now (new licence, hiring, new office...), always with a date and a source. */
+export const prospectSignals = pgTable(
+  "prospect_signals",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade" }),
+    /** Key from lib/prospecting/constants.ts SIGNALS. */
+    kind: text("kind").notNull(),
+    detail: text("detail").notNull().default(""),
+    sourceUrl: text("source_url").notNull().default(""),
+    observedOn: date("observed_on").notNull(),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("prospect_signals_company_idx").on(t.companyId)],
+);
+
+/** The timeline of a prospect: notes, status changes, imports, research. */
+export const prospectActivities = pgTable(
+  "prospect_activities",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** note / status / created / import / research / converted */
+    kind: text("kind").notNull(),
+    body: text("body").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt)],
+);
+
+/** Never email these: an address or a whole domain. Checked when a prospect is queued and again just before sending. */
+export const outreachSuppression = pgTable("outreach_suppression", {
+  id: serial("id").primaryKey(),
+  /** Lower-case email ("a@b.ae") or bare domain ("b.ae"). */
+  value: text("value").notNull().unique(),
+  kind: text("kind", { enum: ["email", "domain"] }).notNull(),
+  /** unsubscribe / bounce / complaint / customer / manual */
+  reason: text("reason").notNull().default("manual"),
+  note: text("note").notNull().default(""),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

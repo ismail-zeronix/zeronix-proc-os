@@ -16,7 +16,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserAvatar } from "@/components/user-avatar";
-import { allowedApps, GRANTABLE_APPS } from "@/lib/apps";
+import { allowedApps, GRANTABLE_APPS, type AppDef } from "@/lib/apps";
 import { Textarea } from "@/components/ui/textarea";
 import { invoiceNumber, termsLabel, TERMS_OPTIONS } from "@/lib/invoicing";
 import { QUOTE_EMAIL_FIELDS } from "@/lib/quote-email";
@@ -213,7 +213,7 @@ function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; r
                 onCheckedChange={(v) => toggle(a.key, !!v)}
               />
               {a.label}
-              {a.status === "soon" && <span className="text-xs text-muted-foreground">(coming soon)</span>}
+              {(a as AppDef).status === "soon" && <span className="text-xs text-muted-foreground">(coming soon)</span>}
             </label>
           ))}
         </div>

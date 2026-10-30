@@ -1,4 +1,4 @@
-import { BarChart3, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { Ban, BarChart3, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -43,6 +43,24 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       items: [
         { href: "/crm/companies", label: "Companies", icon: Building2 },
         { href: "/crm/contacts", label: "Contacts", icon: Users },
+      ],
+    },
+  ],
+  prospecting: [
+    {
+      label: "Work",
+      items: [
+        { href: "/prospecting", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/prospecting/prospects", label: "Prospects", icon: Building2 },
+        { href: "/prospecting/import", label: "Import", icon: Upload },
+      ],
+    },
+    {
+      label: "Setup",
+      items: [
+        { href: "/prospecting/sources", label: "Sources", icon: Database },
+        { href: "/prospecting/segments", label: "Segments", icon: Target },
+        { href: "/prospecting/do-not-contact", label: "Do not contact", icon: Ban },
       ],
     },
   ],
