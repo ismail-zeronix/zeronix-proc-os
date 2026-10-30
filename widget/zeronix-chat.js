@@ -264,7 +264,7 @@
     ".chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px 33px}" +
     ".chip{border:1px solid var(--c);background:#fff;color:var(--d);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;line-height:1.2}" +
     ".chip:hover,.chip.on{background:var(--c);color:#fff}" +
-    ".card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 10px rgba(4,42,45,.08);animation:up .2s ease-out}" +
+    ".card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 10px rgba(4,42,45,.08)}" +
     ".card h4{margin:0 0 4px;font-size:14px;color:var(--d)}" +
     ".card p{margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.45}" +
     "form.lead{display:grid;gap:9px}" +
@@ -427,9 +427,18 @@
   }
 
   // ---------- actions ----------
+  var draft = ""; // the message box
+  var leadDraft = {}; // the lead form's fields
+  var commentText = ""; // the rating comment
+
+  function clearComposer() {
+    draft = "";
+    if (ui && ui.input) ui.input.value = "";
+  }
+
   function sendLead() {
     var form = root.querySelector("form.lead");
-    if (!form) return;
+    if (!form || sending) return;
     var data = {};
     ["name", "email", "phone", "company", "website"].forEach(function (k) {
       data[k] = form.elements[k] ? form.elements[k].value : "";
@@ -452,7 +461,7 @@
         }
         sending = false;
         formOpen = false;
-        draft = "";
+        clearComposer();
         render();
         focusInput();
       })
@@ -463,44 +472,46 @@
       });
   }
 
-  function sendMessage(text) {
-    text = (text || "").trim();
+  function sendMessage() {
+    var text = draft.trim();
     if (!text || sending) return;
     if (!state.leadDone) {
       // keep the question; it goes out with the form
-      draft = text;
       openForm();
       return;
     }
     sending = true;
     sendError = "";
-    draft = "";
+    clearComposer();
     render();
     post("send", { token: token, body: text })
       .then(function (res) {
         sending = false;
         if (!state.messages.some(function (m) { return m.id === res.message.id; })) state.messages.push(res.message);
         render();
-        focusInput();
       })
       .catch(function (e) {
         sending = false;
+        // give the text back so nothing is lost
         draft = text;
+        if (ui && ui.input) ui.input.value = text;
         sendError = e.message;
         render();
       });
   }
 
   function openForm() {
-    if (formOpen) return focusInput('[name="name"]');
-    formOpen = true;
-    render();
+    if (!formOpen) {
+      formOpen = true;
+      render();
+    }
     focusInput('[name="name"]');
   }
 
   function callBack() {
     confirmEnd = false;
     note = "Thanks, we will call you back shortly.";
+    render();
     post("send", { token: token, body: "📞 Please call me back." })
       .then(function (res) {
         if (!state.messages.some(function (m) { return m.id === res.message.id; })) state.messages.push(res.message);
@@ -510,35 +521,35 @@
         note = e.message;
         render();
       });
-    render();
   }
 
   function endChat() {
-    confirmEnd = false;
+    if (sending) return;
     sending = true;
     render();
     post("close", { token: token })
       .then(function () {
         sending = false;
+        confirmEnd = false;
         state.status = "closed";
         render();
       })
       .catch(function (e) {
         sending = false;
+        confirmEnd = false;
         sendError = e.message;
         render();
       });
   }
 
   function sendRating(skip) {
-    var comment = root.querySelector('textarea[name="comment"]');
     if (skip || !rating) {
       ratingDone = true;
       return render();
     }
     sending = true;
     render();
-    post("feedback", { token: token, rating: rating, tags: tags, comment: comment ? comment.value : "" })
+    post("feedback", { token: token, rating: rating, tags: tags, comment: commentText })
       .then(function () {
         sending = false;
         ratingDone = true;
@@ -556,64 +567,196 @@
     state = null;
     rating = 0;
     tags = [];
+    commentText = "";
     ratingDone = false;
     thanks = false;
     note = "";
+    sendError = "";
+    keys = {};
     if (source) source.close();
     source = null;
     start();
   }
 
   // ---------- render ----------
-  var draft = "";
-  var leadDraft = {};
+  /*
+   * The widget is built once and then updated in parts: the header, the messages and the bottom bar each redraw only
+   * when what they show has changed (`keys`). The message box and the form fields are never replaced while someone
+   * types in them, and the panel's slide-in plays only when it opens (redrawing everything made it blink and put the
+   * sent text back in the box).
+   */
+  var ui = null;
+  var keys = {};
 
-  function render() {
-    // keep what the visitor is typing across re-renders
-    var box = root.querySelector(".compose textarea");
-    if (box) draft = box.value;
-    var form = root.querySelector("form.lead");
-    if (form)
-      ["name", "email", "phone", "company"].forEach(function (k) {
-        leadDraft[k] = form.elements[k].value;
-      });
-    var comment = root.querySelector('textarea[name="comment"]');
-    var commentText = comment ? comment.value : "";
-    var focused = root.activeElement && root.activeElement.getAttribute && root.activeElement.getAttribute("name");
-    var scroller = root.querySelector(".body");
-    var atBottom = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
-
+  function build() {
     root.innerHTML = "";
     root.appendChild(el("style", { text: css }));
-    var wrap = el("div", { class: open ? "panel-open" : "" });
+    var wrap = el("div");
     wrap.style.setProperty("--c", cfg.color);
     wrap.style.setProperty("--d", cfg.dark);
     wrap.style.setProperty("--a", cfg.accent);
     root.appendChild(wrap);
-    if (!state) return;
-
-    if (open) wrap.appendChild(panel());
-    else if (get("sessionStorage", TEASER_KEY) === "show") wrap.appendChild(teaser());
-
     var launcher = el("button", {
       class: "launcher",
       type: "button",
-      "aria-label": open ? "Close chat" : "Chat with sales",
-      html: open ? ICON_X : ICON_CHAT,
       onclick: function () {
         setOpen(!open);
       },
     });
-    if (!open && unread) launcher.appendChild(el("span", { class: "badge", text: String(unread) }));
-    else if (!open && online()) launcher.appendChild(el("span", { class: "live" }));
     wrap.appendChild(launcher);
+    ui = { wrap: wrap, launcher: launcher, teaser: null, panel: null, head: null, body: null, foot: null, input: null, sendBtn: null, err: null, brand: null };
+  }
 
-    var again = comment && root.querySelector('textarea[name="comment"]');
-    if (again) again.value = commentText;
-    var body = root.querySelector(".body");
-    if (body && atBottom) body.scrollTop = body.scrollHeight;
+  function render() {
+    if (!ui) build();
+    ui.wrap.className = open ? "panel-open" : "";
+    ui.launcher.style.display = state ? "" : "none";
+    if (!state) return;
+
+    // the round button
+    var lk = [open, unread, online()].join("|");
+    if (keys.launcher !== lk) {
+      keys.launcher = lk;
+      ui.launcher.innerHTML = open ? ICON_X : ICON_CHAT;
+      ui.launcher.setAttribute("aria-label", open ? "Close chat" : "Chat with sales");
+      if (!open && unread) ui.launcher.appendChild(el("span", { class: "badge", text: String(unread) }));
+      else if (!open && online()) ui.launcher.appendChild(el("span", { class: "live" }));
+    }
+
+    // the small invitation (phones)
+    var showTeaser = !open && get("sessionStorage", TEASER_KEY) === "show";
+    var tk = showTeaser ? JSON.stringify(state.team) : "";
+    if (keys.teaser !== tk) {
+      keys.teaser = tk;
+      if (ui.teaser) ui.teaser.remove();
+      ui.teaser = showTeaser ? teaser() : null;
+      if (ui.teaser) ui.wrap.insertBefore(ui.teaser, ui.launcher);
+    }
+
+    // the chat panel
+    if (open && !ui.panel) {
+      ui.panel = el("div", { class: "panel", role: "dialog", "aria-label": cfg.title });
+      ui.panel.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (confirmEnd) {
+          confirmEnd = false;
+          render();
+        } else setOpen(false);
+      });
+      ui.head = el("div", { class: "head" });
+      ui.body = el("div", { class: "body" });
+      ui.foot = el("div");
+      ui.panel.appendChild(ui.head);
+      ui.panel.appendChild(ui.body);
+      ui.panel.appendChild(ui.foot);
+      ui.wrap.insertBefore(ui.panel, ui.launcher);
+      keys.head = keys.body = keys.foot = null;
+    } else if (!open && ui.panel) {
+      ui.panel.remove();
+      ui.panel = ui.head = ui.body = ui.foot = ui.input = ui.sendBtn = ui.err = ui.brand = null;
+    }
+    if (ui.panel) {
+      renderHead();
+      renderBody();
+      renderFoot();
+    }
+  }
+
+  function renderHead() {
+    var active = state.status === "active" && state.agent;
+    var k = JSON.stringify([state.status, state.agent, state.team, state.leadDone]);
+    if (keys.head === k) return;
+    keys.head = k;
+    var people = active ? [state.agent] : state.team || [];
+    var sub = active ? state.agent.name + " · " + state.agent.title : state.status === "closed" ? "Chat ended" : teamLine();
+    ui.head.innerHTML = "";
+    [
+      people.length ? teamStack(people) : null,
+      el("div", { class: "t" }, [el("b", { text: cfg.title }), el("span", null, [state.status !== "closed" && (active || online()) ? el("i", { class: "pulse" }) : null, sub])]),
+      state.leadDone && state.status !== "closed"
+        ? el("button", {
+            class: "icon",
+            type: "button",
+            title: "End chat",
+            text: "End",
+            onclick: function () {
+              confirmEnd = true;
+              render();
+            },
+          })
+        : null,
+      el("button", {
+        class: "icon",
+        type: "button",
+        title: "Minimise",
+        "aria-label": "Minimise chat",
+        html: ICON_MIN,
+        onclick: function () {
+          setOpen(false);
+        },
+      }),
+    ].forEach(function (c) {
+      if (c) ui.head.appendChild(c);
+    });
+  }
+
+  function renderBody() {
+    var k = JSON.stringify([
+      state.status,
+      state.leadDone,
+      state.messages.map(function (m) { return m.id; }),
+      (state.team || []).map(function (p) { return p.name; }),
+      formOpen,
+      formError,
+      // "Connecting…" / "Ending…" / "Sending…" on the form, the end card and the rating; a plain message send redraws nothing
+      sending && ((formOpen && !state.leadDone) || confirmEnd || state.status === "closed"),
+      note,
+      confirmEnd,
+      rating,
+      tags,
+      ratingDone,
+      thanks,
+    ]);
+    if (keys.body === k) return;
+    keys.body = k;
+    var body = ui.body;
+    var atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+    var top = body.scrollTop;
+    // a form field being typed in gets its focus and caret back after the redraw
+    var focused = root.activeElement && body.contains(root.activeElement) ? root.activeElement.getAttribute("name") : null;
+    body.innerHTML = "";
+
+    if (state.status === "closed" && !ratingDone) body.appendChild(ratingCard());
+    else {
+      greeting(body);
+      state.messages.forEach(function (m, i) {
+        if (m.sender === "system") return body.appendChild(el("div", { class: "sys", text: m.body }));
+        var mine = m.sender === "visitor";
+        var prev = state.messages[i - 1];
+        if (!mine && (!prev || prev.sender !== "agent")) body.appendChild(el("div", { class: "name", text: m.name || "Sales" }));
+        body.appendChild(el("div", { class: "msg " + (mine ? "me" : "them") }, [mine ? null : avatar(m.name || "Sales", true), el("div", { class: "bubble", text: m.body })]));
+      });
+      if (!state.leadDone && formOpen && state.status !== "closed") body.appendChild(leadCard());
+      if (state.leadDone && state.status === "waiting") {
+        body.appendChild(
+          el("div", { class: "wait" }, [
+            online() ? el("span", { class: "dots" }, [el("span"), el("span"), el("span")]) : null,
+            el("span", {
+              text: online()
+                ? "Connecting you to our sales team…"
+                : "Our team is away right now. We have your details and will get back to you by email soon. You can keep writing here.",
+            }),
+          ]),
+        );
+      }
+      if (note) body.appendChild(el("p", { class: "note", text: note }));
+      if (thanks) body.appendChild(el("p", { class: "note", text: "Thank you for your feedback!" }));
+      if (confirmEnd && state.status !== "closed") body.appendChild(endCard());
+    }
+
+    body.scrollTop = atBottom || confirmEnd ? body.scrollHeight : top;
     if (focused) {
-      var f = root.querySelector('[name="' + focused + '"]');
+      var f = body.querySelector('[name="' + focused + '"]');
       if (f) {
         f.focus({ preventScroll: true });
         try {
@@ -622,6 +765,57 @@
           /* email inputs have no caret position */
         }
       }
+    }
+  }
+
+  function renderFoot() {
+    var mode = state.status === "closed" ? (ratingDone ? "ended" : "none") : confirmEnd ? "none" : "compose";
+    if (keys.foot !== mode) {
+      keys.foot = mode;
+      ui.foot.innerHTML = "";
+      ui.input = ui.sendBtn = ui.err = ui.brand = null;
+      if (mode === "ended") {
+        ui.foot.appendChild(
+          el("div", { class: "foot center" }, [
+            el("p", { class: "note", text: "This chat has ended. Thank you for contacting Zeronix." }),
+            el("button", { class: "btn", type: "button", text: "Start a new chat", onclick: newChat }),
+          ]),
+        );
+      } else if (mode === "compose") {
+        ui.foot.appendChild(el("div", { class: "typing", "aria-live": "polite" }));
+        ui.err = el("p", { class: "err", role: "alert", style: "padding:0 14px 4px;background:#F2F1ED" });
+        ui.foot.appendChild(ui.err);
+        ui.input = el("textarea", { name: "body", rows: "1", maxlength: "2000", "aria-label": "Message", "data-focus": "1" });
+        ui.input.value = draft;
+        ui.input.addEventListener("input", function () {
+          draft = ui.input.value;
+          // they started typing: ask who they are, right in the chat
+          if (!state.leadDone && draft.trim() && !formOpen) {
+            formOpen = true;
+            render();
+            return;
+          }
+          pingTyping();
+        });
+        ui.input.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+        ui.sendBtn = el("button", { class: "send", type: "button", "aria-label": "Send", html: ICON_SEND, onclick: sendMessage });
+        ui.foot.appendChild(el("div", { class: "compose" }, [ui.input, ui.sendBtn]));
+        ui.brand = el("div", { class: "brand", text: "Your details are only used to reply to you." });
+        ui.foot.appendChild(ui.brand);
+      }
+    }
+    // small changes in place, so the message box is never replaced while typing
+    if (mode === "compose") {
+      ui.input.placeholder = state.leadDone ? "Write a message…" : "Type your question…";
+      ui.sendBtn.disabled = sending;
+      ui.err.textContent = sendError;
+      ui.err.style.display = sendError ? "" : "none";
+      ui.brand.style.display = state.leadDone ? "none" : "";
     }
   }
 
@@ -658,7 +852,7 @@
     var who = online() ? state.team[0].name : cfg.title;
     body.appendChild(el("div", { class: "name", text: online() ? who + " · " + (state.team[0].title || "Sales") : cfg.title }));
     body.appendChild(el("div", { class: "msg them" }, [avatar(who, true), el("div", { class: "bubble", text: cfg.greeting })]));
-    if (!state.leadDone && !formOpen && !draft && cfg.quick.length) {
+    if (!state.leadDone && !formOpen && cfg.quick.length) {
       var chips = el("div", { class: "chips" });
       cfg.quick.forEach(function (q) {
         chips.appendChild(
@@ -668,6 +862,7 @@
             text: q,
             onclick: function () {
               draft = q;
+              if (ui.input) ui.input.value = q;
               openForm();
             },
           }),
@@ -677,145 +872,13 @@
     }
   }
 
-  function panel() {
-    var p = el("div", { class: "panel", role: "dialog", "aria-label": cfg.title });
-    p.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        if (confirmEnd) {
-          confirmEnd = false;
-          render();
-        } else setOpen(false);
-      }
-    });
-
-    // header: who is helping, or who is online
-    var active = state.status === "active" && state.agent;
-    var people = active ? [state.agent] : state.team || [];
-    var sub = active ? state.agent.name + " · " + state.agent.title : state.status === "closed" ? "Chat ended" : teamLine();
-    var head = el("div", { class: "head" }, [
-      people.length ? teamStack(people) : null,
-      el("div", { class: "t" }, [el("b", { text: cfg.title }), el("span", null, [state.status !== "closed" && (active || online()) ? el("i", { class: "pulse" }) : null, sub])]),
-      state.leadDone && state.status !== "closed"
-        ? el("button", {
-            class: "icon",
-            type: "button",
-            title: "End chat",
-            text: "End",
-            onclick: function () {
-              confirmEnd = true;
-              render();
-            },
-          })
-        : null,
-      el("button", {
-        class: "icon",
-        type: "button",
-        title: "Minimise",
-        "aria-label": "Minimise chat",
-        html: ICON_MIN,
-        onclick: function () {
-          setOpen(false);
-        },
-      }),
-    ]);
-    p.appendChild(head);
-
-    var body = el("div", { class: "body" });
-    p.appendChild(body);
-
-    // closed: rate the chat, then thanks / start again
-    if (state.status === "closed" && !ratingDone) {
-      body.appendChild(ratingCard());
-      return p;
-    }
-
-    greeting(body);
-    state.messages.forEach(function (m, i) {
-      if (m.sender === "system") return body.appendChild(el("div", { class: "sys", text: m.body }));
-      var mine = m.sender === "visitor";
-      var prev = state.messages[i - 1];
-      if (!mine && (!prev || prev.sender !== "agent")) body.appendChild(el("div", { class: "name", text: m.name || "Sales" }));
-      body.appendChild(el("div", { class: "msg " + (mine ? "me" : "them") }, [mine ? null : avatar(m.name || "Sales", true), el("div", { class: "bubble", text: m.body })]));
-    });
-
-    if (!state.leadDone && formOpen) body.appendChild(leadCard());
-
-    if (state.leadDone && state.status === "waiting") {
-      body.appendChild(
-        el("div", { class: "wait" }, [
-          online() ? el("span", { class: "dots" }, [el("span"), el("span"), el("span")]) : null,
-          el("span", {
-            text: online()
-              ? "Connecting you to our sales team…"
-              : "Our team is away right now. We have your details and will get back to you by email soon. You can keep writing here.",
-          }),
-        ]),
-      );
-    }
-    if (note) body.appendChild(el("p", { class: "note", text: note }));
-
-    if (state.status === "closed") {
-      if (thanks) body.appendChild(el("p", { class: "note", text: "Thank you for your feedback!" }));
-      p.appendChild(
-        el("div", { class: "foot center" }, [
-          el("p", { class: "note", text: "This chat has ended. Thank you for contacting Zeronix." }),
-          el("button", { class: "btn", type: "button", text: "Start a new chat", onclick: newChat }),
-        ]),
-      );
-      return p;
-    }
-
-    if (confirmEnd) {
-      body.appendChild(endCard());
-      return p;
-    }
-
-    p.appendChild(el("div", { class: "typing", "aria-live": "polite" }));
-    if (sendError) p.appendChild(el("p", { class: "err", role: "alert", text: sendError, style: "padding:0 14px 4px;background:#F2F1ED" }));
-    var input = el("textarea", {
-      name: "body",
-      rows: "1",
-      maxlength: "2000",
-      placeholder: state.leadDone ? "Write a message…" : "Type your question…",
-      "aria-label": "Message",
-      "data-focus": "1",
-    });
-    input.value = draft;
-    input.addEventListener("input", function () {
-      draft = input.value;
-      // they started typing: ask who they are, right in the chat
-      if (!state.leadDone && draft.trim() && !formOpen) {
-        formOpen = true;
-        render();
-        return;
-      }
-      pingTyping();
-    });
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-        e.preventDefault();
-        sendMessage(input.value);
-      }
-    });
-    var sendBtn = el("button", {
-      class: "send",
-      type: "button",
-      "aria-label": "Send",
-      html: ICON_SEND,
-      onclick: function () {
-        sendMessage(input.value);
-      },
-    });
-    if (sending) sendBtn.disabled = true;
-    p.appendChild(el("div", { class: "compose" }, [input, sendBtn]));
-    if (!state.leadDone) p.appendChild(el("div", { class: "brand", text: "Your details are only used to reply to you." }));
-    return p;
-  }
-
   function field(label, name, type, required, extra) {
     var input = el("input", Object.assign({ name: name, type: type, autocomplete: name === "company" ? "organization" : name === "phone" ? "tel" : name }, extra || {}));
     if (required) input.required = true;
     input.value = leadDraft[name] || "";
+    input.addEventListener("input", function () {
+      leadDraft[name] = input.value;
+    });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -840,7 +903,7 @@
     // people never see this; bots fill it in
     form.appendChild(el("div", { class: "hp", "aria-hidden": "true" }, [el("input", { name: "website", tabindex: "-1", autocomplete: "off" })]));
     if (formError) form.appendChild(el("p", { class: "err", role: "alert", text: formError }));
-    var btn = el("button", { class: "btn", type: "submit", text: sending ? "Connecting…" : draft.trim() ? "Send and start chat" : "Start chat" });
+    var btn = el("button", { class: "btn", type: "submit", text: sending ? "Connecting…" : "Start chat" });
     if (sending) btn.disabled = true;
     form.appendChild(btn);
     return el("div", { class: "card" }, [
@@ -851,7 +914,7 @@
   }
 
   function endCard() {
-    var card = el("div", { class: "card center" }, [
+    return el("div", { class: "card center" }, [
       el("h4", { text: "End this chat?" }),
       el("p", { text: "You can always start a new one. Prefer to talk? We can call you back." }),
       el("div", { class: "row-btns" }, [
@@ -869,15 +932,13 @@
       ]),
       el("button", { class: "link", type: "button", text: "Request a call back instead", onclick: callBack }),
     ]);
-    return card;
   }
 
   function ratingCard() {
-    var shown = hoverStar || rating;
     var stars = el("div", { class: "stars", role: "radiogroup", "aria-label": "Rate this chat" });
     [1, 2, 3, 4, 5].forEach(function (n) {
       var b = el("button", {
-        class: "star" + (n <= shown ? " on" : ""),
+        class: "star" + (n <= rating ? " on" : ""),
         type: "button",
         role: "radio",
         "aria-checked": String(n === rating),
@@ -921,8 +982,22 @@
         );
       });
       children.push(chips);
-      children.push(el("textarea", { name: "comment", rows: "2", maxlength: "1000", placeholder: "Anything else you would like to tell us? (optional)", style: "margin-bottom:10px" }));
+      var comment = el("textarea", { name: "comment", rows: "2", maxlength: "1000", placeholder: "Anything else you would like to tell us? (optional)", style: "margin-bottom:10px" });
+      comment.value = commentText;
+      comment.addEventListener("input", function () {
+        commentText = comment.value;
+      });
+      children.push(comment);
     }
+    var send = el("button", {
+      class: "btn",
+      type: "button",
+      text: sending ? "Sending…" : "Send feedback",
+      onclick: function () {
+        sendRating(false);
+      },
+    });
+    if (!rating || sending) send.disabled = true;
     children.push(
       el("div", { class: "row-btns" }, [
         el("button", {
@@ -933,24 +1008,13 @@
             sendRating(true);
           },
         }),
-        (function () {
-          var b = el("button", {
-            class: "btn",
-            type: "button",
-            text: sending ? "Sending…" : "Send feedback",
-            onclick: function () {
-              sendRating(false);
-            },
-          });
-          if (!rating || sending) b.disabled = true;
-          return b;
-        })(),
+        send,
       ]),
     );
     return el("div", { class: "card center" }, children);
   }
 
-  // star hover without a full re-render
+  // star hover without a redraw
   function paintStars() {
     var shown = hoverStar || rating;
     var all = root.querySelectorAll(".star");
