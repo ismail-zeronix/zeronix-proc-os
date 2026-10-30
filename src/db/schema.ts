@@ -1416,3 +1416,58 @@ export const outreachSuppression = pgTable("outreach_suppression", {
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * A mailbox that sends cold email (on the separate sending domain, never zeronix.ae). Its daily limit starts low and
+ * rises each week while the domain warms up; nothing is sent from it until a connection test has passed.
+ */
+export const outreachMailboxes = pgTable("outreach_mailboxes", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  fromName: text("from_name").notNull().default(""),
+  /** Login name; usually the email address. */
+  username: text("username").notNull().default(""),
+  passwordEnc: text("password_enc").notNull(),
+  smtpHost: text("smtp_host").notNull().default("smtp.hostinger.com"),
+  smtpPort: integer("smtp_port").notNull().default(465),
+  imapHost: text("imap_host").notNull().default("imap.hostinger.com"),
+  imapPort: integer("imap_port").notNull().default(993),
+  /** Emails a day at the start of warm-up, the target once warm, and how much the limit grows each week. */
+  startCap: integer("start_cap").notNull().default(15),
+  dailyCap: integer("daily_cap").notNull().default(40),
+  rampPerWeek: integer("ramp_per_week").notNull().default(5),
+  warmupStartedOn: date("warmup_started_on"),
+  /** mon..sun, in Asia/Dubai time. */
+  sendDays: text("send_days").array().notNull().default(sql`'{mon,tue,wed,thu,fri}'::text[]`),
+  windowStart: text("window_start").notNull().default("09:00"),
+  windowEnd: text("window_end").notNull().default("17:00"),
+  /** Plain-text signature under every email from this mailbox. */
+  signature: text("signature").notNull().default(""),
+  enabled: boolean("enabled").notNull().default(false),
+  lastTestAt: timestamp("last_test_at", { withTimezone: true }),
+  lastTestOk: boolean("last_test_ok").notNull().default(false),
+  lastError: text("last_error").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** An AI service Prospecting may use once AI features are switched on (research notes, first drafts, reply sorting). */
+export const prospectAiProviders = pgTable("prospect_ai_providers", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  /** anthropic / openai / gemini / openai_compatible / ollama (see lib/prospecting/ai.ts). */
+  provider: text("provider").notNull(),
+  model: text("model").notNull().default(""),
+  /** Empty = the provider's usual address. */
+  baseUrl: text("base_url").notNull().default(""),
+  apiKeyEnc: text("api_key_enc").notNull().default(""),
+  /** Last 4 characters of the key, so people can tell keys apart without seeing them. */
+  keyHint: text("key_hint").notNull().default(""),
+  /** research / writing / replies */
+  uses: text("uses").array().notNull().default(sql`'{}'::text[]`),
+  isDefault: boolean("is_default").notNull().default(false),
+  enabled: boolean("enabled").notNull().default(true),
+  lastTestAt: timestamp("last_test_at", { withTimezone: true }),
+  lastTestOk: boolean("last_test_ok").notNull().default(false),
+  lastError: text("last_error").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

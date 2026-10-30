@@ -61,6 +61,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/prospecting/sources", label: "Sources", icon: Database },
         { href: "/prospecting/segments", label: "Segments", icon: Target },
         { href: "/prospecting/do-not-contact", label: "Do not contact", icon: Ban },
+        { href: "/prospecting/settings", label: "Settings", icon: SlidersHorizontal },
       ],
     },
   ],

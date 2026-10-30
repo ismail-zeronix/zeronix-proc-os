@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { domainOf, isGenericEmail } from "@/lib/prospecting/constants";
 import { guessMapping, parseCsv, rowToProspect, toIsoDate } from "@/lib/prospecting/import";
+import { capOn, HARD_MAX_PER_DAY, isTime, weeksToTarget } from "@/lib/prospecting/sending";
 import { fitScore, reachScore, scoreProspect, signalScore } from "@/lib/prospecting/score";
 
 describe("domainOf", () => {
@@ -125,5 +126,29 @@ describe("score", () => {
 
   it("gives a company without segment or website a low fit", () => {
     expect(fitScore({ segmentKey: null, domain: null, emirate: "", sizeBand: "" })).toBe(3);
+  });
+});
+
+describe("sending limits", () => {
+  const m = { startCap: 15, dailyCap: 40, rampPerWeek: 5, warmupStartedOn: "2026-10-01" };
+
+  it("starts low and adds the weekly step for each full week", () => {
+    expect(capOn({ ...m, warmupStartedOn: null }, "2026-10-30")).toBe(15);
+    expect(capOn(m, "2026-10-07")).toBe(15);
+    expect(capOn(m, "2026-10-08")).toBe(20);
+    expect(capOn(m, "2026-10-30")).toBe(35);
+    expect(weeksToTarget(m, "2026-10-30")).toBe(1);
+  });
+
+  it("never goes above the target or the hard maximum", () => {
+    expect(capOn(m, "2027-06-01")).toBe(40);
+    expect(capOn({ ...m, dailyCap: 500, startCap: 500 }, "2026-10-30")).toBe(HARD_MAX_PER_DAY);
+    expect(weeksToTarget(m, "2027-06-01")).toBe(0);
+  });
+
+  it("checks times", () => {
+    expect(isTime("09:00")).toBe(true);
+    expect(isTime("24:00")).toBe(false);
+    expect(isTime("9:00")).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
@@ -207,3 +207,19 @@ export async function prospectingOverview() {
   const count = Object.fromEntries(byStatus.map((r) => [r.status, r.n])) as Record<string, number>;
   return { count, total: byStatus.reduce((s, r) => s + r.n, 0), addedThisWeek: week?.n ?? 0, bySegment, recent };
 }
+
+/** Sending mailboxes, without their passwords. */
+export async function listMailboxes() {
+  const { passwordEnc, ...cols } = getTableColumns(schema.outreachMailboxes);
+  void passwordEnc;
+  return db.select(cols).from(schema.outreachMailboxes).orderBy(asc(schema.outreachMailboxes.id));
+}
+export type MailboxRow = Awaited<ReturnType<typeof listMailboxes>>[number];
+
+/** AI providers, without their keys (keyHint shows the last 4 characters). */
+export async function listAiProviders() {
+  const { apiKeyEnc, ...cols } = getTableColumns(schema.prospectAiProviders);
+  void apiKeyEnc;
+  return db.select(cols).from(schema.prospectAiProviders).orderBy(desc(schema.prospectAiProviders.isDefault), asc(schema.prospectAiProviders.id));
+}
+export type AiProviderRow = Awaited<ReturnType<typeof listAiProviders>>[number];

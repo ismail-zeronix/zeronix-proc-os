@@ -212,6 +212,7 @@ Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move 
 ## Phase 16: Prospecting app (plan: ~/.claude/plans/lets-plan-the-prospecting-memoized-horizon.md)
 Owner decisions (2026-10-30): fully independent app; separate cold-email domain; no AI in v1 (people research and write, a queue sends); Python scraper service; a reply with a real requirement is converted to a CRM lead.
 - [x] P.1 Foundation: tables + migration 0039, app live, Overview, Prospects list and page, manual add, CSV/Excel import, dedupe, scoring, signals, do-not-contact list, segments and sources [2026-10-30]
+- [x] P.1b Settings: several sending mailboxes (login test, warm-up limit, days and hours, signature, on/off) and several AI providers (Claude, OpenAI, Gemini, OpenAI-compatible, Ollama; key test, default, uses) [2026-10-30]
 - [ ] P.2 Python scraper service (scraper/): job loop, website research spider, email check, Review imports
 - [ ] P.3 Source spiders (Meydan, DIFC, ADGM, KHDA, DHA) + generic listing spider, each after its terms are checked
 - [ ] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM

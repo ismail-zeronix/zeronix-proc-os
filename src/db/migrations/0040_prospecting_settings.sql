@@ -1,0 +1,42 @@
+CREATE TABLE "outreach_mailboxes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"from_name" text DEFAULT '' NOT NULL,
+	"username" text DEFAULT '' NOT NULL,
+	"password_enc" text NOT NULL,
+	"smtp_host" text DEFAULT 'smtp.hostinger.com' NOT NULL,
+	"smtp_port" integer DEFAULT 465 NOT NULL,
+	"imap_host" text DEFAULT 'imap.hostinger.com' NOT NULL,
+	"imap_port" integer DEFAULT 993 NOT NULL,
+	"start_cap" integer DEFAULT 15 NOT NULL,
+	"daily_cap" integer DEFAULT 40 NOT NULL,
+	"ramp_per_week" integer DEFAULT 5 NOT NULL,
+	"warmup_started_on" date,
+	"send_days" text[] DEFAULT '{mon,tue,wed,thu,fri}'::text[] NOT NULL,
+	"window_start" text DEFAULT '09:00' NOT NULL,
+	"window_end" text DEFAULT '17:00' NOT NULL,
+	"signature" text DEFAULT '' NOT NULL,
+	"enabled" boolean DEFAULT false NOT NULL,
+	"last_test_at" timestamp with time zone,
+	"last_test_ok" boolean DEFAULT false NOT NULL,
+	"last_error" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "outreach_mailboxes_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE "prospect_ai_providers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"label" text NOT NULL,
+	"provider" text NOT NULL,
+	"model" text DEFAULT '' NOT NULL,
+	"base_url" text DEFAULT '' NOT NULL,
+	"api_key_enc" text DEFAULT '' NOT NULL,
+	"key_hint" text DEFAULT '' NOT NULL,
+	"uses" text[] DEFAULT '{}'::text[] NOT NULL,
+	"is_default" boolean DEFAULT false NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"last_test_at" timestamp with time zone,
+	"last_test_ok" boolean DEFAULT false NOT NULL,
+	"last_error" text DEFAULT '' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
