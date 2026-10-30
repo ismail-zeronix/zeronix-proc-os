@@ -267,6 +267,13 @@
       "when": 1793317296435,
       "tag": "0037_website_chat_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793322045752,
+      "tag": "0038_website_visitor_data",
+      "breakpoints": true
     }
   ]
 }

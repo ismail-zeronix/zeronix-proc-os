@@ -168,6 +168,7 @@ export function ChannelList({
   error,
   presence,
   inlineActivity = true,
+  website = true,
   belowHeader,
   body,
 }: {
@@ -177,6 +178,8 @@ export function ChannelList({
   error: Error | null;
   presence: Presence;
   inlineActivity?: boolean;
+  /** Offer the Website tab (the widget does; the Team chats page leaves website visitors to their own page). */
+  website?: boolean;
   /** Shown under the tabs (the page's search box). */
   belowHeader?: React.ReactNode;
   /** Replaces the rows (search results). */
@@ -185,10 +188,12 @@ export function ChannelList({
   const show = useChatStore((s) => s.show);
   const surface = useContext(ChatSurface);
   const setOpen = useChatStore((s) => s.setOpen);
-  const tab = useChatStore((s) => s.tab);
+  const storedTab = useChatStore((s) => s.tab);
   const setTab = useChatStore((s) => s.setTab);
   const web = useWebChats();
-  const isAgent = !!web.data?.agent;
+  const isAgent = !!web.data?.agent && website;
+  // the Website tab left open in the widget shows as Chats where there is no Website tab
+  const tab: ChatTab = storedTab === "website" && !isAgent ? "chats" : storedTab;
   const inTab = (t: ChatTab) => channels.filter((c) => (t === "activity" ? c.kind === "system" : t === "threads" ? c.kind === "record" : c.kind === "dm" || c.kind === "group"));
   const unreadIn = (t: ChatTab) => (t === "website" ? webBadge(web.data?.chats ?? []) : inTab(t).reduce((n, c) => n + (c.muted ? 0 : c.unread), 0));
   const shown = inTab(tab);

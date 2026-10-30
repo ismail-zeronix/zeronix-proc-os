@@ -5,7 +5,8 @@ import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
 import { publish, publishToVisitor } from "@/lib/chat/bus";
 import { presenceMap } from "@/lib/chat/presence";
-import { FEEDBACK_TAGS, webPreview, type VisitorState, type WebChatSummary, type WebMessage, type WebVisitorInfo } from "./types";
+import { locateIp, placeAt } from "./geo";
+import { FEEDBACK_TAGS, webPreview, type VisitorState, type WebChatSummary, type WebClientInfo, type WebMessage, type WebVisitorInfo } from "./types";
 
 /**
  * The website chat (the widget on www.zeronix.ae). A visitor's chat is created the moment they land, so the sales team
@@ -101,12 +102,24 @@ export async function visitorState(c: Chat): Promise<VisitorState> {
 }
 
 /** The visitor panel beside a chat in the portal. */
-export function visitorInfo(c: Chat): WebVisitorInfo {
+export async function visitorInfo(c: Chat): Promise<WebVisitorInfo> {
+  // earlier chats from the same browser (returning visitor)
+  const previous = c.visitorKey
+    ? await db
+        .select({ id: schema.webChats.id, createdAt: schema.webChats.createdAt, status: schema.webChats.status, rating: schema.webChats.rating })
+        .from(schema.webChats)
+        .where(and(eq(schema.webChats.visitorKey, c.visitorKey), ne(schema.webChats.id, c.id), lt(schema.webChats.createdAt, c.createdAt)))
+        .orderBy(desc(schema.webChats.createdAt))
+        .limit(10)
+    : [];
   return {
     userAgent: c.userAgent,
     ip: c.ip,
     referrer: c.referrer,
     pages: c.pages,
+    client: c.client,
+    geo: c.geo,
+    previous: previous.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
     createdAt: c.createdAt.toISOString(),
     acceptedAt: c.acceptedAt?.toISOString() ?? null,
     closedAt: c.closedAt?.toISOString() ?? null,
@@ -118,10 +131,55 @@ export function visitorInfo(c: Chat): WebVisitorInfo {
   };
 }
 
-/** Adds a page to the visitor's trail (the same page twice in a row counts once). */
+/** Adds a page to the visitor's trail (a reload of the same page counts once). Keeps the last 300. */
 function withPage(pages: Chat["pages"], url: string, title: string): Chat["pages"] {
   if (!url || pages.at(-1)?.url === url) return pages;
-  return [...pages, { url, title, at: new Date().toISOString() }].slice(-30);
+  return [...pages, { url, title, at: new Date().toISOString() }].slice(-300);
+}
+
+/** "🇦🇪 Dubai": the exact area if they shared it, otherwise the city from their IP. */
+function placeOf(c: Chat): string | null {
+  const ip = c.geo?.ip;
+  const city = c.geo?.precise?.area ?? c.geo?.precise?.city ?? ip?.city ?? ip?.region ?? ip?.country;
+  if (!city) return null;
+  return `${ip?.flag ? `${ip.flag} ` : ""}${city}`;
+}
+
+/** Looks up where the visitor is from their IP (in the background, once per chat and IP); the panel updates when found. */
+function locate(chatId: number, ip: string, geo: Chat["geo"]) {
+  if (!ip || geo?.ip) return;
+  void locateIp(ip)
+    .then(async (found) => {
+      if (!found) return;
+      await db
+        .update(schema.webChats)
+        .set({ geo: sql`COALESCE(${schema.webChats.geo}, '{}'::jsonb) || jsonb_build_object('ip', ${JSON.stringify(found)}::jsonb)` })
+        .where(eq(schema.webChats.id, chatId));
+      await notifyAgents(chatId);
+    })
+    .catch(() => {});
+}
+
+/** The visitor left a page: how long they stayed on it and how far down they scrolled. */
+export async function pageLeft(c: Chat, url: string, seconds: number, scroll: number): Promise<void> {
+  const pages = [...c.pages];
+  for (let i = pages.length - 1; i >= 0; i--) {
+    if (pages[i].url !== url) continue;
+    pages[i] = { ...pages[i], seconds: Math.round((pages[i].seconds ?? 0) + seconds), scroll: Math.max(pages[i].scroll ?? 0, scroll) };
+    await db.update(schema.webChats).set({ pages }).where(eq(schema.webChats.id, c.id));
+    return;
+  }
+}
+
+/** The visitor allowed their location: the exact place (street / area) next to the IP-based city. */
+export async function savePreciseLocation(c: Chat, lat: number, lon: number, accuracyM: number): Promise<void> {
+  const place = await placeAt(lat, lon);
+  const precise = { lat, lon, accuracyM: Math.round(accuracyM), address: place?.address ?? `${lat.toFixed(5)}, ${lon.toFixed(5)}`, area: place?.area, city: place?.city, at: new Date().toISOString() };
+  await db
+    .update(schema.webChats)
+    .set({ geo: sql`COALESCE(${schema.webChats.geo}, '{}'::jsonb) || jsonb_build_object('precise', ${JSON.stringify(precise)}::jsonb)` })
+    .where(eq(schema.webChats.id, c.id));
+  await notifyAgents(c.id);
 }
 
 interface Arrival {
@@ -131,6 +189,9 @@ interface Arrival {
   referrer: string;
   userAgent: string;
   ip: string;
+  /** The browser's own id for this visitor, and what it tells about itself. */
+  visitorKey: string;
+  client: WebClientInfo | null;
 }
 
 /**
@@ -144,9 +205,17 @@ export async function arrive(a: Arrival): Promise<Chat> {
     const wasOnline = isOnline(known);
     const [row] = await db
       .update(schema.webChats)
-      .set({ ...page, pages: withPage(known.pages, page.pageUrl, page.pageTitle), visitorSeenAt: new Date(), ip: a.ip || known.ip })
+      .set({
+        ...page,
+        pages: withPage(known.pages, page.pageUrl, page.pageTitle),
+        visitorSeenAt: new Date(),
+        ip: a.ip || known.ip,
+        visitorKey: known.visitorKey ?? (a.visitorKey || null),
+        client: a.client ? { ...known.client, ...a.client } : known.client,
+      })
       .where(eq(schema.webChats.id, known.id))
       .returning();
+    locate(row.id, row.ip, row.geo);
     // the list shows the page they are on; a visitor coming back makes the portals ring again
     if (!wasOnline || known.pageUrl !== page.pageUrl) await notifyAgents(known.id);
     return row;
@@ -166,9 +235,12 @@ export async function arrive(a: Arrival): Promise<Chat> {
       referrer: a.referrer.slice(0, 1000),
       userAgent: a.userAgent.slice(0, 400),
       ip: a.ip,
+      visitorKey: a.visitorKey || null,
+      client: a.client,
     })
     .returning();
   await notifyAgents(row.id);
+  locate(row.id, row.ip, null);
   return row;
 }
 
@@ -313,6 +385,16 @@ export async function markWebRead(chatId: number, userId: number, upTo: number):
     .where(and(eq(schema.webChats.id, chatId), eq(schema.webChats.agentId, userId)));
 }
 
+/** Visitors waiting for someone (on the site now, or they left their details), for the Chat app's sidebar badge. */
+export async function waitingCount(): Promise<number> {
+  const c = schema.webChats;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(c)
+    .where(and(eq(c.status, "waiting"), or(isNotNull(c.leadAt), gt(c.visitorSeenAt, new Date(Date.now() - ONLINE_MS)))));
+  return row?.n ?? 0;
+}
+
 /**
  * The Website tab: visitors on the site now, chats waiting or going on, and the last week's ended chats with a lead.
  * Visitors who left without the lead form drop off the list.
@@ -367,6 +449,8 @@ export async function listChats(userId: number): Promise<WebChatSummary[]> {
       closedAt: row.closedAt?.toISOString() ?? null,
       rating: row.rating,
       dealId: row.dealId,
+      place: placeOf(row),
+      visits: row.client?.visits ?? 1,
     };
   });
 }

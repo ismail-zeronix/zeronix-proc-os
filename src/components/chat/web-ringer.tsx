@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { BellOff, Globe, PhoneIncoming } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { acceptWebChat } from "@/app/(app)/chat/web-actions";
@@ -87,6 +88,16 @@ export function WebRinger({ me }: { me: number }) {
   const [silenced, setSilenced] = useState<Set<number>>(() => new Set());
   const [busy, setBusy] = useState<number | null>(null);
   const notified = useRef(new Set<number>());
+  const pathname = usePathname();
+  const router = useRouter();
+  // on the Chat app's pages a website chat opens on the Website chats page; elsewhere in the chat widget
+  const openChat = (id: number) => {
+    if (pathname.startsWith("/chat")) router.push(`/chat/website?c=${id}`);
+    else {
+      setTab("website");
+      show({ kind: "web", id });
+    }
+  };
 
   const ringing = ringingChats(web.data?.chats ?? [], web.data?.ring ?? "off");
   const loud = ringing.filter((c) => !silenced.has(c.id));
@@ -129,12 +140,11 @@ export function WebRinger({ me }: { me: number }) {
       });
       n.onclick = () => {
         window.focus();
-        setTab("website");
-        show({ kind: "web", id: c.id });
+        openChat(c.id);
         n.close();
       };
     }
-  }, [holder, loud, prefs.data?.desktop, setTab, show]);
+  });
 
   if (!ringing.length) return null;
 
@@ -143,8 +153,7 @@ export function WebRinger({ me }: { me: number }) {
     try {
       await acceptWebChat(c.id);
       await qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
-      setTab("website");
-      show({ kind: "web", id: c.id });
+      openChat(c.id);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -173,10 +182,7 @@ export function WebRinger({ me }: { me: number }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => {
-                    setTab("website");
-                    show({ kind: "web", id: c.id });
-                  }}
+                  onClick={() => openChat(c.id)}
                 >
                   View
                 </Button>

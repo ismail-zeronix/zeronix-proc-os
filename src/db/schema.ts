@@ -15,6 +15,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ChatCard } from "@/lib/chat/types";
+import type { WebClientInfo, WebGeo, WebPageVisit } from "@/lib/webchat/types";
 import type { OfferDraft } from "@/lib/llm/schema";
 
 export const users = pgTable("users", {
@@ -1191,8 +1192,14 @@ export const webChats = pgTable(
     visitorSeenAt: timestamp("visitor_seen_at", { withTimezone: true }).notNull().defaultNow(),
     /** How far the agent has read (visitor messages after it are unread). */
     agentLastReadId: integer("agent_last_read_id").notNull().default(0),
-    /** Pages of the site the visitor opened during this chat, oldest first (at most 30). */
-    pages: jsonb("pages").$type<{ url: string; title: string; at: string }[]>().notNull().default([]),
+    /** Pages of the site the visitor opened during this chat, oldest first, with time spent and how far they scrolled. */
+    pages: jsonb("pages").$type<WebPageVisit[]>().notNull().default([]),
+    /** A random id kept in the visitor's browser: links their chats over time (returning visitors). */
+    visitorKey: text("visitor_key"),
+    /** What their browser tells us: device, screen, language, time zone, connection, campaign (UTM), visit count. */
+    client: jsonb("client").$type<WebClientInfo>(),
+    /** Where they are: from their IP address (city, network), plus the exact place if they allowed location. */
+    geo: jsonb("geo").$type<WebGeo>(),
     /** The visitor's rating after the chat (1-5 stars), the feedback chips they picked and their own words. */
     rating: integer("rating"),
     feedbackTags: text("feedback_tags").array().notNull().default(sql`'{}'::text[]`),
@@ -1203,7 +1210,7 @@ export const webChats = pgTable(
     dealId: integer("deal_id").references(() => deals.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId)],
+  (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId), index("web_chats_visitor_idx").on(t.visitorKey)],
 );
 
 /** A line in a website chat: from the visitor, from the agent, or written by the portal ("Ismail joined"). */

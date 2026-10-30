@@ -1,4 +1,4 @@
-import { BarChart3, Inbox, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BarChart3, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -20,6 +20,15 @@ export interface NavGroup {
 
 /** Sidebar pages per app. Apps without an entry have no sidebar (single-page apps). */
 export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
+  chat: [
+    {
+      label: "Chat",
+      items: [
+        { href: "/chat", label: "Team chats", icon: MessagesSquare, exact: true, badge: "chatUnread" },
+        { href: "/chat/website", label: "Website chats", icon: Globe, badge: "webWaiting" },
+      ],
+    },
+  ],
   crm: [
     {
       label: "Work",
@@ -132,6 +141,9 @@ export const BADGE_LABELS: Record<string, string> = {
   billsDue: "supplier bills due this week or overdue",
   // Projects
   projOverdue: "projects with an overdue task",
+  // Chat
+  chatUnread: "unread messages",
+  webWaiting: "website visitors waiting or unread",
 };
 
 /** Pages offered in the Ctrl K "Go to" list, for the apps the user may open. */
