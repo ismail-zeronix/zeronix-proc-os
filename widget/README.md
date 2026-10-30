@@ -49,6 +49,20 @@ It uses the zeronix.ae theme (teal `#019297`, dark `#042A2D`, green `#4CAF50`, c
 
 The chat pops up once per visit (browser tab session). On a computer it opens; on a phone it shows a small invitation next to the button instead, so the page is not covered.
 
+| `data-precise-location` | `true` | After the visitor sends the form, ask the browser for their exact location (`false` = never ask) |
+
+## What the portal learns about a visitor
+
+Shown on **Chat › Website chats**, in the panel beside the chat:
+
+- **Contact:** the form (name, email, phone, company, question).
+- **Location:** city, region, postal code, network owner and internet provider from their IP address (ipwho.is, falling back to ipinfo.io; no prompt; city level). Their exact place (area and street, from OpenStreetMap) only if they allow the browser's location prompt, which is asked once, after they have sent the form. There is also a small map and their local time.
+- **Device:** phone, tablet or desktop. The model, system and version come from Chrome/Edge/Android client hints; iPhones only say "iPhone". Also the browser, screen and window size, CPU cores, memory, touch, connection type and speed, languages, and dark or light mode.
+- **Visit:** where they came from, the landing page, campaign tags (`utm_*`, `gclid`, `fbclid`, `msclkid`), how many visits this browser has made and since when, and earlier chats from the same browser.
+- **Pages visited:** every page with time, how long they stayed (time in front, sent when they leave the page) and how far they scrolled.
+
+All of it is stored on the chat (`web_chats.client`, `geo`, `pages`, and the `snapshot` JSON when the chat ends). The website's privacy policy should mention the chat and this information.
+
 ## Portal settings
 
 - **`WEBCHAT_ORIGINS`** (env): the websites allowed to use the chat, comma separated. Default: `https://www.zeronix.ae,https://zeronix.ae`. Outside production, `localhost`, `127.0.0.1`, LAN addresses and pages opened from disk are also allowed, for testing.

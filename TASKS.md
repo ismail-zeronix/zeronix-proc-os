@@ -194,7 +194,8 @@ Owner decisions (2026-10-21): accounting stays in Zoho for now, invoice numbers 
 - [ ] 14.5 Polish: keyboard shortcuts, empty states, screenshots
 - [x] 14.6 Website chat (branch `dev`): widget for www.zeronix.ae in `widget/` (one plain script, Shadow DOM, served at `/widget/zeronix-chat.js`, demo at `/widget/demo.html`); a chat starts when a visitor lands, every punched-in CRM user's portal rings (own trill, repeats every 3 s, blinking tab title, desktop notice) until someone accepts or the visitor leaves; lead form (name, email, phone, company, question) before chatting; visitor sees who in sales is online, the agent's name once accepted, typing, ended; Website tab in the chat widget and /chat (Waiting / Live / Ended 7 days, Accept, Take over, End, contact strip); admin picks "ring for every visitor" or "only after the form"; public endpoints `/api/widget/*` limited to WEBCHAT_ORIGINS and rate limited [2026-10-30]
 - [x] 14.7 Website chat round 2: space key fixed on zeronix.ae (its SmoothScroll.js took a space typed in the widget as "scroll"; keys and wheel now stay inside the widget); zeronix.ae theme (#019297 / #042A2D / #4CAF50 / #F2F1ED, Raleway); chat pops up after 20 s or at 60% scroll once per visit (an invitation on phones); greeting and quick replies first, the lead form appears in the chat once they start typing; End asks inside the widget and offers a call back; 1-5 stars + feedback chips + comment after the chat; the whole chat, visitor details, pages visited and rating saved as JSON (web_chats.snapshot); Chat app tile on home for everyone (unread badge); Chat page shows a visitor details panel beside website chats; Save to leads (CRM lead at New, source Website, chat on the timeline) and a Website badge on Leads/Deals [2026-10-30]
-- [ ] 14.8 Website chat next: email the transcript to the visitor; office-hours message; chat reports (ratings, response time)
+- [x] 14.8 Chat app layout and visitor insight: Chat app uses the app frame (sidebar: Team chats / Website chats with badges, full width and height); team and website chats on separate pages; Website chats page = list (search, Waiting/Live/Ended filter, place and returning-visitor line) | chat | visitor details (24-28rem, a drawer below xl, no sideways scroll); visitor details: contact buttons, IP location (ipwho.is / ipinfo.io) with map, local time and network owner, exact place if they allow location (asked after the form; OpenStreetMap address), device / OS / browser / model (client hints), screen, hardware, connection, languages, referrer, landing page, UTM and ad click ids, visit count and first seen, every page with time spent and scroll depth, earlier chats from the same browser [2026-10-30]
+- [ ] 14.9 Website chat next: email the transcript to the visitor; office-hours message; chat reports (ratings, response time)
 
 ## Phase 15: CRM + Accounts restructure (plan: ~/.claude/plans/i-want-to-change-fluttering-crab.md)
 Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move to Accounts; sales staff quote at an Accounts "sales" level; the portal replaces Zoho Books for bills, payments and reports; no purchase orders.
@@ -208,8 +209,19 @@ Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move 
 - [x] 15.8 Standalone quotes (no deal needed): quotes and orders may have no CRM deal; quote carries customer, contact, salesperson, payment terms, notes; one two-column quote page for new and edit; CRM Leads page with Qualify [2026-10-26]
 - [ ] 15.9 Owner: enter opening balances at the cut-over date; give Accounts only to the accounts person
 
+## Phase 16: Prospecting app (plan: ~/.claude/plans/lets-plan-the-prospecting-memoized-horizon.md)
+Owner decisions (2026-10-30): fully independent app; separate cold-email domain; no AI in v1 (people research and write, a queue sends); Python scraper service; a reply with a real requirement is converted to a CRM lead.
+- [ ] P.1 Foundation: tables + migration, app live, Prospects list and page, manual add, CSV import, dedupe, suppression list, segments
+- [ ] P.2 Python scraper service (scraper/): job loop, website research spider, email check, Review imports
+- [ ] P.3 Source spiders (Meydan, DIFC, ADGM, KHDA, DHA) + generic listing spider, each after its terms are checked
+- [ ] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM
+- [ ] P.5 Templates, sequences, Review queue (approve first email to queue)
+- [ ] P.6 Sending engine: outreach mailboxes, caps/ramp/window, threading, one-click unsubscribe, pause switches
+- [ ] P.7 Replies: IMAP matching, bounce/OOO, Replies screen, reply from portal, Convert to lead
+- [ ] P.8 Overview and reports
+- [ ] P.9 Owner: buy sending domain, SPF/DKIM/DMARC, 2-3 mailboxes, warm-up, footer address
+
 ## Later
-- [ ] L.2 Prospecting app (new-licence feeds, review, convert to deal)
-- [ ] L.3 Cold email campaigns with unsubscribe + suppression list
+- [ ] L.2 / L.3 moved to Phase 16 (Prospecting)
 - [ ] L.4 Link emails to contacts/deals automatically and log them as activities; create a task from an email
 - [ ] L.5 Admin-editable knowledge and quotes

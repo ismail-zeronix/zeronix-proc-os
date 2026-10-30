@@ -35,6 +35,71 @@ export interface WebChatSummary {
   rating: number | null;
   /** The CRM lead saved from this chat. */
   dealId: number | null;
+  /** "🇦🇪 Dubai" from their IP, when known. */
+  place: string | null;
+  /** Visits from their browser so far (1 = first time on the site). */
+  visits: number;
+}
+
+/** One page the visitor opened: when, how long they stayed and how far down they scrolled (sent when they leave it). */
+export interface WebPageVisit {
+  url: string;
+  title: string;
+  at: string;
+  seconds?: number;
+  scroll?: number;
+}
+
+/** What the visitor's browser tells the widget (all optional: browsers differ, and private windows hide some). */
+export interface WebClientInfo {
+  /** "en-GB", and every language they have set. */
+  language?: string;
+  languages?: string[];
+  /** "Asia/Dubai" and minutes from UTC. */
+  timeZone?: string;
+  utcOffset?: number;
+  screen?: { w: number; h: number };
+  viewport?: { w: number; h: number };
+  pixelRatio?: number;
+  touchPoints?: number;
+  cores?: number;
+  /** GB of memory, rounded by the browser. */
+  memoryGb?: number;
+  darkMode?: boolean;
+  connection?: { type?: string; downlinkMbps?: number; rttMs?: number; saveData?: boolean };
+  cookies?: boolean;
+  doNotTrack?: boolean;
+  /** Chrome / Edge / Android: brand list, device model, OS version, CPU. */
+  hints?: { brands?: string[]; mobile?: boolean; platform?: string; platformVersion?: string; model?: string; architecture?: string; bitness?: string };
+  /** utm_source, utm_medium, utm_campaign, utm_term, utm_content, and ad click ids (gclid, fbclid, msclkid). */
+  campaign?: Record<string, string>;
+  /** The first page of this visit and the site that sent them there. */
+  landing?: string;
+  firstReferrer?: string;
+  /** Visits from this browser (counting this one) and when the first was. */
+  visits?: number;
+  firstSeen?: string;
+}
+
+/** Where the visitor is: "ip" from their IP address (city level, no permission needed), "precise" only if they allowed location. */
+export interface WebGeo {
+  ip?: {
+    city?: string;
+    region?: string;
+    country?: string;
+    countryCode?: string;
+    flag?: string;
+    postal?: string;
+    lat?: number;
+    lon?: number;
+    timeZone?: string;
+    /** Internet provider and the network's owner (sometimes the visitor's company). */
+    isp?: string;
+    org?: string;
+    domain?: string;
+    asn?: number;
+  };
+  precise?: { lat: number; lon: number; accuracyM: number; address: string; area?: string; city?: string; at: string };
 }
 
 /** Everything the portal's visitor panel shows beside a website chat. */
@@ -42,7 +107,11 @@ export interface WebVisitorInfo {
   userAgent: string;
   ip: string;
   referrer: string;
-  pages: { url: string; title: string; at: string }[];
+  pages: WebPageVisit[];
+  client: WebClientInfo | null;
+  geo: WebGeo | null;
+  /** Their earlier chats (same browser), newest first. */
+  previous: { id: number; createdAt: string; status: WebChatStatus; rating: number | null }[];
   createdAt: string;
   acceptedAt: string | null;
   closedAt: string | null;

@@ -9,5 +9,5 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/chat/web/[id]">
   const id = Number((await ctx.params).id);
   const chat = Number.isInteger(id) ? await chatById(id) : null;
   if (!chat) return Response.json({ error: "That chat is gone." }, { status: 404 });
-  return Response.json({ messages: await messagesOf(chat.id, true), info: visitorInfo(chat) });
+  return Response.json({ messages: await messagesOf(chat.id, true), info: await visitorInfo(chat) });
 }

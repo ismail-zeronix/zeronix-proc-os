@@ -13,6 +13,8 @@
  *   data-quick="A|B|C"            quick replies under the greeting
  *   data-popup-delay="20"         seconds on the site before the chat pops up (0 = never)
  *   data-popup-scroll="60"        or once they scroll this far down the page, in % (0 = never)
+ *   data-precise-location="true"  after the visitor starts a chat, ask the browser for their exact location (false = never;
+ *                                 the city from their IP is always shown)
  *   data-position="right"         right or left
  *
  * Plain JavaScript, no dependencies; everything is drawn inside a Shadow DOM so the site's CSS cannot change it.
@@ -45,6 +47,7 @@
     quick: attr("quick", "I need a quote|Is this in stock?|Talk to a sales person").split("|").filter(Boolean),
     popupDelay: Number(attr("popup-delay", 20)),
     popupScroll: Number(attr("popup-scroll", 60)),
+    preciseLocation: attr("precise-location", "true") !== "false",
     left: attr("position", "right") === "left",
   };
   // the same lists as FEEDBACK_GOOD / FEEDBACK_BAD in src/lib/webchat/types.ts (the server only keeps these)
@@ -93,6 +96,144 @@
   var ratingDone = false; // rated or skipped in this page
   var thanks = false;
 
+  // ---------- who the visitor is, as far as their browser tells (shown to sales beside the chat) ----------
+  function randomId() {
+    var bytes = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(bytes);
+    return Array.prototype.map.call(bytes, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+  }
+
+  // one id per browser links a returning visitor's chats; a visit = a browser tab session
+  var visitorKey = get("localStorage", "zx-visitor");
+  if (!visitorKey) {
+    visitorKey = randomId();
+    set("localStorage", "zx-visitor", visitorKey);
+  }
+  if (!get("localStorage", "zx-first-seen")) set("localStorage", "zx-first-seen", new Date().toISOString());
+  if (!get("sessionStorage", "zx-visit")) {
+    set("sessionStorage", "zx-visit", "1");
+    set("localStorage", "zx-visits", String((Number(get("localStorage", "zx-visits")) || 0) + 1));
+    set("sessionStorage", "zx-landing", location.href);
+    set("sessionStorage", "zx-first-referrer", document.referrer || "");
+  }
+  // campaign tags usually sit only on the landing page's address: keep them for the whole visit
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var found = {};
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "msclkid"].forEach(function (k) {
+      if (params.get(k)) found[k] = params.get(k);
+    });
+    if (Object.keys(found).length) set("sessionStorage", "zx-campaign", JSON.stringify(found));
+  })();
+
+  var clientPromise = null;
+  function clientInfo() {
+    if (clientPromise) return clientPromise;
+    var nav = navigator;
+    var conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+    var campaign = null;
+    try {
+      campaign = JSON.parse(get("sessionStorage", "zx-campaign") || "null");
+    } catch {
+      campaign = null;
+    }
+    var info = {
+      language: nav.language,
+      languages: nav.languages ? Array.prototype.slice.call(nav.languages, 0, 8) : undefined,
+      timeZone: (function () {
+        try {
+          return Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch {
+          return undefined;
+        }
+      })(),
+      utcOffset: -new Date().getTimezoneOffset(),
+      screen: window.screen ? { w: screen.width, h: screen.height } : undefined,
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+      pixelRatio: window.devicePixelRatio,
+      touchPoints: nav.maxTouchPoints,
+      cores: nav.hardwareConcurrency,
+      memoryGb: nav.deviceMemory,
+      darkMode: !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches),
+      connection: conn ? { type: conn.effectiveType, downlinkMbps: conn.downlink, rttMs: conn.rtt, saveData: conn.saveData } : undefined,
+      cookies: nav.cookieEnabled,
+      doNotTrack: nav.doNotTrack === "1" || window.doNotTrack === "1",
+      campaign: campaign || undefined,
+      landing: get("sessionStorage", "zx-landing") || undefined,
+      firstReferrer: get("sessionStorage", "zx-first-referrer") || undefined,
+      visits: Number(get("localStorage", "zx-visits")) || 1,
+      firstSeen: get("localStorage", "zx-first-seen") || undefined,
+    };
+    var uad = nav.userAgentData;
+    // Chrome, Edge and Android tell the device model and OS version when asked
+    clientPromise =
+      uad && uad.getHighEntropyValues
+        ? uad.getHighEntropyValues(["model", "platformVersion", "architecture", "bitness"]).then(
+            function (h) {
+              info.hints = {
+                brands: (uad.brands || [])
+                  .filter(function (b) { return !/Not.?A.?Brand/i.test(b.brand); })
+                  .map(function (b) { return b.brand + " " + b.version; }),
+                mobile: uad.mobile,
+                platform: uad.platform,
+                platformVersion: h.platformVersion,
+                model: h.model,
+                architecture: h.architecture,
+                bitness: h.bitness,
+              };
+              return info;
+            },
+            function () {
+              return info;
+            },
+          )
+        : Promise.resolve(info);
+    return clientPromise;
+  }
+
+  // time on this page (while it is in front) and how far down they scrolled, sent when they leave it
+  var pageStart = Date.now();
+  var maxScroll = 0;
+  function trackScroll() {
+    var doc = document.documentElement;
+    var pct = Math.round(((window.scrollY + window.innerHeight) / Math.max(doc.scrollHeight, 1)) * 100);
+    if (pct > maxScroll) maxScroll = Math.min(pct, 100);
+  }
+  window.addEventListener("scroll", trackScroll, { passive: true });
+  function sendPageTime() {
+    if (!token || !pageStart) return;
+    var seconds = (Date.now() - pageStart) / 1000;
+    pageStart = 0;
+    if (seconds < 1) return;
+    var body = JSON.stringify({ token: token, url: location.href, seconds: seconds, scroll: maxScroll });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(BASE + "/api/widget/page", new Blob([body], { type: "text/plain" }))) return;
+    } catch {
+      /* fall through */
+    }
+    fetch(BASE + "/api/widget/page", { method: "POST", body: body, headers: { "Content-Type": "text/plain;charset=UTF-8" }, keepalive: true, credentials: "omit" }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") sendPageTime();
+    else pageStart = Date.now();
+  });
+  window.addEventListener("pagehide", sendPageTime);
+
+  // the exact place (area, street): asked once per browser, after they have started a chat, never before
+  function askLocation() {
+    if (!cfg.preciseLocation || !navigator.geolocation || !window.isSecureContext || get("localStorage", "zx-location-asked")) return;
+    set("localStorage", "zx-location-asked", "1");
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        post("location", { token: token, lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy }).catch(function () {});
+      },
+      function () {
+        /* they said no: the city from their IP is still shown */
+      },
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 },
+    );
+  }
+
   // ---------- network ----------
   function post(path, body) {
     // text/plain keeps this a "simple" request: no CORS preflight
@@ -115,7 +256,10 @@
   }
 
   function start() {
-    return post("session", { token: token, pageUrl: location.href, pageTitle: document.title, referrer: document.referrer })
+    return clientInfo()
+      .then(function (client) {
+        return post("session", { token: token, pageUrl: location.href, pageTitle: document.title, referrer: document.referrer, visitorKey: visitorKey, client: client });
+      })
       .then(function (data) {
         token = data.token;
         set("localStorage", TOKEN_KEY, token);
@@ -464,6 +608,7 @@
         clearComposer();
         render();
         focusInput();
+        askLocation();
       })
       .catch(function (e) {
         sending = false;

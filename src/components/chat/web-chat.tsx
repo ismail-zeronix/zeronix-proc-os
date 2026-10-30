@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Globe, Handshake, Mail, Phone, SendHorizontal, SquareArrowOutUpRight, Star } from "lucide-react";
+import { Building2, Globe, Handshake, Info, Mail, Phone, Search, SendHorizontal, SquareArrowOutUpRight, Star } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -38,21 +38,66 @@ function StatusDot({ c }: { c: WebChatSummary }) {
 }
 
 /** The Website tab of the chat: one row per visitor. */
-export function WebChatList({ me }: { me: Me }) {
+export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me: Me; onOpen?: (id: number) => void; selectedId?: number | null; searchable?: boolean }) {
   const web = useWebChats();
   const show = useChatStore((s) => s.show);
   const qc = useQueryClient();
-  const chats = web.data?.chats ?? [];
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | WebChatSummary["status"]>("all");
+  const needle = q.trim().toLowerCase();
+  const chats = (web.data?.chats ?? []).filter(
+    (c) =>
+      (filter === "all" || c.status === filter) &&
+      (!needle || [c.lead?.name, c.lead?.email, c.lead?.company, c.lead?.phone, c.place, c.pageTitle, c.pageUrl].some((v) => v?.toLowerCase().includes(needle))),
+  );
+  const open = onOpen ?? ((id: number) => show({ kind: "web", id }));
 
   if (web.isPending) return <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>;
   if (web.error) return <p className="py-8 text-center text-xs text-destructive">{(web.error as Error).message}</p>;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
+      {searchable && (
+        <div className="sticky top-0 z-2 grid gap-1.5 border-b bg-card p-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search name, company, place, page"
+              aria-label="Search website chats"
+              className="h-8 w-full rounded-lg border border-input bg-transparent pr-2 pl-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            />
+          </div>
+          <div className="flex gap-1" role="tablist" aria-label="Show">
+            {(
+              [
+                ["all", "All"],
+                ["waiting", "Waiting"],
+                ["active", "Live"],
+                ["closed", "Ended"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={filter === k}
+                onClick={() => setFilter(k)}
+                className={`h-7 rounded-md px-2 text-xs ${filter === k ? "bg-muted font-semibold" : "text-muted-foreground hover:bg-muted/60"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {!chats.length && (
         <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
           <Globe className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No visitors right now. When someone opens www.zeronix.ae, they show up here and the portal rings.</p>
+          <p className="text-sm text-muted-foreground">
+            {needle || filter !== "all" ? "No website chats match." : "No visitors right now. When someone opens www.zeronix.ae, they show up here and the portal rings."}
+          </p>
         </div>
       )}
       {GROUPS.map((g) => {
@@ -60,7 +105,7 @@ export function WebChatList({ me }: { me: Me }) {
         if (!rows.length) return null;
         return (
           <section key={g.key}>
-            <h3 className="sticky top-0 z-1 bg-popover/95 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase backdrop-blur">
+            <h3 className="z-1 bg-popover/95 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase backdrop-blur">
               {g.label} · {rows.length}
             </h3>
             <ul>
@@ -68,8 +113,9 @@ export function WebChatList({ me }: { me: Me }) {
                 <li key={c.id}>
                   <button
                     type="button"
-                    onClick={() => show({ kind: "web", id: c.id })}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+                    onClick={() => open(c.id)}
+                    aria-current={selectedId === c.id || undefined}
+                    className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none ${selectedId === c.id ? "bg-muted" : ""}`}
                   >
                     <span className="relative shrink-0">
                       {c.lead ? (
@@ -98,6 +144,13 @@ export function WebChatList({ me }: { me: Me }) {
                         {c.dealId && <Handshake className="size-3.5 shrink-0 text-muted-foreground" aria-label="Saved to leads" />}
                         {c.rating != null && <Stars value={c.rating} small />}
                       </div>
+                      {(c.place || c.visits > 1) && (
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {c.place}
+                          {c.place && c.visits > 1 && " · "}
+                          {c.visits > 1 && <span className="font-medium text-teal-700 dark:text-teal-400">Returning · visit {c.visits}</span>}
+                        </p>
+                      )}
                     </div>
                   </button>
                 </li>
@@ -131,7 +184,20 @@ export function WebChatList({ me }: { me: Me }) {
 }
 
 /** One website chat: who the visitor is, the lines, and Accept / reply / End. */
-export function WebConversation({ id, me, detailsBeside = false }: { id: number; me: Me; detailsBeside?: boolean }) {
+export function WebConversation({
+  id,
+  me,
+  detailsBeside = false,
+  onBack,
+  onDetails,
+}: {
+  id: number;
+  me: Me;
+  detailsBeside?: boolean;
+  onBack?: () => void;
+  /** Opens the visitor details (a drawer where they are not beside the chat). */
+  onDetails?: () => void;
+}) {
   const web = useWebChats();
   const thread = useWebThread(id);
   const show = useChatStore((s) => s.show);
@@ -143,7 +209,7 @@ export function WebConversation({ id, me, detailsBeside = false }: { id: number;
   const scroller = useRef<HTMLDivElement>(null);
   const typingUntil = useWebTyping((s) => s.until[id] ?? 0);
   const [now, setNow] = useState(() => Date.now());
-  const back = () => show({ kind: "list" });
+  const back = onBack ?? (() => show({ kind: "list" }));
   const mine = chat?.status === "active" && chat.agent?.id === me.id;
   const messages = thread.data?.messages ?? [];
   const lastId = messages.at(-1)?.id ?? 0;
@@ -223,6 +289,11 @@ export function WebConversation({ id, me, detailsBeside = false }: { id: number;
                 : `${mine ? "You are" : `${chat.agent?.name ?? "Someone"} is`} on this chat${chat.online ? "" : " · visitor left the site"}`}
           </p>
         </div>
+        {onDetails && (
+          <Button variant="ghost" size="icon-sm" className="xl:hidden" onClick={onDetails} aria-label="Visitor details" title="Visitor details">
+            <Info />
+          </Button>
+        )}
         {chat.status === "waiting" && (
           <Button size="sm" onClick={() => run(() => acceptWebChat(id))} disabled={busy}>
             Accept
@@ -374,7 +445,7 @@ export function Stars({ value, small = false }: { value: number; small?: boolean
 }
 
 /** "Save to leads" (a CRM lead at New, source Website), or a link to the lead once saved. */
-function SaveLeadButton({ chat, compact = false }: { chat: WebChatSummary; compact?: boolean }) {
+export function SaveLeadButton({ chat, compact = false }: { chat: WebChatSummary; compact?: boolean }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   if (chat.dealId)
@@ -404,143 +475,5 @@ function SaveLeadButton({ chat, compact = false }: { chat: WebChatSummary; compa
     >
       <Handshake /> {busy ? "Saving…" : "Save to leads"}
     </Button>
-  );
-}
-
-/** "Chrome on Windows · desktop", from the browser's user agent. */
-function deviceOf(ua: string): string {
-  if (!ua) return "";
-  const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "A browser";
-  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "";
-  const kind = /Mobi|iPhone|Android.+Mobile/.test(ua) ? "phone" : /iPad|Tablet/.test(ua) ? "tablet" : "desktop";
-  return `${browser}${os ? ` on ${os}` : ""} · ${kind}`;
-}
-
-function when(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${dubaiToday(d) === dubaiToday() ? "Today" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ })} ${timeOf(iso)}`;
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  if (!children) return null;
-  return (
-    <div className="grid gap-0.5">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm wrap-break-word">{children}</dd>
-    </div>
-  );
-}
-
-/** The visitor's details beside a website chat on the Chat page: what they filled in, where they browsed, their rating. */
-export function WebVisitorPanel({ id }: { id: number }) {
-  const web = useWebChats();
-  const thread = useWebThread(id);
-  const chat = web.data?.chats.find((c) => c.id === id);
-  const info = thread.data?.info;
-  if (!chat) return null;
-  const question = thread.data?.messages.find((m) => m.sender === "visitor")?.body;
-  let referrer = "";
-  try {
-    referrer = info?.referrer ? new URL(info.referrer).hostname : "";
-  } catch {
-    referrer = info?.referrer ?? "";
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center border-b px-3 text-sm font-medium">Visitor details</header>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        <div className="flex items-center gap-2.5">
-          {chat.lead ? (
-            <UserAvatar name={chat.lead.name} size={40} />
-          ) : (
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Globe className="size-5" />
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="truncate font-medium">{chat.lead?.name ?? `Visitor #${chat.id}`}</p>
-            <p className="truncate text-xs text-muted-foreground">{chat.lead?.company || (chat.online ? "On the website now" : "Left the website")}</p>
-          </div>
-        </div>
-
-        {chat.lead ? <SaveLeadButton chat={chat} /> : <p className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">They have not filled in the form yet.</p>}
-
-        <dl className="grid gap-3">
-          <Row label="Email">
-            {chat.lead?.email && (
-              <a href={`mailto:${chat.lead.email}`} className="text-primary hover:underline">
-                {chat.lead.email}
-              </a>
-            )}
-          </Row>
-          <Row label="Phone">
-            {chat.lead?.phone && (
-              <span className="flex flex-wrap gap-x-3">
-                <a href={`tel:${chat.lead.phone}`} className="text-primary hover:underline">
-                  {chat.lead.phone}
-                </a>
-                <a href={`https://wa.me/${chat.lead.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                  WhatsApp
-                </a>
-              </span>
-            )}
-          </Row>
-          <Row label="Company">{chat.lead?.company}</Row>
-          <Row label="Their question">{question && <span className="whitespace-pre-wrap">{question}</span>}</Row>
-        </dl>
-
-        {info?.rating != null && (
-          <section className="grid gap-1.5 rounded-lg border p-2.5">
-            <h3 className="text-[11px] text-muted-foreground">Their rating</h3>
-            <Stars value={info.rating} />
-            {info.feedbackTags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {info.feedbackTags.map((t) => (
-                  <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
-            {info.feedback && <p className="text-sm whitespace-pre-wrap">“{info.feedback}”</p>}
-          </section>
-        )}
-
-        <dl className="grid gap-3 border-t pt-3">
-          <Row label="Now on">
-            <a href={chat.pageUrl} target="_blank" rel="noreferrer" className="hover:underline">
-              {chat.pageTitle || pathOf(chat.pageUrl)}
-            </a>
-          </Row>
-          <Row label="Came from">{info && (referrer || "Typed the address or a bookmark")}</Row>
-          <Row label="Device">{info && deviceOf(info.userAgent)}</Row>
-          <Row label="IP address">{info?.ip}</Row>
-          <Row label="Started">{info && when(info.createdAt)}</Row>
-          <Row label="Accepted">{info?.acceptedAt && `${when(info.acceptedAt)}${chat.agent ? ` by ${chat.agent.name}` : ""}`}</Row>
-          <Row label="Ended">{info?.closedAt && `${when(info.closedAt)}${info.closedBy === "visitor" ? " by the visitor" : info.closedBy === "agent" ? " by sales" : ""}`}</Row>
-        </dl>
-
-        {!!info?.pages.length && (
-          <section className="grid gap-1 border-t pt-3">
-            <h3 className="text-[11px] text-muted-foreground">Pages visited ({info.pages.length})</h3>
-            <ol className="grid gap-1">
-              {info.pages
-                .slice()
-                .reverse()
-                .map((p, i) => (
-                  <li key={`${p.at}-${i}`} className="flex items-baseline gap-2 text-xs">
-                    <span className="shrink-0 text-muted-foreground tabular-nums">{timeOf(p.at)}</span>
-                    <a href={p.url} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:underline" title={p.url}>
-                      {p.title || pathOf(p.url)}
-                    </a>
-                  </li>
-                ))}
-            </ol>
-          </section>
-        )}
-      </div>
-    </div>
   );
 }

@@ -1,4 +1,5 @@
 import { arrive, visitorState } from "@/lib/webchat/chats";
+import { cleanClient } from "@/lib/webchat/client-info";
 import { allow, cleanString, clientIp, originOf, preflight, readJson, reply } from "@/lib/webchat/public";
 
 /**
@@ -8,7 +9,7 @@ import { allow, cleanString, clientIp, originOf, preflight, readJson, reply } fr
 export async function POST(req: Request) {
   const origin = originOf(req);
   if (origin === null) return new Response(null, { status: 403 });
-  const body = await readJson(req);
+  const body = await readJson(req, 16_000);
   if (!body) return reply(origin, { error: "Bad request" }, 400);
   const ip = clientIp(req);
   const token = cleanString(body.token, 64);
@@ -21,6 +22,8 @@ export async function POST(req: Request) {
     referrer: cleanString(body.referrer, 1000),
     userAgent: req.headers.get("user-agent") ?? "",
     ip,
+    visitorKey: /^[A-Za-z0-9_-]{16,64}$/.test(cleanString(body.visitorKey, 64)) ? cleanString(body.visitorKey, 64) : "",
+    client: cleanClient(body.client),
   });
   return reply(origin, { token: chat.token, state: await visitorState(chat) });
 }
