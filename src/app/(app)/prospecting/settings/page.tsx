@@ -19,7 +19,7 @@ function TestState({ at, ok, error }: { at: Date | null; ok: boolean; error: str
   return ok ? (
     <span className="text-xs text-emerald-700 dark:text-emerald-400">Works · tested {ago(at)}</span>
   ) : (
-    <span className="text-xs text-destructive" title={error}>
+    <span className="line-clamp-2 text-xs whitespace-normal text-destructive" title={error}>
       Failed {ago(at)}: {error}
     </span>
   );

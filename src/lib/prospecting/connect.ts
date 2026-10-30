@@ -18,7 +18,11 @@ export interface MailboxLogin {
 }
 
 function mailProblem(e: unknown, what: "SMTP" | "IMAP"): string {
-  const err = e as { responseCode?: number; code?: string; authenticationFailed?: boolean; message?: string };
+  const err = e as { responseCode?: number; code?: string; authenticationFailed?: boolean; message?: string; response?: string; responseText?: string };
+  const said = `${err.response ?? ""} ${err.responseText ?? ""} ${err.message ?? ""}`;
+  // Microsoft 365 turns password logins off per organisation; a right password still fails
+  if (/5\.7\.139|SmtpClientAuthentication is disabled/i.test(said)) return "Microsoft 365 has password (SMTP) sending turned off for this organisation. Its admin must allow it, or connect it through Microsoft Graph.";
+  if (what === "IMAP" && /login is disabled/i.test(said)) return "This provider no longer accepts password logins for reading mail (IMAP).";
   if (err.responseCode === 535 || err.code === "EAUTH" || err.authenticationFailed) return `The ${what} server refused the login. Check the address and password.`;
   if (err.code === "ENOTFOUND" || err.code === "EDNS" || /ENOTFOUND|EAI_AGAIN/.test(err.message ?? "")) return `The ${what} server name was not found. Check the host.`;
   if (err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.code === "ECONNECTION" || err.code === "ESOCKET") return `Could not reach the ${what} server. Check the host and port.`;
