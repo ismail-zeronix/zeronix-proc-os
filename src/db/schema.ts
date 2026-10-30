@@ -1466,8 +1466,45 @@ export const prospectAiProviders = pgTable("prospect_ai_providers", {
   uses: text("uses").array().notNull().default(sql`'{}'::text[]`),
   isDefault: boolean("is_default").notNull().default(false),
   enabled: boolean("enabled").notNull().default(true),
+  /** Most calls a day for research (keeps AI use and cost low). */
+  dailyLimit: integer("daily_limit").notNull().default(20),
   lastTestAt: timestamp("last_test_at", { withTimezone: true }),
   lastTestOk: boolean("last_test_ok").notNull().default(false),
   lastError: text("last_error").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * One "Research" run for a prospect. The app queues it; the Python scraper (scraper/) reads the company website and
+ * writes `result`; the app then applies it to the prospect and, only if the website gave no contact at all (or there is
+ * no website), asks an AI provider once.
+ */
+export const prospectResearchRuns = pgTable(
+  "prospect_research_runs",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade" }),
+    /** The bare domain read; empty when there was none (then only AI can look). */
+    domain: text("domain").notNull().default(""),
+    /** queued -> crawling -> crawled (or failed) -> done */
+    status: text("status").notNull().default("queued"),
+    /** What the scraper found (see scraper/zx_scraper/crawl.py). */
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    error: text("error").notNull().default(""),
+    pagesRead: integer("pages_read").notNull().default(0),
+    /** "" not needed / used / no_provider / limit / recent / failed */
+    aiStatus: text("ai_status").notNull().default(""),
+    aiProviderId: integer("ai_provider_id").references(() => prospectAiProviders.id, { onDelete: "set null" }),
+    aiTokens: integer("ai_tokens").notNull().default(0),
+    aiResult: jsonb("ai_result").$type<Record<string, unknown>>(),
+    /** Short summary shown on the prospect ("3 emails, 2 phones, 1 person"). */
+    summary: text("summary").notNull().default(""),
+    requestedBy: integer("requested_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("prospect_research_runs_status_idx").on(t.status, t.id), index("prospect_research_runs_company_idx").on(t.companyId, t.id)],
+);

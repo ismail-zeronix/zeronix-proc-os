@@ -203,7 +203,7 @@ export function MailboxActions({ id, email, enabled, tested }: { id: number; ema
 }
 
 export type AiData = Required<Omit<AiProviderInput, "apiKey">> & { id?: number; keyHint?: string };
-const blankAi: AiData = { label: "", provider: "anthropic", model: "", baseUrl: "", uses: [], enabled: true };
+const blankAi: AiData = { label: "", provider: "anthropic", model: "", baseUrl: "", uses: [], enabled: true, dailyLimit: 20 };
 
 /** Add an AI provider, or edit one. The key is never shown; leave it empty to keep the saved one. */
 export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactElement }) {
@@ -282,6 +282,9 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
               </label>
             ))}
           </div>
+          <Field id="ai-limit" label="Research calls a day, at most" hint="Research asks AI only when a website shows no contact; this caps it.">
+            <Input id="ai-limit" type="number" min={1} max={500} className="w-32" value={f.dailyLimit} onChange={(e) => setF({ ...f, dailyLimit: num(e.target.value) })} />
+          </Field>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={f.enabled} onCheckedChange={(v) => setF({ ...f, enabled: !!v })} /> In use
           </label>

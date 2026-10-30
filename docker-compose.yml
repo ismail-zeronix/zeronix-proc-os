@@ -61,6 +61,17 @@ services:
       retries: 3
       start_period: 40s
 
+  # Prospecting website reader (scraper/README.md): takes queued research runs from the database and reads company sites
+  scraper:
+    build: ./scraper
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-zeronix}:${POSTGRES_PASSWORD:-zeronix}@db:5432/${POSTGRES_DB:-procurement}
+    mem_limit: 512m
+
   # Nightly database dump plus the uploaded files, kept BACKUP_KEEP_DAYS days in ./backups
   #   docker compose --profile backup up -d
   # Restore the database: gunzip -c backups/<file>.sql.gz | docker compose exec -T db psql -U zeronix procurement

@@ -288,6 +288,13 @@
       "when": 1793369556810,
       "tag": "0040_prospecting_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793372257018,
+      "tag": "0041_prospect_research",
+      "breakpoints": true
     }
   ]
 }

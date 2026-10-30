@@ -9,6 +9,8 @@ import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { emailStatusLabel, roleLabel, signalLabel, websiteHref } from "@/lib/prospecting/constants";
 import { getProspect, listSegments, prospectingUsers } from "@/lib/prospecting/data";
+import { latestResearch, type ResearchRun } from "@/lib/prospecting/research";
+import type { CrawlResult } from "@/lib/prospecting/research-rules";
 import { MIN_SCORE } from "@/lib/prospecting/score";
 import {
   DeletePersonButton,
@@ -22,6 +24,7 @@ import {
   SignalDialog,
   StatusControl,
 } from "../../prospect-ui";
+import { ResearchButton, ResearchWatcher, UseFindingButton } from "../../research-ui";
 
 export async function generateMetadata({ params }: PageProps<"/prospecting/prospects/[id]">) {
   await requireApp("prospecting");
@@ -46,19 +49,110 @@ function researchLinks(name: string, domain: string, roles: string[]) {
   ];
 }
 
+const AI_NOTE: Record<string, string> = {
+  "": "AI not needed",
+  used: "AI used",
+  no_provider: "AI not set up for research",
+  limit: "AI daily limit reached",
+  recent: "AI searched in the last 30 days",
+  failed: "AI search failed",
+};
+
+/** What the last Research run found, with its sources, and a Use button to put a contact on the company. */
+function ResearchFindings({ run, companyId, companyEmail, companyPhone, hasWebsite }: { run: ResearchRun | null; companyId: number; companyEmail: string; companyPhone: string; hasWebsite: boolean }) {
+  const box = "grid gap-2 rounded-lg border px-3 py-2";
+  if (!run)
+    return (
+      <div className={`${box} text-sm text-muted-foreground`}>
+        {hasWebsite
+          ? "Not researched yet. Research reads their website for emails, phones, people and hiring (free). AI is used only if the website shows no contact at all."
+          : "No website yet. Research will ask AI to find the official website and contacts, then read the website itself."}
+      </div>
+    );
+  if (run.status !== "done")
+    return (
+      <div className={`${box} text-sm`}>
+        <ResearchWatcher companyId={companyId} />
+        <span className="animate-pulse">{run.domain ? `Reading ${run.domain}…` : "Searching the web…"}</span>
+        <span className="text-xs text-muted-foreground">This takes about a minute. The page updates by itself.</span>
+      </div>
+    );
+  const r = (run.result ?? {}) as CrawlResult;
+  const ai = (run.aiResult ?? {}) as { emails?: { email: string; source: string }[]; phones?: { phone: string; source: string }[] };
+  const emails = [...(r.emails ?? []).map((e) => ({ ...e, ai: false })), ...(ai.emails ?? []).map((e) => ({ ...e, ai: true }))];
+  const phones = [...(r.phones ?? []).map((e) => ({ ...e, ai: false })), ...(ai.phones ?? []).map((e) => ({ ...e, ai: true }))];
+  const src = (url: string, isAi: boolean) => (
+    <a href={url} target="_blank" rel="noreferrer" className="truncate text-xs text-muted-foreground hover:underline" title={url}>
+      {isAi ? "AI · " : ""}
+      {url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)}
+    </a>
+  );
+  return (
+    <div className={box}>
+      <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <span className="font-medium">Research</span>
+        <span className="text-xs text-muted-foreground">
+          {run.finishedAt ? ago(run.finishedAt) : ""} · {run.aiStatus === "used" ? `${AI_NOTE.used}: ${run.aiProvider || "provider"}, ${run.aiTokens.toLocaleString("en-US")} tokens` : AI_NOTE[run.aiStatus] ?? run.aiStatus}
+        </span>
+      </div>
+      <p className="text-sm">{run.summary || "Nothing found."}</p>
+      {emails.length > 0 && (
+        <ul className="grid gap-0.5">
+          {emails.map((e) => (
+            <li key={e.email} className="flex min-w-0 items-center gap-2 text-sm">
+              <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="shrink-0">{e.email}</span>
+              {src(e.source, e.ai)}
+              {e.email !== companyEmail ? <UseFindingButton companyId={companyId} kind="email" value={e.email} /> : <span className="text-xs text-emerald-700 dark:text-emerald-400">company email</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {phones.length > 0 && (
+        <ul className="grid gap-0.5">
+          {phones.map((ph) => (
+            <li key={ph.phone} className="flex min-w-0 items-center gap-2 text-sm">
+              <Phone className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="shrink-0 tabular-nums">{ph.phone}</span>
+              {src(ph.source, ph.ai)}
+              {ph.phone !== companyPhone ? <UseFindingButton companyId={companyId} kind="phone" value={ph.phone} /> : <span className="text-xs text-emerald-700 dark:text-emerald-400">company phone</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(r.pages?.length ?? 0) > 0 && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer">{r.pages!.length} pages read</summary>
+          <ul className="mt-1 grid gap-0.5">
+            {r.pages!.map((pg) => (
+              <li key={pg.url} className="truncate">
+                <a href={pg.url} target="_blank" rel="noreferrer" className="hover:underline">
+                  {pg.url.replace(/^https?:\/\/(www\.)?/, "")}
+                </a>
+                {pg.title && ` · ${pg.title}`}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export default async function ProspectPage({ params }: PageProps<"/prospecting/prospects/[id]">) {
   const { user, apps } = await requireApp("prospecting");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
-  const [p, segments, users] = await Promise.all([getProspect(id), listSegments(), prospectingUsers()]);
+  const [p, segments, users, run] = await Promise.all([getProspect(id), listSegments(), prospectingUsers(), latestResearch(id)]);
   if (!p) notFound();
+  const running = !!run && run.status !== "done";
   const segOptions = segments.filter((s) => s.active || s.key === p.segmentKey).map((s) => ({ key: s.key, label: s.label }));
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
   const primary = p.people.find((x) => x.isPrimary) ?? p.people[0];
   const gaps = [
     !primary && "find the key person",
     primary && !primary.email && "find their email",
-    primary?.emailStatus === "guess" && "confirm the guessed email",
+    primary?.email && primary.emailStatus === "guess" && "confirm the guessed email",
     !p.personalLine && "write the personal line",
     p.score < MIN_SCORE && `raise the score above ${MIN_SCORE}`,
   ].filter(Boolean) as string[];
@@ -68,6 +162,7 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <BackButton fallback="/prospecting/prospects" />
         <h1 className="min-w-0 flex-1 basis-[calc(100%-3rem)] truncate text-lg font-semibold tracking-tight sm:basis-0">{p.name}</h1>
+        <ResearchButton ids={[p.id]} running={running} />
         <StatusControl ids={[p.id]} status={p.status} />
         <OwnerControl ids={[p.id]} ownerId={p.ownerId} users={users} />
         <ProspectDialog
@@ -171,6 +266,7 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
               <div className={`rounded-lg border px-3 py-2 text-sm ${gaps.length ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"}`}>
                 {gaps.length ? <>To be ready: {gaps.join(", ")}.</> : <>Ready for the first email. Set the status to Ready.</>}
               </div>
+              <ResearchFindings run={run} companyId={p.id} companyEmail={p.email} companyPhone={p.phone} hasWebsite={!!p.domain} />
               {p.segmentOffer && (
                 <div className="text-sm">
                   <span className="text-xs text-muted-foreground">What we offer this segment: </span>

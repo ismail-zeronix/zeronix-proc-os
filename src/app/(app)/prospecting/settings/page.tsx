@@ -180,7 +180,10 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
                   </div>
                 </TableCell>
                 <TableCell className="py-1.5 text-xs">{p.model || "-"}</TableCell>
-                <TableCell className="py-1.5 text-xs">{p.uses.length ? p.uses.map(useLabel).join(", ") : "-"}</TableCell>
+                <TableCell className="py-1.5 text-xs">
+                  {p.uses.length ? p.uses.map(useLabel).join(", ") : "-"}
+                  {p.uses.includes("research") && <div className="text-muted-foreground">up to {p.dailyLimit} research calls a day</div>}
+                </TableCell>
                 <TableCell className="max-w-72 py-1.5">
                   <TestState at={p.lastTestAt} ok={p.lastTestOk} error={p.lastError} />
                 </TableCell>
@@ -189,7 +192,7 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
                     <div className="flex items-center gap-1">
                       <AiActions id={p.id} label={p.label} isDefault={p.isDefault} />
                       <AiDialog
-                        ai={{ id: p.id, label: p.label, provider: p.provider, model: p.model, baseUrl: p.baseUrl, uses: p.uses, enabled: p.enabled, keyHint: p.keyHint }}
+                        ai={{ id: p.id, label: p.label, provider: p.provider, model: p.model, baseUrl: p.baseUrl, uses: p.uses, enabled: p.enabled, dailyLimit: p.dailyLimit, keyHint: p.keyHint }}
                         trigger={
                           <Button variant="ghost" size="icon-sm" aria-label={`Edit ${p.label}`} title="Edit">
                             <Pencil />

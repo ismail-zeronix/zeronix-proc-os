@@ -10,7 +10,8 @@ import { isEmail } from "@/lib/mail/compose";
 import { DISQUALIFY_REASONS, MANUAL_STATUSES, SUPPRESSION_REASONS, domainOf, isSignal, isStatus, statusLabel, type StatusKey } from "@/lib/prospecting/constants";
 import { IMPORT_FIELDS, importedEmailStatus, rowToProspect, type ImportMapping } from "@/lib/prospecting/import";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
-import { scoreProspect } from "@/lib/prospecting/score";
+import { rescoreIn } from "@/lib/prospecting/rescore";
+import { latestResearch, queueResearch } from "@/lib/prospecting/research";
 import { normName } from "@/lib/sales";
 
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -388,19 +389,6 @@ export async function commitImport(input: z.input<typeof importSchema>): Promise
   });
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-async function rescoreIn(tx: Tx | typeof db, companyId: number, today: string) {
-  const [c] = await tx.select().from(schema.prospectCompanies).where(eq(schema.prospectCompanies.id, companyId));
-  if (!c) return;
-  const signals = await tx.select({ kind: schema.prospectSignals.kind, observedOn: schema.prospectSignals.observedOn }).from(schema.prospectSignals).where(eq(schema.prospectSignals.companyId, companyId));
-  const people = await tx
-    .select({ roleKind: schema.prospectPeople.roleKind, email: schema.prospectPeople.email, emailStatus: schema.prospectPeople.emailStatus, phone: schema.prospectPeople.phone })
-    .from(schema.prospectPeople)
-    .where(eq(schema.prospectPeople.companyId, companyId));
-  const s = scoreProspect({ ...c, signals, people }, today);
-  await tx.update(schema.prospectCompanies).set({ scoreFit: s.fit, scoreSignal: s.signal, scoreReach: s.reach, score: s.total }).where(eq(schema.prospectCompanies.id, companyId));
-}
-
 // ---------- suppression ----------
 
 /** Blocks an email address or a whole domain from every campaign. Accepts "a@b.ae", "b.ae" or a website. */
@@ -500,6 +488,45 @@ export async function updateSource(sourceId: number, input: SourceInput) {
     await assertProspectingAdmin();
     const d = sourceSchema.parse(input);
     await db.update(schema.prospectSources).set(sourceCols(d)).where(eq(schema.prospectSources.id, id.parse(sourceId)));
+    refresh();
+  });
+}
+
+// ---------- research ----------
+
+/** Queues website research for one prospect or a selection. The scraper reads the sites; AI is only a last resort. */
+export async function startResearch(ids: number[]): Promise<Result<number>> {
+  return attempt(async () => {
+    const me = await assertApp("prospecting");
+    const list = z.array(id).min(1, "Pick at least one prospect").max(200, "Research up to 200 prospects at a time").parse(ids);
+    const n = await queueResearch(list, me.id);
+    if (!n) throw new Problem(list.length === 1 ? "Research is already running for this prospect." : "Research is already running for these prospects.");
+    refresh();
+    return n;
+  });
+}
+
+/** Whether a prospect's latest research run is still going, for the page to refresh when it ends. */
+export async function researchState(companyId: number): Promise<Result<{ running: boolean; summary: string }>> {
+  return attempt(async () => {
+    await assertApp("prospecting");
+    const run = await latestResearch(id.parse(companyId));
+    return { running: !!run && run.status !== "done", summary: run?.summary ?? "" };
+  });
+}
+
+/** Puts a found email or phone on the company (replacing what is there). */
+export async function applyFinding(companyId: number, kind: "email" | "phone", value: string): Promise<Result<void>> {
+  return attempt(async () => {
+    const me = await assertApp("prospecting");
+    await mustExist(companyId);
+    const v = kind === "email" ? emailField.parse(value) : z.string().trim().min(7, "That phone number is too short").max(40).parse(value);
+    await db
+      .update(schema.prospectCompanies)
+      .set({ [kind]: v, updatedAt: new Date() })
+      .where(eq(schema.prospectCompanies.id, companyId));
+    await log(companyId, me.id, "research", `Company ${kind} set to ${v}`);
+    await rescore(companyId);
     refresh();
   });
 }

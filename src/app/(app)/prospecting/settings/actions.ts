@@ -154,6 +154,7 @@ const aiSchema = z.object({
   apiKey: z.string().trim().max(500).default(""),
   uses: z.array(z.enum(AI_USES.map((u) => u.key) as [string, ...string[]])).default([]),
   enabled: z.boolean().default(true),
+  dailyLimit: z.number().int().min(1, "Allow at least 1 call a day").max(500, "At most 500 calls a day").default(20),
 });
 export type AiProviderInput = z.input<typeof aiSchema>;
 

@@ -213,7 +213,7 @@ Owner decisions (2026-10-25): Sales renamed CRM; quotes, orders, customers move 
 Owner decisions (2026-10-30): fully independent app; separate cold-email domain; no AI in v1 (people research and write, a queue sends); Python scraper service; a reply with a real requirement is converted to a CRM lead.
 - [x] P.1 Foundation: tables + migration 0039, app live, Overview, Prospects list and page, manual add, CSV/Excel import, dedupe, scoring, signals, do-not-contact list, segments and sources [2026-10-30]
 - [x] P.1b Settings: several sending mailboxes (login test, warm-up limit, days and hours, signature, on/off) and several AI providers (Claude, OpenAI, Gemini, OpenAI-compatible, Ollama; key test, default, uses) [2026-10-30]
-- [ ] P.2 Python scraper service (scraper/): job loop, website research spider, email check, Review imports
+- [x] P.2 Research button (prospect page and bulk): Python/Scrapy scraper container reads the company website for emails, phones, people, LinkedIn, hiring and website health and updates the prospect; AI (Gemini/Claude with web search) only when the website shows no contact or there is no website, max once per company per 30 days and a daily limit [2026-10-30]
 - [ ] P.3 Source spiders (Meydan, DIFC, ADGM, KHDA, DHA) + generic listing spider, each after its terms are checked
 - [ ] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM
 - [ ] P.5 Templates, sequences, Review queue (approve first email to queue)

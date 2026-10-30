@@ -63,6 +63,24 @@ services:
       start_period: 40s
     logging: *logging
 
+  # Prospecting website reader (scraper/README.md). Reads the database over backend and company websites over its own
+  # outbound network; it publishes nothing and is not on proxy-net.
+  zeronix-scraper:
+    build: ./scraper
+    image: zeronix-scraper:${APP_IMAGE_TAG:-latest}
+    container_name: zeronix-scraper
+    restart: unless-stopped
+    depends_on:
+      zeronix-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@zeronix-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
+    mem_limit: 512m
+    networks:
+      - backend
+      - scraper-out
+    logging: *logging
+
   zeronix-postgres:
     image: postgres:16-alpine
     container_name: zeronix-postgres
@@ -89,6 +107,8 @@ networks:
     internal: true
   proxy-net:
     external: true
+  # outbound internet for the scraper only
+  scraper-out:
 
 volumes:
   pgdata:
