@@ -1545,3 +1545,91 @@ export const prospectAiModels = pgTable(
   },
   (t) => [uniqueIndex("prospect_ai_models_uq").on(t.providerId, t.modelId)],
 );
+
+/** A series of emails: step 1 starts a thread, the follow-ups reply in it after a number of working days. */
+export const outreachSequences = pgTable("outreach_sequences", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** Optional: the segment this sequence is written for. */
+  segmentKey: text("segment_key").references(() => prospectSegments.key, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const outreachSequenceSteps = pgTable(
+  "outreach_sequence_steps",
+  {
+    id: serial("id").primaryKey(),
+    sequenceId: integer("sequence_id")
+      .notNull()
+      .references(() => outreachSequences.id, { onDelete: "cascade" }),
+    /** 1 = the first email. */
+    position: integer("position").notNull(),
+    /** Working days (Mon-Fri) after the previous step; 0 for step 1. */
+    delayDays: integer("delay_days").notNull().default(0),
+    /** Only step 1 has its own subject; follow-ups reply in the same thread ("Re: ..."). */
+    subject: text("subject").notNull().default(""),
+    /** Text with merge fields such as {first_name}; see lib/prospecting/outreach-rules.ts. */
+    body: text("body").notNull(),
+  },
+  (t) => [uniqueIndex("outreach_sequence_steps_uq").on(t.sequenceId, t.position)],
+);
+
+/** Who gets which sequence from which mailboxes. */
+export const outreachCampaigns = pgTable("outreach_campaigns", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sequenceId: integer("sequence_id")
+    .notNull()
+    .references(() => outreachSequences.id, { onDelete: "restrict" }),
+  /** Sending mailboxes used in turn; empty = every mailbox that is switched on. */
+  mailboxIds: integer("mailbox_ids").array().notNull().default(sql`'{}'::int[]`),
+  /** draft / active / paused / finished */
+  status: text("status").notNull().default("active"),
+  ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One person in one campaign. Starts as a draft (the first email waits in the review queue); approving it makes it
+ * active and the sending queue (P.6) takes over. At most one open enrollment per person.
+ */
+export const outreachEnrollments = pgTable(
+  "outreach_enrollments",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => outreachCampaigns.id, { onDelete: "cascade" }),
+    companyId: integer("company_id")
+      .notNull()
+      .references(() => prospectCompanies.id, { onDelete: "cascade" }),
+    personId: integer("person_id")
+      .notNull()
+      .references(() => prospectPeople.id, { onDelete: "cascade" }),
+    /** draft / active / paused / replied / bounced / unsubscribed / completed / stopped / skipped */
+    status: text("status").notNull().default("draft"),
+    /** The first email as it will go out (rendered from step 1, editable in the review queue). */
+    subject: text("subject").notNull().default(""),
+    body: text("body").notNull().default(""),
+    /** The step sent last (0 = none yet) and when the next one is due. */
+    currentStep: integer("current_step").notNull().default(0),
+    nextSendAt: timestamp("next_send_at", { withTimezone: true }),
+    /** Mailbox the thread goes out from (chosen when the first email is sent). */
+    mailboxId: integer("mailbox_id").references(() => outreachMailboxes.id, { onDelete: "set null" }),
+    /** Message-ID of the first email, so follow-ups stay in its thread. */
+    threadMessageId: text("thread_message_id").notNull().default(""),
+    stopReason: text("stop_reason").notNull().default(""),
+    approvedBy: integer("approved_by").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("outreach_enrollments_campaign_idx").on(t.campaignId, t.status),
+    index("outreach_enrollments_company_idx").on(t.companyId),
+    index("outreach_enrollments_due_idx").on(t.status, t.nextSendAt),
+    uniqueIndex("outreach_enrollments_open_uq").on(t.personId).where(sql`status in ('draft','active','paused')`),
+  ],
+);

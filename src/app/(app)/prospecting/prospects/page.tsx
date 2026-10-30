@@ -1,9 +1,11 @@
 import { Plus } from "lucide-react";
 import { PageToolbar } from "@/components/page-toolbar";
+import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Button } from "@/components/ui/button";
 import { requireApp } from "@/lib/auth/session";
 import { isStatus } from "@/lib/prospecting/constants";
 import { listProspects, listSegments, prospectingUsers } from "@/lib/prospecting/data";
+import { openCampaigns } from "@/lib/prospecting/outreach";
 import { ProspectDialog } from "../prospect-ui";
 import { ProspectTable } from "./prospect-table";
 
@@ -17,15 +19,17 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/prospe
   const status = one(sp.status);
   const owner = Number(one(sp.owner));
   const source = Number(one(sp.source));
-  const [rows, segments, users] = await Promise.all([
-    listProspects({ q: one(sp.q), status: isStatus(status) ? status : undefined, segment: one(sp.segment) || undefined, ownerId: Number.isInteger(owner) && owner > 0 ? owner : undefined, sourceId: Number.isInteger(source) && source > 0 ? source : undefined }),
+  const page = pageParam(sp.page);
+  const [{ rows, total }, segments, users, campaigns] = await Promise.all([
+    listProspects({ page, pageSize: PAGE_SIZE, q: one(sp.q), status: isStatus(status) ? status : undefined, segment: one(sp.segment) || undefined, ownerId: Number.isInteger(owner) && owner > 0 ? owner : undefined, sourceId: Number.isInteger(source) && source > 0 ? source : undefined }),
     listSegments(),
     prospectingUsers(),
+    openCampaigns(),
   ]);
   const segOptions = segments.filter((s) => s.active).map((s) => ({ key: s.key, label: s.label }));
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Prospects" meta={`${rows.length}${rows.length === 1000 ? "+" : ""} shown · best score first`}>
+      <PageToolbar title="Prospects" meta={`${total.toLocaleString("en-US")} ${total === 1 ? "prospect" : "prospects"} · best score first`}>
         <ProspectDialog
           segments={segOptions}
           trigger={
@@ -35,7 +39,8 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/prospe
           }
         />
       </PageToolbar>
-      <ProspectTable rows={rows} segments={segOptions} users={users} />
+      <ProspectTable rows={rows} segments={segOptions} users={users} campaigns={campaigns} />
+      <Pager path="/prospecting/prospects" params={sp} page={page} total={total} />
     </div>
   );
 }

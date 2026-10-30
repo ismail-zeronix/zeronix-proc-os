@@ -1,6 +1,7 @@
 import { ExternalLink, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
 import { PageToolbar } from "@/components/page-toolbar";
+import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
@@ -9,10 +10,13 @@ import { ACCESS_LABELS, SourceDialog } from "../setup-ui";
 
 export const metadata = { title: "Sources · Zeronix Prospecting" };
 
-export default async function SourcesPage() {
+export default async function SourcesPage({ searchParams }: PageProps<"/prospecting/sources">) {
   const { user } = await requireApp("prospecting");
   const admin = user.role === "admin";
-  const [sources, segments] = await Promise.all([listSources(), listSegments()]);
+  const sp = await searchParams;
+  const page = pageParam(sp.page);
+  const [all, segments] = await Promise.all([listSources(), listSegments()]);
+  const sources = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const segLabel = new Map(segments.map((s) => [s.key, s.label]));
   const segOptions = segments.map((s) => ({ key: s.key, label: s.label }));
   return (
@@ -86,6 +90,7 @@ export default async function SourcesPage() {
           </TableBody>
         </Table>
       </div>
+      <Pager path="/prospecting/sources" params={sp} page={page} total={all.length} />
       <p className="px-1 text-xs text-muted-foreground">
         LinkedIn and Google Maps are never scraped: look people up by hand and paste the link, and use the Google Places API for map data. Keep to business contact details (UAE PDPL).
       </p>

@@ -216,8 +216,8 @@ Owner decisions (2026-10-30): fully independent app; separate cold-email domain;
 - [x] P.2 Research button (prospect page and bulk): Python/Scrapy scraper container reads the company website for emails, phones, people, LinkedIn, hiring and website health and updates the prospect; AI (Gemini/Claude with web search) only when the website shows no contact or there is no website, max once per company per 30 days and a daily limit [2026-10-30]
 - [x] P.2b AI settings: OpenRouter with free models (daily refresh, automatic switching, resting failed models, out-for-the-day then next provider), free AI reading step in research, paid web search only when allowed [2026-10-31]
 - [ ] P.3 Source spiders (Meydan, DIFC, ADGM, KHDA, DHA) + generic listing spider, each after its terms are checked
-- [ ] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM
-- [ ] P.5 Templates, sequences, Review queue (approve first email to queue)
+- [x] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM (CRM match by name, domain or contact email blocks enrolling)
+- [x] P.5 Templates, sequences, Review queue (approve first email to queue); campaigns; pagination on every Prospecting table
 - [ ] P.6 Sending engine: outreach mailboxes, caps/ramp/window, threading, one-click unsubscribe, pause switches
 - [ ] P.7 Replies: IMAP matching, bounce/OOO, Replies screen, reply from portal, Convert to lead
 - [ ] P.8 Overview and reports

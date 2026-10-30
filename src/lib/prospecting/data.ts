@@ -14,6 +14,9 @@ export interface ProspectFilter {
   segment?: string;
   ownerId?: number;
   sourceId?: number;
+  /** 1-based page of `pageSize` rows. */
+  page?: number;
+  pageSize?: number;
 }
 
 export interface ProspectRow {
@@ -37,9 +40,29 @@ export interface ProspectRow {
   createdAt: Date;
 }
 
-/** The prospect list, best score first. Everyone with the app sees every prospect (it is one shared list). */
-export async function listProspects(f: ProspectFilter = {}): Promise<ProspectRow[]> {
+function prospectWhere(f: ProspectFilter) {
   const term = f.q?.trim();
+  return and(
+    f.status ? eq(schema.prospectCompanies.status, f.status) : undefined,
+    f.segment ? eq(schema.prospectCompanies.segmentKey, f.segment) : undefined,
+    f.ownerId ? eq(schema.prospectCompanies.ownerId, f.ownerId) : undefined,
+    f.sourceId ? eq(schema.prospectCompanies.sourceId, f.sourceId) : undefined,
+    term
+      ? or(
+          ilike(schema.prospectCompanies.name, like(term)),
+          ilike(schema.prospectCompanies.domain, like(term)),
+          ilike(schema.prospectCompanies.activity, like(term)),
+          ilike(schema.prospectCompanies.phone, like(term)),
+        )
+      : undefined,
+  );
+}
+
+/** One page of the prospect list, best score first, with the total. Everyone with the app sees every prospect. */
+export async function listProspects(f: ProspectFilter = {}): Promise<{ rows: ProspectRow[]; total: number }> {
+  const size = f.pageSize ?? 50;
+  const where = prospectWhere(f);
+  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(schema.prospectCompanies).where(where);
   const rows = await db
     .select({
       id: schema.prospectCompanies.id,
@@ -65,25 +88,11 @@ export async function listProspects(f: ProspectFilter = {}): Promise<ProspectRow
     .leftJoin(schema.prospectSegments, eq(schema.prospectSegments.key, schema.prospectCompanies.segmentKey))
     .leftJoin(schema.prospectSources, eq(schema.prospectSources.id, schema.prospectCompanies.sourceId))
     .leftJoin(owner, eq(owner.id, schema.prospectCompanies.ownerId))
-    .where(
-      and(
-        f.status ? eq(schema.prospectCompanies.status, f.status) : undefined,
-        f.segment ? eq(schema.prospectCompanies.segmentKey, f.segment) : undefined,
-        f.ownerId ? eq(schema.prospectCompanies.ownerId, f.ownerId) : undefined,
-        f.sourceId ? eq(schema.prospectCompanies.sourceId, f.sourceId) : undefined,
-        term
-          ? or(
-              ilike(schema.prospectCompanies.name, like(term)),
-              ilike(schema.prospectCompanies.domain, like(term)),
-              ilike(schema.prospectCompanies.activity, like(term)),
-              ilike(schema.prospectCompanies.phone, like(term)),
-            )
-          : undefined,
-      ),
-    )
-    .orderBy(desc(schema.prospectCompanies.score), desc(schema.prospectCompanies.createdAt))
-    .limit(1000);
-  return rows as ProspectRow[];
+    .where(where)
+    .orderBy(desc(schema.prospectCompanies.score), desc(schema.prospectCompanies.createdAt), desc(schema.prospectCompanies.id))
+    .limit(size)
+    .offset((Math.max(1, f.page ?? 1) - 1) * size);
+  return { rows: rows as ProspectRow[], total };
 }
 
 /** One prospect with its people, signals and timeline. Null when it does not exist. */
@@ -154,8 +163,9 @@ export async function listSources() {
     .orderBy(asc(schema.prospectSources.id));
 }
 
-export async function listSuppression() {
-  return db
+export async function listSuppression(page = 1, pageSize = 50) {
+  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(schema.outreachSuppression);
+  const rows = await db
     .select({
       id: schema.outreachSuppression.id,
       value: schema.outreachSuppression.value,
@@ -167,8 +177,10 @@ export async function listSuppression() {
     })
     .from(schema.outreachSuppression)
     .leftJoin(schema.users, eq(schema.users.id, schema.outreachSuppression.createdBy))
-    .orderBy(desc(schema.outreachSuppression.createdAt))
-    .limit(2000);
+    .orderBy(desc(schema.outreachSuppression.createdAt), desc(schema.outreachSuppression.id))
+    .limit(pageSize)
+    .offset((Math.max(1, page) - 1) * pageSize);
+  return { rows, total };
 }
 
 /** People who can own a prospect: anyone active with the Prospecting app. */

@@ -1,5 +1,6 @@
 import { Empty } from "@/components/stat-tile";
 import { PageToolbar } from "@/components/page-toolbar";
+import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
@@ -8,12 +9,14 @@ import { RemoveSuppressionButton, SuppressionForm } from "../setup-ui";
 
 export const metadata = { title: "Do not contact · Zeronix Prospecting" };
 
-export default async function DoNotContactPage() {
+export default async function DoNotContactPage({ searchParams }: PageProps<"/prospecting/do-not-contact">) {
   await requireApp("prospecting");
-  const rows = await listSuppression();
+  const sp = await searchParams;
+  const page = pageParam(sp.page);
+  const { rows, total } = await listSuppression(page, PAGE_SIZE);
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Do not contact" meta={`${rows.length} blocked · checked before every email`} />
+      <PageToolbar title="Do not contact" meta={`${total} blocked · checked before every email`} />
       <section className="rounded-xl border bg-card p-3">
         <SuppressionForm />
         <p className="mt-2 text-xs text-muted-foreground">
@@ -58,6 +61,7 @@ export default async function DoNotContactPage() {
           </TableBody>
         </Table>
       </div>
+      <Pager path="/prospecting/do-not-contact" params={sp} page={page} total={total} />
     </div>
   );
 }

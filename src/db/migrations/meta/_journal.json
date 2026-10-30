@@ -302,6 +302,13 @@
       "when": 1793377474055,
       "tag": "0042_prospect_ai_models",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793391913509,
+      "tag": "0043_outreach_sequences",
+      "breakpoints": true
     }
   ]
 }
