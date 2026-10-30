@@ -1,4 +1,5 @@
 import { Bot, Mail, Pencil, Plus, Star } from "lucide-react";
+import { Fragment } from "react";
 import { PageToolbar } from "@/components/page-toolbar";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,9 @@ import { requireApp } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { AI_USES, aiProvider } from "@/lib/prospecting/ai";
-import { listAiProviders, listMailboxes, type AiProviderRow, type MailboxRow } from "@/lib/prospecting/data";
+import { listAiModels, listAiProviders, listMailboxes, type AiModelRow, type AiProviderRow, type MailboxRow } from "@/lib/prospecting/data";
 import { DAYS, capOn, weeksToTarget } from "@/lib/prospecting/sending";
-import { AiActions, AiDialog, MailboxActions, MailboxDialog } from "./settings-ui";
+import { AiActions, AiDialog, FreeModelList, MailboxActions, MailboxDialog } from "./settings-ui";
 
 export const metadata = { title: "Settings · Zeronix Prospecting" };
 
@@ -132,13 +133,25 @@ function Mailboxes({ rows, admin }: { rows: MailboxRow[]; admin: boolean }) {
   );
 }
 
-function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean }) {
+/** OpenRouter row extras: today's free allowance and when it comes back. */
+function Allowance({ p }: { p: AiProviderRow }) {
+  const out = p.outUntil && p.outUntil > new Date();
+  return (
+    <div className="text-muted-foreground">
+      {p.usage ? `Free requests today: ${p.usage.used} of ${p.usage.limit}` : "Test to see today's free allowance"}
+      {out && <span className="text-amber-700 dark:text-amber-400"> · used up, back at 04:00 Dubai</span>}
+    </div>
+  );
+}
+
+function AiProviders({ rows, models, admin }: { rows: AiProviderRow[]; models: AiModelRow[]; admin: boolean }) {
+  const now = new Date();
   const useLabel = (k: string) => AI_USES.find((u) => u.key === k)?.label ?? k;
   return (
     <div className="grid gap-2">
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground">
-          Nothing uses AI yet: research and writing stay with people for now. Providers saved here are ready for when AI features are switched on. Keys are stored encrypted and never shown again.
+          Research uses AI only when a website shows no contact: first a free model reads the pages already fetched, then (only if needed) a provider that can search the web. Providers are tried in order (free OpenRouter models first, then the default); one that is out for the day is skipped. Keys are stored encrypted and never shown again.
         </p>
         {admin && (
           <AiDialog
@@ -163,7 +176,8 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
           </TableHeader>
           <TableBody>
             {rows.map((p) => (
-              <TableRow key={p.id} className={p.enabled ? "" : "text-muted-foreground"}>
+              <Fragment key={p.id}>
+              <TableRow className={p.enabled ? "" : "text-muted-foreground"}>
                 <TableCell className="py-1.5">
                   <div className="flex items-center gap-1.5 font-medium">
                     {p.label}
@@ -179,10 +193,17 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
                     {p.keyHint && ` · key …${p.keyHint}`}
                   </div>
                 </TableCell>
-                <TableCell className="py-1.5 text-xs">{p.model || "-"}</TableCell>
+                <TableCell className="max-w-80 py-1.5 text-xs">
+                  {p.provider === "openrouter" && p.autoFree ? "Free models, automatic" : p.model || "-"}
+                  {p.provider === "openrouter" && <Allowance p={p} />}
+                </TableCell>
                 <TableCell className="py-1.5 text-xs">
                   {p.uses.length ? p.uses.map(useLabel).join(", ") : "-"}
-                  {p.uses.includes("research") && <div className="text-muted-foreground">up to {p.dailyLimit} research calls a day</div>}
+                  {p.uses.includes("research") && (
+                    <div className="text-muted-foreground">
+                      up to {p.dailyLimit} research calls a day{p.provider === "openrouter" ? (p.paidSearch ? " · paid web search on" : " · reads fetched pages, no search") : ""}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="max-w-72 py-1.5">
                   <TestState at={p.lastTestAt} ok={p.lastTestOk} error={p.lastError} />
@@ -192,7 +213,7 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
                     <div className="flex items-center gap-1">
                       <AiActions id={p.id} label={p.label} isDefault={p.isDefault} />
                       <AiDialog
-                        ai={{ id: p.id, label: p.label, provider: p.provider, model: p.model, baseUrl: p.baseUrl, uses: p.uses, enabled: p.enabled, dailyLimit: p.dailyLimit, keyHint: p.keyHint }}
+                        ai={{ id: p.id, label: p.label, provider: p.provider, model: p.model, baseUrl: p.baseUrl, uses: p.uses, enabled: p.enabled, dailyLimit: p.dailyLimit, autoFree: p.autoFree, paidSearch: p.paidSearch, keyHint: p.keyHint }}
                         trigger={
                           <Button variant="ghost" size="icon-sm" aria-label={`Edit ${p.label}`} title="Edit">
                             <Pencil />
@@ -203,11 +224,25 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
                   )}
                 </TableCell>
               </TableRow>
+              {p.provider === "openrouter" && p.autoFree && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={5} className="pt-0 pb-2">
+                    <FreeModelList
+                      providerId={p.id}
+                      admin={admin}
+                      models={models
+                        .filter((m) => m.providerId === p.id)
+                        .map((m) => ({ id: m.id, modelId: m.modelId, name: m.name, contextLength: m.contextLength, enabled: m.enabled, resting: !!m.cooldownUntil && m.cooldownUntil > now, okCount: m.okCount, lastError: m.lastError, expiresOn: m.expiresOn }))}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+              </Fragment>
             ))}
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={5}>
-                  <Empty>No AI providers yet. Add Claude, OpenAI, Gemini, any OpenAI-compatible service or local Ollama.</Empty>
+                  <Empty>No AI providers yet. Add OpenRouter (free models), Claude, OpenAI, Gemini, any OpenAI-compatible service or local Ollama.</Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -221,7 +256,7 @@ function AiProviders({ rows, admin }: { rows: AiProviderRow[]; admin: boolean })
 export default async function ProspectingSettingsPage({ searchParams }: PageProps<"/prospecting/settings">) {
   const { user } = await requireApp("prospecting");
   const admin = user.role === "admin";
-  const [mailboxes, ai, sp] = await Promise.all([listMailboxes(), listAiProviders(), searchParams]);
+  const [mailboxes, ai, models, sp] = await Promise.all([listMailboxes(), listAiProviders(), listAiModels(), searchParams]);
   const on = mailboxes.filter((m) => m.enabled).length;
   return (
     <div className="grid gap-3">
@@ -230,7 +265,7 @@ export default async function ProspectingSettingsPage({ searchParams }: PageProp
         initial={sp.tab}
         tabs={[
           { key: "mailboxes", label: "Sending mailboxes", icon: <Mail />, content: <Mailboxes rows={mailboxes} admin={admin} /> },
-          { key: "ai", label: "AI providers", icon: <Bot />, content: <AiProviders rows={ai} admin={admin} /> },
+          { key: "ai", label: "AI providers", icon: <Bot />, content: <AiProviders rows={ai} models={models} admin={admin} /> },
         ]}
       />
     </div>

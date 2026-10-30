@@ -1,6 +1,6 @@
 "use client";
 
-import { PlugZap, Power, Star, Trash2 } from "lucide-react";
+import { PlugZap, Power, RefreshCw, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,8 +17,10 @@ import {
   checkMailbox,
   deleteAiProvider,
   deleteMailbox,
+  refreshAiModels,
   saveAiProvider,
   saveMailbox,
+  setAiModelEnabled,
   setDefaultAiProvider,
   setMailboxEnabled,
   type AiProviderInput,
@@ -203,7 +205,7 @@ export function MailboxActions({ id, email, enabled, tested }: { id: number; ema
 }
 
 export type AiData = Required<Omit<AiProviderInput, "apiKey">> & { id?: number; keyHint?: string };
-const blankAi: AiData = { label: "", provider: "anthropic", model: "", baseUrl: "", uses: [], enabled: true, dailyLimit: 20 };
+const blankAi: AiData = { label: "", provider: "openrouter", model: "", baseUrl: "", uses: [], enabled: true, dailyLimit: 20, autoFree: true, paidSearch: false };
 
 /** Add an AI provider, or edit one. The key is never shown; leave it empty to keep the saved one. */
 export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactElement }) {
@@ -241,7 +243,7 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="ai-prov" label="Provider">
-              <NativeSelect className="w-full" id="ai-prov" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value, model: "", baseUrl: "" })}>
+              <NativeSelect className="w-full" id="ai-prov" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value, model: "", baseUrl: "", autoFree: e.target.value === "openrouter", paidSearch: false })}>
                 {AI_PROVIDERS.map((p) => (
                   <NativeSelectOption key={p.key} value={p.key}>
                     {p.label}
@@ -253,7 +255,14 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
               <Input id="ai-label" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} placeholder={`${def.label.split(" ")[0]} for drafts`} />
             </Field>
             <Field id="ai-model" label="Model">
-              <Input id="ai-model" value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} list="ai-models" placeholder={def.models[0] ?? "model name"} />
+              <Input
+                id="ai-model"
+                value={f.autoFree ? "" : f.model}
+                disabled={f.autoFree}
+                onChange={(e) => setF({ ...f, model: e.target.value })}
+                list="ai-models"
+                placeholder={f.autoFree ? "Free models, chosen automatically" : (def.models[0] ?? "model name")}
+              />
               <datalist id="ai-models">
                 {def.models.map((m) => (
                   <option key={m} value={m} />
@@ -264,6 +273,27 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
               <Input id="ai-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
             </Field>
           </div>
+          {f.provider === "openrouter" && (
+            <div className="grid gap-2 rounded-lg border p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox className="mt-0.5" checked={f.autoFree} onCheckedChange={(v) => setF({ ...f, autoFree: !!v })} />
+                <span>
+                  Use the free models and switch automatically
+                  <span className="block text-xs text-muted-foreground">
+                    The list of free models refreshes every day. Each request names the best few; if one is busy or rate limited OpenRouter moves to the next, and a model that keeps failing rests for a while.
+                    When the day&apos;s free allowance is used up, the next provider takes over until 04:00 Dubai time.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox className="mt-0.5" checked={f.paidSearch} onCheckedChange={(v) => setF({ ...f, paidSearch: !!v })} />
+                <span>
+                  Allow paid web search for research
+                  <span className="block text-xs text-muted-foreground">About $0.007 a search from your OpenRouter credits, even with free models. Off: OpenRouter only reads the pages our scraper fetched.</span>
+                </span>
+              </label>
+            </div>
+          )}
           <Field id="ai-url" label="Base URL" hint={def.baseUrl ? `Empty = ${def.baseUrl}` : "Required for this provider."}>
             <Input id="ai-url" value={f.baseUrl} onChange={(e) => setF({ ...f, baseUrl: e.target.value })} placeholder={def.baseUrl || "https://..."} />
           </Field>
@@ -313,5 +343,54 @@ export function AiActions({ id, label, isDefault }: { id: number; label: string;
         <Trash2 />
       </Button>
     </div>
+  );
+}
+
+export interface FreeModelItem {
+  id: number;
+  modelId: string;
+  name: string;
+  contextLength: number;
+  enabled: boolean;
+  resting: boolean;
+  okCount: number;
+  lastError: string;
+  expiresOn: string | null;
+}
+
+/** The free models of an OpenRouter provider, in the order they are tried, with on/off and a refresh. */
+export function FreeModelList({ providerId, models, admin }: { providerId: number; models: FreeModelItem[]; admin: boolean }) {
+  const [pending, run] = useRun();
+  const ready = models.filter((m) => m.enabled && !m.resting).length;
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-muted-foreground">
+        {models.length ? `${ready} of ${models.length} free models ready` : "No free models loaded yet"}
+      </summary>
+      <div className="mt-1 grid gap-x-6 gap-y-0.5 lg:grid-cols-2">
+        {models.map((m, i) => (
+          <label key={m.id} className={`flex items-center gap-2 rounded px-1 py-0.5 hover:bg-muted ${m.enabled ? "" : "text-muted-foreground"}`}>
+            <Checkbox disabled={!admin || pending} checked={m.enabled} onCheckedChange={(v) => run(() => setAiModelEnabled(m.id, !!v), v ? "Model switched on" : "Model switched off")} />
+            <span className="w-4 text-right tabular-nums">{i + 1}</span>
+            <span className="min-w-0 flex-1 truncate" title={m.modelId}>
+              {m.name}
+            </span>
+            <span className="tabular-nums text-muted-foreground">{Math.round(m.contextLength / 1000)}k</span>
+            {m.okCount > 0 && <span className="text-emerald-700 dark:text-emerald-400">{m.okCount} ok</span>}
+            {m.resting && (
+              <span className="text-amber-700 dark:text-amber-400" title={m.lastError}>
+                resting
+              </span>
+            )}
+            {m.expiresOn && <span className="text-muted-foreground">until {m.expiresOn}</span>}
+          </label>
+        ))}
+        {admin && (
+          <Button variant="ghost" size="sm" className="w-fit" pending={pending} onClick={() => run(() => refreshAiModels(providerId), "Free model list refreshed")}>
+            <RefreshCw /> Refresh from OpenRouter
+          </Button>
+        )}
+      </div>
+    </details>
   );
 }

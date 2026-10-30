@@ -1468,6 +1468,15 @@ export const prospectAiProviders = pgTable("prospect_ai_providers", {
   enabled: boolean("enabled").notNull().default(true),
   /** Most calls a day for research (keeps AI use and cost low). */
   dailyLimit: integer("daily_limit").notNull().default(20),
+  /** OpenRouter: use the free-model list (prospect_ai_models) and switch between them, instead of one fixed model. */
+  autoFree: boolean("auto_free").notNull().default(false),
+  /** OpenRouter: may add its paid web search (needs credits) when research has to search. */
+  paidSearch: boolean("paid_search").notNull().default(false),
+  /** The account's daily allowance is used up until then (OpenRouter free requests reset at 00:00 UTC). */
+  outUntil: timestamp("out_until", { withTimezone: true }),
+  /** Last known allowance from the provider ({ used, limit, remaining, checkedAt }). */
+  usage: jsonb("usage").$type<{ used: number; limit: number; remaining: number; checkedAt: string }>(),
+  modelsRefreshedAt: timestamp("models_refreshed_at", { withTimezone: true }),
   lastTestAt: timestamp("last_test_at", { withTimezone: true }),
   lastTestOk: boolean("last_test_ok").notNull().default(false),
   lastError: text("last_error").notNull().default(""),
@@ -1507,4 +1516,32 @@ export const prospectResearchRuns = pgTable(
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
   (t) => [index("prospect_research_runs_status_idx").on(t.status, t.id), index("prospect_research_runs_company_idx").on(t.companyId, t.id)],
+);
+
+/**
+ * The free models an OpenRouter provider can switch between, best first. Refreshed from OpenRouter's catalogue every
+ * day; a model that keeps failing rests until cooldown_until, and people can switch one off.
+ */
+export const prospectAiModels = pgTable(
+  "prospect_ai_models",
+  {
+    id: serial("id").primaryKey(),
+    providerId: integer("provider_id")
+      .notNull()
+      .references(() => prospectAiProviders.id, { onDelete: "cascade" }),
+    modelId: text("model_id").notNull(),
+    name: text("name").notNull().default(""),
+    contextLength: integer("context_length").notNull().default(0),
+    /** Accepts response_format (JSON mode). */
+    json: boolean("json").notNull().default(false),
+    expiresOn: date("expires_on"),
+    position: integer("position").notNull().default(0),
+    enabled: boolean("enabled").notNull().default(true),
+    cooldownUntil: timestamp("cooldown_until", { withTimezone: true }),
+    okCount: integer("ok_count").notNull().default(0),
+    failCount: integer("fail_count").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("prospect_ai_models_uq").on(t.providerId, t.modelId)],
 );

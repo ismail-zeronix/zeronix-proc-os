@@ -9,7 +9,8 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { AI_USES, aiProvider, isAiProvider } from "@/lib/prospecting/ai";
-import { testAi, testMailbox } from "@/lib/prospecting/connect";
+import { openRouterAllowance, refreshFreeModels, type ProviderRow } from "@/lib/prospecting/ai-client";
+import { testAi, testMailbox, type Check } from "@/lib/prospecting/connect";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { DAYS, HARD_MAX_PER_DAY, isTime } from "@/lib/prospecting/sending";
 
@@ -155,6 +156,10 @@ const aiSchema = z.object({
   uses: z.array(z.enum(AI_USES.map((u) => u.key) as [string, ...string[]])).default([]),
   enabled: z.boolean().default(true),
   dailyLimit: z.number().int().min(1, "Allow at least 1 call a day").max(500, "At most 500 calls a day").default(20),
+  /** OpenRouter: switch between its free models instead of one fixed model. */
+  autoFree: z.boolean().default(false),
+  /** OpenRouter: allow its paid web search for research. */
+  paidSearch: z.boolean().default(false),
 });
 export type AiProviderInput = z.input<typeof aiSchema>;
 
@@ -164,6 +169,8 @@ export async function saveAiProvider(providerId: number | null, input: AiProvide
     const d = aiSchema.parse(input);
     const def = aiProvider(d.provider)!;
     if (d.provider === "openai_compatible" && !d.baseUrl) throw new Problem("Enter the service's base URL");
+    if (d.provider !== "openrouter") Object.assign(d, { autoFree: false, paidSearch: false });
+    if (!d.autoFree && !d.model) throw new Problem("Pick a model, or use the free models");
     const { apiKey, ...rest } = d;
     const key = apiKey ? { apiKeyEnc: encryptSecret(apiKey), keyHint: apiKey.slice(-4) } : {};
     if (!providerId) {
@@ -226,7 +233,7 @@ export async function checkAiProvider(providerId: number): Promise<Result<string
         throw new Problem("The saved key can no longer be read. Edit the provider and enter it again.");
       }
     }
-    const r = await testAi({ provider: p.provider, baseUrl: p.baseUrl, apiKey, model: p.model });
+    const r = p.provider === "openrouter" ? await checkOpenRouter(p, apiKey) : await testAi({ provider: p.provider, baseUrl: p.baseUrl, apiKey, model: p.model });
     await db
       .update(schema.prospectAiProviders)
       .set({ lastTestAt: new Date(), lastTestOk: r.ok, lastError: r.ok ? "" : r.detail })
@@ -234,5 +241,46 @@ export async function checkAiProvider(providerId: number): Promise<Result<string
     refresh();
     if (!r.ok) throw new Problem(r.detail);
     return r.detail;
+  });
+}
+
+/** OpenRouter: the key works when its allowance can be read; the free-model list is loaded at the same time. */
+async function checkOpenRouter(p: ProviderRow, apiKey: string): Promise<Check> {
+  const allowance = await openRouterAllowance(apiKey, p.baseUrl || undefined);
+  if (!allowance) return { ok: false, detail: "OpenRouter refused the key, or could not be reached." };
+  await db
+    .update(schema.prospectAiProviders)
+    .set({ usage: { used: allowance.used, limit: allowance.limit, remaining: allowance.remaining, checkedAt: new Date().toISOString() }, outUntil: null })
+    .where(eq(schema.prospectAiProviders.id, p.id));
+  let models = "";
+  if (p.autoFree) models = `${await refreshFreeModels(p, dubaiToday())} free models ready. `;
+  else {
+    const t = await testAi({ provider: "openai_compatible", baseUrl: p.baseUrl || "https://openrouter.ai/api/v1", apiKey, model: p.model });
+    if (!t.ok) return t;
+  }
+  return { ok: true, detail: `Key works. ${models}Free requests today: ${allowance.used} of ${allowance.limit}.` };
+}
+
+/** Reloads an OpenRouter provider's free-model list now (it also reloads by itself every day). */
+export async function refreshAiModels(providerId: number): Promise<Result<string>> {
+  return attempt(async () => {
+    await assertAdmin();
+    const [p] = await db.select().from(schema.prospectAiProviders).where(eq(schema.prospectAiProviders.id, providerId));
+    if (!p || p.provider !== "openrouter") throw new Problem("Only OpenRouter has a free-model list");
+    const n = await refreshFreeModels(p, dubaiToday());
+    refresh();
+    return `${n} free models`;
+  });
+}
+
+/** Switches one free model on or off (off = never tried); switching on also ends its rest after errors. */
+export async function setAiModelEnabled(modelRowId: number, enabled: boolean): Promise<Result<void>> {
+  return attempt(async () => {
+    await assertAdmin();
+    await db
+      .update(schema.prospectAiModels)
+      .set({ enabled, ...(enabled ? { cooldownUntil: null, failCount: 0 } : {}) })
+      .where(eq(schema.prospectAiModels.id, modelRowId));
+    refresh();
   });
 }

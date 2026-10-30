@@ -255,4 +255,6 @@ def page_data(url: str, html: str) -> dict:
         "hiring": is_careers and bool(HIRING_RE.search(text)) and not NOT_HIRING_RE.search(text),
         "title": (sel.xpath("//title/text()").get() or "").strip()[:150],
         "chars": len(text),
+        # kept for the portal's free AI reading step when the patterns above find nothing
+        "text": text[:4000],
     }

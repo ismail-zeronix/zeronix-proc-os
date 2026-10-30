@@ -10,6 +10,14 @@ export const AI_PROVIDERS = [
     hint: "Key from console.anthropic.com. Haiku for research notes and sorting replies, Sonnet for drafts.",
   },
   {
+    key: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    needsKey: true,
+    models: [],
+    hint: "Key from openrouter.ai/keys. Free models switch automatically; free keys get 50 requests a day across all free models (1,000 after buying $10 of credits). Web search is never free.",
+  },
+  {
     key: "openai",
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",

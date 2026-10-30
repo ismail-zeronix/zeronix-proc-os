@@ -24,6 +24,8 @@ export interface CrawlResult {
   health?: { https: boolean; mobile: boolean; copyrightYear: number | null; outdated: boolean } | null;
   jsOnly?: boolean;
   robotsBlocked?: number;
+  /** Text of the homepage and contact/about/team pages, for the AI reading step. */
+  texts?: { url: string; text: string }[];
 }
 
 /** What an AI provider returned (only items with a source page are kept). */
@@ -191,4 +193,25 @@ export function parseAiJson(text: string): AiFindings | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The free reading step: a model reads the text of pages the scraper already fetched (no web search, so a free model
+ * will do) and lists contacts the patterns missed. Each finding must name one of those pages as its source.
+ */
+export function aiReadPrompt(name: string, texts: { url: string; text: string }[]): string {
+  const pages = texts.map((t) => `PAGE ${t.url}\n${t.text.slice(0, 2500)}`).join("\n\n");
+  return [
+    `Below is text from the website of the company "${name}". List the business contact details printed in it.`,
+    `Reply with JSON only, no other text: {"emails":[{"email":"","source":""}],"phones":[{"phone":"","source":""}],"people":[{"name":"","title":"","source":""}]}`,
+    "Rules: source is the PAGE address the detail appears under. Only details written in the text; never guess or construct an email. Empty lists when there are none.",
+    "",
+    pages,
+  ].join("\n");
+}
+
+/** Drops reading-step findings whose source is not one of the pages that were read (the model made it up). */
+export function keepFromPages(a: Required<AiFindings>, urls: string[]): Required<AiFindings> {
+  const ok = new Set(urls);
+  return { website: "", emails: a.emails.filter((e) => ok.has(e.source)), phones: a.phones.filter((p) => ok.has(p.source)), people: a.people.filter((p) => ok.has(p.source)) };
 }

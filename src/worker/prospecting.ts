@@ -1,7 +1,11 @@
+import { dubaiToday } from "@/lib/dates";
+import { refreshStaleFreeModels } from "@/lib/prospecting/ai-client";
 import { processResearch } from "@/lib/prospecting/research";
 
 const TICK_MS = 5_000;
-const g = globalThis as unknown as { __researchTimer?: NodeJS.Timeout; __researchBusy?: boolean };
+/** How often to look for OpenRouter free-model lists older than a day. */
+const MODELS_CHECK_MS = 30 * 60_000;
+const g = globalThis as unknown as { __researchTimer?: NodeJS.Timeout; __researchBusy?: boolean; __modelsCheckedAt?: number };
 
 /**
  * Applies Prospecting research runs the Python scraper has finished, and runs the AI step for the few that need it.
@@ -13,6 +17,10 @@ async function tick() {
   try {
     // keep going while there is a backlog, a few runs per pass
     while ((await processResearch(5)) === 5);
+    if (Date.now() - (g.__modelsCheckedAt ?? 0) > MODELS_CHECK_MS) {
+      g.__modelsCheckedAt = Date.now();
+      await refreshStaleFreeModels(dubaiToday());
+    }
   } catch (e) {
     console.error("[research] pass failed", e);
   } finally {

@@ -1,11 +1,10 @@
 import "server-only";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { decryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { domainOf } from "./constants";
-import { canSearch, searchWithAi, SEARCH_PROVIDERS } from "./ai-search";
-import { aiPrompt, cleanAi, parseAiJson, planFromAi, planFromCrawl, type CompanyNow, type CrawlResult, type ResearchPlan } from "./research-rules";
+import { AiUnavailable, askProvider, canSearch, type ProviderRow } from "./ai-client";
+import { aiPrompt, aiReadPrompt, cleanAi, keepFromPages, parseAiJson, planFromAi, planFromCrawl, type AiFindings, type CompanyNow, type CrawlResult, type ResearchPlan } from "./research-rules";
 import { rescoreIn } from "./rescore";
 
 /** Do not ask AI about the same company more often than this. */
@@ -60,10 +59,83 @@ async function applyPlan(companyId: number, plan: ResearchPlan, by: number | nul
   });
 }
 
-type AiOutcome = { status: "used" | "no_provider" | "limit" | "recent" | "failed"; providerId?: number; tokens?: number; result?: Record<string, unknown>; plan?: ResearchPlan; error?: string };
+type AiStep = "read" | "search";
+type AiOutcome = {
+  status: "used" | "no_provider" | "limit" | "recent" | "failed";
+  providerId?: number;
+  tokens?: number;
+  result?: Record<string, unknown>;
+  plan?: ResearchPlan;
+  error?: string;
+};
 
-/** The AI step, used only when the website gave nothing (or there is no website). Cheapest checks first. */
-async function askAi(runId: number, companyId: number, c: NonNullable<Awaited<ReturnType<typeof companyNow>>>): Promise<AiOutcome> {
+/** Providers allowed for a step, cheapest first: OpenRouter free models, then the default, then the rest. */
+async function providersFor(step: AiStep): Promise<ProviderRow[]> {
+  const rows = await db
+    .select()
+    .from(schema.prospectAiProviders)
+    .where(and(eq(schema.prospectAiProviders.enabled, true), sql`'research' = ANY(${schema.prospectAiProviders.uses})`, ne(schema.prospectAiProviders.provider, "ollama")))
+    .orderBy(desc(schema.prospectAiProviders.isDefault), schema.prospectAiProviders.id);
+  const usable = rows.filter((p) => (step === "search" ? canSearch(p) : true) && (p.autoFree || p.model));
+  const free = (p: ProviderRow) => p.provider === "openrouter" && p.autoFree && !(step === "search" && p.paidSearch);
+  return [...usable.filter(free), ...usable.filter((p) => !free(p))];
+}
+
+async function usedToday(providerId: number): Promise<number> {
+  const [{ n }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospectResearchRuns)
+    .where(and(eq(schema.prospectResearchRuns.aiProviderId, providerId), eq(schema.prospectResearchRuns.aiStatus, "used"), sql`(${schema.prospectResearchRuns.finishedAt} AT TIME ZONE 'Asia/Dubai')::date = ${dubaiToday()}::date`));
+  return n;
+}
+
+/**
+ * One AI step, trying providers in order. A provider that is out of today's allowance, over its research limit or
+ * busy is skipped and the next one is asked: that is the automatic switch.
+ */
+async function runStep(step: AiStep, runId: number, prompt: string, accept: (found: Required<AiFindings>) => Required<AiFindings>, c: CompanyNow): Promise<AiOutcome> {
+  const providers = await providersFor(step);
+  if (!providers.length) return { status: "no_provider" };
+  const problems: string[] = [];
+  let limited = 0;
+  for (const p of providers) {
+    if (p.outUntil && p.outUntil > new Date()) {
+      limited++;
+      continue;
+    }
+    if ((await usedToday(p.id)) >= p.dailyLimit) {
+      limited++;
+      continue;
+    }
+    // claim the call before making it, so two runs cannot both pass the daily limit
+    await db.update(schema.prospectResearchRuns).set({ aiProviderId: p.id }).where(eq(schema.prospectResearchRuns.id, runId));
+    try {
+      const reply = await askProvider(p, prompt, { search: step === "search" });
+      const parsed = parseAiJson(reply.text);
+      if (!parsed) {
+        problems.push(`${p.label}: the reply was not readable`);
+        continue;
+      }
+      const found = accept(cleanAi(parsed));
+      return { status: "used", providerId: p.id, tokens: reply.tokens, result: { ...found, step, model: reply.model }, plan: planFromAi(found, c) };
+    } catch (e) {
+      if (e instanceof AiUnavailable && e.reason === "quota") limited++;
+      problems.push(`${p.label}: ${(e as Error).message}`);
+    }
+  }
+  if (!problems.length) return { status: "limit" };
+  return { status: limited === providers.length ? "limit" : "failed", error: problems.join(" · ").slice(0, 500) };
+}
+
+/** True when a plan found at least one way to reach the company. */
+const foundSomething = (p?: ResearchPlan) => !!p && (p.emails.length > 0 || p.phones.length > 0 || p.people.length > 0);
+
+/**
+ * The AI part, used only when the website gave nothing (or there is no website). Two steps, cheapest first:
+ * a model reads the pages the scraper already fetched (no search: free models work), and only if that finds nothing,
+ * a provider that can search the web looks for the company. Each step switches provider by itself when one is out.
+ */
+async function askAi(runId: number, companyId: number, c: NonNullable<Awaited<ReturnType<typeof companyNow>>>, crawl: CrawlResult): Promise<AiOutcome> {
   const [recent] = await db
     .select({ id: schema.prospectResearchRuns.id })
     .from(schema.prospectResearchRuns)
@@ -71,45 +143,26 @@ async function askAi(runId: number, companyId: number, c: NonNullable<Awaited<Re
       and(
         eq(schema.prospectResearchRuns.companyId, companyId),
         eq(schema.prospectResearchRuns.aiStatus, "used"),
+        // only web searches count: the free reading step may run every time
+        sql`${schema.prospectResearchRuns.aiResult}->>'step' = 'search'`,
         gte(schema.prospectResearchRuns.finishedAt, sql`now() - make_interval(days => ${AI_COOLDOWN_DAYS})`),
       ),
     )
     .limit(1);
   if (recent) return { status: "recent" };
 
-  const providers = await db
-    .select()
-    .from(schema.prospectAiProviders)
-    .where(and(eq(schema.prospectAiProviders.enabled, true), inArray(schema.prospectAiProviders.provider, [...SEARCH_PROVIDERS]), sql`'research' = ANY(${schema.prospectAiProviders.uses})`))
-    .orderBy(desc(schema.prospectAiProviders.isDefault), schema.prospectAiProviders.id);
-  if (!providers.length) return { status: "no_provider" };
-
-  for (const p of providers) {
-    if (!canSearch(p.provider) || !p.model) continue;
-    const [{ used }] = await db
-      .select({ used: sql<number>`count(*)::int` })
-      .from(schema.prospectResearchRuns)
-      .where(and(eq(schema.prospectResearchRuns.aiProviderId, p.id), eq(schema.prospectResearchRuns.aiStatus, "used"), sql`(${schema.prospectResearchRuns.finishedAt} AT TIME ZONE 'Asia/Dubai')::date = ${dubaiToday()}::date`));
-    if (used >= p.dailyLimit) continue;
-    let apiKey = "";
-    try {
-      apiKey = p.apiKeyEnc ? decryptSecret(p.apiKeyEnc) : "";
-    } catch {
-      continue;
-    }
-    // claim the call before making it, so two runs cannot both pass the daily limit
-    await db.update(schema.prospectResearchRuns).set({ aiProviderId: p.id }).where(eq(schema.prospectResearchRuns.id, runId));
-    try {
-      const { text, tokens } = await searchWithAi({ provider: p.provider, baseUrl: p.baseUrl, apiKey, model: p.model, prompt: aiPrompt(c) });
-      const parsed = parseAiJson(text);
-      if (!parsed) return { status: "failed", providerId: p.id, tokens, error: "The AI reply was not readable." };
-      const found = cleanAi(parsed);
-      return { status: "used", providerId: p.id, tokens, result: found as unknown as Record<string, unknown>, plan: planFromAi(found, c) };
-    } catch (e) {
-      return { status: "failed", providerId: p.id, error: (e as Error).message.slice(0, 300) };
-    }
+  let read: AiOutcome | null = null;
+  const texts = (crawl.texts ?? []).filter((t) => t.text.trim().length > 80);
+  if (texts.length) {
+    const urls = texts.map((t) => t.url);
+    read = await runStep("read", runId, aiReadPrompt(c.name, texts), (f) => keepFromPages(f, urls), c);
+    if (read.status === "used" && foundSomething(read.plan)) return read;
   }
-  return { status: "limit" };
+  const search = await runStep("search", runId, aiPrompt(c), (f) => f, c);
+  if (search.status === "used") return { ...search, tokens: (search.tokens ?? 0) + (read?.tokens ?? 0) };
+  // the reading step ran but found nothing, and searching was not possible: still record the read
+  if (read?.status === "used") return { ...read, error: search.error };
+  return search.status === "no_provider" && read && read.status !== "no_provider" ? read : search;
 }
 
 /** Finishes one run: applies the crawl, asks AI only if needed, and chains a crawl when AI found the website. */
@@ -119,10 +172,11 @@ async function finishRun(run: typeof schema.prospectResearchRuns.$inferSelect) {
     await db.update(schema.prospectResearchRuns).set({ status: "done", finishedAt: new Date(), summary: "The prospect no longer exists" }).where(eq(schema.prospectResearchRuns.id, run.id));
     return;
   }
+  const crawl = (run.result ?? {}) as CrawlResult;
   let summary = "";
   let needsAi = !run.domain;
   if (run.domain) {
-    const plan = planFromCrawl((run.result ?? {}) as CrawlResult, c, dubaiToday());
+    const plan = planFromCrawl(crawl, c, dubaiToday());
     await applyPlan(run.companyId, plan, run.requestedBy, "Website research");
     summary = run.error && !run.pagesRead ? run.error : plan.summary;
     needsAi = plan.needsAi;
@@ -131,14 +185,16 @@ async function finishRun(run: typeof schema.prospectResearchRuns.$inferSelect) {
   const patch: Partial<typeof schema.prospectResearchRuns.$inferInsert> = { status: "done", finishedAt: new Date() };
   if (needsAi) {
     const fresh = (await companyNow(run.companyId))!;
-    const ai = await askAi(run.id, run.companyId, fresh);
+    const ai = await askAi(run.id, run.companyId, fresh, crawl);
     patch.aiStatus = ai.status;
     patch.aiProviderId = ai.providerId ?? null;
     patch.aiTokens = ai.tokens ?? 0;
     patch.aiResult = ai.result ?? (ai.error ? { error: ai.error } : null);
     if (ai.plan) {
-      await applyPlan(run.companyId, ai.plan, run.requestedBy, "AI search");
-      summary = [summary, ai.plan.summary].filter(Boolean).join(". ");
+      const step = ai.result?.step === "read" ? "AI reading the website" : "AI search";
+      await applyPlan(run.companyId, ai.plan, run.requestedBy, step);
+      summary = [summary, foundSomething(ai.plan) ? ai.plan.summary.replace(/^AI search/, step) : `${step} found nothing`].filter(Boolean).join(". ");
+      if (!foundSomething(ai.plan) && ai.error) summary += `. Web search not possible: ${ai.error}`;
       // AI found the website we did not have: read it with the scraper too (free), instead of asking AI for more
       const site = String(ai.result?.website ?? "");
       const domain = domainOf(site);
@@ -153,9 +209,9 @@ async function finishRun(run: typeof schema.prospectResearchRuns.$inferSelect) {
     } else {
       const why: Record<string, string> = {
         no_provider: "No AI provider is set up for research",
-        limit: "Today's AI limit is reached",
-        recent: "AI already searched for this company in the last 30 days",
-        failed: `AI search failed${ai.error ? `: ${ai.error}` : ""}`,
+        limit: "Every AI provider is out of today's allowance or limit",
+        recent: "AI already looked at this company in the last 30 days",
+        failed: `AI could not help${ai.error ? `: ${ai.error}` : ""}`,
       };
       summary = [summary || (run.domain ? "" : "No website to read"), why[ai.status]].filter(Boolean).join(". ");
     }

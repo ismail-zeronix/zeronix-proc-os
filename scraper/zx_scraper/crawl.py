@@ -102,6 +102,15 @@ def has_mx(domain: str) -> bool | None:
         return None
 
 
+TEXT_PAGES = re.compile(r"contact|reach|about|team|people|management|leadership|who-we-are|location|office", re.I)
+
+
+def page_texts(pages: list[dict]) -> list[dict]:
+    """Text of the homepage and the contact/about/team pages (at most 4, 2,500 characters each), for the AI reading step."""
+    picked = [p for i, p in enumerate(pages) if i == 0 or TEXT_PAGES.search(p["url"])][:4]
+    return [{"url": p["url"], "text": p["text"][:2500]} for p in picked if p.get("text")]
+
+
 def summarise(spider: SiteSpider, stats: dict) -> dict:
     emails: dict[str, str] = {}
     phones: dict[str, str] = {}
@@ -135,6 +144,7 @@ def summarise(spider: SiteSpider, stats: dict) -> dict:
         "jsOnly": js_only,
         "robotsBlocked": int(stats.get("robotstxt/forbidden", 0)),
         "errors": spider.errors[:5],
+        "texts": page_texts(spider.pages),
     }
 
 

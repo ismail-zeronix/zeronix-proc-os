@@ -223,3 +223,9 @@ export async function listAiProviders() {
   return db.select(cols).from(schema.prospectAiProviders).orderBy(desc(schema.prospectAiProviders.isDefault), asc(schema.prospectAiProviders.id));
 }
 export type AiProviderRow = Awaited<ReturnType<typeof listAiProviders>>[number];
+
+/** Free models per OpenRouter provider, in the order they are tried. */
+export async function listAiModels() {
+  return db.select().from(schema.prospectAiModels).orderBy(asc(schema.prospectAiModels.providerId), asc(schema.prospectAiModels.position));
+}
+export type AiModelRow = Awaited<ReturnType<typeof listAiModels>>[number];

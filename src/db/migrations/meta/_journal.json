@@ -295,6 +295,13 @@
       "when": 1793372257018,
       "tag": "0041_prospect_research",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793377474055,
+      "tag": "0042_prospect_ai_models",
+      "breakpoints": true
     }
   ]
 }
