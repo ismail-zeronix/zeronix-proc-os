@@ -46,3 +46,6 @@ next-env.d.ts
 
 # uploaded files (Files app)
 /data/
+
+# prospecting data export for production (production/prospects-export.sh)
+prospects-data.sql
