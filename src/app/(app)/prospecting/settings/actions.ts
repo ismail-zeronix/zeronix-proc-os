@@ -8,8 +8,8 @@ import { assertApp } from "@/lib/auth/session";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
-import { AI_USES, aiProvider, isAiProvider } from "@/lib/prospecting/ai";
-import { openRouterAllowance, refreshFreeModels, type ProviderRow } from "@/lib/prospecting/ai-client";
+import { AI_USES, aiProvider, isAiProvider, isSearchService } from "@/lib/prospecting/ai";
+import { AiUnavailable, openRouterAllowance, refreshFreeModels, webSearch, type ProviderRow } from "@/lib/prospecting/ai-client";
 import { testAi, testMailbox, type Check } from "@/lib/prospecting/connect";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { DAYS, HARD_MAX_PER_DAY, isTime } from "@/lib/prospecting/sending";
@@ -170,7 +170,9 @@ export async function saveAiProvider(providerId: number | null, input: AiProvide
     const def = aiProvider(d.provider)!;
     if (d.provider === "openai_compatible" && !d.baseUrl) throw new Problem("Enter the service's base URL");
     if (d.provider !== "openrouter") Object.assign(d, { autoFree: false, paidSearch: false });
-    if (!d.autoFree && !d.model) throw new Problem("Pick a model, or use the free models");
+    // a search service has no model and only serves research
+    if (isSearchService(d.provider)) Object.assign(d, { model: "", uses: ["research"] });
+    else if (!d.autoFree && !d.model) throw new Problem("Pick a model, or use the free models");
     const { apiKey, ...rest } = d;
     const key = apiKey ? { apiKeyEnc: encryptSecret(apiKey), keyHint: apiKey.slice(-4) } : {};
     if (!providerId) {
@@ -233,7 +235,12 @@ export async function checkAiProvider(providerId: number): Promise<Result<string
         throw new Problem("The saved key can no longer be read. Edit the provider and enter it again.");
       }
     }
-    const r = p.provider === "openrouter" ? await checkOpenRouter(p, apiKey) : await testAi({ provider: p.provider, baseUrl: p.baseUrl, apiKey, model: p.model });
+    const r =
+      p.provider === "openrouter"
+        ? await checkOpenRouter(p, apiKey)
+        : isSearchService(p.provider)
+          ? await checkSearch(p)
+          : await testAi({ provider: p.provider, baseUrl: p.baseUrl, apiKey, model: p.model });
     await db
       .update(schema.prospectAiProviders)
       .set({ lastTestAt: new Date(), lastTestOk: r.ok, lastError: r.ok ? "" : r.detail })
@@ -242,6 +249,16 @@ export async function checkAiProvider(providerId: number): Promise<Result<string
     if (!r.ok) throw new Problem(r.detail);
     return r.detail;
   });
+}
+
+/** A search service: one small search (uses one search of the allowance). */
+async function checkSearch(p: ProviderRow): Promise<Check> {
+  try {
+    const hits = await webSearch(p, "Dubai Chamber of Commerce contact");
+    return { ok: true, detail: `Key works. ${hits.length} results for a test search.` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof AiUnavailable ? e.message : "Tavily could not be reached." };
+  }
 }
 
 /** OpenRouter: the key works when its allowance can be read; the free-model list is loaded at the same time. */

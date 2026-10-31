@@ -7,6 +7,7 @@ import { isStatus } from "@/lib/prospecting/constants";
 import { listProspects, listSegments, prospectingUsers } from "@/lib/prospecting/data";
 import { openCampaigns } from "@/lib/prospecting/outreach";
 import { ProspectDialog } from "../prospect-ui";
+import { ResearchProgress } from "../research-ui";
 import { ProspectTable } from "./prospect-table";
 
 export const metadata = { title: "Prospects · Zeronix Prospecting" };
@@ -39,6 +40,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/prospe
           }
         />
       </PageToolbar>
+      <ResearchProgress />
       <ProspectTable rows={rows} segments={segOptions} users={users} campaigns={campaigns} />
       <Pager path="/prospecting/prospects" params={sp} page={page} total={total} />
     </div>

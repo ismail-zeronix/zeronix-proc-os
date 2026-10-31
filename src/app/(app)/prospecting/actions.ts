@@ -9,9 +9,10 @@ import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { DISQUALIFY_REASONS, MANUAL_STATUSES, SUPPRESSION_REASONS, domainOf, isSignal, isStatus, statusLabel, type StatusKey } from "@/lib/prospecting/constants";
 import { IMPORT_FIELDS, importedEmailStatus, rowToProspect, type ImportMapping } from "@/lib/prospecting/import";
+import { guessIndustry } from "@/lib/prospecting/industry";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { rescoreIn } from "@/lib/prospecting/rescore";
-import { latestResearch, queueResearch } from "@/lib/prospecting/research";
+import { latestResearch, queueResearch, researchQueue, RUNNING, stopQueuedResearch, type ResearchQueue } from "@/lib/prospecting/research";
 import { normName } from "@/lib/sales";
 
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -84,6 +85,7 @@ function columns(d: z.output<typeof prospectSchema>) {
   return {
     ...d,
     nameNorm: normName(d.name),
+    industry: guessIndustry(d.name, d.activity),
     domain: domainOf(d.website) || domainOf(d.email) || null,
     licenseDate: d.licenseDate || null,
     segmentKey: d.segmentKey || null,
@@ -354,6 +356,7 @@ export async function commitImport(input: z.input<typeof importSchema>): Promise
             emirate: p.emirate,
             freeZone: p.freeZone,
             activity: p.activity,
+            industry: guessIndustry(p.name, p.activity),
             licenseNo: p.licenseNo,
             licenseDate: p.licenseDate || null,
             address: p.address,
@@ -495,11 +498,12 @@ export async function updateSource(sourceId: number, input: SourceInput) {
 // ---------- research ----------
 
 /** Queues website research for one prospect or a selection. The scraper reads the sites; AI is only a last resort. */
-export async function startResearch(ids: number[]): Promise<Result<number>> {
+/** Queues research for one prospect or a selection: "site" reads the website only, "ai" adds the AI steps. */
+export async function startResearch(ids: number[], mode: "site" | "ai" = "site"): Promise<Result<number>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
     const list = z.array(id).min(1, "Pick at least one prospect").max(200, "Research up to 200 prospects at a time").parse(ids);
-    const n = await queueResearch(list, me.id);
+    const n = await queueResearch(list, me.id, z.enum(["site", "ai"]).parse(mode));
     if (!n) throw new Problem(list.length === 1 ? "Research is already running for this prospect." : "Research is already running for these prospects.");
     refresh();
     return n;
@@ -507,11 +511,30 @@ export async function startResearch(ids: number[]): Promise<Result<number>> {
 }
 
 /** Whether a prospect's latest research run is still going, for the page to refresh when it ends. */
-export async function researchState(companyId: number): Promise<Result<{ running: boolean; summary: string }>> {
+export async function researchState(companyId: number): Promise<Result<{ running: boolean; stage: string; summary: string }>> {
   return attempt(async () => {
     await assertApp("prospecting");
     const run = await latestResearch(id.parse(companyId));
-    return { running: !!run && run.status !== "done", summary: run?.summary ?? "" };
+    return { running: !!run && RUNNING.includes(run.status), stage: run?.stage ?? "", summary: run?.summary ?? "" };
+  });
+}
+
+/** The research queue, for the progress panel (polled every few seconds while research is going). */
+export async function researchProgress(): Promise<Result<ResearchQueue>> {
+  return attempt(async () => {
+    await assertApp("prospecting");
+    return researchQueue();
+  });
+}
+
+/** Stops the research runs that have not started yet. */
+export async function stopResearch(): Promise<Result<number>> {
+  return attempt(async () => {
+    await assertApp("prospecting");
+    const n = await stopQueuedResearch();
+    if (!n) throw new Problem("Nothing is waiting; the runs being read now will finish.");
+    refresh();
+    return n;
   });
 }
 

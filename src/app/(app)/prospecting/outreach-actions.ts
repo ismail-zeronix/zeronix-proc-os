@@ -112,7 +112,7 @@ export async function setCampaignStatus(campaignId: number, status: "active" | "
         await tx
           .update(schema.outreachEnrollments)
           .set({ status: "stopped", stopReason: "Campaign finished", nextSendAt: null, updatedAt: new Date() })
-          .where(and(eq(schema.outreachEnrollments.campaignId, campaignId), inArray(schema.outreachEnrollments.status, ["draft", "active", "paused"])));
+          .where(and(eq(schema.outreachEnrollments.campaignId, campaignId), inArray(schema.outreachEnrollments.status, ["writing", "draft", "active", "paused"])));
       }
     });
     refresh();
@@ -168,15 +168,15 @@ export async function approveDrafts(enrollmentIds: number[]): Promise<Result<App
     const me = await assertApp("prospecting");
     const ids = z.array(id).min(1).max(200).parse(enrollmentIds);
     const rows = await db
-      .select({ e: schema.outreachEnrollments, email: schema.prospectPeople.email, emailStatus: schema.prospectPeople.emailStatus, name: schema.prospectCompanies.name, domain: schema.prospectCompanies.domain })
+      .select({ e: schema.outreachEnrollments, name: schema.prospectCompanies.name, domain: schema.prospectCompanies.domain, startAt: schema.outreachCampaigns.startAt })
       .from(schema.outreachEnrollments)
-      .innerJoin(schema.prospectPeople, eq(schema.prospectPeople.id, schema.outreachEnrollments.personId))
       .innerJoin(schema.prospectCompanies, eq(schema.prospectCompanies.id, schema.outreachEnrollments.companyId))
+      .innerJoin(schema.outreachCampaigns, eq(schema.outreachCampaigns.id, schema.outreachEnrollments.campaignId))
       .where(and(inArray(schema.outreachEnrollments.id, ids), eq(schema.outreachEnrollments.status, "draft")));
     const res: ApproveResult = { approved: 0, problems: [] };
     for (const r of rows) {
       const left = unfilled(`${r.e.subject} ${r.e.body}`);
-      const email = r.email.toLowerCase();
+      const email = r.e.toEmail.toLowerCase();
       const [blocked] = await db
         .select({ v: schema.outreachSuppression.value })
         .from(schema.outreachSuppression)
@@ -184,8 +184,8 @@ export async function approveDrafts(enrollmentIds: number[]): Promise<Result<App
         .limit(1);
       const problem = left.length
         ? `fill in {${left.join("}, {")}}`
-        : !email || r.emailStatus === "guess"
-          ? "the email is missing or only a guess"
+        : !email
+          ? "there is no email address to send to"
           : blocked
             ? "on the do-not-contact list"
             : r.e.subject.trim().length < 3
@@ -198,7 +198,7 @@ export async function approveDrafts(enrollmentIds: number[]): Promise<Result<App
       await db.transaction(async (tx) => {
         await tx
           .update(schema.outreachEnrollments)
-          .set({ status: "active", nextSendAt: new Date(), approvedBy: me.id, approvedAt: new Date(), updatedAt: new Date() })
+          .set({ status: "active", nextSendAt: r.startAt && r.startAt > new Date() ? r.startAt : new Date(), approvedBy: me.id, approvedAt: new Date(), updatedAt: new Date() })
           .where(eq(schema.outreachEnrollments.id, r.e.id));
         await tx
           .update(schema.prospectCompanies)
@@ -234,7 +234,7 @@ export async function stopEnrollment(enrollmentId: number): Promise<Result<void>
     await db
       .update(schema.outreachEnrollments)
       .set({ status: "stopped", stopReason: "Stopped by hand", nextSendAt: null, updatedAt: new Date() })
-      .where(and(eq(schema.outreachEnrollments.id, enrollmentId), inArray(schema.outreachEnrollments.status, ["draft", "active", "paused"])));
+      .where(and(eq(schema.outreachEnrollments.id, enrollmentId), inArray(schema.outreachEnrollments.status, ["writing", "draft", "active", "paused"])));
     refresh();
   });
 }

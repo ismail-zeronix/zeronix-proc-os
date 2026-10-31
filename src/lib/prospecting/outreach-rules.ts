@@ -1,6 +1,7 @@
 /** Cold-email rules shared by the server and the browser: merge fields, who may be emailed, and working days. */
 
 export const MERGE_FIELDS = [
+  { key: "greeting", label: "Greeting", hint: '"Hi Sara", or "Hello Acme team" when only a company inbox is known' },
   { key: "first_name", label: "First name", hint: "Of the person emailed" },
   { key: "company", label: "Company", hint: "Prospect name without LLC / FZ-LLC" },
   { key: "personal_line", label: "Personal line", hint: "The hook written on the prospect page" },
@@ -56,35 +57,76 @@ export function offerLine(offer: string): string {
   return /^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s;
 }
 
-export interface EligibilityInput {
-  personEmail: string;
+/** At most this many addresses go on Cc: more makes a cold email look like a mass mailing. */
+export const CC_MAX = 3;
+
+export interface RecipientPerson {
+  id: number;
+  name: string;
+  email: string;
   emailStatus: string;
+  isPrimary: boolean;
+  roleKind: string;
+}
+
+export interface Recipients {
+  to: string;
+  /** The person the email is addressed to; null when it goes to the company inbox. */
+  personId: number | null;
+  personName: string;
+  cc: string[];
+}
+
+const VALID = /^[^\s@]+@[^\s@]+\.[a-z]{2,24}$/i;
+
+/**
+ * Who a first email goes to, picked without anyone choosing: the main contact (or else a decision maker) in To, else
+ * the company inbox (info@), else anyone found; every other confirmed address goes on Cc (CC_MAX at most). Guessed
+ * addresses and blocked addresses or domains are never used. Null when there is no address at all.
+ */
+export function pickRecipients(companyEmail: string, people: RecipientPerson[], blocked: Set<string> = new Set()): Recipients | null {
+  const ok = (e: string) => {
+    const v = e.trim().toLowerCase();
+    return !!v && VALID.test(v) && !blocked.has(v) && !blocked.has(v.split("@")[1] ?? "");
+  };
+  const usable = people.filter((p) => p.emailStatus !== "guess" && ok(p.email));
+  const ranked = [...usable].sort(
+    (a, b) => Number(b.isPrimary) - Number(a.isPrimary) || Number(b.roleKind === "decision") - Number(a.roleKind === "decision") || a.id - b.id,
+  );
+  const lead = ranked.find((p) => p.isPrimary || p.roleKind === "decision");
+  const inbox = ok(companyEmail) ? companyEmail.trim().toLowerCase() : "";
+  const toPerson = lead ?? (inbox ? undefined : ranked[0]);
+  const to = toPerson ? toPerson.email.trim().toLowerCase() : inbox;
+  if (!to) return null;
+  const cc = [...new Set([...ranked.map((p) => p.email.trim().toLowerCase()), inbox].filter((e) => e && e !== to))].slice(0, CC_MAX);
+  return { to, personId: toPerson?.id ?? null, personName: toPerson?.name ?? "", cc };
+}
+
+/** "Hi Sara" for a person, "Hello Acme team" for a company inbox. */
+export const greetingFor = (personName: string, company: string) => (firstName(personName) ? `Hi ${firstName(personName)}` : `Hello ${shortCompany(company)} team`);
+
+export interface EligibilityInput {
+  /** The address the first email would go to ("" = none confirmed). */
+  toEmail: string;
   companyStatus: string;
-  score: number;
-  minScore: number;
   /** The email or its domain is on the do-not-contact list. */
   suppressed: boolean;
   /** Already a CRM company or contact (customer or open deal): never cold-emailed. */
   inCrm: string;
-  /** This person already has a draft, active or paused enrollment. */
+  /** The company is already in a campaign that has not ended. */
   openEnrollment: boolean;
-  /** Days since this person's last enrollment ended (null = never enrolled). */
+  /** Days since the company's last campaign ended (null = never emailed). */
   daysSinceLast: number | null;
-  /** Other people at the same company with an open enrollment. */
-  companyOpen: number;
 }
 
 /** Why a person cannot be added to a campaign, or null when they can. Cheapest, clearest reasons first. */
 export function whyNot(e: EligibilityInput): string | null {
-  if (!e.personEmail) return "no email for the main contact";
-  if (e.emailStatus === "guess") return "the email is only a guess; confirm it first";
   if (e.suppressed) return "on the do-not-contact list";
+  if (!e.toEmail) return "no confirmed email (guessed addresses are never used)";
   if (e.inCrm) return `already in the CRM (${e.inCrm})`;
   if (["converted", "disqualified", "replied", "not_now"].includes(e.companyStatus)) return `prospect is ${e.companyStatus.replace("_", " ")}`;
   if (e.openEnrollment) return "already in a campaign";
   if (e.daysSinceLast !== null && e.daysSinceLast < 90) return `last campaign ended ${e.daysSinceLast} days ago (wait 90)`;
-  if (e.companyOpen >= 2) return "2 people at this company are already being emailed";
-  if (e.score < e.minScore) return `score ${e.score.toFixed(1)} is below ${e.minScore}`;
   return null;
 }
 

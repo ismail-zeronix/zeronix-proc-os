@@ -21,7 +21,9 @@ export interface Draft {
   personName: string;
   personTitle: string;
   personEmail: string;
+  ccEmails: string[];
   emailStatus: string;
+  writeError: string;
 }
 
 /**
@@ -101,10 +103,12 @@ export function ReviewQueue({ drafts }: { drafts: Draft[] }) {
             {d.companyName}
           </Link>
           <span className="text-muted-foreground">
-            To {d.personName}
+            To {d.personName || "the company inbox"}
             {d.personTitle && `, ${d.personTitle}`} &lt;{d.personEmail}&gt;
+            {d.ccEmails.length > 0 && <> · Cc {d.ccEmails.join(", ")}</>}
           </span>
-          {d.emailStatus !== "verified" && <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">email {d.emailStatus}</span>}
+          {!["verified", "generic"].includes(d.emailStatus) && <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">email {d.emailStatus}</span>}
+          {d.writeError && <span className="w-full text-xs text-amber-700 dark:text-amber-400">{d.writeError}</span>}
           <div className="ml-auto flex items-center gap-1">
             <Button variant="ghost" size="icon-sm" aria-label="Previous (K)" title="Previous (K)" disabled={index === 0} onClick={() => setIndex(index - 1)}>
               <ChevronUp />
@@ -120,7 +124,7 @@ export function ReviewQueue({ drafts }: { drafts: Draft[] }) {
         <Input aria-label="Subject" value={cur.subject} onChange={(e) => setEdits({ ...edits, [d.id]: { ...cur, subject: e.target.value } })} />
         <Textarea aria-label="Email" rows={12} value={cur.body} onChange={(e) => setEdits({ ...edits, [d.id]: { ...cur, body: e.target.value } })} />
         <div className="text-xs text-muted-foreground">
-          {words} words{words > 120 && " · long for a first email"}. The mailbox signature and the unsubscribe line are added when sending; follow-ups go out by themselves until they reply.
+          {words} words{words > 120 && " · long for a first email"}. The signature from Admin settings and the unsubscribe line are added when sending; follow-ups go out by themselves until they reply.
         </div>
         {left.length > 0 && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900 dark:bg-amber-950/30">

@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requireApp } from "@/lib/auth/session";
 import { listMailboxes } from "@/lib/prospecting/data";
 import { campaignEnrollments, getCampaign, listSequences } from "@/lib/prospecting/outreach";
-import { CampaignDialog, CampaignStatusButtons, StopEnrollmentButton } from "../campaign-ui";
+import { CampaignDialog, CampaignStatusButtons, RefreshWhile, StopEnrollmentButton } from "../campaign-ui";
 
 export const metadata = { title: "Campaign · Zeronix Prospecting" };
 
 const LABEL: Record<string, string> = {
+  writing: "AI writing",
   draft: "Waiting for review",
   active: "Emailing",
   paused: "Paused",
@@ -28,6 +29,7 @@ const LABEL: Record<string, string> = {
 };
 const FILTERS = [
   { key: "", label: "All" },
+  { key: "writing", label: "AI writing" },
   { key: "draft", label: "Review" },
   { key: "active", label: "Emailing" },
   { key: "replied", label: "Replied" },
@@ -71,9 +73,18 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
           {c.sequenceName}
         </Link>{" "}
         · from {from.join(", ")}
+        {c.startAt && c.startAt > new Date() && <> · starts {c.startAt.toLocaleString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</>}
+        {c.brief && <> · {c.review ? "first emails wait in Review" : "first emails go out once written"}</>}
       </p>
+      {c.brief && (
+        <p className="px-1 text-xs whitespace-pre-line text-muted-foreground">
+          <span className="text-foreground">What AI writes about:</span> {c.brief}
+        </p>
+      )}
+      {n("writing", "active") > 0 && <RefreshWhile seconds={20} />}
       <StatStrip
         items={[
+          ...(c.brief ? [{ label: "AI writing", value: n("writing") }] : []),
           { label: "Waiting for review", value: n("draft") },
           { label: "Emailing now", value: n("active", "paused") },
           { label: "Replied", value: n("replied"), hint: sent ? `${Math.round((n("replied") / sent) * 100)}% of those emailed` : undefined },
@@ -88,7 +99,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Prospect</TableHead>
-              <TableHead>Person</TableHead>
+              <TableHead>To / Cc</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Email</TableHead>
               <TableHead>Next</TableHead>
@@ -103,22 +114,27 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
                     {e.companyName}
                   </Link>
                 </TableCell>
-                <TableCell className="py-1.5 text-xs">
-                  {e.personName} <span className="text-muted-foreground">· {e.personEmail}</span>
+                <TableCell className="max-w-80 py-1.5 text-xs">
+                  <div className="truncate" title={e.personEmail}>
+                    {e.personName && <>{e.personName} · </>}
+                    {e.personEmail}
+                  </div>
+                  {e.ccEmails.length > 0 && <div className="truncate text-muted-foreground" title={e.ccEmails.join(", ")}>Cc {e.ccEmails.join(", ")}</div>}
                 </TableCell>
-                <TableCell className="py-1.5 text-xs">
+                <TableCell className="max-w-72 py-1.5 text-xs">
                   {LABEL[e.status] ?? e.status}
                   {e.stopReason && <span className="text-muted-foreground"> · {e.stopReason}</span>}
+                  {e.writeError && ["writing", "draft"].includes(e.status) && <div className="truncate text-amber-700 dark:text-amber-400" title={e.writeError}>{e.writeError}</div>}
                 </TableCell>
                 <TableCell className="py-1.5 text-right text-xs tabular-nums">{e.currentStep || "-"}</TableCell>
                 <TableCell className="py-1.5 text-xs text-muted-foreground">{e.status === "active" && e.nextSendAt ? e.nextSendAt.toLocaleString("en-GB", { timeZone: "Asia/Dubai", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "-"}</TableCell>
-                <TableCell className="py-1.5">{["draft", "active", "paused"].includes(e.status) && <StopEnrollmentButton id={e.id} name={e.personName} />}</TableCell>
+                <TableCell className="py-1.5">{["writing", "draft", "active", "paused"].includes(e.status) && <StopEnrollmentButton id={e.id} name={e.personName || e.companyName} />}</TableCell>
               </TableRow>
             ))}
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Empty>{status ? "Nobody here." : "Nobody in this campaign yet. Tick prospects on the Prospects list and choose Add to campaign."}</Empty>
+                  <Empty>{status ? "Nobody here." : "Nobody in this campaign yet. Tick prospects on the Prospects list and choose Add to campaign, or build a new campaign in the chat."}</Empty>
                 </TableCell>
               </TableRow>
             )}

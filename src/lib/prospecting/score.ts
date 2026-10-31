@@ -65,6 +65,31 @@ export function reachScore(p: Pick<ScoreInput, "people" | "email" | "phone">): n
   return best;
 }
 
+export interface ReadyInput {
+  score: number;
+  personalLine: string;
+  people: { isPrimary: boolean; roleKind: string; email: string; emailStatus: string }[];
+}
+
+/**
+ * What is still missing before the first email can go out: a key person (the main contact, or else a decision maker;
+ * an agent or other staff member is not enough), their email (not a guess), the personal line and a score of at least
+ * MIN_SCORE. Empty = ready; research moves a prospect to Ready by itself then.
+ */
+export function readyGaps(p: ReadyInput): string[] {
+  const primary = p.people.find((x) => x.isPrimary) ?? p.people.find((x) => x.roleKind === "decision");
+  return [
+    !primary && "find the key person (owner or manager)",
+    primary && !primary.email && "find their email",
+    primary?.email && primary.emailStatus === "guess" && "confirm the guessed email",
+    !p.personalLine && "write the personal line",
+    p.score < MIN_SCORE && `raise the score above ${MIN_SCORE}`,
+  ].filter(Boolean) as string[];
+}
+
+/** Statuses research may move on to Ready by itself (never out of a sequence, a snooze or a disqualification). */
+export const AUTO_READY_FROM = ["sourced", "researching"];
+
 export function scoreProspect(p: ScoreInput, today: string): Score {
   const fit = fitScore(p);
   const signal = signalScore(p.signals, today);

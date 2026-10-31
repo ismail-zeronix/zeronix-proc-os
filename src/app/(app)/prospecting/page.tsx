@@ -7,6 +7,7 @@ import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { STATUSES, statusLabel } from "@/lib/prospecting/constants";
 import { prospectingOverview } from "@/lib/prospecting/data";
+import { ResearchProgress } from "./research-ui";
 
 export const metadata = { title: "Overview · Zeronix Prospecting" };
 
@@ -24,8 +25,13 @@ export default async function ProspectingOverviewPage() {
           <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/prospecting/import" />}>
             <Upload /> Import a list
           </Button>
+          <Button size="sm" nativeButton={false} render={<Link href="/prospecting/campaigns/new" />}>
+            <Send /> New campaign
+          </Button>
         </div>
       </div>
+
+      <ResearchProgress />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <KpiTile hero label="To research" icon={<Search />} value={String(c("sourced") + c("researching"))} hint={`${c("sourced")} new · ${c("researching")} in progress`} />

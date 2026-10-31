@@ -15,7 +15,7 @@ import { STATUSES, statusLabel } from "@/lib/prospecting/constants";
 import type { ProspectRow } from "@/lib/prospecting/data";
 import { OwnerControl, StatusControl, type SegmentOption } from "../prospect-ui";
 import { AddToCampaign } from "../campaigns/campaign-ui";
-import { ResearchButton } from "../research-ui";
+import { ResearchButtons } from "../research-ui";
 
 const STATUS_TONE: Record<string, string> = {
   ready: "text-emerald-700 dark:text-emerald-400",
@@ -99,7 +99,7 @@ export function ProspectTable({ rows, segments, users, campaigns }: { rows: Pros
         {ids.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1">
             <span className="text-xs font-medium">{ids.length} selected</span>
-            <ResearchButton ids={ids} onDone={() => setPicked(new Set())} />
+            <ResearchButtons ids={ids} onDone={() => setPicked(new Set())} />
             <AddToCampaign ids={ids} campaigns={campaigns} onDone={() => setPicked(new Set())} />
             <StatusControl ids={ids} placeholder="Move to" onDone={() => setPicked(new Set())} />
             <OwnerControl ids={ids} users={users} onDone={() => setPicked(new Set())} />

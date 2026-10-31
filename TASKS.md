@@ -218,8 +218,9 @@ Owner decisions (2026-10-30): fully independent app; separate cold-email domain;
 - [ ] P.3 Source spiders (Meydan, DIFC, ADGM, KHDA, DHA) + generic listing spider, each after its terms are checked
 - [x] P.4 Research checklist, accept/reject suggestions, scoring, do-not-contact check against CRM (CRM match by name, domain or contact email blocks enrolling)
 - [x] P.5 Templates, sequences, Review queue (approve first email to queue); campaigns; pagination on every Prospecting table
-- [ ] P.6 Sending engine: outreach mailboxes, caps/ramp/window, threading, one-click unsubscribe, pause switches
-- [ ] P.7 Replies: IMAP matching, bounce/OOO, Replies screen, reply from portal, Convert to lead
+- [x] P.6 Sending engine: caps/ramp/window, spread sends, threading, admin signature + logo, To main + Cc others, reply-to-unsubscribe (mailto List-Unsubscribe; no https one-click yet), pause switches
+- [x] P.6b Campaign chat (/prospecting/campaigns/new): industry, how many, offer, AI example, follow-ups, start, review or auto; AI writes each first email in the background
+- [ ] P.7 Replies: IMAP matching and bounces done (stops sequence, marks replied/unsubscribed/bounced); still open: OOO, Replies screen, reply from portal, Convert to lead
 - [ ] P.8 Overview and reports
 - [ ] P.9 Owner: buy sending domain, SPF/DKIM/DMARC, 2-3 mailboxes, warm-up, footer address
 

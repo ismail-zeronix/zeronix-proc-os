@@ -28,7 +28,9 @@ export default async function ReviewPage({ searchParams }: PageProps<"/prospecti
             personName: r.personName,
             personTitle: r.personTitle,
             personEmail: r.personEmail,
+            ccEmails: r.ccEmails,
             emailStatus: r.emailStatus,
+            writeError: r.writeError,
           }))}
         />
       ) : (

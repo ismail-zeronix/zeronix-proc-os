@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cooldownMinutes, nextUtcMidnight, pickFreeModels, type CatalogModel } from "@/lib/prospecting/free-models";
-import { aiPrompt, aiReadPrompt, cleanAi, keepFromPages, parseAiJson, planFromAi, planFromCrawl, roleKindOf, type CompanyNow } from "@/lib/prospecting/research-rules";
+import { aiPrompt, aiReadPrompt, aiSearchReadPrompt, cleanAi, keepFromPages, parseAiJson, peopleQuery, planFromAi, planFromCrawl, roleKindOf, type CompanyNow } from "@/lib/prospecting/research-rules";
+import { readyGaps } from "@/lib/prospecting/score";
 
 const today = "2026-10-30";
 const empty: CompanyNow = { domain: "acme.ae", email: "", phone: "", linkedinUrl: "", address: "", people: [], signals: [] };
@@ -138,6 +139,7 @@ describe("OpenRouter free models", () => {
 
   it("only accepts reading-step findings from the pages that were read", () => {
     const urls = ["https://acme.ae/", "https://acme.ae/contact"];
+    const pages = urls.map((url) => ({ url, text: "Acme Trading, Office 4, Damascus Street, Dubai. Call +971 4 323 4567" }));
     const found = keepFromPages(
       cleanAi({
         emails: [
@@ -146,11 +148,68 @@ describe("OpenRouter free models", () => {
         ],
         phones: [{ phone: "+971 4 323 4567", source: "https://acme.ae/" }],
       }),
-      urls,
+      pages,
     );
     expect(found.emails.map((e) => e.email)).toEqual(["info@acme.ae"]);
     expect(found.phones).toHaveLength(1);
     const prompt = aiReadPrompt("Acme", [{ url: urls[1], text: "Write to info at acme dot ae" }]);
     expect(prompt).toContain("PAGE https://acme.ae/contact");
+  });
+});
+
+describe("Research with AI", () => {
+  const pages = [
+    { url: "https://sajaya.ae/about-us/", text: "Uzair Ahmed, General Manager. Write to uzair@sajaya.ae. We manage offices and apartments in Al Qusais." },
+    { url: "https://sajaya.ae/contact-us/", text: "Sajaya 01 - A block Damascus Street - Al Qusais - Dubai" },
+  ];
+
+  it("keeps people and an address only when they are in the text", () => {
+    const found = keepFromPages(
+      cleanAi({
+        people: [
+          { name: "Uzair Ahmed", title: "General Manager", source: "https://sajaya.ae/about-us/" },
+          { name: "Invented Person", title: "CEO", source: "https://sajaya.ae/about-us/" },
+        ],
+        address: "Sajaya 01 - A block Damascus Street - Al Qusais - Dubai",
+        line: "Saw that you manage offices and apartments in Al Qusais.",
+        website: "https://other.ae",
+      }),
+      pages,
+    );
+    expect(found.people.map((p) => p.name)).toEqual(["Uzair Ahmed"]);
+    expect(found.address).toContain("Damascus Street");
+    expect(found.line).toContain("Al Qusais");
+    expect(found.website).toBe("");
+    expect(keepFromPages(cleanAi({ address: "Business Bay, Dubai" }), pages).address).toBe("");
+  });
+
+  it("matches a person to the email printed on their own site, as verified", () => {
+    const found = cleanAi({ people: [{ name: "Uzair Ahmed", title: "General Manager", source: "https://sajaya.ae/about-us/" }], address: "Damascus Street, Dubai" });
+    const p = planFromAi(found, { ...empty, domain: "sajaya.ae" }, { siteEmails: [{ email: "uzair@sajaya.ae", source: "https://sajaya.ae/about-us/" }], ownSite: true, label: "AI reading the website" });
+    expect(p.people[0]).toMatchObject({ name: "Uzair Ahmed", email: "uzair@sajaya.ae", emailStatus: "verified", roleKind: "decision" });
+    expect(p.company.address).toBe("Damascus Street, Dubai");
+    // the site's own emails are not counted again as AI findings
+    expect(p.emails).toEqual([]);
+    expect(p.summary).toMatch(/^AI reading the website: 0 emails, 0 phones, 1 person, the address/);
+  });
+
+  it("asks for people, address and a personal line, and searches for who runs the company", () => {
+    expect(aiReadPrompt("Sajaya", pages)).toContain('"line"');
+    expect(peopleQuery({ name: "Sajaya Real Estate", emirate: "Dubai" })).toBe('"Sajaya Real Estate" Dubai owner OR founder OR "managing director" OR CEO OR "general manager"');
+    const prompt = aiSearchReadPrompt({ name: "Sajaya Real Estate", website: "sajayarealestate.com", emirate: "Dubai" }, [{ url: "https://news.ae/a", title: "Sajaya", content: "Uzair Ahmed, GM" }]);
+    expect(prompt).toContain("RESULT https://news.ae/a");
+  });
+});
+
+describe("readyGaps", () => {
+  const gm = { isPrimary: true, roleKind: "decision", email: "uzair@sajaya.ae", emailStatus: "verified" };
+  it("is ready with a key person, their email, a personal line and a good score", () => {
+    expect(readyGaps({ score: 5, personalLine: "Saw your new branch.", people: [gm] })).toEqual([]);
+  });
+  it("does not count an agent or other staff as the key person", () => {
+    expect(readyGaps({ score: 5, personalLine: "x", people: [{ isPrimary: false, roleKind: "influencer", email: "neliza@sajaya.ae", emailStatus: "verified" }] })).toEqual(["find the key person (owner or manager)"]);
+  });
+  it("lists what is missing", () => {
+    expect(readyGaps({ score: 3, personalLine: "", people: [{ ...gm, emailStatus: "guess" }] })).toEqual(["confirm the guessed email", "write the personal line", "raise the score above 4"]);
   });
 });

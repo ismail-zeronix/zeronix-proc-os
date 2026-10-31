@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { AI_PROVIDERS, AI_USES, aiProvider } from "@/lib/prospecting/ai";
+import { AI_PROVIDERS, AI_USES, aiProvider, isSearchService } from "@/lib/prospecting/ai";
 import { DAYS, HARD_MAX_PER_DAY } from "@/lib/prospecting/sending";
 import { useRun } from "../prospect-ui";
 import {
@@ -257,11 +257,11 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
             <Field id="ai-model" label="Model">
               <Input
                 id="ai-model"
-                value={f.autoFree ? "" : f.model}
-                disabled={f.autoFree}
+                value={f.autoFree || isSearchService(f.provider) ? "" : f.model}
+                disabled={f.autoFree || isSearchService(f.provider)}
                 onChange={(e) => setF({ ...f, model: e.target.value })}
                 list="ai-models"
-                placeholder={f.autoFree ? "Free models, chosen automatically" : (def.models[0] ?? "model name")}
+                placeholder={isSearchService(f.provider) ? "No model: a search service" : f.autoFree ? "Free models, chosen automatically" : (def.models[0] ?? "model name")}
               />
               <datalist id="ai-models">
                 {def.models.map((m) => (
@@ -280,7 +280,8 @@ export function AiDialog({ ai, trigger }: { ai?: AiData; trigger: React.ReactEle
                 <span>
                   Use the free models and switch automatically
                   <span className="block text-xs text-muted-foreground">
-                    The list of free models refreshes every day. Each request names the best few; if one is busy or rate limited OpenRouter moves to the next, and a model that keeps failing rests for a while.
+                    The list of free models refreshes every day. Calls go to the least recently used models first, so no single model is worn out; a model that is busy, rate limited or gives an
+                    unreadable answer rests for a while (longer each time) and the next one is tried at once.
                     When the day&apos;s free allowance is used up, the next provider takes over until 04:00 Dubai time.
                   </span>
                 </span>

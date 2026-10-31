@@ -4,6 +4,7 @@
  */
 
 import { domainOf, isGenericEmail } from "./constants";
+import { isIndustry, INDUSTRY_KEYS } from "./industry";
 
 export interface Found<T extends string> {
   value: string;
@@ -34,10 +35,17 @@ export interface AiFindings {
   emails?: { email: string; source: string }[];
   phones?: { phone: string; source: string }[];
   people?: { name: string; title: string; source: string }[];
+  /** The office address as printed on the page. */
+  address?: string;
+  /** A draft personal line for the first email, from what their own pages say (reading step only). */
+  line?: string;
+  /** One of INDUSTRY_KEYS, from what the website says they do (reading step only). */
+  industry?: string;
 }
 
 export interface CompanyNow {
   domain: string | null;
+  industry?: string;
   email: string;
   phone: string;
   linkedinUrl: string;
@@ -56,7 +64,7 @@ export interface NewPerson {
 }
 
 export interface ResearchPlan {
-  company: Partial<{ email: string; phone: string; linkedinUrl: string; address: string }>;
+  company: Partial<{ email: string; phone: string; linkedinUrl: string; address: string; personalLine: string; industry: string }>;
   people: NewPerson[];
   signals: { kind: "hiring" | "weak_website"; detail: string; sourceUrl: string }[];
   emails: { email: string; source: string }[];
@@ -152,23 +160,34 @@ export function planFromCrawl(r: CrawlResult, now: CompanyNow, today: string): R
   };
 }
 
+const oneLine = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+
 /** Keeps only AI findings that name the page they came from (an answer without a source may be invented). */
 export function cleanAi(a: AiFindings): Required<AiFindings> {
   const website = typeof a.website === "string" && domainOf(a.website) ? a.website.trim().slice(0, 200) : "";
   return {
     website,
+    address: oneLine(a.address, 300),
+    line: oneLine(a.line, 300),
+    industry: typeof a.industry === "string" && isIndustry(a.industry.trim()) ? a.industry.trim() : "",
     emails: (a.emails ?? []).filter((e) => typeof e?.email === "string" && EMAIL.test(e.email.trim()) && isLink(String(e.source ?? ""))).map((e) => ({ email: e.email.trim().toLowerCase(), source: e.source })),
     phones: (a.phones ?? []).filter((p) => typeof p?.phone === "string" && p.phone.replace(/\D/g, "").length >= 7 && isLink(String(p.source ?? ""))).map((p) => ({ phone: p.phone.trim().slice(0, 40), source: p.source })),
     people: (a.people ?? []).filter((p) => typeof p?.name === "string" && p.name.trim().length >= 3 && isLink(String(p.source ?? ""))).slice(0, 3).map((p) => ({ name: p.name.trim().slice(0, 120), title: String(p.title ?? "").trim().slice(0, 80), source: p.source })),
   };
 }
 
-/** The same plan from AI findings: emails are only "likely" (not printed by the company itself). */
-export function planFromAi(a: Required<AiFindings>, now: CompanyNow): ResearchPlan {
-  const p = planFromCrawl({ emails: a.emails, phones: a.phones, people: a.people.map((x) => ({ ...x, email: "" })), pages: [] }, now, "2000-01-01");
-  for (const person of p.people) if (person.email && person.emailStatus === "verified") person.emailStatus = "likely";
-  const bits = [plural(p.emails.length, "email"), plural(p.phones.length, "phone"), p.people.length ? plural(p.people.length, "person") : ""].filter(Boolean);
-  return { ...p, signals: [], needsAi: false, summary: `AI search: ${a.website ? "website found, " : ""}${bits.join(", ")}` };
+/**
+ * The same plan from AI findings. A person's email is matched by name against what AI found plus the emails printed on
+ * their website (siteEmails). Emails count as "verified" only when read from their own pages (ownSite), else "likely".
+ */
+export function planFromAi(a: Required<AiFindings>, now: CompanyNow, opts: { siteEmails?: { email: string; source: string }[]; ownSite?: boolean; label?: string } = {}): ResearchPlan {
+  const known = new Set(a.emails.map((e) => e.email));
+  const extra = (opts.siteEmails ?? []).filter((e) => !known.has(e.email));
+  const p = planFromCrawl({ emails: [...a.emails, ...extra], phones: a.phones, people: a.people.map((x) => ({ ...x, email: "" })), address: a.address, pages: [] }, now, "2000-01-01");
+  if (!opts.ownSite) for (const person of p.people) if (person.email && person.emailStatus === "verified") person.emailStatus = "likely";
+  const emails = p.emails.filter((e) => known.has(e.email));
+  const bits = [plural(emails.length, "email"), plural(p.phones.length, "phone"), p.people.length ? plural(p.people.length, "person") : "", p.company.address ? "the address" : ""].filter(Boolean);
+  return { ...p, emails, signals: [], needsAi: false, summary: `${opts.label ?? "AI search"}: ${a.website ? "website found, " : ""}${bits.join(", ")}` };
 }
 
 /** One short prompt; the model must search and return JSON with a source for every item. */
@@ -203,15 +222,55 @@ export function aiReadPrompt(name: string, texts: { url: string; text: string }[
   const pages = texts.map((t) => `PAGE ${t.url}\n${t.text.slice(0, 2500)}`).join("\n\n");
   return [
     `Below is text from the website of the company "${name}". List the business contact details printed in it.`,
-    `Reply with JSON only, no other text: {"emails":[{"email":"","source":""}],"phones":[{"phone":"","source":""}],"people":[{"name":"","title":"","source":""}]}`,
+    `Reply with JSON only, no other text: {"emails":[{"email":"","source":""}],"phones":[{"phone":"","source":""}],"people":[{"name":"","title":"","source":""}],"address":"","line":"","industry":""}`,
     "Rules: source is the PAGE address the detail appears under. Only details written in the text; never guess or construct an email. Empty lists when there are none.",
+    "people: named staff with their job title, owners and managers first (at most 5). address: the office address exactly as written, or empty.",
+    "line: one short, friendly sentence (at most 25 words) to open a sales email to them, about something specific the text says they do (their business, area, projects). No flattery, nothing that is not in the text; empty if nothing specific.",
+    `industry: what they do, exactly one of: ${INDUSTRY_KEYS.join(", ")}.`,
     "",
     pages,
   ].join("\n");
 }
 
-/** Drops reading-step findings whose source is not one of the pages that were read (the model made it up). */
-export function keepFromPages(a: Required<AiFindings>, urls: string[]): Required<AiFindings> {
-  const ok = new Set(urls);
-  return { website: "", emails: a.emails.filter((e) => ok.has(e.source)), phones: a.phones.filter((p) => ok.has(p.source)), people: a.people.filter((p) => ok.has(p.source)) };
+/** What to search for when looking for the people who run a company. */
+export function peopleQuery(c: { name: string; emirate: string }): string {
+  return `"${c.name}" ${c.emirate || "UAE"} owner OR founder OR "managing director" OR CEO OR "general manager"`;
+}
+
+/**
+ * Reading web search results (from a search service) with a free model: who runs the company, and its website and
+ * contacts. Every finding must name the result it came from.
+ */
+export function aiSearchReadPrompt(c: { name: string; website: string; emirate: string }, hits: { url: string; title: string; content: string }[]): string {
+  const results = hits.map((h) => `RESULT ${h.url}\n${h.title}\n${h.content.slice(0, 1200)}`).join("\n\n");
+  return [
+    `Below are web search results about the UAE company "${c.name}"${c.website ? ` (website ${c.website})` : ""}${c.emirate ? `, ${c.emirate}` : ""}.`,
+    "Who owns or runs this company (owner, founder, CEO, managing director, general manager, partner, head of IT or operations)? Also its official website and business contacts.",
+    `Reply with JSON only, no other text: {"website":"","emails":[{"email":"","source":""}],"phones":[{"phone":"","source":""}],"people":[{"name":"","title":"","source":""}]}`,
+    "Rules: source is the RESULT address the detail appears under. Only people the text says work at this exact company (not one with a similar name). At most 3 people.",
+    "Never guess or construct an email. Empty lists when nothing is found.",
+    "",
+    results,
+  ].join("\n");
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * Drops reading-step findings whose source is not one of the pages that were read, and an address or a name that is
+ * not in the text (the model made it up). The website is kept only when asked (search results may name it).
+ */
+export function keepFromPages(a: Required<AiFindings>, pages: { url: string; text: string }[], opts: { website?: boolean } = {}): Required<AiFindings> {
+  const ok = new Set(pages.map((p) => p.url));
+  const all = squash(pages.map((p) => p.text).join(" "));
+  const inText = (v: string) => !!v && all.includes(squash(v));
+  return {
+    website: opts.website ? a.website : "",
+    emails: a.emails.filter((e) => ok.has(e.source)),
+    phones: a.phones.filter((p) => ok.has(p.source)),
+    people: a.people.filter((p) => ok.has(p.source) && inText(p.name)),
+    address: inText(a.address) ? a.address : "",
+    line: a.line,
+    industry: a.industry,
+  };
 }

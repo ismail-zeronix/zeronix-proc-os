@@ -9,6 +9,7 @@ import { requireApp } from "@/lib/auth/session";
 import { listMailboxes } from "@/lib/prospecting/data";
 import { listCampaigns, listSequences } from "@/lib/prospecting/outreach";
 import { CampaignDialog } from "./campaign-ui";
+import { MessageSquarePlus } from "lucide-react";
 
 export const metadata = { title: "Campaigns · Zeronix Prospecting" };
 
@@ -23,11 +24,14 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/prospe
   return (
     <div className="grid gap-3">
       <PageToolbar title="Campaigns" meta={`${total} campaign${total === 1 ? "" : "s"}`}>
+        <Button size="sm" nativeButton={false} render={<Link href="/prospecting/campaigns/new" />}>
+          <MessageSquarePlus /> New campaign
+        </Button>
         <CampaignDialog
           sequences={sequences.map((s) => ({ id: s.id, name: s.name }))}
           mailboxes={mailboxes.map((m) => ({ id: m.id, name: m.email, enabled: m.enabled }))}
           trigger={
-            <Button variant="outline" size="icon-sm" aria-label="New campaign" title="New campaign">
+            <Button variant="outline" size="icon-sm" aria-label="Blank campaign (advanced)" title="Blank campaign (advanced): pick a sequence and add prospects by hand">
               <Plus />
             </Button>
           }
@@ -40,7 +44,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/prospe
               <TableHead>Campaign</TableHead>
               <TableHead>Sequence</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">In review</TableHead>
+              <TableHead className="text-right">Writing / review</TableHead>
               <TableHead className="text-right">Emailing</TableHead>
               <TableHead className="text-right">Replied</TableHead>
               <TableHead className="text-right">Done</TableHead>
@@ -57,7 +61,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/prospe
                 </TableCell>
                 <TableCell className="py-1.5 text-xs">{c.sequenceName}</TableCell>
                 <TableCell className="py-1.5 text-xs">{STATUS[c.status] ?? c.status}</TableCell>
-                <TableCell className="py-1.5 text-right tabular-nums">{n(c.counts, "draft")}</TableCell>
+                <TableCell className="py-1.5 text-right tabular-nums">{n(c.counts, "writing", "draft")}</TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{n(c.counts, "active", "paused")}</TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{n(c.counts, "replied")}</TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{n(c.counts, "completed", "stopped", "bounced", "unsubscribed")}</TableCell>
@@ -66,7 +70,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/prospe
             {!rows.length && (
               <TableRow>
                 <TableCell colSpan={7}>
-                  <Empty>No campaigns yet. Create one with +, then add prospects to it from the Prospects list.</Empty>
+                  <Empty>No campaigns yet. Press New campaign: a short chat picks the prospects, AI writes each email and they go out with your signature.</Empty>
                 </TableCell>
               </TableRow>
             )}

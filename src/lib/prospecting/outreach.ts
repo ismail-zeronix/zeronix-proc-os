@@ -2,8 +2,10 @@ import "server-only";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { isFreeMail } from "./constants";
-import { firstName, offerLine, render, shortCompany, whyNot, type MergeVars } from "./outreach-rules";
-import { MIN_SCORE } from "./score";
+import { firstName, greetingFor, offerLine, pickRecipients, render, shortCompany, whyNot, type MergeVars } from "./outreach-rules";
+
+/** Enrollment statuses that are still going (one at a time per company). */
+export const OPEN = ["writing", "draft", "active", "paused"];
 
 // ---------- sequences ----------
 
@@ -80,10 +82,12 @@ const enrollmentCols = {
   companyId: schema.outreachEnrollments.companyId,
   companyName: schema.prospectCompanies.name,
   personalLine: schema.prospectCompanies.personalLine,
-  personName: schema.prospectPeople.name,
-  personTitle: schema.prospectPeople.title,
-  personEmail: schema.prospectPeople.email,
-  emailStatus: schema.prospectPeople.emailStatus,
+  personName: sql<string>`coalesce(${schema.prospectPeople.name}, '')`,
+  personTitle: sql<string>`coalesce(${schema.prospectPeople.title}, '')`,
+  personEmail: schema.outreachEnrollments.toEmail,
+  ccEmails: schema.outreachEnrollments.ccEmails,
+  emailStatus: sql<string>`coalesce(${schema.prospectPeople.emailStatus}, 'generic')`,
+  writeError: schema.outreachEnrollments.writeError,
 };
 
 function enrollmentQuery() {
@@ -92,7 +96,7 @@ function enrollmentQuery() {
     .from(schema.outreachEnrollments)
     .innerJoin(schema.outreachCampaigns, eq(schema.outreachCampaigns.id, schema.outreachEnrollments.campaignId))
     .innerJoin(schema.prospectCompanies, eq(schema.prospectCompanies.id, schema.outreachEnrollments.companyId))
-    .innerJoin(schema.prospectPeople, eq(schema.prospectPeople.id, schema.outreachEnrollments.personId));
+    .leftJoin(schema.prospectPeople, eq(schema.prospectPeople.id, schema.outreachEnrollments.personId));
 }
 
 /** People in one campaign, newest first, optionally one status. */
@@ -158,8 +162,8 @@ export async function crmMatches(items: { companyId: number; domain: string; nam
   return out;
 }
 
-/** The merge values for one person in one campaign. */
-async function mergeVars(companyId: number, personName: string, mailboxIds: number[]): Promise<MergeVars> {
+/** The merge values for one person (or a company inbox: personName "") in one campaign. */
+export async function mergeVars(companyId: number, personName: string, mailboxIds: number[], brief = ""): Promise<MergeVars> {
   const [c] = await db
     .select({ name: schema.prospectCompanies.name, line: schema.prospectCompanies.personalLine, offer: sql<string>`coalesce(${schema.prospectSegments.offer}, '')` })
     .from(schema.prospectCompanies)
@@ -173,10 +177,12 @@ async function mergeVars(companyId: number, personName: string, mailboxIds: numb
     .orderBy(asc(schema.outreachMailboxes.id))
     .limit(1);
   return {
+    greeting: greetingFor(personName, c?.name ?? ""),
     first_name: firstName(personName),
     company: shortCompany(c?.name ?? ""),
     personal_line: c?.line ?? "",
-    offer_line: offerLine(c?.offer ?? ""),
+    // a campaign built in the chat says what it offers in the first line of its brief
+    offer_line: offerLine(brief.split("\n")[0] || c?.offer || ""),
     signal: signal?.detail ?? "",
     sender_first_name: firstName(mailbox?.fromName ?? ""),
   };
@@ -188,9 +194,11 @@ export interface EnrollResult {
 }
 
 /**
- * Adds each prospect's main contact to a campaign as a draft first email for the review queue. Every rule that keeps
- * cold email safe is checked here (and again before sending): a real email, not blocked, not a CRM customer, not
- * already being emailed, 90 days since the last campaign, at most 2 people per company, a good enough score.
+ * Adds prospects to a campaign. Each company gets one email: its main address in To and every other confirmed address on
+ * Cc (pickRecipients), so nobody has to choose. A campaign with a brief has AI write each first email in the
+ * background (status "writing"); otherwise the first email is filled from the sequence and waits in Review. Every rule
+ * that keeps cold email safe is checked here (and again before sending): a confirmed email, not blocked, not a CRM
+ * customer, not already being emailed, 90 days since the last campaign.
  */
 export async function enroll(campaignId: number, companyIds: number[], userId: number): Promise<EnrollResult> {
   const [campaign] = await db.select().from(schema.outreachCampaigns).where(eq(schema.outreachCampaigns.id, campaignId));
@@ -200,52 +208,51 @@ export async function enroll(campaignId: number, companyIds: number[], userId: n
     .from(schema.outreachSequenceSteps)
     .where(and(eq(schema.outreachSequenceSteps.sequenceId, campaign.sequenceId), eq(schema.outreachSequenceSteps.position, 1)));
   if (!step1) throw new Error("The campaign's sequence has no first email");
+  const res: EnrollResult = { added: 0, skipped: [] };
+  if (!companyIds.length) return res;
 
   const companies = await db.select().from(schema.prospectCompanies).where(inArray(schema.prospectCompanies.id, companyIds));
   const people = await db.select().from(schema.prospectPeople).where(inArray(schema.prospectPeople.companyId, companyIds));
-  const main = new Map<number, (typeof people)[number]>();
-  for (const p of [...people].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.id - b.id)) if (!main.has(p.companyId)) main.set(p.companyId, p);
-
-  const emails = [...main.values()].map((p) => p.email.toLowerCase()).filter(Boolean);
-  const domains = companies.map((c) => c.domain ?? "").filter(Boolean);
-  const keys = [...new Set([...emails, ...domains, ...emails.map((e) => e.split("@")[1] ?? "")].filter(Boolean))];
-  const blocked = keys.length ? await db.select({ value: schema.outreachSuppression.value }).from(schema.outreachSuppression).where(inArray(schema.outreachSuppression.value, keys)) : [];
-  const blockedSet = new Set(blocked.map((b) => b.value));
-  const crm = await crmMatches(companies.map((c) => ({ companyId: c.id, domain: c.domain ?? "", nameNorm: c.nameNorm, emails: main.get(c.id)?.email ? [main.get(c.id)!.email.toLowerCase()] : [] })));
+  const allEmails = [...companies.map((c) => c.email), ...people.map((p) => p.email)].map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const keys = [...new Set([...allEmails, ...allEmails.map((e) => e.split("@")[1] ?? ""), ...companies.map((c) => c.domain ?? "")].filter(Boolean))];
+  const blocked = new Set(
+    keys.length ? (await db.select({ value: schema.outreachSuppression.value }).from(schema.outreachSuppression).where(inArray(schema.outreachSuppression.value, keys))).map((b) => b.value) : [],
+  );
+  const picks = new Map(companies.map((c) => [c.id, pickRecipients(c.email, people.filter((p) => p.companyId === c.id), blocked)]));
+  const crm = await crmMatches(companies.map((c) => ({ companyId: c.id, domain: c.domain ?? "", nameNorm: c.nameNorm, emails: allEmails.filter((e) => e.endsWith(`@${c.domain}`) || picks.get(c.id)?.to === e) })));
   const history = await db
-    .select({ personId: schema.outreachEnrollments.personId, companyId: schema.outreachEnrollments.companyId, status: schema.outreachEnrollments.status, updatedAt: schema.outreachEnrollments.updatedAt })
+    .select({ companyId: schema.outreachEnrollments.companyId, status: schema.outreachEnrollments.status, updatedAt: schema.outreachEnrollments.updatedAt })
     .from(schema.outreachEnrollments)
     .where(inArray(schema.outreachEnrollments.companyId, companyIds));
 
-  const res: EnrollResult = { added: 0, skipped: [] };
   const now = Date.now();
   for (const c of companies) {
-    const p = main.get(c.id);
-    const email = p?.email.toLowerCase() ?? "";
-    const mine = history.filter((h) => h.personId === p?.id);
-    const ended = mine.filter((h) => !["draft", "active", "paused"].includes(h.status) && h.status !== "skipped");
+    const r = picks.get(c.id);
+    const mine = history.filter((h) => h.companyId === c.id);
+    const ended = mine.filter((h) => !OPEN.includes(h.status) && h.status !== "skipped");
     const last = ended.length ? Math.max(...ended.map((h) => h.updatedAt.getTime())) : null;
     const reason = whyNot({
-      personEmail: email,
-      emailStatus: p?.emailStatus ?? "guess",
+      toEmail: r?.to ?? "",
       companyStatus: c.status,
-      score: c.score,
-      minScore: MIN_SCORE,
-      suppressed: blockedSet.has(email) || blockedSet.has(email.split("@")[1] ?? "-") || (!!c.domain && blockedSet.has(c.domain)),
+      suppressed: (!!c.domain && blocked.has(c.domain)) || (!r && allEmails.some((e) => blocked.has(e))),
       inCrm: crm.get(c.id) ?? "",
-      openEnrollment: mine.some((h) => ["draft", "active", "paused"].includes(h.status)),
+      openEnrollment: mine.some((h) => OPEN.includes(h.status)),
       daysSinceLast: last === null ? null : Math.floor((now - last) / 86400_000),
-      companyOpen: history.filter((h) => h.companyId === c.id && h.personId !== p?.id && ["draft", "active", "paused"].includes(h.status)).length,
     });
-    if (!p || reason) {
-      res.skipped.push({ name: c.name, reason: p ? reason! : "no contact person yet" });
+    if (!r || reason) {
+      res.skipped.push({ name: c.name, reason: reason ?? "no confirmed email" });
       continue;
     }
-    const vars = await mergeVars(c.id, p.name, campaign.mailboxIds);
-    await db
-      .insert(schema.outreachEnrollments)
-      .values({ campaignId, companyId: c.id, personId: p.id, subject: render(step1.subject, vars).text, body: render(step1.body, vars).text, createdBy: userId })
-      .onConflictDoNothing();
+    const base = { campaignId, companyId: c.id, personId: r.personId, toEmail: r.to, ccEmails: r.cc, createdBy: userId };
+    if (campaign.brief) {
+      await db.insert(schema.outreachEnrollments).values({ ...base, status: "writing" }).onConflictDoNothing();
+    } else {
+      const vars = await mergeVars(c.id, r.personName, campaign.mailboxIds);
+      await db
+        .insert(schema.outreachEnrollments)
+        .values({ ...base, subject: render(step1.subject, vars).text, body: render(step1.body, vars).text })
+        .onConflictDoNothing();
+    }
     res.added++;
   }
   return res;

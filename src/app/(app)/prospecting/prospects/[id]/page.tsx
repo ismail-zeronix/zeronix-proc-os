@@ -9,9 +9,9 @@ import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { emailStatusLabel, roleLabel, signalLabel, websiteHref } from "@/lib/prospecting/constants";
 import { getProspect, listSegments, prospectingUsers } from "@/lib/prospecting/data";
-import { latestResearch, type ResearchRun } from "@/lib/prospecting/research";
+import { latestResearch, RUNNING, type ResearchRun } from "@/lib/prospecting/research";
 import type { CrawlResult } from "@/lib/prospecting/research-rules";
-import { MIN_SCORE } from "@/lib/prospecting/score";
+import { MIN_SCORE, readyGaps } from "@/lib/prospecting/score";
 import {
   DeletePersonButton,
   DeleteProspectButton,
@@ -24,7 +24,7 @@ import {
   SignalDialog,
   StatusControl,
 } from "../../prospect-ui";
-import { ResearchButton, ResearchWatcher, UseFindingButton } from "../../research-ui";
+import { ResearchButtons, ResearchWatcher, UseFindingButton } from "../../research-ui";
 
 export async function generateMetadata({ params }: PageProps<"/prospecting/prospects/[id]">) {
   await requireApp("prospecting");
@@ -50,12 +50,12 @@ function researchLinks(name: string, domain: string, roles: string[]) {
 }
 
 const AI_NOTE: Record<string, string> = {
-  "": "AI not needed",
+  "": "website only, no AI",
   used: "AI used",
   no_provider: "AI not set up for research",
   limit: "AI daily limit reached",
-  recent: "AI searched in the last 30 days",
-  failed: "AI search failed",
+  recent: "web searched in the last 30 days",
+  failed: "AI could not help",
 };
 
 /** What the last Research run found, with its sources, and a Use button to put a contact on the company. */
@@ -65,20 +65,21 @@ function ResearchFindings({ run, companyId, companyEmail, companyPhone, hasWebsi
     return (
       <div className={`${box} text-sm text-muted-foreground`}>
         {hasWebsite
-          ? "Not researched yet. Research reads their website for emails, phones, people and hiring (free). AI is used only if the website shows no contact at all."
-          : "No website yet. Research will ask AI to find the official website and contacts, then read the website itself."}
+          ? "Not researched yet. Research reads their website for emails, phones, people, address and hiring (free). Research with AI also lets AI pick out the people, draft a personal line and search the web for the owner or manager."
+          : "No website yet. Research with AI searches the web for the website and the people who run the company, then reads the website."}
       </div>
     );
-  if (run.status !== "done")
+  if (RUNNING.includes(run.status))
     return (
       <div className={`${box} text-sm`}>
-        <ResearchWatcher companyId={companyId} />
-        <span className="animate-pulse">{run.domain ? `Reading ${run.domain}…` : "Searching the web…"}</span>
-        <span className="text-xs text-muted-foreground">This takes about a minute. The page updates by itself.</span>
+        <ResearchWatcher companyId={companyId} stage={run.stage} />
+        <span className="text-xs text-muted-foreground">
+          {run.mode === "ai" ? "Research with AI" : "Research"} runs in the background, one prospect after another. The page updates by itself when it is done.
+        </span>
       </div>
     );
   const r = (run.result ?? {}) as CrawlResult;
-  const ai = (run.aiResult ?? {}) as { emails?: { email: string; source: string }[]; phones?: { phone: string; source: string }[] };
+  const ai = (run.aiResult ?? {}) as { emails?: { email: string; source: string }[]; phones?: { phone: string; source: string }[]; people?: { name: string; title: string; source: string }[]; model?: string };
   const emails = [...(r.emails ?? []).map((e) => ({ ...e, ai: false })), ...(ai.emails ?? []).map((e) => ({ ...e, ai: true }))];
   const phones = [...(r.phones ?? []).map((e) => ({ ...e, ai: false })), ...(ai.phones ?? []).map((e) => ({ ...e, ai: true }))];
   const src = (url: string, isAi: boolean) => (
@@ -92,7 +93,7 @@ function ResearchFindings({ run, companyId, companyEmail, companyPhone, hasWebsi
       <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
         <span className="font-medium">Research</span>
         <span className="text-xs text-muted-foreground">
-          {run.finishedAt ? ago(run.finishedAt) : ""} · {run.aiStatus === "used" ? `${AI_NOTE.used}: ${run.aiProvider || "provider"}, ${run.aiTokens.toLocaleString("en-US")} tokens` : AI_NOTE[run.aiStatus] ?? run.aiStatus}
+          {run.finishedAt ? ago(run.finishedAt) : ""} · {run.status === "cancelled" ? "stopped" : run.aiStatus === "used" ? `${AI_NOTE.used}: ${[run.aiProvider, ai.model].filter(Boolean).join(" · ") || "provider"}, ${run.aiTokens.toLocaleString("en-US")} tokens` : AI_NOTE[run.aiStatus] ?? run.aiStatus}
         </span>
       </div>
       <p className="text-sm">{run.summary || "Nothing found."}</p>
@@ -116,6 +117,20 @@ function ResearchFindings({ run, companyId, companyEmail, companyPhone, hasWebsi
               <span className="shrink-0 tabular-nums">{ph.phone}</span>
               {src(ph.source, ph.ai)}
               {ph.phone !== companyPhone ? <UseFindingButton companyId={companyId} kind="phone" value={ph.phone} /> : <span className="text-xs text-emerald-700 dark:text-emerald-400">company phone</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(ai.people?.length ?? 0) > 0 && (
+        <ul className="grid gap-0.5">
+          {ai.people!.map((x) => (
+            <li key={x.name + x.source} className="flex min-w-0 items-center gap-2 text-sm">
+              <UserPlus className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="shrink-0">
+                {x.name}
+                {x.title && <span className="text-muted-foreground"> · {x.title}</span>}
+              </span>
+              {src(x.source, true)}
             </li>
           ))}
         </ul>
@@ -145,24 +160,18 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
   if (!Number.isInteger(id) || id < 1) notFound();
   const [p, segments, users, run] = await Promise.all([getProspect(id), listSegments(), prospectingUsers(), latestResearch(id)]);
   if (!p) notFound();
-  const running = !!run && run.status !== "done";
+  const running = !!run && RUNNING.includes(run.status);
   const segOptions = segments.filter((s) => s.active || s.key === p.segmentKey).map((s) => ({ key: s.key, label: s.label }));
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
   const primary = p.people.find((x) => x.isPrimary) ?? p.people[0];
-  const gaps = [
-    !primary && "find the key person",
-    primary && !primary.email && "find their email",
-    primary?.email && primary.emailStatus === "guess" && "confirm the guessed email",
-    !p.personalLine && "write the personal line",
-    p.score < MIN_SCORE && `raise the score above ${MIN_SCORE}`,
-  ].filter(Boolean) as string[];
+  const gaps = readyGaps(p);
 
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <BackButton fallback="/prospecting/prospects" />
         <h1 className="min-w-0 flex-1 basis-[calc(100%-3rem)] truncate text-lg font-semibold tracking-tight sm:basis-0">{p.name}</h1>
-        <ResearchButton ids={[p.id]} running={running} />
+        <ResearchButtons ids={[p.id]} running={running} />
         <StatusControl ids={[p.id]} status={p.status} />
         <OwnerControl ids={[p.id]} ownerId={p.ownerId} users={users} />
         <ProspectDialog
@@ -264,7 +273,7 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
 
             <TabsContent value="research" className="grid gap-4 pt-2">
               <div className={`rounded-lg border px-3 py-2 text-sm ${gaps.length ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"}`}>
-                {gaps.length ? <>To be ready: {gaps.join(", ")}.</> : <>Ready for the first email. Set the status to Ready.</>}
+                {gaps.length ? <>To be ready: {gaps.join(", ")}. Research moves it to Ready by itself once these are in place.</> : p.status === "ready" ? <>Ready for the first email.</> : <>Ready for the first email. Set the status to Ready.</>}
               </div>
               <ResearchFindings run={run} companyId={p.id} companyEmail={p.email} companyPhone={p.phone} hasWebsite={!!p.domain} />
               {p.segmentOffer && (

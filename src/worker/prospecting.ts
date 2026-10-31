@@ -1,6 +1,6 @@
 import { dubaiToday } from "@/lib/dates";
 import { refreshStaleFreeModels } from "@/lib/prospecting/ai-client";
-import { processResearch } from "@/lib/prospecting/research";
+import { processResearch, resumeApplying } from "@/lib/prospecting/research";
 
 const TICK_MS = 5_000;
 /** How often to look for OpenRouter free-model lists older than a day. */
@@ -30,6 +30,8 @@ async function tick() {
 
 export function startResearchScheduler() {
   if (g.__researchTimer) return;
+  // runs a restart left half-applied go back to be applied
+  void resumeApplying().catch((e) => console.error("[research] resume failed", e));
   g.__researchTimer = setInterval(() => void tick(), TICK_MS);
   g.__researchTimer.unref?.();
   console.log("[research] applying prospect research every few seconds");

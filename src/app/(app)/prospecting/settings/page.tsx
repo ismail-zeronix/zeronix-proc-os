@@ -8,7 +8,7 @@ import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
-import { AI_USES, aiProvider } from "@/lib/prospecting/ai";
+import { AI_USES, aiProvider, isSearchService } from "@/lib/prospecting/ai";
 import { listAiModels, listAiProviders, listMailboxes, type AiModelRow, type AiProviderRow, type MailboxRow } from "@/lib/prospecting/data";
 import { DAYS, capOn, weeksToTarget } from "@/lib/prospecting/sending";
 import { AiActions, AiDialog, FreeModelList, MailboxActions, MailboxDialog } from "./settings-ui";
@@ -194,14 +194,15 @@ function AiProviders({ rows, models, admin }: { rows: AiProviderRow[]; models: A
                   </div>
                 </TableCell>
                 <TableCell className="max-w-80 py-1.5 text-xs">
-                  {p.provider === "openrouter" && p.autoFree ? "Free models, automatic" : p.model || "-"}
+                  {p.provider === "openrouter" && p.autoFree ? "Free models, automatic" : isSearchService(p.provider) ? "Web search for Research with AI" : p.model || "-"}
                   {p.provider === "openrouter" && <Allowance p={p} />}
+                  {isSearchService(p.provider) && <div className="text-muted-foreground">{p.usage ? `Searches today: ${p.usage.used} of ${p.dailyLimit}` : "No searches yet today"}</div>}
                 </TableCell>
                 <TableCell className="py-1.5 text-xs">
                   {p.uses.length ? p.uses.map(useLabel).join(", ") : "-"}
                   {p.uses.includes("research") && (
                     <div className="text-muted-foreground">
-                      up to {p.dailyLimit} research calls a day{p.provider === "openrouter" ? (p.paidSearch ? " · paid web search on" : " · reads fetched pages, no search") : ""}
+                      up to {p.dailyLimit} research {isSearchService(p.provider) ? "searches" : "calls"} a day{p.provider === "openrouter" ? (p.paidSearch ? " · paid web search on" : " · reads fetched pages, no search") : ""}
                     </div>
                   )}
                 </TableCell>

@@ -83,3 +83,14 @@ def test_headings_are_not_people_and_titles_are_trimmed():
     assert page_data("https://x.ae/about.php", about)["people"] == [
         {"name": "Ismail Thasreef", "title": "Development Lead", "email": "", "source": "https://x.ae/about.php"}
     ]
+
+
+def test_printed_address_on_a_contact_page_and_template_emails():
+    html = """<html><body><h2>Contact Us</h2><p>+97142809888</p><p>info@sajaya.ae</p>
+    <p>Sajaya 01 - A block Damascus Street - Al Qusais - Al Qusais 2 - Dubai - United Arab Emirates</p>
+    <p>Opening Hours</p><input placeholder="contact@myemail.com"> <p>contact@myemail.com</p></body></html>"""
+    d = page_data("https://sajaya.ae/contact-us/", html)
+    assert d["address"].startswith("Sajaya 01 - A block Damascus Street")
+    assert d["emails"] == ["info@sajaya.ae"]
+    # the same text elsewhere is not taken as the company's address (a listing, a project)
+    assert page_data("https://sajaya.ae/properties/sajaya-01/", html)["address"] == ""

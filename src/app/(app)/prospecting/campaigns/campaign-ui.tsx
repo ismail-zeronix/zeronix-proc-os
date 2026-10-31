@@ -3,7 +3,7 @@
 import { Ban, Pause, Play, Send, Square } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -134,6 +134,16 @@ export function StopEnrollmentButton({ id, name }: { id: number; name: string })
       <Ban />
     </Button>
   );
+}
+
+/** Reloads the page every few seconds while AI is writing or emails are going out, so progress shows by itself. */
+export function RefreshWhile({ seconds }: { seconds: number }) {
+  const router = useRouter();
+  useEffect(() => {
+    const t = setInterval(() => router.refresh(), seconds * 1000);
+    return () => clearInterval(t);
+  }, [router, seconds]);
+  return null;
 }
 
 /** Bulk action on the Prospects list: put the main contact of each selected prospect into a campaign. */

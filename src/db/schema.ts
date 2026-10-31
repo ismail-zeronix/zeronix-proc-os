@@ -1444,6 +1444,11 @@ export const outreachMailboxes = pgTable("outreach_mailboxes", {
   /** Plain-text signature under every email from this mailbox. */
   signature: text("signature").notNull().default(""),
   enabled: boolean("enabled").notNull().default(false),
+  /** Highest INBOX UID already checked for replies and bounces. */
+  lastSeenUid: integer("last_seen_uid").notNull().default(0),
+  repliesCheckedAt: timestamp("replies_checked_at", { withTimezone: true }),
+  /** When this mailbox last sent, so emails go out spread over the day. */
+  lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   lastTestAt: timestamp("last_test_at", { withTimezone: true }),
   lastTestOk: boolean("last_test_ok").notNull().default(false),
   lastError: text("last_error").notNull().default(""),
@@ -1497,8 +1502,12 @@ export const prospectResearchRuns = pgTable(
       .references(() => prospectCompanies.id, { onDelete: "cascade" }),
     /** The bare domain read; empty when there was none (then only AI can look). */
     domain: text("domain").notNull().default(""),
-    /** queued -> crawling -> crawled (or failed) -> done */
+    /** queued -> crawling -> crawled (or failed) -> applying -> done; cancelled when stopped while waiting */
     status: text("status").notNull().default("queued"),
+    /** site = read the website only (free); ai = also let AI read the pages and search the web for the key people. */
+    mode: text("mode").notNull().default("site"),
+    /** What is happening right now, for the progress panel ("AI searching the web for people"). */
+    stage: text("stage").notNull().default(""),
     /** What the scraper found (see scraper/zx_scraper/crawl.py). */
     result: jsonb("result").$type<Record<string, unknown>>(),
     error: text("error").notNull().default(""),
@@ -1575,6 +1584,27 @@ export const outreachSequenceSteps = pgTable(
   (t) => [uniqueIndex("outreach_sequence_steps_uq").on(t.sequenceId, t.position)],
 );
 
+/** Every cold email sent (or that failed to send), for the campaign page and the daily limits. */
+export const outreachMessages = pgTable(
+  "outreach_messages",
+  {
+    id: serial("id").primaryKey(),
+    enrollmentId: integer("enrollment_id")
+      .notNull()
+      .references(() => outreachEnrollments.id, { onDelete: "cascade" }),
+    mailboxId: integer("mailbox_id").references(() => outreachMailboxes.id, { onDelete: "set null" }),
+    step: integer("step").notNull(),
+    toEmail: text("to_email").notNull(),
+    ccEmails: text("cc_emails").array().notNull().default(sql`'{}'::text[]`),
+    subject: text("subject").notNull().default(""),
+    messageId: text("message_id").notNull().default(""),
+    /** Empty when it went out. */
+    error: text("error").notNull().default(""),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("outreach_messages_mailbox_idx").on(t.mailboxId, t.sentAt), index("outreach_messages_enrollment_idx").on(t.enrollmentId)],
+);
+
 /** Who gets which sequence from which mailboxes. */
 export const outreachCampaigns = pgTable("outreach_campaigns", {
   id: serial("id").primaryKey(),
@@ -1587,6 +1617,14 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
   /** draft / active / paused / finished */
   status: text("status").notNull().default("active"),
   ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
+  /** What we offer and how to write (from the campaign chat). Set = AI writes each first email from it. */
+  brief: text("brief").notNull().default(""),
+  /** The industry the campaign was built for (shown only). */
+  industry: text("industry").notNull().default(""),
+  /** True = first emails wait in Review; false = they are scheduled as soon as AI has written them. */
+  review: boolean("review").notNull().default(true),
+  /** No email goes out before this. */
+  startAt: timestamp("start_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1604,11 +1642,16 @@ export const outreachEnrollments = pgTable(
     companyId: integer("company_id")
       .notNull()
       .references(() => prospectCompanies.id, { onDelete: "cascade" }),
-    personId: integer("person_id")
-      .notNull()
-      .references(() => prospectPeople.id, { onDelete: "cascade" }),
-    /** draft / active / paused / replied / bounced / unsubscribed / completed / stopped / skipped */
+    /** The key person written to; empty when only a company inbox (info@) is known. */
+    personId: integer("person_id").references(() => prospectPeople.id, { onDelete: "cascade" }),
+    /** writing (AI drafting) / draft / active / paused / replied / bounced / unsubscribed / completed / stopped / skipped */
     status: text("status").notNull().default("draft"),
+    /** The main address (To) and every other address found for the company (Cc), fixed when added. */
+    toEmail: text("to_email").notNull().default(""),
+    ccEmails: text("cc_emails").array().notNull().default(sql`'{}'::text[]`),
+    /** AI writing: the provider that wrote it, and why it could not yet. */
+    aiProviderId: integer("ai_provider_id").references(() => prospectAiProviders.id, { onDelete: "set null" }),
+    writeError: text("write_error").notNull().default(""),
     /** The first email as it will go out (rendered from step 1, editable in the review queue). */
     subject: text("subject").notNull().default(""),
     body: text("body").notNull().default(""),
@@ -1630,6 +1673,6 @@ export const outreachEnrollments = pgTable(
     index("outreach_enrollments_campaign_idx").on(t.campaignId, t.status),
     index("outreach_enrollments_company_idx").on(t.companyId),
     index("outreach_enrollments_due_idx").on(t.status, t.nextSendAt),
-    uniqueIndex("outreach_enrollments_open_uq").on(t.personId).where(sql`status in ('draft','active','paused')`),
+    uniqueIndex("outreach_enrollments_open_uq").on(t.companyId).where(sql`status in ('writing','draft','active','paused')`),
   ],
 );

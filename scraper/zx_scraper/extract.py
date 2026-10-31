@@ -17,6 +17,9 @@ DOT_RE = re.compile(r"\s*(?:\[\s*dot\s*\]|\(\s*dot\s*\)|\{\s*dot\s*\})\s*", re.I
 JUNK_DOMAINS = {
     "example.com", "example.ae", "domain.com", "email.com", "yourdomain.com", "yourcompany.com", "company.com",
     "sentry.io", "wixpress.com", "sentry.wixpress.com", "sentry-next.wixpress.com", "godaddy.com", "w3.org",
+    # placeholders left in website templates and contact forms
+    "myemail.com", "youremail.com", "yoursite.com", "yourwebsite.com", "mysite.com", "mydomain.com", "website.com",
+    "test.com", "sample.com", "emailaddress.com", "mail.example.com",
 }
 JUNK_SUFFIX = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js", ".ico")
 ROLE_RE = re.compile(
@@ -218,6 +221,21 @@ def health_from(url: str, sel: Selector, raw_html: str, today: date | None = Non
     }
 
 
+EMIRATE_RE = re.compile(r"\b(dubai|abu dhabi|sharjah|ajman|umm al quwain|ras al khaimah|fujairah|al ain)\b", re.I)
+PLACE_RE = re.compile(
+    r"\b(street|st\.|road|rd\.|building|bldg|tower|floor|office|shop|block|plot|p\.?\s?o\.?\s?box|area|district|business bay|free ?zone|warehouse|villa)\b",
+    re.I,
+)
+
+
+def address_from(blocks: list[str]) -> str:
+    """A postal address printed as text ("Office 12, Damascus Street - Al Qusais - Dubai"): an emirate plus a street word."""
+    for b in blocks:
+        if 15 <= len(b) <= 200 and EMIRATE_RE.search(b) and PLACE_RE.search(b) and not EMAIL_RE.search(b) and "http" not in b:
+            return b
+    return ""
+
+
 def links_from(sel: Selector, base_url: str) -> list[tuple[str, str]]:
     """(absolute url, link text) for every ordinary link on the page."""
     out = []
@@ -251,7 +269,8 @@ def page_data(url: str, html: str) -> dict:
         "phones": list(dict.fromkeys(phones)),
         "people": people_from(sel, blocks, url),
         "linkedin": linkedin_from(sel, org["sameAs"]),
-        "address": org["address"],
+        # schema.org data first; otherwise the printed address, only on contact and location pages
+        "address": org["address"] or (address_from(blocks) if re.search(r"contact|location|office|find-us|reach", url, re.I) else ""),
         "hiring": is_careers and bool(HIRING_RE.search(text)) and not NOT_HIRING_RE.search(text),
         "title": (sel.xpath("//title/text()").get() or "").strip()[:150],
         "chars": len(text),

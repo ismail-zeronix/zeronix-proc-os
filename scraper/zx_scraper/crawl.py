@@ -102,12 +102,12 @@ def has_mx(domain: str) -> bool | None:
         return None
 
 
-TEXT_PAGES = re.compile(r"contact|reach|about|team|people|management|leadership|who-we-are|location|office", re.I)
+TEXT_PAGES = re.compile(r"contact|reach|about|team|people|management|leadership|who-we-are|location|office|agent|staff|founder|board", re.I)
 
 
 def page_texts(pages: list[dict]) -> list[dict]:
-    """Text of the homepage and the contact/about/team pages (at most 4, 2,500 characters each), for the AI reading step."""
-    picked = [p for i, p in enumerate(pages) if i == 0 or TEXT_PAGES.search(p["url"])][:4]
+    """Text of the homepage and the contact/about/team pages (at most 5, 2,500 characters each), for the AI reading step."""
+    picked = [p for i, p in enumerate(pages) if i == 0 or TEXT_PAGES.search(p["url"])][:5]
     return [{"url": p["url"], "text": p["text"][:2500]} for p in picked if p.get("text")]
 
 

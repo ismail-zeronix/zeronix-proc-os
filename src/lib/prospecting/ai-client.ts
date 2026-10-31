@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { decryptSecret } from "@/lib/crypto";
 import { aiProvider } from "./ai";
@@ -94,18 +94,30 @@ export async function refreshFreeModels(p: ProviderRow, today: string): Promise<
   return free.length;
 }
 
-async function readyModels(providerId: number): Promise<string[]> {
+/**
+ * Free models to try next: models that have answered well before come first, least recently used first among them, so
+ * the work is spread over the good models instead of wearing one out (a model rate-limited upstream stays limited for
+ * a while); untried models come after. Resting and switched-off models are left out.
+ */
+async function readyModels(providerId: number, skip: string[]): Promise<string[]> {
   const rows = await db
     .select({ modelId: schema.prospectAiModels.modelId })
     .from(schema.prospectAiModels)
-    .where(and(eq(schema.prospectAiModels.providerId, providerId), eq(schema.prospectAiModels.enabled, true), or(isNull(schema.prospectAiModels.cooldownUntil), lt(schema.prospectAiModels.cooldownUntil, new Date()))))
-    .orderBy(asc(schema.prospectAiModels.position))
+    .where(
+      and(
+        eq(schema.prospectAiModels.providerId, providerId),
+        eq(schema.prospectAiModels.enabled, true),
+        or(isNull(schema.prospectAiModels.cooldownUntil), lt(schema.prospectAiModels.cooldownUntil, new Date())),
+        skip.length ? notInArray(schema.prospectAiModels.modelId, skip) : undefined,
+      ),
+    )
+    .orderBy(sql`(${schema.prospectAiModels.okCount} > 0) desc`, sql`${schema.prospectAiModels.lastUsedAt} asc nulls first`, asc(schema.prospectAiModels.position))
     .limit(MODELS_PER_REQUEST);
   return rows.map((r) => r.modelId);
 }
 
-/** Rests the models that just failed, longer each time they fail in a row. */
-async function restModels(providerId: number, modelIds: string[], error: string) {
+/** Rests models that just failed, longer each time they fail in a row, so the next calls go to other models. */
+export async function restModels(providerId: number, modelIds: string[], error: string) {
   if (!modelIds.length) return;
   const rows = await db
     .select({ id: schema.prospectAiModels.id, failCount: schema.prospectAiModels.failCount })
@@ -115,17 +127,25 @@ async function restModels(providerId: number, modelIds: string[], error: string)
     const fails = r.failCount + 1;
     await db
       .update(schema.prospectAiModels)
-      .set({ failCount: fails, lastError: error.slice(0, 300), cooldownUntil: new Date(Date.now() + cooldownMinutes(fails) * 60_000) })
+      .set({ failCount: fails, lastError: error.slice(0, 300), cooldownUntil: new Date(Date.now() + cooldownMinutes(fails) * 60_000), lastUsedAt: new Date() })
       .where(eq(schema.prospectAiModels.id, r.id));
   }
 }
 
-/** OpenAI-style chat: OpenRouter (with automatic model switching), OpenAI and compatible services. */
-async function chatCompletions(p: ProviderRow, prompt: string, search: boolean, maxTokens: number): Promise<AiReply> {
-  const apiKey = keyOf(p);
+/** How many sets of free models one call may go through before giving up on the provider. */
+const ROUNDS = 3;
+/** OpenRouter's per-minute limit on free models: pause the provider this long. */
+const MINUTE_PAUSE_MS = 65_000;
+
+type ChatBody = {
+  model?: string;
+  choices?: { message?: { content?: string | null } }[];
+  usage?: { total_tokens?: number };
+  error?: { message?: string; code?: number; metadata?: { raw?: string } };
+} | null;
+
+async function postChat(p: ProviderRow, apiKey: string, models: string[], prompt: string, search: boolean, maxTokens: number) {
   const isRouter = p.provider === "openrouter";
-  const models = isRouter && p.autoFree ? await readyModels(p.id) : [p.model];
-  if (!models.length || !models[0]) throw new AiUnavailable("busy", "No free model is available right now; they are all resting after errors.");
   const res = await fetch(`${baseOf(p)}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), ...(isRouter ? OPENROUTER_HEADERS : {}) },
@@ -135,41 +155,126 @@ async function chatCompletions(p: ProviderRow, prompt: string, search: boolean, 
       messages: [{ role: "user", content: prompt }],
       max_tokens: maxTokens,
       temperature: 0,
+      // many free models think before answering; keep that short and out of the reply, or it uses up max_tokens
+      ...(isRouter ? { reasoning: { effort: "low", exclude: true } } : {}),
       ...(isRouter && search ? { plugins: [{ id: "web", max_results: 5 }] } : {}),
     }),
     signal: AbortSignal.timeout(120_000),
   });
-  const body = (await res.json().catch(() => null)) as {
-    model?: string;
-    choices?: { message?: { content?: string | null } }[];
-    usage?: { total_tokens?: number };
-    error?: { message?: string; code?: number };
-  } | null;
-  const message = body?.error?.message ?? "";
-  if (res.status === 402) throw new AiUnavailable("quota", "OpenRouter has no credits for this (web search is paid).");
-  if (res.status === 429 || res.status === 503 || res.status === 502) {
-    if (isRouter) {
+  const body = (await res.json().catch(() => null)) as ChatBody;
+  const message = [body?.error?.message, body?.error?.metadata?.raw].filter(Boolean).join(": ");
+  return { res, body, message };
+}
+
+function replyOf(body: ChatBody, fallbackModel: string): AiReply {
+  return { text: body?.choices?.[0]?.message?.content ?? "", tokens: body?.usage?.total_tokens ?? 0, model: body?.model ?? fallbackModel };
+}
+
+/**
+ * OpenRouter free models with automatic switching. Each request names a few models (OpenRouter falls through them);
+ * when they all fail, they rest and the next few least-used models are tried, up to ROUNDS times. Limits on the whole
+ * key are told apart from a busy model: the daily allowance stops the provider until it resets, the per-minute limit
+ * pauses it for a minute, and neither rests the models (they did nothing wrong).
+ */
+async function openRouterFree(p: ProviderRow, prompt: string, search: boolean, maxTokens: number): Promise<AiReply> {
+  const apiKey = keyOf(p);
+  const tried: string[] = [];
+  const problems: string[] = [];
+  for (let round = 0; round < ROUNDS; round++) {
+    const models = await readyModels(p.id, tried);
+    if (!models.length) break;
+    tried.push(...models);
+    const { res, body, message } = await postChat(p, apiKey, models, prompt, search, maxTokens);
+    if (res.ok) {
+      const reply = replyOf(body, models[0]);
+      await db
+        .update(schema.prospectAiModels)
+        .set({ okCount: sql`${schema.prospectAiModels.okCount} + 1`, failCount: 0, lastError: "", cooldownUntil: null, lastUsedAt: new Date() })
+        .where(and(eq(schema.prospectAiModels.providerId, p.id), eq(schema.prospectAiModels.modelId, reply.model)));
+      // keep "x of 50 used today" current; this call is free
+      void openRouterAllowance(apiKey, baseOf(p)).then((a) => saveAllowance(p.id, a)).catch(() => {});
+      return reply;
+    }
+    if (res.status === 402) throw new AiUnavailable("quota", "OpenRouter has no credits for this (web search is paid).");
+    if (res.status === 401 || res.status === 403) throw new AiUnavailable("setup", `OpenRouter refused the key (${res.status}). Check it in Settings.`);
+    if (res.status === 429 && /per-day/i.test(message)) {
+      const allowance = await openRouterAllowance(apiKey, baseOf(p));
+      await saveAllowance(p.id, allowance ?? { used: 0, limit: 0, remaining: 0, freeTier: true });
+      throw new AiUnavailable("quota", `OpenRouter's free allowance for today is used up${allowance ? ` (${allowance.used} of ${allowance.limit})` : ""}; it comes back at 04:00 Dubai time.`);
+    }
+    if (res.status === 429 && /per-min/i.test(message)) {
+      await db.update(schema.prospectAiProviders).set({ outUntil: new Date(Date.now() + MINUTE_PAUSE_MS) }).where(eq(schema.prospectAiProviders.id, p.id));
+      throw new AiUnavailable("busy", "OpenRouter's limit of free requests a minute was reached; it continues in a minute.");
+    }
+    // the models themselves failed (rate limited upstream, down, or refused the request): rest them, try others
+    await restModels(p.id, models, message || `HTTP ${res.status}`);
+    problems.push(`${models.join(", ")}: ${(message || `HTTP ${res.status}`).slice(0, 120)}`);
+  }
+  if (!tried.length) throw new AiUnavailable("busy", "No free model is available right now; they are all resting after errors.");
+  throw new AiUnavailable("busy", `${tried.length} free models tried, none answered (${problems.at(-1) ?? "no details"}).`);
+}
+
+/** OpenAI-style chat: OpenRouter, OpenAI and compatible services with one fixed model. */
+async function chatCompletions(p: ProviderRow, prompt: string, search: boolean, maxTokens: number): Promise<AiReply> {
+  if (p.provider === "openrouter" && p.autoFree) return openRouterFree(p, prompt, search, maxTokens);
+  const apiKey = keyOf(p);
+  const { res, body, message } = await postChat(p, apiKey, [p.model], prompt, search, maxTokens);
+  const label = aiProvider(p.provider)?.label ?? p.provider;
+  if (res.status === 402) throw new AiUnavailable("quota", `${label} has no credits left for this.`);
+  if (res.status === 429) {
+    if (p.provider === "openrouter") {
       const allowance = await openRouterAllowance(apiKey, baseOf(p));
       await saveAllowance(p.id, allowance);
-      if (allowance && allowance.remaining <= 0) throw new AiUnavailable("quota", `OpenRouter's free allowance for today is used up (${allowance.used} of ${allowance.limit}); it comes back at 04:00 Dubai time.`);
-      if (p.autoFree) await restModels(p.id, models, message || `HTTP ${res.status}`);
+      if (allowance && allowance.remaining <= 0) throw new AiUnavailable("quota", `OpenRouter's allowance for today is used up (${allowance.used} of ${allowance.limit}).`);
     }
-    throw new AiUnavailable("busy", `${aiProvider(p.provider)?.label ?? p.provider} is busy (${res.status}). Try again later.`);
+    throw new AiUnavailable("busy", `${label} is over its rate limit. Try again later.`);
   }
-  if (!res.ok) {
-    if (isRouter && p.autoFree) await restModels(p.id, models.slice(0, 1), message || `HTTP ${res.status}`);
-    throw new AiUnavailable("busy", `${aiProvider(p.provider)?.label ?? p.provider} answered ${res.status}: ${message.slice(0, 200) || "no details"}`);
-  }
-  const used = body?.model ?? models[0];
-  if (isRouter && p.autoFree) {
-    await db
-      .update(schema.prospectAiModels)
-      .set({ okCount: sql`${schema.prospectAiModels.okCount} + 1`, failCount: 0, lastError: "", cooldownUntil: null, lastUsedAt: new Date() })
-      .where(and(eq(schema.prospectAiModels.providerId, p.id), eq(schema.prospectAiModels.modelId, used)));
-    // keep "x of 50 used today" current; this call is free
-    void openRouterAllowance(apiKey, baseOf(p)).then((a) => saveAllowance(p.id, a)).catch(() => {});
-  }
-  return { text: body?.choices?.[0]?.message?.content ?? "", tokens: body?.usage?.total_tokens ?? 0, model: used };
+  if (!res.ok) throw new AiUnavailable("busy", `${label} answered ${res.status}: ${message.slice(0, 200) || "no details"}`);
+  return replyOf(body, p.model);
+}
+
+// ---------- Web search (Tavily) ----------
+
+export interface SearchHit {
+  url: string;
+  title: string;
+  content: string;
+}
+
+/** Searches the web with a search service (no AI): result pages with a short extract of each. */
+export async function webSearch(p: ProviderRow, query: string): Promise<SearchHit[]> {
+  if (p.provider !== "tavily") throw new AiUnavailable("setup", "This provider is not a search service.");
+  const res = await fetch(`${baseOf(p)}/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${keyOf(p)}` },
+    body: JSON.stringify({ query, max_results: 6, search_depth: "basic", include_answer: false }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = (await res.json().catch(() => null)) as { results?: { url?: string; title?: string; content?: string }[]; detail?: { error?: string } | string } | null;
+  const detail = typeof body?.detail === "string" ? body.detail : (body?.detail?.error ?? "");
+  // 432/433: the plan's monthly credits are used up
+  if (res.status === 429 || res.status === 432 || res.status === 433) throw new AiUnavailable("quota", `Tavily's search allowance is used up${detail ? `: ${detail.slice(0, 120)}` : ""}.`);
+  if (res.status === 401) throw new AiUnavailable("setup", "Tavily refused the key. Check it in Settings.");
+  if (!res.ok) throw new AiUnavailable("busy", `Tavily answered ${res.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+  await countSearch(p);
+  return (body?.results ?? [])
+    .filter((r) => typeof r.url === "string" && /^https?:\/\//i.test(r.url))
+    .map((r) => ({ url: r.url!, title: String(r.title ?? "").slice(0, 200), content: String(r.content ?? "").slice(0, 1500) }));
+}
+
+/** Keeps "x of y searches today" on a search provider (its daily limit is checked against this). */
+async function countSearch(p: ProviderRow) {
+  const today = new Date().toISOString().slice(0, 10);
+  const used = (p.usage?.checkedAt?.slice(0, 10) === today ? p.usage.used : 0) + 1;
+  await db
+    .update(schema.prospectAiProviders)
+    .set({ usage: { used, limit: p.dailyLimit, remaining: Math.max(0, p.dailyLimit - used), checkedAt: new Date().toISOString() } })
+    .where(eq(schema.prospectAiProviders.id, p.id));
+}
+
+/** Searches a search provider has made today (UTC day, as it counts them). */
+export function searchesToday(p: ProviderRow): number {
+  return p.usage?.checkedAt?.slice(0, 10) === new Date().toISOString().slice(0, 10) ? p.usage.used : 0;
 }
 
 // ---------- Gemini and Claude ----------
@@ -213,12 +318,14 @@ async function claude(p: ProviderRow, prompt: string, search: boolean, maxTokens
 
 /** Sends one prompt to one provider. `search` asks it to search the web (only for providers where canSearch is true). */
 export async function askProvider(p: ProviderRow, prompt: string, opts: { search: boolean; maxTokens?: number }): Promise<AiReply> {
-  const maxTokens = opts.maxTokens ?? 1024;
+  // room for a short think plus the answer: thinking models stop mid-answer when this is too low
+  const maxTokens = opts.maxTokens ?? 3000;
   if (opts.search && !canSearch(p)) throw new AiUnavailable("setup", "This provider cannot search the web.");
-  if (p.outUntil && p.outUntil > new Date()) throw new AiUnavailable("quota", "Out of today's allowance.");
+  if (p.outUntil && p.outUntil > new Date()) throw new AiUnavailable("quota", `Paused until ${p.outUntil.toLocaleTimeString("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" })} (allowance or rate limit).`);
   if (p.provider === "gemini") return gemini(p, prompt, opts.search, maxTokens);
   if (p.provider === "anthropic") return claude(p, prompt, opts.search, maxTokens);
   if (p.provider === "ollama") throw new AiUnavailable("setup", "Ollama is not used for research.");
+  if (p.provider === "tavily") throw new AiUnavailable("setup", "Tavily searches the web; it does not answer prompts.");
   if (!p.autoFree && !p.model) throw new AiUnavailable("setup", "Pick a model first.");
   return chatCompletions(p, prompt, opts.search, maxTokens);
 }

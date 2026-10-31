@@ -18,6 +18,14 @@ export const AI_PROVIDERS = [
     hint: "Key from openrouter.ai/keys. Free models switch automatically; free keys get 50 requests a day across all free models (1,000 after buying $10 of credits). Web search is never free.",
   },
   {
+    key: "tavily",
+    label: "Tavily (web search)",
+    baseUrl: "https://api.tavily.com",
+    needsKey: true,
+    models: [],
+    hint: "Key from app.tavily.com (free plan: 1,000 searches a month, no card). Not an AI: it finds pages about a company's owners and managers, and a free AI model reads them. Used by Research with AI.",
+  },
+  {
     key: "openai",
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
@@ -53,6 +61,8 @@ export const AI_PROVIDERS = [
 export type AiProviderKey = (typeof AI_PROVIDERS)[number]["key"];
 export const aiProvider = (k: string) => AI_PROVIDERS.find((p) => p.key === k);
 export const isAiProvider = (k: string): k is AiProviderKey => AI_PROVIDERS.some((p) => p.key === k);
+/** A web search service: it returns pages, not answers, so it has no model and an AI reads what it finds. */
+export const isSearchService = (k: string) => k === "tavily";
 
 export const AI_USES = [
   { key: "research", label: "Research notes", hint: "Summarise a company's website and news" },
