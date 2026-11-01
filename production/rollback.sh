@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Put the previous app image back after a failed deploy:
-#   /srv/docker/zeronix/production/rollback.sh            -> zeronix-app:previous
-#   /srv/docker/zeronix/production/rollback.sh 51793c4    -> a specific earlier build (docker images zeronix-app)
+#   /srv/docker/zeronix-proc-os/production/rollback.sh            -> zeronix-app:previous
+#   /srv/docker/zeronix-proc-os/production/rollback.sh 51793c4    -> a specific earlier build (docker images zeronix-app)
 #
 # Only the app container changes. The database is NOT rolled back: if the failed deploy ran a migration the old code
 # cannot work with, restore the pre-deploy backup as described in production/README.md (Rollback).

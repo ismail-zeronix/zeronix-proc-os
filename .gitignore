@@ -49,3 +49,6 @@ next-env.d.ts
 
 # prospecting data export for production (production/prospects-export.sh)
 prospects-data.sql
+
+# original industry photos (the site uses the .webp copies in website/public/images)
+website/content/images/originals/

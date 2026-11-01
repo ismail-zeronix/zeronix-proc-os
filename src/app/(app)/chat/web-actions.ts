@@ -52,13 +52,15 @@ export async function saveWebLead(chatId: number): Promise<{ dealId: number; reu
   if (!c.leadAt) throw new Error("The visitor has not sent their details yet.");
   const lines = await messagesOf(c.id, true);
   const question = lines.find((m) => m.sender === "visitor")?.body ?? "";
+  // what they were looking at when a site's "Get B2B pricing" opened the chat
+  const asked = c.context ? Object.entries(c.context).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
   const { id: dealId, reusedCompany } = await createDeal({
     companyName: c.company || c.name,
     contactName: c.name,
     contactEmail: c.email,
     contactPhone: c.phone,
     source: "Website",
-    requirement: question,
+    requirement: [question, asked && `(Asked from ${c.site || "the website"}: ${asked})`].filter(Boolean).join("\n\n"),
   });
   const transcript = lines
     .filter((m) => m.sender !== "system")
@@ -67,7 +69,7 @@ export async function saveWebLead(chatId: number): Promise<{ dealId: number; reu
   const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
   await db.insert(schema.activities).values({
     type: "note",
-    body: `Website chat #${c.id}${c.pageUrl ? ` (from ${c.pageUrl})` : ""}\n\n${transcript}`.slice(0, 8000),
+    body: `Website chat #${c.id}${c.site ? ` on ${c.site}` : ""}${c.pageUrl ? ` (from ${c.pageUrl})` : ""}\n\n${transcript}`.slice(0, 8000),
     dealId,
     companyId: deal?.companyId,
     userId: user.id,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Load the file made by production/prospects-export.sh into the PRODUCTION database, once:
-#   /srv/docker/zeronix/production/prospects-import.sh prospects-data.sql you@zeronix.ae
+#   /srv/docker/zeronix-proc-os/production/prospects-import.sh prospects-data.sql you@zeronix.ae
 #
 # The email is the production user who will own the prospects (and be shown as the author of their history).
 # Safe by design: it stops if production already has prospects, takes a backup first, and loads everything in one

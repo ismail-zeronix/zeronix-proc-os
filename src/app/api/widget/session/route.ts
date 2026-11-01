@@ -1,6 +1,6 @@
 import { arrive, visitorState } from "@/lib/webchat/chats";
 import { cleanClient } from "@/lib/webchat/client-info";
-import { allow, cleanString, clientIp, originOf, preflight, readJson, reply } from "@/lib/webchat/public";
+import { allow, cleanString, clientIp, originOf, preflight, readJson, reply, siteOf } from "@/lib/webchat/public";
 
 /**
  * The widget loaded on a page of the website: picks up the visitor's chat (from the token their browser kept) or starts
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     ip,
     visitorKey: /^[A-Za-z0-9_-]{16,64}$/.test(cleanString(body.visitorKey, 64)) ? cleanString(body.visitorKey, 64) : "",
     client: cleanClient(body.client),
+    site: siteOf(origin),
   });
   return reply(origin, { token: chat.token, state: await visitorState(chat) });
 }

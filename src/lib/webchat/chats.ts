@@ -128,6 +128,8 @@ export async function visitorInfo(c: Chat): Promise<WebVisitorInfo> {
     feedbackTags: c.feedbackTags,
     feedback: c.feedback,
     dealId: c.dealId,
+    site: c.site,
+    context: c.context,
   };
 }
 
@@ -192,6 +194,8 @@ interface Arrival {
   /** The browser's own id for this visitor, and what it tells about itself. */
   visitorKey: string;
   client: WebClientInfo | null;
+  /** The website it came from, by the page's origin ("zeronixtech.com"); "" when unknown. */
+  site: string;
 }
 
 /**
@@ -237,6 +241,7 @@ export async function arrive(a: Arrival): Promise<Chat> {
       ip: a.ip,
       visitorKey: a.visitorKey || null,
       client: a.client,
+      site: a.site,
     })
     .returning();
   await notifyAgents(row.id);
@@ -451,6 +456,16 @@ export async function listChats(userId: number): Promise<WebChatSummary[]> {
       dealId: row.dealId,
       place: placeOf(row),
       visits: row.client?.visits ?? 1,
+      site: row.site,
     };
   });
+}
+
+/** "Get B2B pricing" on a site opened the chat: what the visitor was looking at (industry, product, page). */
+export async function saveContext(c: Chat, context: Record<string, string>): Promise<void> {
+  await db
+    .update(schema.webChats)
+    .set({ context: { ...c.context, ...context } })
+    .where(eq(schema.webChats.id, c.id));
+  await notifyAgents(c.id);
 }

@@ -38,4 +38,4 @@ SELECT (SELECT count(*) FROM px_export.prospect_companies) || ' prospects, ' ||
        (SELECT count(*) FROM px_export.prospect_activities) || ' activities exported';
 SQL
 echo "written $OUT ($(du -h "$OUT" | cut -f1)). Copy it to the server, for example:"
-echo "  scp $OUT <user>@57.131.160.147:/srv/docker/zeronix/"
+echo "  scp $OUT <user>@57.131.160.147:/srv/docker/zeronix-proc-os/"

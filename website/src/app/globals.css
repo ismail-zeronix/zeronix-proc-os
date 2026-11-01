@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
+
+/*
+ * Zeronix Tech brand tokens: BRAND.md is the rulebook, /brand shows them live. Change both together.
+ * One look (no dark mode): warm paper, forest-green bands, lime for action, mint for highlights on dark.
+ */
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+
+  --color-forest-950: #03201a;
+  --color-forest-900: #06352b;
+  --color-forest-800: #0b4a3b;
+  --color-forest-700: #12614c;
+  --color-lime-400: #b9f23f;
+  --color-lime-500: #a4dc27;
+  --color-mint-300: #4ff0b4;
+  --color-sage-100: #e6f1e0;
+  --color-sage-50: #f0f5ec;
+  --color-paper: #f6f6f1;
+  --color-ink: #0c1f1a;
+  --color-muted-ink: #5a6b65;
+  --color-line: #dce3db;
+
+  /* shadcn's names, pointed at the brand */
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: #ffffff;
+  --color-card-foreground: var(--color-ink);
+  --color-popover: #ffffff;
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-forest-900);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-sage-100);
+  --color-secondary-foreground: var(--color-forest-900);
+  --color-muted: var(--color-sage-50);
+  --color-muted-foreground: var(--color-muted-ink);
+  --color-accent: var(--color-sage-100);
+  --color-accent-foreground: var(--color-forest-900);
+  --color-destructive: #c2410c;
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-forest-700);
+
+  --radius: 1rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-inner: 1rem;
+  --radius-card: 1.5rem;
+  --radius-frame: 2rem;
+
+  --shadow-lift: 0 12px 32px -16px rgb(3 32 26 / 0.25);
+
+  --text-display: clamp(2.5rem, 1.6rem + 3.4vw, 4rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.035em;
+  --text-h2: clamp(2rem, 1.5rem + 1.6vw, 2.875rem);
+  --text-h2--line-height: 1.1;
+  --text-h2--letter-spacing: -0.025em;
+  --text-lead: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --text-lead--line-height: 1.6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading font-medium text-balance;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-forest-700;
+  }
+}
+
+@layer components {
+  /* a container that sits inside the screen with rounded corners (hero, dark bands): the Finovate frame */
+  .frame {
+    @apply mx-3 overflow-hidden rounded-frame sm:mx-4;
+  }
+  .container-site {
+    @apply mx-auto w-full max-w-[1240px] px-4 sm:px-6;
+  }
+}
+
+/* Scroll reveal (add class "reveal"): only where the browser supports scroll timelines and motion is welcome. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    translate: 0 1rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry calc(0% + var(--reveal-shift, 0%)) entry calc(55% + var(--reveal-shift, 0%));
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

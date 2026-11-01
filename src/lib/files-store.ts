@@ -9,24 +9,31 @@ export const FILES_DIR = path.resolve(process.env.FILES_DIR ?? path.join(process
 /** Stored names are random (uuid + allowed extension), never the name people gave the file. */
 const STORED = /^[0-9a-f-]{36}\.[a-z0-9]{1,8}$/;
 
-function fullPath(storedName: string): string {
-  if (!STORED.test(storedName)) throw new Error("Bad file name");
-  return path.join(FILES_DIR, storedName);
+/** Save, read and remove files in one folder. The Files app uses FILES_DIR; the website keeps its pictures apart. */
+export function fileStore(dir: string) {
+  const fullPath = (storedName: string) => {
+    if (!STORED.test(storedName)) throw new Error("Bad file name");
+    return path.join(dir, storedName);
+  };
+  return {
+    async save(data: Buffer, ext: string): Promise<string> {
+      await mkdir(dir, { recursive: true });
+      const storedName = `${randomUUID()}.${ext}`;
+      await writeFile(fullPath(storedName), data, { flag: "wx" });
+      return storedName;
+    },
+    read(storedName: string): Promise<Buffer> {
+      return readFile(fullPath(storedName));
+    },
+    async remove(storedName: string) {
+      await unlink(fullPath(storedName)).catch((e: NodeJS.ErrnoException) => {
+        if (e.code !== "ENOENT") throw e;
+      });
+    },
+  };
 }
 
-export async function saveFile(data: Buffer, ext: string): Promise<string> {
-  await mkdir(FILES_DIR, { recursive: true });
-  const storedName = `${randomUUID()}.${ext}`;
-  await writeFile(fullPath(storedName), data, { flag: "wx" });
-  return storedName;
-}
-
-export function readStoredFile(storedName: string): Promise<Buffer> {
-  return readFile(fullPath(storedName));
-}
-
-export async function removeStoredFile(storedName: string) {
-  await unlink(fullPath(storedName)).catch((e: NodeJS.ErrnoException) => {
-    if (e.code !== "ENOENT") throw e;
-  });
-}
+const files = fileStore(FILES_DIR);
+export const saveFile = files.save;
+export const readStoredFile = files.read;
+export const removeStoredFile = files.remove;

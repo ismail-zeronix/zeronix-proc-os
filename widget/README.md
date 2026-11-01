@@ -86,3 +86,19 @@ Requests are sent as `text/plain` JSON, so browsers send no CORS preflight. Limi
 3. Fill in the form, press **Accept** in the portal and reply.
 
 To test from the live website before launch, add the website's address to `WEBCHAT_ORIGINS` on the portal, then add the script tag to a hidden page.
+
+## Opening the chat from the page (zeronixtech.com)
+
+A site can open the chat from its own buttons, with the first message ready and what the visitor was looking at:
+
+```js
+window.ZeronixChat?.open({
+  message: "Hi, I'm looking for B2B pricing on the HP EliteBook 840 G11.",
+  context: { industry: "real-estate", product: "hp-elitebook-840-g11", page: location.pathname, cta: "Product page" },
+});
+window.ZeronixChat?.online(); // true while someone from sales is online
+```
+
+- **Context:** sent to `/api/widget/context` and shown under "Asked from" in the visitor panel. When the chat is saved to leads, it goes into the lead's requirement.
+- **Site:** every chat records the site it came from, by the page's allowed origin (`web_chats.site`). Chats from sites other than zeronix.ae get a badge in the list.
+- **Events:** the widget fires `zeronix-chat:open` and `zeronix-chat:lead` on `window`, for the site's analytics.

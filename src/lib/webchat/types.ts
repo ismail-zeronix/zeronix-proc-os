@@ -37,6 +37,8 @@ export interface WebChatSummary {
   dealId: number | null;
   /** "🇦🇪 Dubai" from their IP, when known. */
   place: string | null;
+  /** Which website the chat came from (zeronix.ae, zeronixtech.com). */
+  site: string;
   /** Visits from their browser so far (1 = first time on the site). */
   visits: number;
 }
@@ -120,6 +122,9 @@ export interface WebVisitorInfo {
   feedbackTags: string[];
   feedback: string;
   dealId: number | null;
+  site: string;
+  /** What they were looking at when they asked (industry, product, page) from a site's "Get B2B pricing". */
+  context: Record<string, string> | null;
 }
 
 /** What the visitor's widget knows about their chat. */

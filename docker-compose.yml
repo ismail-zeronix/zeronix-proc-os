@@ -22,16 +22,49 @@ services:
       timeout: 5s
       retries: 20
 
+  # The public website's own database (WEBSITE-PLAN.md section 2): site content, leads and analytics, apart from the
+  # ZeronixOS database above. Only the web service connects to it.
+  site-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=30"]
+    environment:
+      POSTGRES_USER: ${SITE_POSTGRES_USER:-zeronix_site}
+      POSTGRES_PASSWORD: ${SITE_POSTGRES_PASSWORD:-zeronix_site}
+      POSTGRES_DB: ${SITE_POSTGRES_DB:-zeronix_site}
+    ports:
+      - "127.0.0.1:${SITE_DB_PORT:-5434}:5432"
+    volumes:
+      - sitedb:/var/lib/postgresql/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   web:
     build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      # only for MIGRATE_ON_START; the portal itself runs without the website database
+      site-db:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-zeronix}:${POSTGRES_PASSWORD:-zeronix}@db:5432/${POSTGRES_DB:-procurement}
+      # the website's own database and picture folder (site-db above); the rest of the portal never touches them
+      SITE_DATABASE_URL: postgres://${SITE_POSTGRES_USER:-zeronix_site}:${SITE_POSTGRES_PASSWORD:-zeronix_site}@site-db:5432/${SITE_POSTGRES_DB:-zeronix_site}
+      SITE_FILES_DIR: /app/data/site-media
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
-      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae}
+      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,http://localhost:3300}
+      # public website (website/, the "site" profile below)
+      SITE_API_KEY: ${SITE_API_KEY:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      # fixed: .env's SITE_INTERNAL_URL is for `npm run dev` (localhost), the container reaches the site by its service name
+      SITE_INTERNAL_URL: http://site:3000
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-http://localhost:3300}
       # host.docker.internal = Ollama on the host machine; use http://ollama:11434 with the "ollama" profile
       OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen3.5:4b}
@@ -50,6 +83,7 @@ services:
       FILES_DIR: /app/data/files
     volumes:
       - files:/app/data/files
+      - sitemedia:/app/data/site-media
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -72,6 +106,22 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-zeronix}:${POSTGRES_PASSWORD:-zeronix}@db:5432/${POSTGRES_DB:-procurement}
     mem_limit: 512m
 
+  # Public website zeronixtech.com, built from ./website only (no database):  docker compose --profile site up -d --build
+  site:
+    build: ./website
+    profiles: ["site"]
+    restart: unless-stopped
+    environment:
+      PORTAL_INTERNAL_URL: http://web:3000
+      # where visitors' browsers load the chat widget from (the portal's public address)
+      PORTAL_PUBLIC_URL: ${PORTAL_PUBLIC_URL:-http://localhost:3200}
+      SITE_API_KEY: ${SITE_API_KEY:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      SITE_URL: ${SITE_URL:-http://localhost:3300}
+    mem_limit: 256m
+    ports:
+      - "${SITE_PORT:-3300}:3000"
+
   # Nightly database dump plus the uploaded files, kept BACKUP_KEEP_DAYS days in ./backups
   #   docker compose --profile backup up -d
   # Restore the database: gunzip -c backups/<file>.sql.gz | docker compose exec -T db psql -U zeronix procurement
@@ -88,9 +138,11 @@ services:
       PGUSER: ${POSTGRES_USER:-zeronix}
       PGDATABASE: ${POSTGRES_DB:-procurement}
       KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      SITE_DB_URL: postgres://${SITE_POSTGRES_USER:-zeronix_site}:${SITE_POSTGRES_PASSWORD:-zeronix_site}@site-db:5432/${SITE_POSTGRES_DB:-zeronix_site}
     volumes:
       - ./backups:/backups
       - files:/files:ro
+      - sitemedia:/site-media:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -99,8 +151,11 @@ services:
         f=/backups/procurement-$$(date +%Y%m%d-%H%M).sql.gz;
         pg_dump -h db | gzip > $$f.tmp && mv $$f.tmp $$f &&
         tar czf /backups/files-$$(date +%Y%m%d-%H%M).tar.gz -C /files . &&
+        pg_dump "$$SITE_DB_URL" | gzip > /backups/site-db-$$(date +%Y%m%d-%H%M).sql.gz &&
+        tar czf /backups/site-media-$$(date +%Y%m%d-%H%M).tar.gz -C /site-media . &&
         find /backups -name 'procurement-*.sql.gz' -mtime +$$KEEP_DAYS -delete &&
-        find /backups -name 'files-*.tar.gz' -mtime +$$KEEP_DAYS -delete;
+        find /backups -name 'files-*.tar.gz' -mtime +$$KEEP_DAYS -delete &&
+        find /backups -name 'site-*' -mtime +$$KEEP_DAYS -delete;
         sleep 86400; done
 
   ollama:
@@ -130,3 +185,5 @@ volumes:
   pgdata:
   ollama:
   files:
+  sitedb:
+  sitemedia:

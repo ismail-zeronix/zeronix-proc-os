@@ -1,4 +1,4 @@
-import { Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, Wallet, type LucideIcon } from "lucide-react";
+import { BadgeCheck, Boxes, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -44,6 +44,31 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/crm/companies", label: "Companies", icon: Building2 },
         { href: "/crm/contacts", label: "Contacts", icon: Users },
       ],
+    },
+  ],
+  website: [
+    {
+      label: "Website",
+      items: [
+        { href: "/website", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/website/content", label: "Content", icon: Newspaper },
+        { href: "/website/seo", label: "SEO plan", icon: SearchCheck },
+        { href: "/website/leads", label: "Leads", icon: Inbox, badge: "leads" },
+        { href: "/website/pages", label: "Pages", icon: FileText },
+      ],
+    },
+    {
+      label: "Catalog",
+      items: [
+        { href: "/website/products", label: "Products", icon: Boxes },
+        { href: "/website/industries", label: "Industries", icon: Factory },
+        { href: "/website/categories", label: "Categories", icon: Tags },
+        { href: "/website/brands", label: "Brands", icon: BadgeCheck },
+      ],
+    },
+    {
+      label: "Setup",
+      items: [{ href: "/website/settings", label: "Settings", icon: SlidersHorizontal }],
     },
   ],
   prospecting: [

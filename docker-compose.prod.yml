@@ -32,11 +32,21 @@ services:
       HOSTNAME: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@zeronix-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      # the public website's own database (zeronix-site-db below) and picture folder. Only the Website app uses them;
+      # the rest of the portal runs the same when they are missing. No SITE_POSTGRES_PASSWORD = no URL, and the Website app says "not set up".
+      SITE_DATABASE_URL: ${SITE_POSTGRES_PASSWORD:+postgres://${SITE_POSTGRES_USER:-zeronix_site}:${SITE_POSTGRES_PASSWORD}@zeronix-site-db:5432/${SITE_POSTGRES_DB:-zeronix_site}}
+      SITE_FILES_DIR: /app/data/site-media
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       # served over HTTPS by Caddy, so the session cookie is Secure
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       # websites allowed to use the website chat widget (widget/README.md)
-      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae}
+      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,https://zeronixtech.com,https://www.zeronixtech.com}
+      # public website zeronixtech.com (website/, WEBSITE-PLAN.md): the key the site reads /api/site/* with, the secret
+      # the portal sends when it asks the site to refresh after a publish, and the site's address on site-net
+      SITE_API_KEY: ${SITE_API_KEY:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      SITE_INTERNAL_URL: ${SITE_INTERNAL_URL:-http://zeronix-site:3000}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-https://zeronixtech.com}
       MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
       MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.hostinger.com}
@@ -50,11 +60,14 @@ services:
       FILES_DIR: /app/data/files
     volumes:
       - files:/app/data/files
+      - sitemedia:/app/data/site-media
     expose:
       - "3000"
     networks:
       - backend
       - proxy-net
+      - site-net
+      - site-db-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
       interval: 30s
@@ -79,6 +92,57 @@ services:
     networks:
       - backend
       - scraper-out
+    logging: *logging
+
+  # Public website zeronixtech.com (website/README.md). Built from ./website only: no database, no portal code, no
+  # portal secrets. Caddy routes the domain to zeronix-site:3000 over proxy-net; the site reads the portal over the
+  # internal site-net. Off until switched on: COMPOSE_PROFILES=site in .env (see production/README.md).
+  zeronix-site:
+    profiles: ["site"]
+    build: ./website
+    image: zeronix-site:${APP_IMAGE_TAG:-latest}
+    container_name: zeronix-site
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORTAL_INTERNAL_URL: http://zeronix-app:3000
+      # where visitors' browsers load the chat widget from (the portal's public address)
+      PORTAL_PUBLIC_URL: ${PORTAL_PUBLIC_URL:-https://zeronixos.online}
+      SITE_API_KEY: ${SITE_API_KEY:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      SITE_URL: ${SITE_URL:-https://zeronixtech.com}
+      SITE_INDEXING: ${SITE_INDEXING:-false}
+      COMMERCE_ENABLED: "false"
+    mem_limit: 256m
+    expose:
+      - "3000"
+    networks:
+      - proxy-net
+      - site-net
+    logging: *logging
+
+  # The public website's own database (WEBSITE-PLAN.md section 2): site content, leads and analytics, kept apart from
+  # ZeronixOS data. Only zeronix-app reaches it, over site-db-net; the public site container never does.
+  zeronix-site-db:
+    profiles: ["site"]
+    image: postgres:16-alpine
+    container_name: zeronix-site-db
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=30"]
+    environment:
+      POSTGRES_USER: ${SITE_POSTGRES_USER:-zeronix_site}
+      POSTGRES_PASSWORD: ${SITE_POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${SITE_POSTGRES_DB:-zeronix_site}
+    volumes:
+      - sitedb:/var/lib/postgresql/data
+    networks:
+      - site-db-net
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     logging: *logging
 
   zeronix-postgres:
@@ -109,7 +173,15 @@ networks:
     external: true
   # outbound internet for the scraper only
   scraper-out:
+  # the public site and the portal only: the site reaches /api/site/*, the portal reaches the site's /api/revalidate
+  site-net:
+    internal: true
+  # the portal and the website database only
+  site-db-net:
+    internal: true
 
 volumes:
   pgdata:
   files:
+  sitedb:
+  sitemedia:

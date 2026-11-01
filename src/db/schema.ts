@@ -1208,6 +1208,10 @@ export const webChats = pgTable(
     snapshot: jsonb("snapshot").$type<Record<string, unknown>>(),
     /** The CRM lead made from this chat ("Save to leads"). */
     dealId: integer("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    /** Which website the chat came from (zeronix.ae, zeronixtech.com), taken from the page's origin. */
+    site: text("site").notNull().default(""),
+    /** What the visitor was looking at when they pressed "Get B2B pricing" (industry, product, guide). */
+    context: jsonb("context").$type<Record<string, string>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId), index("web_chats_visitor_idx").on(t.visitorKey)],
@@ -1676,3 +1680,4 @@ export const outreachEnrollments = pgTable(
     uniqueIndex("outreach_enrollments_open_uq").on(t.companyId).where(sql`status in ('writing','draft','active','paused')`),
   ],
 );
+

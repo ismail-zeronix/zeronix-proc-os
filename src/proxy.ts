@@ -3,12 +3,14 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/token";
 
 /**
  * Public access is limited to health, login, one-time first-run setup, and the website chat widget (its script and the
- * /api/widget endpoints, which check the calling site and the visitor's own token themselves).
+ * /api/widget endpoints, which check the calling site and the visitor's own token themselves), and the public website's
+ * API (/api/site/*, which checks the site's key itself).
  */
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   if (pathname === "/api/health" || pathname === "/api/health/db") return NextResponse.next();
   if (pathname.startsWith("/api/widget/") || pathname.startsWith("/widget/")) return NextResponse.next();
+  if (pathname.startsWith("/api/site/")) return NextResponse.next();
 
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = pathname === "/login";

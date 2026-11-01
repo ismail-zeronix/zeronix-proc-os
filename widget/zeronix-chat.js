@@ -263,6 +263,7 @@
       .then(function (data) {
         token = data.token;
         set("localStorage", TOKEN_KEY, token);
+        sendContext();
         state = data.state;
         ratingDone = !!state.rated;
         render();
@@ -314,7 +315,7 @@
       if (evt.status === "closed") confirmEnd = false;
       // an agent picked up: open the chat so the visitor sees them
       if (wasWaiting && evt.status === "active" && !open) {
-        setOpen(true);
+        setOpen(true, undefined, true);
         ding();
       }
       render();
@@ -506,7 +507,9 @@
     return names.join(names.length === 2 ? " and " : ", ") + (names.length === 1 ? " is" : " are") + " online now";
   }
 
-  function setOpen(value, focus) {
+  // auto = the chat opened itself (the pop-up, or an agent picking up); only a visitor's own open counts for analytics
+  function setOpen(value, focus, auto) {
+    if (value && !open && !auto) emit("open");
     open = value;
     set("sessionStorage", OPEN_KEY, open ? "1" : null);
     if (open) {
@@ -533,7 +536,7 @@
     if (window.innerWidth <= 520) {
       set("sessionStorage", TEASER_KEY, "show");
       render();
-    } else setOpen(true, false);
+    } else setOpen(true, false, true);
   }
 
   function watchForPopup() {
@@ -609,6 +612,7 @@
         render();
         focusInput();
         askLocation();
+        emit("lead");
       })
       .catch(function (e) {
         sending = false;
@@ -1165,6 +1169,44 @@
     var all = root.querySelectorAll(".star");
     for (var i = 0; i < all.length; i++) all[i].className = "star" + (i < shown ? " on" : "");
   }
+
+  // ---------- for the website's own buttons ----------
+  // window.ZeronixChat.open({ message, context }) opens the chat from a "Get B2B pricing" button with the first message
+  // ready and tells the sales team what the visitor was looking at (context: industry, product, category, page, cta).
+  // The page hears "zeronix-chat:open" and "zeronix-chat:lead" on window (for its analytics).
+  var pendingContext = null;
+
+  function emit(name) {
+    try {
+      window.dispatchEvent(new CustomEvent("zeronix-chat:" + name));
+    } catch {
+      /* very old browsers: no events */
+    }
+  }
+
+  function sendContext() {
+    if (!pendingContext || !token) return;
+    var context = pendingContext;
+    pendingContext = null;
+    post("context", { token: token, context: context }).catch(function () {});
+  }
+
+  window.ZeronixChat = {
+    open: function (opts) {
+      opts = opts || {};
+      if (opts.context && typeof opts.context === "object") {
+        pendingContext = opts.context;
+        sendContext();
+      }
+      if (opts.message && !draft.trim()) draft = String(opts.message).slice(0, 500);
+      setOpen(true);
+      if (ui && ui.input && draft) ui.input.value = draft;
+    },
+    /** Someone from sales is online now. */
+    online: function () {
+      return online();
+    },
+  };
 
   // ---------- go ----------
   function boot() {

@@ -26,6 +26,15 @@ export function originOf(req: Request): string | null {
   return null;
 }
 
+/** The site a request came from, by its allowed origin: "https://www.zeronixtech.com" → "zeronixtech.com". */
+export function siteOf(origin: string): string {
+  try {
+    return origin ? new URL(origin).host.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+}
+
 export function corsHeaders(origin: string): Record<string, string> {
   if (!origin) return {};
   return {

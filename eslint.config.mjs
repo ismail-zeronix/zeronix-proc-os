@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "src/components/ui/**",
     "src/hooks/**",
     "src/db/migrations/**",
+    // the public website is its own app with its own config (website/)
+    "website/**",
   ]),
 ]);
 

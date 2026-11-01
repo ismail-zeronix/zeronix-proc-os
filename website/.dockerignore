@@ -1,0 +1,10 @@
+node_modules
+.next
+.env
+.env.*
+*.log
+*.tsbuildinfo
+README.md
+BRAND.md
+templates
+content

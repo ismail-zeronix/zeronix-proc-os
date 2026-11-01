@@ -82,10 +82,11 @@ describe.skipIf(!live)("go-live safety (needs the dev database)", () => {
 
   it("changes your own password only with the current one", async () => {
     await signIn();
-    await expect(ACC.changeMyPassword({ current: "wrong", next: "second-password" })).rejects.toThrow(/current password/i);
-    await expect(ACC.changeMyPassword({ current: "first-password", next: "short" })).rejects.toThrow(/8 characters/);
-    await expect(ACC.changeMyPassword({ current: "first-password", next: "first-password" })).rejects.toThrow(/different/);
-    await ACC.changeMyPassword({ current: "first-password", next: "second-password" });
+    // returns { error } instead of throwing, so production shows the message (React #441)
+    expect(await ACC.changeMyPassword({ current: "wrong", next: "second-password" })).toEqual({ error: expect.stringMatching(/current password/i) });
+    expect(await ACC.changeMyPassword({ current: "first-password", next: "short" })).toEqual({ error: expect.stringMatching(/8 characters/) });
+    expect(await ACC.changeMyPassword({ current: "first-password", next: "first-password" })).toEqual({ error: expect.stringMatching(/different/) });
+    expect(await ACC.changeMyPassword({ current: "first-password", next: "second-password" })).not.toHaveProperty("error");
     const [row] = await db.select({ hash: schema.users.passwordHash }).from(schema.users).where(eq(schema.users.id, userId));
     expect(await bcrypt.compare("second-password", row.hash)).toBe(true);
   });

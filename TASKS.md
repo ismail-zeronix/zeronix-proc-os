@@ -224,6 +224,34 @@ Owner decisions (2026-10-30): fully independent app; separate cold-email domain;
 - [ ] P.8 Overview and reports
 - [ ] P.9 Owner: buy sending domain, SPF/DKIM/DMARC, 2-3 mailboxes, warm-up, footer address
 
+## Phase 17: Public website (plan: WEBSITE-PLAN.md, branch `website`)
+Owner decisions (2026-11-01):
+- **Site:** zeronixtech.com ("Zeronix Tech — Business IT, matched to your industry."), beside zeronix.ae. It runs in its own Docker image built only from `website/`, with no DB and no portal files.
+- **Content:** business laptops, desktops, workstations and servers for UAE corporates, organised **by industry**: a mega menu, industry hubs, buying guides, comparisons, UAE models with brand specs, and FAQs.
+- **Leads:** a "Get B2B pricing" call to action opens the chat (with context) or a quote form filled in from the link.
+- **Publishing:** claude-seo content is uploaded as .md in the portal and lands as a Draft, then is published; the byline is the uploader.
+- **Analytics:** our own tracker plus Search Console.
+- **Design:** premium, using Tailwind v4, shadcn/ui and Motion.
+- **Later:** a B2B + B2C shop (WEBSITE-PLAN.md section 11), so the site is built as a catalog now.
+
+- [x] W.1 Foundation [2026-11-01]: `website/` scaffold (Next 16, Tailwind v4, shadcn, Dockerfile), site_* tables and migration, Website app tile, site API key, /api/site/* skeleton and shared contract, compose services (zeronix-site, site-net)
+- [x] W.2 [2026-11-01] Brand system (website/BRAND.md, /brand style guide) and home page: layout, mega menu built from data, home sections, site_settings and the Pages editor; home page preview for the owner to approve
+- [x] W.3 [2026-11-01] Catalog: industries, categories (spec templates), brands and products in the portal, with product .md upload and links to procurement products; industry hubs, category lists with filters, product pages, brand pages, comparison pages
+- [x] W.4 [2026-11-01] Content pipeline: .md/.zip upload of guides and articles, checklist, preview, editor, revisions, publish/schedule and revalidate, guide pages with picks and comparison table, blog, author pages, sitemap, RSS, JSON-LD
+- [x] W.5 [2026-11-01] B2B call to action and leads: CtaBar/CtaChooser, widget open() with context and web_chats.site/context, /quote form filled in from the link, quote list, CRM lead and deal (source "Website · zeronixtech.com"), Website › Leads
+Owner decisions (2026-11-02):
+- **Own database:** the site data moves out of the main DB into its own Postgres container (`zeronix-site-db`). The portal is its only client; the public site still has no DB.
+- **SEO first:** keyword research from the web now, real numbers from Search Console once live. The first 6 posts are written from day one to bring leads.
+- **Overview:** every analytic as KPIs and charts. **Proper site:** company pages and technical SEO polish.
+
+- [x] W.6 [2026-11-02] Site database: `zeronix-site-db` container (own volume, network, backups), `src/db/site-schema.ts` and `src/db/site-migrations/`, `siteDb` used only by the Website app, `site_authors` and `site_media` (own volume), local data move, main migrations 0046–0048 replaced by one web_chats migration
+- [x] W.7 [2026-11-02] Tracker and analytics: cookie-less tracker, /api/t to /api/site/events, first-touch lead attribution, rollups, Overview dashboard (KPIs, trends, funnel, sources, top pages), Analytics page with filters and JSON/CSV export, per-post stats
+- [x] W.8 [2026-11-02] SEO workspace and first content (website/content: seo-research.md, keywords.csv, 9 products, 6 posts as upload/*.zip with covers): Website › SEO (keywords, clusters, calendar, CSV import), SEO research, 6 posts with real UAE models, "Quote all picks" call to action
+- [x] W.9 [2026-11-02] Search Console (code done; connecting a real account is W.11): encrypted service account, daily import, queries on the Overview, the SEO page and each post
+- [ ] W.10 Proper site and go-live (done 2026-11-02: company page type and /[page] route, /contact, 404, OG image, icon, sitemap; left: Lighthouse run and an SEO audit on the live domain): About, Contact, Privacy, Terms, Delivery & warranty; OG images, schema and breadcrumbs, internal links, 404, Lighthouse; production/README steps (site DB, DNS, Caddy route to zeronix-site:3000, env)
+- [ ] W.11 Owner: point zeronixtech.com, add the Caddy route, create the Search Console service account, set the site DB and site env values, upload and publish the first posts; optional $5+ OpenRouter credit for `scripts/site-images.ts`
+- [ ] E.1–E.6 (later) Shop: prices, B2B/B2C accounts, cart and checkout, web orders into Sales orders, fulfilment, growth (WEBSITE-PLAN.md section 11)
+
 ## Later
 - [ ] L.2 / L.3 moved to Phase 16 (Prospecting)
 - [ ] L.4 Link emails to contacts/deals automatically and log them as activities; create a task from an email

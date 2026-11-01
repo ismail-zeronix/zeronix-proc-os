@@ -31,6 +31,7 @@ COPY --from=build /app/public ./public
 # the website chat widget (served at /widget/zeronix-chat.js)
 COPY --from=build /app/widget ./widget
 COPY --from=build /app/src/db/migrations ./src/db/migrations
+COPY --from=build /app/src/db/site-migrations ./src/db/site-migrations
 COPY --from=build /app/dist-scripts ./scripts
 COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN sed -i 's/\r$//' docker-entrypoint.sh \

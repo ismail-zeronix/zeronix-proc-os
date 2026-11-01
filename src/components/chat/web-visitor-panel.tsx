@@ -165,6 +165,23 @@ export function WebVisitorPanel({ id }: { id: number }) {
           {chat.lead && <SaveLeadButton chat={chat} />}
         </div>
 
+        {(info?.site || info?.context) && (
+          <Section title="Asked from">
+            <Facts
+              rows={[
+                ["Website", info.site],
+                ["Industry", info.context?.industry],
+                ["Product", info.context?.product],
+                ["Category", info.context?.category],
+                ["Button", info.context?.cta],
+                ["Page", info.context?.page],
+                ["First visit", info.context?.landing],
+                ["Came from", info.context?.referrer],
+              ]}
+            />
+          </Section>
+        )}
+
         <Section title="Contact">
           <Facts
             rows={[

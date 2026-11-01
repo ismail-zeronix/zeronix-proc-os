@@ -141,6 +141,7 @@ export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me
                           <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{c.unread}</span>
                         )}
                         {c.status === "waiting" && c.online && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Waiting</span>}
+                        {c.site && c.site !== "zeronix.ae" && <span className="rounded-full bg-lime-500/15 px-1.5 text-[10px] font-semibold text-lime-800 dark:text-lime-300">{c.site}</span>}
                         {c.dealId && <Handshake className="size-3.5 shrink-0 text-muted-foreground" aria-label="Saved to leads" />}
                         {c.rating != null && <Stars value={c.rating} small />}
                       </div>

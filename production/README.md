@@ -68,7 +68,7 @@ Build only: `docker compose -f docker-compose.prod.yml build`
 
 ## 4. Environment variables
 
-All configuration comes from `/srv/docker/zeronix/.env` (never committed). Start from `.env.example`. These must be
+All configuration comes from `/srv/docker/zeronix-proc-os/.env` (never committed). Start from `.env.example`. These must be
 set on the server, and compose refuses to start without the ones marked required:
 
 | Variable | Required | Notes |
@@ -122,9 +122,9 @@ service here.
 First time on the server (when approved):
 
 ```bash
-sudo mkdir -p /srv/docker/zeronix /srv/backups/zeronix
-git clone -b main <repo-url> /srv/docker/zeronix
-cd /srv/docker/zeronix
+sudo mkdir -p /srv/docker/zeronix-proc-os /srv/backups/zeronix
+git clone -b main <repo-url> /srv/docker/zeronix-proc-os
+cd /srv/docker/zeronix-proc-os
 cp .env.example .env && nano .env      # fill in the [prod] values, uncomment COMPOSE_FILE
 chmod 600 .env
 bash production/deploy.sh
@@ -133,7 +133,7 @@ bash production/deploy.sh
 Every later deploy:
 
 ```bash
-bash /srv/docker/zeronix/production/deploy.sh
+bash /srv/docker/zeronix-proc-os/production/deploy.sh
 ```
 
 `deploy.sh` runs these steps in order:
@@ -152,7 +152,7 @@ now and then, keeping at least `latest` and `previous`.
 ## 9. Backups
 
 ```bash
-bash /srv/docker/zeronix/production/backup-postgres.sh
+bash /srv/docker/zeronix-proc-os/production/backup-postgres.sh
 ```
 
 Each run writes `zeronix-db-YYYYMMDD-HHMMSS.dump` (pg_dump custom format, compressed) and `zeronix-files-….tar.gz`
@@ -163,14 +163,14 @@ run. A lock prevents two runs at once.
 
 Recommended (set up by hand, not automatic):
 
-- Nightly cron, e.g. `crontab -e` → `30 2 * * * bash /srv/docker/zeronix/production/backup-postgres.sh >> /srv/backups/zeronix/backup.log 2>&1`
+- Nightly cron, e.g. `crontab -e` → `30 2 * * * bash /srv/docker/zeronix-proc-os/production/backup-postgres.sh >> /srv/backups/zeronix/backup.log 2>&1`
 - Copy `BACKUP_DIR` off the server daily (OVH Object Storage, rclone to Google Drive, or another machine).
 - Test a restore into a throwaway database once a month.
 
 Restore (stop the app first so nothing writes during the restore):
 
 ```bash
-cd /srv/docker/zeronix
+cd /srv/docker/zeronix-proc-os
 docker compose stop zeronix-app
 docker compose exec -T zeronix-postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner' < /srv/backups/zeronix/zeronix-db-YYYYMMDD-HHMMSS.dump
 docker compose run --rm --no-deps --entrypoint sh zeronix-app -c 'tar xzf - -C /app/data/files' < /srv/backups/zeronix/zeronix-files-YYYYMMDD-HHMMSS.tar.gz
@@ -183,8 +183,8 @@ Each deploy keeps the image that was running as `zeronix-app:previous`, and ever
 `zeronix-app:<commit>`. Nothing deletes them automatically.
 
 ```bash
-bash /srv/docker/zeronix/production/rollback.sh            # back to zeronix-app:previous
-bash /srv/docker/zeronix/production/rollback.sh 51793c4    # or a specific build (docker images zeronix-app)
+bash /srv/docker/zeronix-proc-os/production/rollback.sh            # back to zeronix-app:previous
+bash /srv/docker/zeronix-proc-os/production/rollback.sh 51793c4    # or a specific build (docker images zeronix-app)
 ```
 
 This switches only the app container. If the failed deploy applied a migration the old code cannot handle, restore
@@ -212,6 +212,41 @@ PostgreSQL has its own `pg_isready` healthcheck, and the app waits for it before
 
 - The current zeronixos.online runs on Frappe. Before switching, list its containers, volumes and directory on the
   server (`docker ps -a`, `docker volume ls`), and confirm nothing already uses the names `zeronix-app`,
-  `zeronix-postgres`, the project name `zeronixos` or the directory `/srv/docker/zeronix`.
+  `zeronix-postgres`, the project name `zeronixos` or the directory `/srv/docker/zeronix-proc-os`.
 - Decide whether any data moves over from Frappe/ERPNext (customers, items, invoices). If so, it needs a one-off import.
 - Point Caddy at `zeronix-app:3000` only after the app reports healthy on `proxy-net`.
+
+## 14. Public website zeronixtech.com (WEBSITE-PLAN.md, website/README.md)
+
+The site is its own container, `zeronix-site`. It is built from `./website` only, so it has no database, no portal code and no portal secrets.
+
+The website's data (content, leads, analytics) lives in **its own database container, `zeronix-site-db`**, apart from the ZeronixOS database. Only `zeronix-app` reaches it, over the internal `site-db-net` network. If it is down, only the Website app shows an error; every other app carries on. Its pictures live in the `sitemedia` volume.
+
+Both stay off until you switch them on:
+
+1. Add these to `/srv/docker/zeronix-proc-os/.env`:
+   ```
+   COMPOSE_PROFILES=site
+   SITE_POSTGRES_PASSWORD=<openssl rand -hex 24>   # the website database; compose builds SITE_DATABASE_URL from it
+   SITE_API_KEY=<openssl rand -hex 24>
+   REVALIDATE_SECRET=<openssl rand -hex 24>
+   SITE_INDEXING=false        # true at go-live
+   PORTAL_PUBLIC_URL=https://zeronixos.online   # where the site loads the chat widget from (default)
+   ```
+   `WEBCHAT_ORIGINS` already includes zeronixtech.com by default. If the `.env` sets it, add `https://zeronixtech.com,https://www.zeronixtech.com`.
+2. Run `production/deploy.sh`. It builds the app, the scraper and the site, starts `zeronix-site-db`, migrates both databases, then starts the new app, the scraper and the site (the site only while `COMPOSE_PROFILES=site`). The portal joins the internal `site-net` and `site-db-net` networks next to `proxy-net`.
+3. Point DNS for `zeronixtech.com` and `www` at the server, then add a Caddy site block:
+   ```
+   zeronixtech.com, www.zeronixtech.com {
+       reverse_proxy zeronix-site:3000
+   }
+   ```
+4. In the portal, check that **Website › Overview** shows every setup check green.
+
+Leave `SITE_INDEXING=false` until the content is ready; until then `robots.txt` blocks search engines.
+
+**Backups.** `production/backup-postgres.sh` also writes `zeronix-site-db-*.dump` and `zeronix-site-media-*.tar.gz` when the website database and app are running. To restore only the website database:
+```
+docker compose --profile site exec -T zeronix-site-db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < zeronix-site-db-<stamp>.dump
+```
+This never touches the ZeronixOS database.

@@ -2,6 +2,7 @@ import {
   BookOpen,
   FolderKanban,
   FolderOpen,
+  Globe,
   Handshake,
   ListChecks,
   Mail,
@@ -148,6 +149,17 @@ export const APPS = [
     defaultFor: ["admin"],
     status: "live",
     color: "var(--series-5)",
+  },
+  {
+    // control panel of the public site zeronixtech.com (WEBSITE-PLAN.md): content, catalog, leads, analytics
+    key: "website",
+    label: "Website",
+    href: "/website",
+    icon: Globe,
+    blurb: "zeronixtech.com content and analytics",
+    defaultFor: ["admin"],
+    status: "live",
+    color: "var(--series-3)",
   },
   {
     key: "admin",
