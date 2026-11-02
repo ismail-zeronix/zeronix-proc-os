@@ -115,6 +115,24 @@ export async function productCards(by: { ids?: number[]; refs?: string[] }): Pro
   return rows.map((r) => ({ ...toSummary(r as SummaryRow), id: r.id as number, mpn: r.mpn }));
 }
 
+/** Words to match: each must appear in the product's name, part number, brand or category ("thinkpad i7 16gb"). */
+export const searchWords = (q: string) =>
+  q
+    .toLowerCase()
+    .replace(/[%_\\]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .slice(0, 6);
+
+/** Published products matching every word of the query, by name, part number, brand, category or series. */
+export async function searchProducts(q: string, limit = 30): Promise<SiteProductSummary[]> {
+  const words = searchWords(q);
+  if (!words.length) return [];
+  const hay = sql`lower(concat_ws(' ', ${P.name}, ${P.mpn}, ${P.series}, ${B.name}, ${C.name}))`;
+  const rows = await products(and(...words.map((w) => sql`${hay} like ${"%" + w + "%"}`)), limit);
+  return rows.map(toSummary);
+}
+
 /** Product cards for a shelf (home page): newest first, optionally one category. */
 export async function publicProducts(q: { category?: string; limit?: number }): Promise<SiteProductsResponse> {
   const limit = Math.min(Math.max(q.limit ?? 12, 1), 48);

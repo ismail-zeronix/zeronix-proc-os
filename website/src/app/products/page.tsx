@@ -19,7 +19,7 @@ export default async function ProductsPage() {
   return (
     <>
       <PageHero crumbs={[{ href: "/products", label: "Products" }]} tag="Products" title="Business-grade hardware, in stock in the UAE" lead="Business series from the major brands, with Middle East part numbers, local warranty and corporate pricing." />
-      <section className="container-site py-20">
+      <section className="container-site py-8 sm:py-10">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {categories.map((c) => (
             <Link key={c.slug} href={`/products/${c.slug}`} className="group reveal flex h-full flex-col rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift">

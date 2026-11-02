@@ -1,6 +1,6 @@
 import { Hero } from "@/components/home/hero";
 import type { Shelf } from "@/components/home/featured";
-import { Brands, BundlesBand, CategoryTiles, CtaBand, Featured, Industries, Promos, Services, WhyUs } from "@/components/home/sections";
+import { Brands, BundlesBand, CategoryTiles, CtaBand, Featured, Industries, Services, WhyUs } from "@/components/home/sections";
 import { getIndustries, getNav, getProducts, getSettings } from "@/lib/api";
 
 // rebuilt at most every 10 minutes, or at once when the portal publishes a change
@@ -21,14 +21,12 @@ export default async function HomePage() {
   return (
     <>
       <Hero brand={brand} home={home} />
-      <Industries industries={industries} />
-      <Promos business={home.business} office={home.office} />
       <CategoryTiles categories={nav.categories} />
-      <BundlesBand bundles={home.bundles} />
       <Featured featured={home.featured} shelves={shelves} />
+      <Industries industries={industries} />
+      <BundlesBand bundles={home.bundles} />
       <Services services={home.services} />
       <WhyUs brand={brand} home={home} />
-      <div className="h-24" />
       <Brands brands={nav.brands} />
       <CtaBand cta={home.ctaBand} brand={brand} />
     </>

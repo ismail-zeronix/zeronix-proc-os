@@ -25,7 +25,7 @@ export default async function CompanyPage({ params }: PageProps<"/[page]">) {
   if (p.type !== "page") permanentRedirect(p.path);
   return (
     <>
-      <article className="container-site grid gap-6 py-10 lg:py-14">
+      <article className="container-site grid gap-6 py-6 lg:py-8">
         <Breadcrumbs items={[{ href: p.path, label: p.title }]} />
         <h1 className="max-w-3xl text-h2">{p.title}</h1>
         {p.excerpt && <p className="max-w-3xl text-lead text-muted-ink">{p.excerpt}</p>}

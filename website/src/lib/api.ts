@@ -14,6 +14,7 @@ import {
   type SitePostsResponse,
   type SiteProductPage,
   type SiteProductsResponse,
+  type SiteSearchResponse,
   type SiteSettingsResponse,
   type SiteSitemapResponse,
 } from "./contract";
@@ -83,6 +84,7 @@ export const getProducts = (q: { category?: string; limit?: number } = {}) => {
   if (q.limit) p.set("limit", String(q.limit));
   return get<SiteProductsResponse>(`/products?${p}`, ["catalog"], { contract: CONTRACT_VERSION, products: [] });
 };
+export const getSearch = (q: string) => get<SiteSearchResponse>(`/search?q=${enc(q)}`, ["catalog", "posts"], { contract: CONTRACT_VERSION, q, products: [], posts: [] });
 export const getCategories = () => get<SiteCategoriesResponse>("/categories", ["catalog"], { contract: CONTRACT_VERSION, categories: [] });
 export const getIndustry = (slug: string) => getOne<SiteIndustryPage>(`/industries/${enc(slug)}`, ["catalog"]);
 export const getCategory = (slug: string) => getOne<SiteCategoryPage>(`/categories/${enc(slug)}`, ["catalog"]);

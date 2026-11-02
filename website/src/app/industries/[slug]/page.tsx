@@ -55,7 +55,7 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
       />
 
       {(x.introHtml || x.painPoints.length > 0) && (
-        <section className="container-site grid gap-12 py-20 lg:grid-cols-[1.2fr_1fr]">
+        <section className="container-site grid gap-6 py-8 sm:py-10 lg:grid-cols-[1.2fr_1fr]">
           {x.introHtml && <div className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-a:text-forest-700" dangerouslySetInnerHTML={{ __html: x.introHtml }} />}
           {x.painPoints.length > 0 && (
             <div className="reveal rounded-card bg-white p-6">
@@ -74,10 +74,10 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
       )}
 
       {x.roles.length > 0 && (
-        <section className="frame bg-forest-900 py-20">
+        <section className="frame bg-forest-900 py-8 sm:py-10">
           <div className="container-site">
             <SectionHeading onDark rule tag="Setups by role" title={`What each role in ${x.name.toLowerCase()} needs`} />
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {x.roles.map((r) => (
                 <div key={r.role} className="reveal">
                   <DarkCard icon={x.icon || "briefcase"} title={r.role} text={r.needs} />
@@ -98,9 +98,9 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
       )}
 
       {x.products.length > 0 && (
-        <section id="models" className="container-site scroll-mt-24 py-20">
+        <section id="models" className="container-site scroll-mt-24 py-8 sm:py-10">
           <SectionHeading tag="Recommended models" title={`Our picks for ${x.name.toLowerCase()}`} lead="UAE part numbers with local warranty. Prices on request for your quantity." />
-          <div className="mt-12">
+          <div className="mt-5">
             <ProductGrid products={x.products} labels={labels} />
           </div>
         </section>

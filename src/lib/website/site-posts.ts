@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { siteDb, siteSchema } from "@/db/site";
 import {
   CONTRACT_VERSION,
@@ -59,6 +59,13 @@ function toSummary(r: Row): SitePostSummary {
     publishedAt: (r.publishedAt ?? new Date()).toISOString(),
     readingMinutes: readingMinutes(r.body ?? ""),
   };
+}
+
+/** Published posts whose title or summary holds every word (company pages excluded). */
+export async function searchPosts(words: string[], limit = 8): Promise<SitePostSummary[]> {
+  if (!words.length) return [];
+  const hay = sql`lower(concat_ws(' ', ${S.title}, ${S.excerpt}, ${S.metaDescription}))`;
+  return (await rows(and(ne(S.type, "page"), ...words.map((w) => sql`${hay} like ${"%" + w + "%"}`)), limit)).map(toSummary);
 }
 
 async function rows(where: SQL | undefined, limit = 24, offset = 0): Promise<Row[]> {

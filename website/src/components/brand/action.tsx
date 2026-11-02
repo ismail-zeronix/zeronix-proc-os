@@ -46,15 +46,15 @@ export function Action({
       data-track={track}
       className={cn(
         "group/action inline-flex items-center gap-3 rounded-full font-semibold whitespace-nowrap transition-colors duration-200",
-        size === "lg" ? "h-13 pr-1.5 pl-6 text-base" : "h-11 pr-1.5 pl-5 text-sm",
-        !arrow && (size === "lg" ? "pr-6" : "pr-5"),
+        size === "lg" ? "h-12 pr-1.5 pl-5 text-[0.9375rem]" : "h-10 pr-1 pl-4 text-sm",
+        !arrow && (size === "lg" ? "pr-5" : "pr-4"),
         PILL[variant],
         className,
       )}
     >
       {children}
       {arrow && (
-        <span className={cn("grid place-items-center rounded-full transition-transform duration-200 group-hover/action:translate-x-0.5", size === "lg" ? "size-10" : "size-8", DOT[variant])}>
+        <span className={cn("grid place-items-center rounded-full transition-transform duration-200 group-hover/action:translate-x-0.5", size === "lg" ? "size-9" : "size-8", DOT[variant])}>
           <ArrowRight className="size-4" />
         </span>
       )}
@@ -114,11 +114,11 @@ export function SectionHeading({
   return (
     <div className={cn("reveal max-w-2xl", center && "mx-auto text-center", className)}>
       {tag && <Tag onDark={onDark}>{tag}</Tag>}
-      <h2 className={cn("mt-5 text-h2", onDark ? "text-white" : "text-ink")}>
+      <h2 className={cn(tag ? "mt-2" : "", "text-h2", onDark ? "text-white" : "text-ink")}>
         {title}
         {rule && <span aria-hidden className={cn("ml-4 inline-block h-px w-16 align-middle", onDark ? "bg-white/25" : "bg-line")} />}
       </h2>
-      {lead && <p className={cn("mt-5 text-lead", onDark ? "text-white/70" : "text-muted-ink")}>{lead}</p>}
+      {lead && <p className={cn("mt-2 text-lead", onDark ? "text-white/70" : "text-muted-ink")}>{lead}</p>}
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default async function BrandPage({ params }: PageProps<"/brands/[slug]">)
           </Action>
         }
       />
-      <section className="container-site py-16">
+      <section className="container-site py-6 sm:py-8">
         {b.products.length ? <ProductGrid products={b.products} /> : <p className="text-muted-ink">{b.name} models are being added. Ask us for any model in the {b.name} business range.</p>}
       </section>
       <CtaStrip title={`Buying ${b.name} for your team?`} text="Any model from the business range, with B2B pricing and UAE warranty." quoteHref={quoteLink({})} label={brand.ctaLabel} />

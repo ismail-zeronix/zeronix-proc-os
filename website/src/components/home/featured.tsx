@@ -22,9 +22,9 @@ export function FeaturedShelf({ shelves }: { shelves: Shelf[] }) {
 
   const scroll = (dir: 1 | -1) => row.current?.scrollBy({ left: dir * row.current.clientWidth * 0.8, behavior: "smooth" });
 
-  const arrow = "grid size-10 place-items-center rounded-full border border-line bg-white text-forest-900 transition-colors hover:border-forest-900";
+  const arrow = "grid size-8 place-items-center rounded-full border border-line bg-white text-forest-900 transition-colors hover:border-forest-900";
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex items-center justify-between gap-4">
         <div role="tablist" aria-label="Product groups" className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1">
           {shelves.length > 1 &&
@@ -39,7 +39,7 @@ export function FeaturedShelf({ shelves }: { shelves: Shelf[] }) {
                   row.current?.scrollTo({ left: 0 });
                 }}
                 className={cn(
-                  "h-9 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors",
+                  "h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold transition-colors sm:text-sm",
                   s.key === shelf.key ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white text-ink hover:border-forest-900",
                 )}
               >
@@ -47,7 +47,7 @@ export function FeaturedShelf({ shelves }: { shelves: Shelf[] }) {
               </button>
             ))}
         </div>
-        {shelf.products.length > 4 && (
+        {shelf.products.length > 5 && (
           <div className="hidden shrink-0 gap-2 lg:flex">
             <button type="button" aria-label="Previous products" onClick={() => scroll(-1)} className={arrow}>
               <ChevronLeft className="size-5" />
@@ -58,7 +58,7 @@ export function FeaturedShelf({ shelves }: { shelves: Shelf[] }) {
           </div>
         )}
       </div>
-      <ul ref={row} className="-mx-1 grid snap-x snap-mandatory auto-cols-[78%] grid-flow-col gap-4 overflow-x-auto px-1 pb-2 sm:auto-cols-[45%] lg:auto-cols-[calc((100%-3rem)/4)]">
+      <ul ref={row} className="-mx-1 grid snap-x snap-mandatory auto-cols-[46%] grid-flow-col gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] sm:auto-cols-[31%] sm:gap-3 lg:auto-cols-[calc((100%-3.75rem)/5)] xl:auto-cols-[calc((100%-4.5rem)/6)] [&::-webkit-scrollbar]:hidden">
         {shelf.products.map((p) => (
           <li key={p.slug} className="snap-start">
             <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} />

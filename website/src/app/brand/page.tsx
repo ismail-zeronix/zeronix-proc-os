@@ -24,10 +24,10 @@ const COLOURS = [
 
 function Block({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="container-site border-t border-line py-16">
+    <section className="container-site border-t border-line py-6 sm:py-8">
       <p className="text-sm font-semibold text-forest-700">{n}</p>
       <h2 className="mt-1 text-3xl">{title}</h2>
-      <div className="mt-10">{children}</div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
@@ -61,7 +61,7 @@ export default function BrandPage() {
         </div>
       </section>
 
-      <div className="container-site py-16">
+      <div className="container-site py-6 sm:py-8">
         <Tag>Brand system</Tag>
         <h1 className="mt-5 max-w-3xl text-h2">The rules every page of zeronixtech.com follows.</h1>
         <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. Warm paper, forest-green bands, lime for action, mint for highlights on dark. Medium-weight headings, pill controls, rounded frames, real photography.</p>
@@ -171,10 +171,10 @@ export default function BrandPage() {
         </div>
       </Block>
 
-      <section className="frame bg-forest-900 py-20">
+      <section className="frame bg-forest-900 py-8 sm:py-10">
         <div className="container-site">
           <SectionHeading onDark rule tag="Dark band" title="Strategic setups that fit how your teams work" />
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <DarkCard icon="badge-check" title="Business-grade only" text="Business series from the major brands, never consumer models." />
             <DarkCard icon="shield-check" title="UAE warranty" text="Middle East part numbers, Arabic/English keyboards, local service." />
             <DarkCard icon="receipt" title="Corporate pricing" text="Volume pricing, VAT invoices and credit terms." />

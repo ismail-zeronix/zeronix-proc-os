@@ -17,7 +17,7 @@ export default async function IndustriesPage() {
   return (
     <>
       <PageHero crumbs={[{ href: "/industries", label: "Industries" }]} tag="Solutions by industry" title="IT matched to the way your industry works" lead="Every team uses its machines differently. Pick your industry to see the setups, the UAE models and the specs that fit." />
-      <section className="container-site py-20">
+      <section className="container-site py-8 sm:py-10">
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           {industries.map((x) => (
             <PhotoCard key={x.slug} href={`/industries/${x.slug}`} title={x.name} icon={x.icon} ratio="4:3" photo={x.image?.src ?? imageFor(`industry-${x.slug}`)} subject={`${x.name}: ${x.summary}`} className="reveal" />

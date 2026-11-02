@@ -50,20 +50,20 @@
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
-  --radius-inner: 1rem;
-  --radius-card: 1.5rem;
-  --radius-frame: 2rem;
+  --radius-inner: 0.75rem;
+  --radius-card: 1rem;
+  --radius-frame: 1.25rem;
 
   --shadow-lift: 0 12px 32px -16px rgb(3 32 26 / 0.25);
 
-  --text-display: clamp(2.5rem, 1.6rem + 3.4vw, 4rem);
-  --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.035em;
-  --text-h2: clamp(2rem, 1.5rem + 1.6vw, 2.875rem);
-  --text-h2--line-height: 1.1;
-  --text-h2--letter-spacing: -0.025em;
-  --text-lead: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
-  --text-lead--line-height: 1.6;
+  --text-display: clamp(1.75rem, 1.35rem + 1.8vw, 2.75rem);
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+  --text-h2: clamp(1.25rem, 1.1rem + 0.7vw, 1.75rem);
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.02em;
+  --text-lead: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
+  --text-lead--line-height: 1.55;
 }
 
 @layer base {
@@ -75,8 +75,8 @@
   }
   body {
     @apply bg-paper font-sans text-ink antialiased;
-    font-size: 1rem;
-    line-height: 1.65;
+    font-size: 0.9375rem;
+    line-height: 1.55;
   }
   h1,
   h2,
@@ -90,12 +90,19 @@
 }
 
 @layer components {
-  /* a container that sits inside the screen with rounded corners (hero, dark bands): the Finovate frame */
+  /* a band with rounded corners inside the page width (dark bands, the footer): lines up with .container-site */
   .frame {
-    @apply mx-3 overflow-hidden rounded-frame sm:mx-4;
+    @apply mx-3 overflow-hidden rounded-frame sm:mx-5 xl:mx-auto xl:max-w-[calc(1320px-2.5rem)];
   }
   .container-site {
-    @apply mx-auto w-full max-w-[1240px] px-4 sm:px-6;
+    @apply mx-auto w-full max-w-[1320px] px-3 sm:px-5;
+  }
+  /* sideways-scrolling row on phones (chips, cards); a plain grid from `sm` or `lg` up is set where it is used */
+  .scroll-row {
+    @apply -mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-px-3 px-3 pb-1 [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 [&::-webkit-scrollbar]:hidden;
+  }
+  .scroll-row > * {
+    @apply shrink-0 snap-start;
   }
 }
 

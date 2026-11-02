@@ -124,6 +124,14 @@ export interface SiteProductsResponse {
   products: SiteProductSummary[];
 }
 
+/** Site search (header box, /search): products first, then guides, services and posts. */
+export interface SiteSearchResponse {
+  contract: number;
+  q: string;
+  products: SiteProductSummary[];
+  posts: SitePostSummary[];
+}
+
 /** Everything the mega menu needs, in display order. Only published records. */
 export interface SiteNavResponse {
   contract: number;

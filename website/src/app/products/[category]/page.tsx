@@ -21,9 +21,9 @@ function Chips({ name, items, active, base, other }: { name: string; items: { sl
     const q = new URLSearchParams(Object.entries({ ...other, [name]: v }).filter((e): e is [string, string] => Boolean(e[1])));
     return q.size ? `${base}?${q}` : base;
   };
-  const chip = "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm transition-colors";
+  const chip = "inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors";
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="scroll-row items-center sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
       <Link href={href()} className={cn(chip, !active ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white hover:border-forest-700/40")}>
         All
       </Link>
@@ -64,7 +64,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           </Action>
         }
       />
-      <section className="container-site grid gap-8 py-16">
+      <section className="container-site grid gap-4 py-5 sm:py-6">
         <div className="grid gap-3">
           <Chips name="brand" items={c.brands} active={brandFilter} base={base} other={{ industry: industryFilter }} />
           <Chips name="industry" items={c.industries} active={industryFilter} base={base} other={{ brand: brandFilter }} />

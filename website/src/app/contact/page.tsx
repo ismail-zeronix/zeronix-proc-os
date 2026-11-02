@@ -26,7 +26,7 @@ export default async function ContactPage() {
   ].filter(Boolean) as { icon: typeof Phone; label: string; value: string; href: string }[];
 
   return (
-    <section className="container-site grid gap-10 py-10 lg:grid-cols-[1fr_22rem] lg:py-14">
+    <section className="container-site grid gap-6 py-10 lg:grid-cols-[1fr_22rem] lg:py-8">
       <div className="grid content-start gap-6">
         <Breadcrumbs items={[{ href: "/contact", label: "Contact" }]} />
         <Tag>Contact</Tag>

@@ -76,7 +76,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
   return (
     <>
       <section className="frame mt-2 bg-sage-100">
-        <div className="container-site grid gap-6 py-12 sm:py-16">
+        <div className="container-site grid gap-6 py-6 sm:py-8">
           <Breadcrumbs items={crumbs} />
           <div className="flex flex-wrap gap-2">
             <Tag>{TYPE_LABEL[post.type]}</Tag>
@@ -86,7 +86,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
               </Link>
             )}
           </div>
-          <h1 className="max-w-4xl text-display text-ink">{post.title}</h1>
+          <h1 className="max-w-4xl text-2xl leading-tight font-medium tracking-tight text-ink sm:text-[2rem]">{post.title}</h1>
           {post.excerpt && <p className="max-w-3xl text-lead text-muted-ink">{post.excerpt}</p>}
           <Byline author={post.author} date={post.publishedAt} minutes={post.readingMinutes} />
         </div>
@@ -98,7 +98,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
         </div>
       )}
 
-      <div className="container-site grid grid-cols-[minmax(0,1fr)] gap-12 py-16 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="container-site grid grid-cols-[minmax(0,1fr)] gap-6 py-6 sm:py-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
         {toc.length > 2 ? (
           <aside className="hidden lg:block">
             <nav aria-label="On this page" className="sticky top-28 grid gap-1 border-l border-line pl-4 text-sm">
@@ -114,7 +114,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
           <div className="hidden lg:block" />
         )}
 
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-12">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
           <div className={PROSE}>
             {post.blocks.map((b, i) =>
               b.kind === "html" ? (
@@ -166,7 +166,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
       {post.related.length > 0 && (
         <section className="container-site pb-20">
           <SectionHeading tag="Keep reading" title="Related" />
-          <div className="mt-10">
+          <div className="mt-5">
             <PostGrid posts={post.related} />
           </div>
         </section>

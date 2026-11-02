@@ -117,8 +117,8 @@ export function Stat({ value, label, onDark = false }: { value: string; label: s
 }
 
 /**
- * 6. Product card: image well, brand tag, name, three spec chips, the price (when it is public, VAT included) or the
- * B2B price pill, and add to quote list. Ready for the shop.
+ * 6. Product card, compact like a store shelf: square photo, brand, two-line name, key specs on one line, then the
+ * price (VAT included) or "price on request", and the add-to-quote button. Two across on phones, five or six on desktop.
  */
 export function ProductCard({
   href,
@@ -134,44 +134,35 @@ export function ProductCard({
   name: string;
   specs: string[];
   photo?: string;
-  /** Formatted public price ("AED 4,399"); null shows the B2B price pill only. */
+  /** Formatted public price ("AED 4,399"); null shows "price on request". */
   price?: string | null;
   className?: string;
 }) {
+  const slug = href.split("/").pop() ?? "";
   return (
-    <div className={cn("group relative flex h-full flex-col rounded-card bg-white p-2", lift, className)}>
-      <Photo src={photo} subject={`${name}, product shot on sage`} ratio="4:3" />
-      <div className="flex flex-1 flex-col gap-3 px-3 pt-4 pb-3">
-        <Tag className="w-fit">{brand}</Tag>
-        <h3 className="text-lg leading-snug font-semibold">
+    <div className={cn("group relative flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-shadow duration-200 hover:shadow-lift", className)}>
+      <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
+      <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
+        <span className="text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">{brand}</span>
+        <h3 className="line-clamp-2 min-h-[2.6em] text-sm leading-snug font-semibold text-ink">
           <Link href={href} className="after:absolute after:inset-0">
             {name}
           </Link>
         </h3>
-        <ul className="flex flex-wrap gap-1.5">
-          {specs.slice(0, 3).map((s) => (
-            <li key={s} className="rounded-full bg-sage-50 px-2.5 py-1 text-xs text-forest-900">
-              {s}
-            </li>
-          ))}
-        </ul>
-        {price && (
-          <p className="mt-auto pt-1">
-            <span className="font-heading text-xl font-semibold tracking-tight text-ink tabular-nums">{price}</span>
-            <span className="ml-1.5 text-xs text-muted-ink">incl. VAT</span>
-          </p>
-        )}
-        <div className={cn("relative z-10 flex items-center gap-2", price ? "pt-0" : "mt-auto pt-2")}>
-          <Link
-            href={`/quote?product=${encodeURIComponent(href.split("/").pop() ?? "")}`}
-            className={cn(
-              "inline-flex h-10 flex-1 items-center justify-center rounded-full text-sm font-semibold transition-colors",
-              price ? "border border-line bg-white text-forest-900 hover:border-forest-900" : "bg-forest-900 text-white hover:bg-forest-800",
-            )}
-          >
-            {price ? "Bulk pricing" : "Get B2B price"}
-          </Link>
-          <AddToQuote slug={href.split("/").pop() ?? ""} name={name} />
+        {specs.length > 0 && <p className="line-clamp-1 text-xs text-muted-ink">{specs.slice(0, 3).join(" · ")}</p>}
+        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+          {price ? (
+            <p className="leading-tight">
+              <span className="block text-base font-bold text-ink tabular-nums sm:text-[1.0625rem]">{price}</span>
+              <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>
+            </p>
+          ) : (
+            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-forest-800 hover:text-forest-950">
+              Price on request
+              <span className="block font-normal text-muted-ink">Get B2B quote</span>
+            </Link>
+          )}
+          <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
         </div>
       </div>
     </div>

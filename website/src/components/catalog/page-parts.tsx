@@ -75,15 +75,19 @@ export function PageHero({
   const withPhoto = Boolean(photo || photoSubject);
   return (
     <section className="frame mt-2 bg-sage-100">
-      <div className={cn("container-site grid gap-10 py-12 sm:py-16", withPhoto && "items-center lg:grid-cols-[1.1fr_1fr]")}>
-        <div className="grid content-start gap-6">
+      <div className={cn("container-site grid gap-6 py-6 sm:py-8", withPhoto && "items-center lg:grid-cols-[1.4fr_1fr]")}>
+        <div className="grid content-start gap-3 sm:gap-4">
           <Breadcrumbs items={crumbs} />
           {tag && <Tag>{tag}</Tag>}
-          <h1 className="text-display text-ink">{title}</h1>
+          <h1 className="text-2xl leading-tight font-medium tracking-tight text-ink sm:text-3xl">{title}</h1>
           {lead && <p className="max-w-xl text-lead text-muted-ink">{lead}</p>}
           {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
         </div>
-        {withPhoto && <Photo src={photo} subject={photoSubject ?? title} ratio="4:3" priority sizes="(min-width: 1024px) 45vw, 100vw" className="rounded-card" />}
+        {withPhoto && (
+          <div className="hidden lg:block">
+            <Photo src={photo} subject={photoSubject ?? title} ratio="21:9" priority sizes="40vw" className="rounded-card" />
+          </div>
+        )}
       </div>
     </section>
   );
@@ -92,7 +96,7 @@ export function PageHero({
 export function ProductTile({ p, label }: { p: SiteProductSummary; label?: string }) {
   return (
     <div className="relative h-full">
-      {label && <span className="absolute top-4 left-4 z-10 rounded-full bg-lime-400 px-2.5 py-1 text-xs font-semibold text-forest-950">{label}</span>}
+      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-lime-400 px-2 py-0.5 text-[0.6875rem] font-semibold text-forest-950">{label}</span>}
       <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} />
     </div>
   );
@@ -100,7 +104,7 @@ export function ProductTile({ p, label }: { p: SiteProductSummary; label?: strin
 
 export function ProductGrid({ products, labels }: { products: SiteProductSummary[]; labels?: Record<string, string> }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
       {products.map((p) => (
         <ProductTile key={p.slug} p={p} label={labels?.[p.slug]} />
       ))}
@@ -112,16 +116,13 @@ export function ProductGrid({ products, labels }: { products: SiteProductSummary
 export function Faq({ items, title = "Questions we get asked" }: { items: SiteFaqItem[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <section className="container-site grid gap-10 py-20 lg:grid-cols-[1fr_1.6fr]">
-      <div className="reveal">
-        <Tag>FAQ</Tag>
-        <h2 className="mt-5 text-h2">{title}</h2>
-      </div>
-      <Accordion className="rounded-card bg-white px-6">
+    <section className="container-site grid gap-4 py-8 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
+      <h2 className="text-h2">{title}</h2>
+      <Accordion className="rounded-card border border-line/70 bg-white px-4 sm:px-5">
         {items.map((f, i) => (
           <AccordionItem key={f.q} value={`q${i}`}>
-            <AccordionTrigger className="py-5 text-base font-semibold">{f.q}</AccordionTrigger>
-            <AccordionContent className="pb-5 text-muted-ink">{f.a}</AccordionContent>
+            <AccordionTrigger className="py-3.5 text-sm font-semibold sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
+            <AccordionContent className="pb-4 text-muted-ink">{f.a}</AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>
@@ -140,11 +141,10 @@ export function Faq({ items, title = "Questions we get asked" }: { items: SiteFa
 export function CtaStrip({ title, text, quoteHref, label }: { title: string; text: string; quoteHref: string; label: string }) {
   return (
     <section className="frame mb-4 bg-forest-900 text-white">
-      <div className="container-site flex flex-col gap-8 py-14 lg:flex-row lg:items-center lg:justify-between">
+      <div className="container-site flex flex-col gap-5 py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
-          <Tag onDark>B2B pricing</Tag>
-          <h2 className="mt-5 text-h2 text-white">{title}</h2>
-          <p className="mt-4 text-lead text-white/70">{text}</p>
+          <h2 className="text-h2 text-white">{title}</h2>
+          <p className="mt-2 text-white/70">{text}</p>
         </div>
         <Action href={quoteHref} size="lg" track="cta-strip">
           {label}

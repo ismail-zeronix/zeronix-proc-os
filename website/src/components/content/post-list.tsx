@@ -32,11 +32,11 @@ export function PostList({
   return (
     <>
       <PageHero crumbs={crumbs} tag={tag} title={title} lead={lead} />
-      <section className="container-site grid gap-8 py-16">
+      <section className="container-site grid gap-5 py-5 sm:py-6">
         {chips && chips.length > 1 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="scroll-row sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {chips.map((c) => (
-              <Link key={c.href} href={c.href} className={cn("inline-flex h-9 items-center rounded-full border px-4 text-sm transition-colors", c.active ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white hover:border-forest-700/40")}>
+              <Link key={c.href} href={c.href} className={cn("inline-flex h-8 items-center rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors", c.active ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white hover:border-forest-700/40")}>
                 {c.label}
               </Link>
             ))}

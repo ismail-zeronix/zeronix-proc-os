@@ -29,13 +29,16 @@ export function AddToQuote({ slug, name, className, label = false }: { slug: str
 }
 
 /** Header link to /quote with the number of products on the list (hidden while it is empty). */
-export function QuoteListLink() {
+/** The quote list in the header, always there like a cart; the count shows once something is on it. */
+export function QuoteListLink({ withLabel = false }: { withLabel?: boolean }) {
   const n = useQuoteList().reduce((s, i) => s + i.qty, 0);
-  if (!n) return null;
   return (
-    <Link href="/quote" aria-label={`Quote list, ${n} item${n === 1 ? "" : "s"}`} className="relative grid size-10 place-items-center rounded-full border border-line bg-white text-forest-900 hover:border-forest-900">
-      <ClipboardList className="size-4" />
-      <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-lime-400 px-1 text-[11px] font-bold text-forest-950">{n}</span>
+    <Link href="/quote" aria-label={n ? `Quote list, ${n} item${n === 1 ? "" : "s"}` : "Quote list"} className="relative inline-flex h-10 items-center gap-2 rounded-full px-2.5 text-forest-900 transition-colors hover:bg-sage-100">
+      <span className="relative">
+        <ClipboardList className="size-5" />
+        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-lime-400 px-1 text-[10px] leading-[1.125rem] font-bold text-forest-950">{n}</span>}
+      </span>
+      {withLabel && <span className="hidden text-sm font-semibold xl:inline">Quote list</span>}
     </Link>
   );
 }

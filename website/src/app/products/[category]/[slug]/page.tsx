@@ -49,7 +49,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             { href: `/products/${p.categorySlug}/${p.slug}`, label: p.name },
           ]}
         />
-        <div className="mt-8 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_1fr] lg:gap-8">
           <div className="grid content-start gap-3">
             <div className="rounded-frame bg-white p-3">
               <Photo src={p.images[0]?.src} subject={`${p.name}: product shot on sage, three-quarter view`} ratio="4:3" priority sizes="(min-width: 1024px) 50vw, 100vw" className="rounded-card" />
@@ -140,8 +140,8 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       )}
 
       {(p.summaryHtml || p.pros.length > 0 || p.cons.length > 0) && (
-        <section className="bg-sage-50 py-20">
-          <div className="container-site grid gap-10 lg:grid-cols-[1.4fr_1fr]">
+        <section className="bg-sage-50 py-8 sm:py-10">
+          <div className="container-site grid gap-6 lg:grid-cols-[1.4fr_1fr]">
             {p.summaryHtml ? <div className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-a:text-forest-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
             <div className="grid content-start gap-4">
               {p.pros.length > 0 && (
@@ -173,9 +173,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
         </section>
       )}
 
-      <section id="specs" className="container-site py-20">
+      <section id="specs" className="container-site py-8 sm:py-10">
         <SectionHeading tag="Specifications" title="Full specifications" />
-        <div className="mt-10">
+        <div className="mt-5">
           <SpecTable groups={p.specGroups} />
         </div>
         {p.sourceUrl && (
@@ -194,7 +194,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       {p.related.length > 0 && (
         <section className="container-site pb-20">
           <SectionHeading tag="Related" title={`More ${p.category.toLowerCase()}`} />
-          <div className="mt-10">
+          <div className="mt-5">
             <ProductGrid products={p.related} />
           </div>
           <div className="mt-8 flex flex-wrap gap-2">

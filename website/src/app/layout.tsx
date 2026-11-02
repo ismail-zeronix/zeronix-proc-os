@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <main id="main" className="flex-1">
           {children}
         </main>
-        <Footer brand={brand} nav={nav} />
+        <Footer brand={brand} nav={nav} services={home.services} />
         <Tracker />
         {/* the portal's chat widget (the portal's widget/README.md), in the brand colours; chats are tagged with this site */}
         {process.env.PORTAL_PUBLIC_URL && (

@@ -59,7 +59,7 @@ const RESOURCES = [
 
 export function MegaMenu({ nav, services, ctaLabel }: { nav: SiteNavResponse; services: SiteIconLink[]; ctaLabel: string }) {
   return (
-    <NavigationMenu className="hidden lg:flex" align="center">
+    <NavigationMenu className="-ml-3 hidden lg:flex" align="start">
       <NavigationMenuList>
         {nav.industries.length > 0 && (
           <NavigationMenuItem>
