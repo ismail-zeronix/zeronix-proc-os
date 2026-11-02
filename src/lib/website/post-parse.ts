@@ -6,7 +6,7 @@ import type { SiteCheck, SiteFaq, SiteImage, SitePostProduct } from "./types";
  * checklist, and the shortcodes. No database here, so all of it is unit-tested (tests/website.test.ts).
  */
 
-export const POST_TYPES = ["guide", "comparison", "article", "industry_page", "page"] as const;
+export const POST_TYPES = ["guide", "comparison", "article", "industry_page", "page", "service"] as const;
 export type PostType = (typeof POST_TYPES)[number];
 
 export interface PostInput {
@@ -40,7 +40,7 @@ export interface PostLookup {
 
 /** Where a post lives on the site: guides and comparisons under /guides, articles under /blog. */
 /** Company pages (about, contact, privacy...) sit at the root; articles under /blog; everything else under /guides. */
-export const postPath = (type: string, slug: string) => (type === "page" ? `/${slug}` : type === "article" ? `/blog/${slug}` : `/guides/${slug}`);
+export const postPath = (type: string, slug: string) => (type === "page" ? `/${slug}` : type === "article" ? `/blog/${slug}` : type === "service" ? `/services/${slug}` : `/guides/${slug}`);
 
 /**
  * Reads a post .md. `cover` and image paths inside the body are left as written (e.g. images/cover.webp); the upload
@@ -169,8 +169,8 @@ export function seoChecks(p: PostInput, ctx: { known: Set<string>; slugTaken: bo
   const h1 = (html.match(/<h1[\s>]/g) ?? []).length;
   add("h1", "Headings", h1 === 0 && h2s.length >= 2 ? "ok" : h1 > 0 ? "fail" : "warn", h1 > 0 ? "Remove the H1 from the body: the title is the page's H1" : `${h2s.length} H2 sections`);
 
-  const minWords = p.type === "page" ? 150 : p.type === "article" ? 600 : 1000;
-  add("length", "Length", words >= minWords ? "ok" : words >= minWords / 2 ? "warn" : "fail", `${words} words (${minWords}+ for a ${p.type === "page" ? "page" : p.type === "article" ? "post" : "guide"})`);
+  const minWords = p.type === "page" ? 150 : p.type === "service" ? 400 : p.type === "article" ? 600 : 1000;
+  add("length", "Length", words >= minWords ? "ok" : words >= minWords / 2 ? "warn" : "fail", `${words} words (${minWords}+ for a ${p.type === "page" ? "page" : p.type === "service" ? "service page" : p.type === "article" ? "post" : "guide"})`);
 
   const images = [...p.body.matchAll(/!\[([^\]]*)\]\(([^)\s]+)/g)];
   const noAlt = images.filter((m) => !m[1].trim()).length;
@@ -185,7 +185,7 @@ export function seoChecks(p: PostInput, ctx: { known: Set<string>; slugTaken: bo
   const insecure = links.filter((u) => u.startsWith("http:"));
   if (insecure.length) add("http", "Insecure links", "warn", `${insecure.length} link(s) use http://`);
 
-  if (p.type !== "article" && p.type !== "page") {
+  if (p.type !== "article" && p.type !== "page" && p.type !== "service") {
     add("faq", "FAQ", p.faq.length >= 3 ? "ok" : "warn", `${p.faq.length} questions (3+ helps search and AI answers)`);
     if (p.type === "guide" || p.type === "comparison") add("picks", "Products", p.products.length ? "ok" : "warn", p.products.length ? `${p.products.length} models linked` : "No models linked from the catalog");
   }

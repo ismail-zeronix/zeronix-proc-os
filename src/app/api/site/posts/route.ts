@@ -1,7 +1,7 @@
 import { publicPosts } from "@/lib/website/site-posts";
 import { guardSite, siteJson } from "@/lib/website/site-key";
 
-/** Published posts: ?kind=guides|articles&industry=&category=&author=&page= */
+/** Published posts: ?kind=guides|articles|services&industry=&category=&author=&page= */
 export async function GET(req: Request) {
   const denied = guardSite(req);
   if (denied) return denied;

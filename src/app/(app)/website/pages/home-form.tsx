@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { SITE_ICONS, type SiteHome } from "@/lib/website/contract";
+import { SITE_ICONS, type SiteHome, type SiteIcon, type SitePromo } from "@/lib/website/contract";
 import { updateHome } from "../actions";
 
 /** Pads a list to `n` rows so empty rows can be filled in; empty rows are dropped on save. */
-const pad = <T,>(rows: T[], n: number, blank: T): T[] => [...rows, ...Array.from({ length: Math.max(0, n - rows.length) }, () => ({ ...blank }))];
+const pad = <T,>(rows: T[], n: number, blank: T): T[] => [...rows, ...Array.from({ length: Math.max(0, n - rows.length) }, () => (typeof blank === "object" ? { ...blank } : blank))];
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -35,19 +35,60 @@ function Field({ id, label, children }: { id: string; label: string; children: R
   );
 }
 
+function IconSelect({ value, label, onChange }: { value: SiteIcon | ""; label: string; onChange: (v: SiteIcon | "") => void }) {
+  return (
+    <NativeSelect aria-label={label} value={value} onChange={(e) => onChange(e.target.value as SiteIcon | "")}>
+      <NativeSelectOption value="">No icon</NativeSelectOption>
+      {SITE_ICONS.map((ic) => (
+        <NativeSelectOption key={ic} value={ic}>
+          {ic}
+        </NativeSelectOption>
+      ))}
+    </NativeSelect>
+  );
+}
+
+/** Title, text, button label and link of a panel or band. */
+function PromoFields({ id, value, onChange }: { id: string; value: SitePromo; onChange: (v: SitePromo) => void }) {
+  const set = (k: keyof SitePromo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...value, [k]: e.target.value });
+  return (
+    <>
+      <Field id={`${id}-title`} label="Title">
+        <Input id={`${id}-title`} value={value.title} onChange={set("title")} />
+      </Field>
+      <Field id={`${id}-text`} label="Text">
+        <Textarea id={`${id}-text`} rows={2} value={value.text} onChange={set("text")} />
+      </Field>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input aria-label="Button label" placeholder="Button label" value={value.cta} onChange={set("cta")} />
+        <Input aria-label="Button link" placeholder="/quote" value={value.href} onChange={set("href")} />
+      </div>
+    </>
+  );
+}
+
 export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; tagline: string; siteUrl: string; canEdit: boolean }) {
+  const link = { label: "", href: "" };
+  const iconLink = { icon: "" as const, label: "", href: "" };
   const [f, setF] = useState<SiteHome>({
     ...home,
-    features: pad(home.features, 3, { tag: "", title: "", text: "", href: "", image: "" }),
+    topLinks: pad(home.topLinks, 4, link),
+    hero: { ...home.hero, checks: pad(home.hero.checks, 3, "") },
+    intents: pad(home.intents, 4, iconLink),
+    benefits: pad(home.benefits, 4, { icon: "", title: "", text: "" }),
+    office: { ...home.office, items: pad(home.office.items, 5, link) },
+    services: pad(home.services, 8, iconLink),
     stats: pad(home.stats, 4, { value: "", label: "" }),
-    steps: pad(home.steps, 3, { title: "", text: "" }),
     reasons: pad(home.reasons, 4, { icon: "", title: "", text: "" }),
   });
   const [pending, start] = useTransition();
 
-  const hero = (k: keyof SiteHome["hero"]) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, hero: { ...f.hero, [k]: e.target.value } });
-  const row = <K extends "features" | "stats" | "steps" | "reasons">(list: K, i: number, k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setF({ ...f, [list]: f[list].map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) });
+  const hero = (k: "eyebrow" | "title" | "subtitle" | "shopLabel") => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, hero: { ...f.hero, [k]: e.target.value } });
+  type Lists = "topLinks" | "intents" | "benefits" | "services" | "stats" | "reasons";
+  const setRow = <K extends Lists>(list: K, i: number, k: string, v: string) => setF({ ...f, [list]: f[list].map((r, j) => (j === i ? { ...r, [k]: v } : r)) });
+  const row = (list: Lists, i: number, k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setRow(list, i, k, e.target.value);
+  const officeItem = (i: number, k: "label" | "href") => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setF({ ...f, office: { ...f.office, items: f.office.items.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) } });
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,30 +102,101 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
   return (
     <form onSubmit={save} className="grid gap-3">
       <fieldset disabled={!canEdit} className="grid gap-3">
-        <Section title="Hero" hint="The first screen. Industries, categories and brands come from the catalog.">
+        <Section title="Top bar" hint="Short links above the header; location, phone and WhatsApp come from Settings">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {f.topLinks.map((l, i) => (
+              <div key={i} className="grid grid-cols-2 gap-2">
+                <Input aria-label={`Top link ${i + 1}`} placeholder="Label" value={l.label} onChange={row("topLinks", i, "label")} />
+                <Input aria-label={`Top link ${i + 1} address`} placeholder="/products" value={l.href} onChange={row("topLinks", i, "href")} />
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Hero" hint="The first screen. The second button is the call to action from Settings (to /quote).">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="h-eyebrow" label="Small line above the title">
               <Input id="h-eyebrow" value={f.hero.eyebrow} onChange={hero("eyebrow")} />
             </Field>
-            <Field id="h-title" label="Title (empty = the tagline)">
+            <Field id="h-title" label="Title (empty = the tagline; the last line is highlighted)">
               <Input id="h-title" value={f.hero.title} placeholder={tagline} onChange={hero("title")} />
             </Field>
           </div>
           <Field id="h-sub" label="Text under the title">
             <Textarea id="h-sub" rows={2} value={f.hero.subtitle} onChange={hero("subtitle")} />
           </Field>
-          <Field id="h-cta2" label="Second button (goes to the industries)">
-            <Input id="h-cta2" className="sm:max-w-xs" value={f.hero.secondaryCta} onChange={hero("secondaryCta")} />
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-[14rem_1fr]">
+            <Field id="h-shop" label="First button (to the products)">
+              <Input id="h-shop" value={f.hero.shopLabel} onChange={hero("shopLabel")} />
+            </Field>
+            <div className="grid gap-1.5">
+              <Label>Ticks under the buttons</Label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {f.hero.checks.map((c, i) => (
+                  <Input key={i} aria-label={`Tick ${i + 1}`} value={c} onChange={(e) => setF({ ...f, hero: { ...f.hero, checks: f.hero.checks.map((x, j) => (j === i ? e.target.value : x)) } })} />
+                ))}
+              </div>
+            </div>
+          </div>
         </Section>
 
-        <Section title="Feature cards" hint="Three cards under the hero; the middle one is the lime highlight">
-          {f.features.map((x, i) => (
-            <div key={i} className="grid gap-2 sm:grid-cols-[8rem_1fr_12rem_10rem]">
-              <Input aria-label={`Card ${i + 1} tag`} placeholder="Tag" value={x.tag} onChange={row("features", i, "tag")} />
-              <Input aria-label={`Card ${i + 1} title`} placeholder="Title" value={x.title} onChange={row("features", i, "title")} />
-              <Input aria-label={`Card ${i + 1} link`} placeholder="/industries/real-estate" value={x.href} onChange={row("features", i, "href")} />
-              <Input aria-label={`Card ${i + 1} image`} placeholder="Image name" value={x.image} onChange={row("features", i, "image")} />
+        <Section title="Hero card" hint="The white card on the hero photo: what visitors came to do">
+          {f.intents.map((x, i) => (
+            <div key={i} className="grid gap-2 sm:grid-cols-[10rem_1fr_16rem]">
+              <IconSelect label={`Card row ${i + 1} icon`} value={x.icon} onChange={(v) => setRow("intents", i, "icon", v)} />
+              <Input aria-label={`Card row ${i + 1}`} placeholder="Equip teams" value={x.label} onChange={row("intents", i, "label")} />
+              <Input aria-label={`Card row ${i + 1} link`} placeholder="/industries" value={x.href} onChange={row("intents", i, "href")} />
+            </div>
+          ))}
+        </Section>
+
+        <Section title="Benefit strip" hint="Four short promises across the bottom of the hero">
+          {f.benefits.map((b, i) => (
+            <div key={i} className="grid gap-2 sm:grid-cols-[10rem_14rem_1fr]">
+              <IconSelect label={`Benefit ${i + 1} icon`} value={b.icon} onChange={(v) => setRow("benefits", i, "icon", v)} />
+              <Input aria-label={`Benefit ${i + 1} title`} placeholder="UAE-wide delivery" value={b.title} onChange={row("benefits", i, "title")} />
+              <Input aria-label={`Benefit ${i + 1} text`} placeholder="Fast, tracked and insured" value={b.text} onChange={row("benefits", i, "text")} />
+            </div>
+          ))}
+        </Section>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Section title="Business panel" hint="Dark panel after the industries">
+            <PromoFields id="biz" value={f.business} onChange={(business) => setF({ ...f, business })} />
+          </Section>
+          <Section title="New office panel" hint="Light panel with a checklist of links">
+            <Field id="office-title" label="Title">
+              <Input id="office-title" value={f.office.title} onChange={(e) => setF({ ...f, office: { ...f.office, title: e.target.value } })} />
+            </Field>
+            {f.office.items.map((l, i) => (
+              <div key={i} className="grid grid-cols-[1fr_12rem] gap-2">
+                <Input aria-label={`Checklist ${i + 1}`} placeholder="IT infrastructure and networking" value={l.label} onChange={officeItem(i, "label")} />
+                <Input aria-label={`Checklist ${i + 1} link`} placeholder="/services/networking-wifi" value={l.href} onChange={officeItem(i, "href")} />
+              </div>
+            ))}
+          </Section>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Section title="Bundles band" hint="Forest band before the featured products">
+            <PromoFields id="bundles" value={f.bundles} onChange={(bundles) => setF({ ...f, bundles })} />
+          </Section>
+          <Section title="Featured products" hint="Heading of the product shelf (products come from the catalog)">
+            <Field id="feat-title" label="Title">
+              <Input id="feat-title" value={f.featured.title} onChange={(e) => setF({ ...f, featured: { ...f.featured, title: e.target.value } })} />
+            </Field>
+            <Field id="feat-text" label="Text">
+              <Textarea id="feat-text" rows={2} value={f.featured.text} onChange={(e) => setF({ ...f, featured: { ...f.featured, text: e.target.value } })} />
+            </Field>
+          </Section>
+        </div>
+
+        <Section title="IT services" hint="Up to 8 tiles; each links to a service page">
+          {f.services.map((x, i) => (
+            <div key={i} className="grid gap-2 sm:grid-cols-[10rem_1fr_18rem]">
+              <IconSelect label={`Service ${i + 1} icon`} value={x.icon} onChange={(v) => setRow("services", i, "icon", v)} />
+              <Input aria-label={`Service ${i + 1}`} placeholder="Networking and Wi-Fi" value={x.label} onChange={row("services", i, "label")} />
+              <Input aria-label={`Service ${i + 1} link`} placeholder="/services/networking-wifi" value={x.href} onChange={row("services", i, "href")} />
             </div>
           ))}
         </Section>
@@ -100,33 +212,17 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
           </div>
         </Section>
 
-        <Section title="How it works" hint="Three steps">
-          {f.steps.map((s, i) => (
-            <div key={i} className="grid gap-2 sm:grid-cols-[14rem_1fr]">
-              <Input aria-label={`Step ${i + 1} title`} placeholder={`Step ${i + 1}`} value={s.title} onChange={row("steps", i, "title")} />
-              <Input aria-label={`Step ${i + 1} text`} placeholder="One sentence" value={s.text} onChange={row("steps", i, "text")} />
-            </div>
-          ))}
-        </Section>
-
         <Section title="Why Zeronix Tech" hint="Up to 4 reasons with an icon">
           {f.reasons.map((r, i) => (
             <div key={i} className="grid gap-2 sm:grid-cols-[10rem_14rem_1fr]">
-              <NativeSelect aria-label={`Reason ${i + 1} icon`} value={r.icon} onChange={row("reasons", i, "icon")}>
-                <NativeSelectOption value="">No icon</NativeSelectOption>
-                {SITE_ICONS.map((ic) => (
-                  <NativeSelectOption key={ic} value={ic}>
-                    {ic}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+              <IconSelect label={`Reason ${i + 1} icon`} value={r.icon} onChange={(v) => setRow("reasons", i, "icon", v)} />
               <Input aria-label={`Reason ${i + 1} title`} placeholder="Title" value={r.title} onChange={row("reasons", i, "title")} />
               <Input aria-label={`Reason ${i + 1} text`} placeholder="One sentence" value={r.text} onChange={row("reasons", i, "text")} />
             </div>
           ))}
         </Section>
 
-        <Section title="Closing call to action" hint="The dark band at the bottom of the page">
+        <Section title="Closing call to action" hint="The lime band at the bottom of the page">
           <Field id="c-title" label="Title">
             <Input id="c-title" value={f.ctaBand.title} onChange={(e) => setF({ ...f, ctaBand: { ...f.ctaBand, title: e.target.value } })} />
           </Field>

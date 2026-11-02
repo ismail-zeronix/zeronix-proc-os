@@ -176,7 +176,7 @@ export const sitePosts = pgTable(
   "site_posts",
   {
     id: serial("id").primaryKey(),
-    type: text("type", { enum: ["guide", "comparison", "article", "industry_page", "page"] }).notNull().default("article"),
+    type: text("type", { enum: ["guide", "comparison", "article", "industry_page", "page", "service"] }).notNull().default("article"),
     slug: text("slug").notNull().unique(),
     title: text("title").notNull(),
     metaTitle: text("meta_title").notNull().default(""),

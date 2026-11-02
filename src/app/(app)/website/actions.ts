@@ -17,14 +17,25 @@ async function assertAdmin() {
 
 const text = (max: number) => z.string().trim().max(max);
 
+const icon = z.union([z.enum(SITE_ICONS), z.literal("")]);
+// links stay on the site: a path such as /services/cybersecurity (or empty for a row being cleared)
+const href = z.string().trim().max(200).regex(/^(\/|$)/, "Links start with / (a page of the site)");
+const link = z.object({ label: text(60), href });
+const iconLink = link.extend({ icon });
+const promo = z.object({ title: text(90), text: text(200), cta: text(40), href });
+
 const homeSchema = z.object({
-  hero: z.object({ eyebrow: text(60), title: text(120), subtitle: text(320), secondaryCta: text(40) }),
-  features: z
-    .array(z.object({ tag: text(30), title: text(90), text: text(160), href: z.string().trim().max(200).regex(/^(\/|$)/, "Feature links start with / (a page of the site)"), image: text(80) }))
-    .max(3),
+  topLinks: z.array(link).max(4),
+  hero: z.object({ eyebrow: text(60), title: text(120), subtitle: text(320), shopLabel: text(40), checks: z.array(text(40)).max(3) }),
+  intents: z.array(iconLink).max(4),
+  benefits: z.array(z.object({ icon, title: text(40), text: text(60) })).max(4),
+  business: promo,
+  office: z.object({ title: text(90), items: z.array(link).max(5) }),
+  bundles: promo,
+  featured: z.object({ title: text(90), text: text(200) }),
+  services: z.array(iconLink).max(8),
   stats: z.array(z.object({ value: text(12), label: text(60) })).max(4),
-  steps: z.array(z.object({ title: text(60), text: text(200) })).max(4),
-  reasons: z.array(z.object({ icon: z.union([z.enum(SITE_ICONS), z.literal("")]), title: text(60), text: text(200) })).max(6),
+  reasons: z.array(z.object({ icon, title: text(60), text: text(200) })).max(6),
   ctaBand: z.object({ title: text(120).min(2, "Enter the closing call-to-action title"), text: text(300) }),
 });
 
@@ -33,9 +44,13 @@ export async function updateHome(input: SiteHome): Promise<Result<{ siteRefreshe
   return attempt(async () => {
     const me = await assertAdmin();
     const home = homeSchema.parse(input);
-    home.features = home.features.filter((f) => f.title);
+    home.topLinks = home.topLinks.filter((l) => l.label && l.href);
+    home.hero.checks = home.hero.checks.filter(Boolean);
+    home.intents = home.intents.filter((l) => l.label && l.href);
+    home.benefits = home.benefits.filter((b) => b.title);
+    home.office.items = home.office.items.filter((l) => l.label && l.href);
+    home.services = home.services.filter((l) => l.label && l.href);
     home.stats = home.stats.filter((s) => s.value || s.label);
-    home.steps = home.steps.filter((s) => s.title);
     home.reasons = home.reasons.filter((r) => r.title);
     await saveHome(home, me.id);
     revalidatePath("/website", "layout");

@@ -413,3 +413,31 @@ describe("checklist for company pages", async () => {
     expect(checks.filter((c) => c.level !== "ok").map((c) => c.key)).toEqual(expect.arrayContaining(["keyword", "length", "cover", "faq"]));
   });
 });
+
+describe("home page words", async () => {
+  const { HOME_DEFAULTS, mergeHome } = await import("@/lib/website/settings");
+  const { postPath } = await import("@/lib/website/post-parse");
+
+  it("opens words saved for the first layout in the new one", () => {
+    const old = { hero: { eyebrow: "Old", title: "Old title", subtitle: "Old", secondaryCta: "Explore" }, features: [{ tag: "x" }], steps: [{ title: "x" }], stats: [{ value: "24h", label: "Quote" }] };
+    const home = mergeHome(old as never);
+    expect(home.hero).toEqual(HOME_DEFAULTS.hero);
+    expect(home.stats).toEqual([{ value: "24h", label: "Quote" }]);
+    expect(home.intents).toEqual(HOME_DEFAULTS.intents);
+    expect(home).not.toHaveProperty("features");
+    expect(home).not.toHaveProperty("steps");
+  });
+
+  it("keeps saved words, and a list saved empty hides its section", () => {
+    const home = mergeHome({ ...HOME_DEFAULTS, hero: { ...HOME_DEFAULTS.hero, title: "Mine" }, services: [], business: { ...HOME_DEFAULTS.business, title: "Buying?" } });
+    expect(home.hero.title).toBe("Mine");
+    expect(home.services).toEqual([]);
+    expect(home.business.title).toBe("Buying?");
+    expect(home.business.cta).toBe(HOME_DEFAULTS.business.cta);
+  });
+
+  it("gives service pages their own address", () => {
+    expect(postPath("service", "cybersecurity")).toBe("/services/cybersecurity");
+    expect(HOME_DEFAULTS.services.every((s) => s.href.startsWith("/services/"))).toBe(true);
+  });
+});

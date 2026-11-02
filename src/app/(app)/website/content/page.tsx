@@ -17,7 +17,7 @@ const TABS = [
   { key: "archived", label: "Archived" },
 ] as const;
 
-const TYPE_LABEL: Record<string, string> = { guide: "Guide", comparison: "Comparison", article: "Blog post", industry_page: "Industry page", page: "Company page" };
+const TYPE_LABEL: Record<string, string> = { guide: "Guide", comparison: "Comparison", article: "Blog post", industry_page: "Industry page", page: "Company page", service: "IT service" };
 
 export default async function ContentPage({ searchParams }: PageProps<"/website/content">) {
   await requireApp("website");

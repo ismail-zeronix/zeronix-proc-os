@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { siteDb, siteSchema } from "@/db/site";
 import {
   CONTRACT_VERSION,
@@ -13,6 +13,7 @@ import {
   type SiteIndustriesResponse,
   type SiteIndustryPage,
   type SiteProductPage,
+  type SiteProductsResponse,
   type SiteProductSummary,
   type SiteSpecGroup,
 } from "./contract";
@@ -86,14 +87,14 @@ function toSummary(r: SummaryRow): SiteProductSummary {
 }
 
 /** Published products in published categories (a product with no brand is still shown). */
-async function products(where?: SQL, limit = 200): Promise<(SummaryRow & { id: number })[]> {
+async function products(where?: SQL, limit = 200, newest = false): Promise<(SummaryRow & { id: number })[]> {
   return (await siteDb
     .select(summaryCols)
     .from(P)
     .innerJoin(C, eq(C.id, P.categoryId))
     .leftJoin(B, eq(B.id, P.brandId))
     .where(and(eq(P.status, "published"), eq(C.status, "published"), where))
-    .orderBy(asc(P.name))
+    .orderBy(...(newest ? [desc(P.updatedAt), asc(P.name)] : [asc(P.name)]))
     .limit(limit)) as (SummaryRow & { id: number })[];
 }
 
@@ -112,6 +113,13 @@ export async function productCards(by: { ids?: number[]; refs?: string[] }): Pro
     .leftJoin(B, eq(B.id, P.brandId))
     .where(and(eq(P.status, "published"), eq(C.status, "published"), where));
   return rows.map((r) => ({ ...toSummary(r as SummaryRow), id: r.id as number, mpn: r.mpn }));
+}
+
+/** Product cards for a shelf (home page): newest first, optionally one category. */
+export async function publicProducts(q: { category?: string; limit?: number }): Promise<SiteProductsResponse> {
+  const limit = Math.min(Math.max(q.limit ?? 12, 1), 48);
+  const rows = await products(q.category ? eq(C.slug, q.category) : undefined, limit, true);
+  return { contract: CONTRACT_VERSION, products: rows.map(toSummary) };
 }
 
 export async function publicIndustries(): Promise<SiteIndustriesResponse> {

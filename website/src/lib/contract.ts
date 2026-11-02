@@ -3,7 +3,7 @@
  * from the portal); tests/website-contract.test.ts fails when the two differ. Bump CONTRACT_VERSION on any breaking change.
  */
 
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 
 /** Icons an editor may pick for industries, categories and home sections; the site maps each name to a lucide icon. */
 export const SITE_ICONS = [
@@ -29,6 +29,18 @@ export const SITE_ICONS = [
   "package-check",
   "receipt",
   "zap",
+  "users",
+  "network",
+  "layers",
+  "wifi",
+  "cctv",
+  "id-card",
+  "presentation",
+  "phone",
+  "headphones",
+  "keyboard",
+  "key-round",
+  "package",
 ] as const;
 
 export type SiteIcon = (typeof SITE_ICONS)[number];
@@ -46,13 +58,43 @@ export interface SiteBrand {
   ctaLabel: string;
 }
 
-/** The home page's own words (Website › Pages). Industries, categories and brands come from the catalog. */
+export interface SiteLink {
+  label: string;
+  href: string;
+}
+
+export interface SiteIconLink extends SiteLink {
+  icon: SiteIcon | "";
+}
+
+/** A panel or band with a title, a line of text and one button. */
+export interface SitePromo {
+  title: string;
+  text: string;
+  cta: string;
+  href: string;
+}
+
+/**
+ * The home page's own words (Website › Pages), section by section in page order. Industries, categories, products and
+ * brands come from the catalog.
+ */
 export interface SiteHome {
-  hero: { eyebrow: string; title: string; subtitle: string; secondaryCta: string };
-  /** The three cards under the hero (Finovate row): the middle one is the lime highlight. `image` names a site image. */
-  features: { tag: string; title: string; text: string; href: string; image: string }[];
+  /** Short links in the thin bar above the header (location, phone and WhatsApp come from the brand). */
+  topLinks: SiteLink[];
+  /** `shopLabel` is the first button (to /products); the second is the brand's call to action (to /quote). */
+  hero: { eyebrow: string; title: string; subtitle: string; shopLabel: string; checks: string[] };
+  /** The white card on the hero: what visitors came to do, each a link. */
+  intents: SiteIconLink[];
+  /** The strip across the bottom of the hero. */
+  benefits: { icon: SiteIcon | ""; title: string; text: string }[];
+  /** Dark panel ("Buying for your company?") next to the office checklist panel. */
+  business: SitePromo;
+  office: { title: string; items: SiteLink[] };
+  bundles: SitePromo;
+  featured: { title: string; text: string };
+  services: SiteIconLink[];
   stats: { value: string; label: string }[];
-  steps: { title: string; text: string }[];
   reasons: { icon: SiteIcon | ""; title: string; text: string }[];
   ctaBand: { title: string; text: string };
 }
@@ -74,6 +116,12 @@ export interface SiteNavLink {
   icon: SiteIcon | "";
   /** One line for cards and the mega menu. */
   summary: string;
+}
+
+/** A list of product cards (home page shelves): newest first, optionally one category. */
+export interface SiteProductsResponse {
+  contract: number;
+  products: SiteProductSummary[];
 }
 
 /** Everything the mega menu needs, in display order. Only published records. */
@@ -197,7 +245,7 @@ export interface SiteAuthor {
   jobTitle: string;
 }
 
-export type SitePostType = "guide" | "comparison" | "article" | "industry_page" | "page";
+export type SitePostType = "guide" | "comparison" | "article" | "industry_page" | "page" | "service";
 
 export interface SitePostSummary {
   slug: string;

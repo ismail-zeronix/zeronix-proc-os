@@ -5,6 +5,7 @@ import { ProductCard } from "@/components/brand/cards";
 import { Photo } from "@/components/brand/photo";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { SiteFaqItem, SiteProductSummary } from "@/lib/contract";
+import { formatPrice } from "@/lib/price";
 import { SITE_URL } from "@/lib/defaults";
 import { cn } from "@/lib/utils";
 
@@ -92,7 +93,7 @@ export function ProductTile({ p, label }: { p: SiteProductSummary; label?: strin
   return (
     <div className="relative h-full">
       {label && <span className="absolute top-4 left-4 z-10 rounded-full bg-lime-400 px-2.5 py-1 text-xs font-semibold text-forest-950">{label}</span>}
-      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} />
+      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} />
     </div>
   );
 }

@@ -116,13 +116,17 @@ export function Stat({ value, label, onDark = false }: { value: string; label: s
   );
 }
 
-/** 6. Product card: image well, brand tag, name, three spec chips, B2B price pill, add to quote list. Ready for the shop. */
+/**
+ * 6. Product card: image well, brand tag, name, three spec chips, the price (when it is public, VAT included) or the
+ * B2B price pill, and add to quote list. Ready for the shop.
+ */
 export function ProductCard({
   href,
   brand,
   name,
   specs,
   photo,
+  price,
   className,
 }: {
   href: string;
@@ -130,6 +134,8 @@ export function ProductCard({
   name: string;
   specs: string[];
   photo?: string;
+  /** Formatted public price ("AED 4,399"); null shows the B2B price pill only. */
+  price?: string | null;
   className?: string;
 }) {
   return (
@@ -149,9 +155,21 @@ export function ProductCard({
             </li>
           ))}
         </ul>
-        <div className="relative z-10 mt-auto flex items-center gap-2 pt-2">
-          <Link href={`/quote?product=${encodeURIComponent(href.split("/").pop() ?? "")}`} className="inline-flex h-10 flex-1 items-center justify-center rounded-full bg-forest-900 text-sm font-semibold text-white transition-colors hover:bg-forest-800">
-            Get B2B price
+        {price && (
+          <p className="mt-auto pt-1">
+            <span className="font-heading text-xl font-semibold tracking-tight text-ink tabular-nums">{price}</span>
+            <span className="ml-1.5 text-xs text-muted-ink">incl. VAT</span>
+          </p>
+        )}
+        <div className={cn("relative z-10 flex items-center gap-2", price ? "pt-0" : "mt-auto pt-2")}>
+          <Link
+            href={`/quote?product=${encodeURIComponent(href.split("/").pop() ?? "")}`}
+            className={cn(
+              "inline-flex h-10 flex-1 items-center justify-center rounded-full text-sm font-semibold transition-colors",
+              price ? "border border-line bg-white text-forest-900 hover:border-forest-900" : "bg-forest-900 text-white hover:bg-forest-800",
+            )}
+          >
+            {price ? "Bulk pricing" : "Get B2B price"}
           </Link>
           <AddToQuote slug={href.split("/").pop() ?? ""} name={name} />
         </div>

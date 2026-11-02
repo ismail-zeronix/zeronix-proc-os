@@ -9,10 +9,9 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { Tag } from "@/components/brand/action";
-import type { SiteNavLink, SiteNavResponse } from "@/lib/contract";
+import type { SiteIconLink, SiteNavLink, SiteNavResponse } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
 
 function Tile({ href, item }: { href: string; item: SiteNavLink }) {
@@ -48,7 +47,17 @@ function Promo({ title, text, href, cta }: { title: string; text: string; href: 
   );
 }
 
-export function MegaMenu({ nav, ctaLabel }: { nav: SiteNavResponse; ctaLabel: string }) {
+/** Home page service tiles as menu items (their href is the address). */
+const asNav = (s: SiteIconLink): SiteNavLink => ({ slug: s.href, name: s.label, icon: s.icon, summary: "" });
+
+const RESOURCES = [
+  { href: "/guides", label: "Buying guides", text: "What to buy for each role and industry" },
+  { href: "/blog", label: "Blog", text: "News and advice on business IT in the UAE" },
+  { href: "/about", label: "About us", text: "Who we are and how we work" },
+  { href: "/contact", label: "Contact", text: "Phone, WhatsApp, email and address" },
+];
+
+export function MegaMenu({ nav, services, ctaLabel }: { nav: SiteNavResponse; services: SiteIconLink[]; ctaLabel: string }) {
   return (
     <NavigationMenu className="hidden lg:flex" align="center">
       <NavigationMenuList>
@@ -99,15 +108,33 @@ export function MegaMenu({ nav, ctaLabel }: { nav: SiteNavResponse; ctaLabel: st
             </NavigationMenuContent>
           </NavigationMenuItem>
         )}
+        {services.length > 0 && (
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>Services</NavigationMenuTrigger>
+            <NavigationMenuContent className="w-[min(94vw,760px)] p-3">
+              <div className="grid grid-cols-[1fr_14rem] gap-3">
+                <div className="grid grid-cols-2 content-start gap-0.5">
+                  {services.map((s) => (
+                    <Tile key={s.href} href={s.href} item={asNav(s)} />
+                  ))}
+                </div>
+                <Promo title="Setting up an office?" text="Network, devices, security and meeting rooms, planned and installed by one team." href="/quote?topic=office" cta={ctaLabel} />
+              </div>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+        )}
         <NavigationMenuItem>
-          <NavigationMenuLink render={<Link href="/guides" />} className={navigationMenuTriggerStyle()}>
-            Guides
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink render={<Link href="/about" />} className={navigationMenuTriggerStyle()}>
-            About
-          </NavigationMenuLink>
+          <NavigationMenuTrigger>Resources</NavigationMenuTrigger>
+          <NavigationMenuContent className="w-[min(94vw,420px)] p-3">
+            <div className="grid gap-0.5">
+              {RESOURCES.map((r) => (
+                <NavigationMenuLink key={r.href} render={<Link href={r.href} />} className="grid gap-0.5 rounded-2xl p-3 hover:bg-sage-50">
+                  <span className="font-semibold text-ink">{r.label}</span>
+                  <span className="text-xs text-muted-ink">{r.text}</span>
+                </NavigationMenuLink>
+              ))}
+            </div>
+          </NavigationMenuContent>
         </NavigationMenuItem>
       </NavigationMenuList>
     </NavigationMenu>

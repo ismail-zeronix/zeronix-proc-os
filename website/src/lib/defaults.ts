@@ -13,15 +13,22 @@ export const BRAND_FALLBACK: SiteBrand = {
 };
 
 export const HOME_FALLBACK: SiteHome = {
+  topLinks: [],
   hero: {
-    eyebrow: "Corporate IT for UAE businesses",
-    title: "",
-    subtitle: "Tell us what your team does. We shortlist the right business laptops, desktops, workstations and servers, in stock in the UAE, with corporate pricing and local warranty.",
-    secondaryCta: "Explore by industry",
+    eyebrow: "IT products and solutions for business",
+    title: "Technology that powers your business.",
+    subtitle: "Industry-focused IT products, infrastructure and solutions, from one trusted partner in the UAE.",
+    shopLabel: "Shop products",
+    checks: [],
   },
-  features: [],
+  intents: [],
+  benefits: [],
+  business: { title: "Buying for your company?", text: "Bulk procurement, standard configurations, deployment and ongoing IT support.", cta: "Request a business quote", href: "/quote" },
+  office: { title: "", items: [] },
+  bundles: { title: "", text: "", cta: "", href: "" },
+  featured: { title: "Featured products", text: "" },
+  services: [],
   stats: [],
-  steps: [],
   reasons: [],
   ctaBand: { title: "Equipping a team? Get B2B pricing today.", text: "" },
 };

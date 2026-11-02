@@ -14,7 +14,7 @@ const S = siteSchema.sitePosts;
 
 /** Every path the site has right now (plus the fixed pages), for the internal-link check. */
 export async function knownPaths(): Promise<Set<string>> {
-  const set = new Set(["/", "/industries", "/products", "/guides", "/blog", "/quote", "/about", "/contact", "/privacy", "/terms", "/delivery-warranty"]);
+  const set = new Set(["/", "/industries", "/products", "/services", "/guides", "/blog", "/quote", "/about", "/contact", "/privacy", "/terms", "/delivery-warranty"]);
   const [ind, cats, prods, brands, posts] = await Promise.all([
     siteDb.select({ slug: siteSchema.siteIndustries.slug }).from(siteSchema.siteIndustries),
     siteDb.select({ slug: siteSchema.siteCategories.slug }).from(siteSchema.siteCategories),

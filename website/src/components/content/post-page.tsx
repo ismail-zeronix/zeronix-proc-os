@@ -3,7 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { getPost, getSettings } from "@/lib/api";
 import { Article } from "./article";
 
-/** Shared by /guides/[slug] and /blog/[slug]: each post has one address, the other section redirects to it. */
+/** Shared by /guides/[slug], /blog/[slug] and /services/[slug]: each post has one address, the others redirect to it. */
 
 export async function postMetadata(slug: string): Promise<Metadata> {
   const p = await getPost(slug);
@@ -19,10 +19,10 @@ export async function postMetadata(slug: string): Promise<Metadata> {
   };
 }
 
-export async function PostPage({ slug, section }: { slug: string; section: "guides" | "blog" }) {
+export async function PostPage({ slug, section }: { slug: string; section: "guides" | "blog" | "services" }) {
   const [p, { brand }] = await Promise.all([getPost(slug), getSettings()]);
   if (!p) notFound();
   if (!p.path.startsWith(`/${section}/`)) permanentRedirect(p.path);
-  const crumb = section === "guides" ? { href: "/guides", label: "Guides" } : { href: "/blog", label: "Blog" };
+  const crumb = section === "guides" ? { href: "/guides", label: "Guides" } : section === "services" ? { href: "/services", label: "Services" } : { href: "/blog", label: "Blog" };
   return <Article post={p} brand={brand} crumbs={[crumb, { href: p.path, label: p.title }]} />;
 }

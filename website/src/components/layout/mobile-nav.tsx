@@ -7,10 +7,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Action } from "@/components/brand/action";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import type { SiteNavLink, SiteNavResponse } from "@/lib/contract";
+import type { SiteIconLink, SiteNavLink, SiteNavResponse } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
 
-export function MobileNav({ nav, ctaLabel }: { nav: SiteNavResponse; ctaLabel: string }) {
+export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; services: SiteIconLink[]; ctaLabel: string }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
@@ -46,10 +46,28 @@ export function MobileNav({ nav, ctaLabel }: { nav: SiteNavResponse; ctaLabel: s
           <Accordion>
             {group("industries", "Industries", nav.industries, "/industries")}
             {group("products", "Products", nav.categories, "/products")}
+            {services.length > 0 && (
+              <AccordionItem value="services">
+                <AccordionTrigger className="text-base">Services</AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid gap-0.5">
+                    {services.map((s) => (
+                      <Link key={s.href} href={s.href} onClick={close} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sage-50">
+                        {s.icon && <SiteIconView name={s.icon} className="size-4 text-forest-700" />}
+                        {s.label}
+                      </Link>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            )}
             {group("brands", "Brands", nav.brands, "/brands")}
           </Accordion>
           <Link href="/guides" onClick={close} className="py-3 text-base font-medium">
             Guides
+          </Link>
+          <Link href="/blog" onClick={close} className="py-3 text-base font-medium">
+            Blog
           </Link>
           <Link href="/about" onClick={close} className="py-3 text-base font-medium">
             About

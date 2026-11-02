@@ -13,6 +13,7 @@ import {
   type SitePostPage,
   type SitePostsResponse,
   type SiteProductPage,
+  type SiteProductsResponse,
   type SiteSettingsResponse,
   type SiteSitemapResponse,
 } from "./contract";
@@ -76,6 +77,12 @@ const enc = encodeURIComponent;
 export const getSettings = () => get<SiteSettingsResponse>("/settings", ["settings"], { contract: CONTRACT_VERSION, brand: BRAND_FALLBACK, home: HOME_FALLBACK });
 export const getNav = () => get<SiteNavResponse>("/nav", ["nav"], { contract: CONTRACT_VERSION, industries: [], categories: [], brands: [] });
 export const getIndustries = () => get<SiteIndustriesResponse>("/industries", ["catalog"], { contract: CONTRACT_VERSION, industries: [] });
+export const getProducts = (q: { category?: string; limit?: number } = {}) => {
+  const p = new URLSearchParams();
+  if (q.category) p.set("category", q.category);
+  if (q.limit) p.set("limit", String(q.limit));
+  return get<SiteProductsResponse>(`/products?${p}`, ["catalog"], { contract: CONTRACT_VERSION, products: [] });
+};
 export const getCategories = () => get<SiteCategoriesResponse>("/categories", ["catalog"], { contract: CONTRACT_VERSION, categories: [] });
 export const getIndustry = (slug: string) => getOne<SiteIndustryPage>(`/industries/${enc(slug)}`, ["catalog"]);
 export const getCategory = (slug: string) => getOne<SiteCategoryPage>(`/categories/${enc(slug)}`, ["catalog"]);
@@ -83,7 +90,7 @@ export const getProduct = (slug: string) => getOne<SiteProductPage>(`/products/$
 export const getBrand = (slug: string) => getOne<SiteBrandPage>(`/brands/${enc(slug)}`, ["catalog"]);
 export const getCompare = (slugs: string[]) => getOne<SiteCompareResponse>(`/compare?p=${slugs.map(enc).join(",")}`, ["catalog"]);
 
-export const getPosts = (q: { kind?: "guides" | "articles"; industry?: string; category?: string; author?: string; page?: number }) => {
+export const getPosts = (q: { kind?: "guides" | "articles" | "services"; industry?: string; category?: string; author?: string; page?: number }) => {
   const p = new URLSearchParams(Object.entries(q).flatMap(([k, v]) => (v ? [[k, String(v)]] : [])));
   return get<SitePostsResponse>(`/posts?${p}`, ["posts"], { contract: CONTRACT_VERSION, posts: [], total: 0 });
 };

@@ -1,5 +1,7 @@
+import { Check, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { Action, Tag } from "@/components/brand/action";
-import { UiChip } from "@/components/brand/cards";
+import { IconBadge } from "@/components/brand/cards";
 import { Photo } from "@/components/brand/photo";
 import type { SiteBrand, SiteHome } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
@@ -10,66 +12,99 @@ function Headline({ text }: { text: string }) {
   const words = text.trim().split(/\s+/);
   const cut = Math.max(1, words.length - 2);
   return (
-    <h1 className="max-w-2xl text-display text-white">
+    <h1 className="max-w-xl text-display text-white">
       {words.slice(0, cut).join(" ")} <span className="text-mint-300">{words.slice(cut).join(" ")}</span>
     </h1>
   );
 }
 
+/** What visitors came to do, as a white card on the photo (beside it on large screens, under it on phones). */
+function IntentCard({ intents }: { intents: SiteHome["intents"] }) {
+  if (!intents.length) return null;
+  return (
+    <nav aria-label="What do you need?" className="grid gap-0.5 rounded-card bg-white p-2 text-ink shadow-lift lg:absolute lg:top-1/2 lg:-right-2 lg:w-64 lg:-translate-y-1/2 xl:-right-6">
+      {intents.map((x) => (
+        <Link key={x.href} href={x.href} className="group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 transition-colors hover:bg-sage-50" data-track="home-intent">
+          <IconBadge name={x.icon} className="size-9" />
+          <span className="flex-1 text-sm font-semibold">{x.label}</span>
+          <ChevronRight className="size-4 text-muted-ink transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/** Four promises on a white strip that overlaps the bottom of the hero. */
+function Benefits({ benefits }: { benefits: SiteHome["benefits"] }) {
+  if (!benefits.length) return null;
+  return (
+    <div className="container-site relative z-10 -mt-12 sm:-mt-14">
+      <ul className="grid grid-cols-2 gap-y-5 rounded-card bg-white p-5 shadow-lift sm:p-6 lg:grid-cols-4 lg:divide-x lg:divide-line">
+        {benefits.map((b) => (
+          <li key={b.title} className="flex items-center gap-3 px-1 lg:px-6 lg:first:pl-2">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-sage-100 text-forest-900">
+              <SiteIconView name={b.icon} className="size-5" strokeWidth={1.75} />
+            </span>
+            <span className="grid leading-tight">
+              <span className="text-sm font-semibold text-ink sm:text-[0.9375rem]">{b.title}</span>
+              {b.text && <span className="mt-0.5 text-xs text-muted-ink sm:text-[0.8125rem]">{b.text}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
- * The framed photo hero (BRAND.md sections 4 and 9, Finovate): the team photo fills a rounded frame, a forest shade
- * keeps the headline readable on the left, trust pills sit along the bottom and two UI chips float on the photo.
+ * The split hero: words and the two actions on the left, a product photo with the intent card on the right, then the
+ * benefit strip across its bottom edge. Forest frame, mint emphasis, lime fills only (BRAND.md).
  */
 export function Hero({ brand, home }: { brand: SiteBrand; home: SiteHome }) {
   const h = home.hero;
-  const pills = home.reasons.slice(0, 3);
   return (
-    <section className="frame relative isolate mt-2 bg-forest-900 text-white">
-      <Photo
-        src={imageFor("hero")}
-        subject="Hero: UAE office team around a table with business laptops, warm natural light, people on the right"
-        fill
-        priority
-        sizes="100vw"
-        tone="dark"
-        slotAt="end"
-        className="absolute inset-0 -z-20 rounded-none"
-      />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgb(3_32_26/0.94)_0%,rgb(3_32_26/0.78)_42%,rgb(3_32_26/0.15)_75%,transparent_100%)]" />
-
-      <div className="container-site flex min-h-[36rem] flex-col justify-between gap-12 py-12 sm:py-16 lg:min-h-[40rem]">
-        <div className="grid max-w-2xl gap-7 pt-4 lg:pt-10">
-          {h.eyebrow && <Tag onDark>{h.eyebrow}</Tag>}
-          <Headline text={h.title || brand.tagline} />
-          {h.subtitle && <p className="max-w-xl text-lead text-white/75">{h.subtitle}</p>}
-          <div className="flex flex-wrap gap-3">
-            <Action href="/quote" size="lg" track="home-hero">
-              {brand.ctaLabel}
-            </Action>
-            {h.secondaryCta && (
-              <Action href="#industries" size="lg" variant="onDark" arrow={false}>
-                {h.secondaryCta}
+    <section className="mt-2">
+      <div className="frame relative isolate overflow-hidden bg-forest-900 text-white">
+        {/* one quiet shape behind the photo, in the brand's own greens (no glow, no gradient text) */}
+        <div aria-hidden className="absolute inset-y-0 right-0 -z-10 hidden w-[46%] rounded-l-[6rem] bg-forest-800/70 lg:block" />
+        <div className="container-site grid items-center gap-10 pt-12 pb-24 sm:pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:pt-16 lg:pb-28">
+          <div className="grid gap-6">
+            {h.eyebrow && <Tag onDark>{h.eyebrow}</Tag>}
+            <Headline text={h.title || brand.tagline} />
+            {h.subtitle && <p className="max-w-lg text-lead text-white/75">{h.subtitle}</p>}
+            <div className="flex flex-wrap gap-3">
+              <Action href="/products" size="lg" track="home-hero-shop">
+                {h.shopLabel}
               </Action>
+              <Action href="/quote" size="lg" variant="onDark" arrow={false} track="home-hero-quote">
+                {brand.ctaLabel}
+              </Action>
+            </div>
+            {h.checks.length > 0 && (
+              <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/80">
+                {h.checks.map((c) => (
+                  <li key={c} className="inline-flex items-center gap-2">
+                    <Check className="size-4 text-mint-300" strokeWidth={2.5} /> {c}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
+          <div className="grid gap-4 lg:relative lg:block">
+            <Photo
+              src={imageFor("hero") ?? imageFor("industry-corporate-offices")}
+              subject="Business laptops, a monitor and a desktop on a bright office desk"
+              ratio="4:3"
+              priority
+              sizes="(min-width: 1024px) 45vw, 100vw"
+              tone="dark"
+              className="rounded-card lg:mr-24"
+            />
+            <IntentCard intents={home.intents} />
+          </div>
         </div>
-
-        {pills.length > 0 && (
-          <ul className="flex flex-wrap gap-2">
-            {pills.map((p) => (
-              <li key={p.title} className="inline-flex h-11 items-center gap-2.5 rounded-full border border-white/15 bg-forest-950/40 pr-5 pl-2 text-sm font-medium text-white backdrop-blur-md">
-                <span className="grid size-7 place-items-center rounded-full bg-lime-400 text-forest-950">
-                  <SiteIconView name={p.icon} className="size-3.5" strokeWidth={2} />
-                </span>
-                {p.title}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
-
-      <UiChip icon="package-check" label="In stock" value="UAE warehouse" className="absolute top-12 right-10 hidden lg:flex" />
-      <UiChip icon="shield-check" label="Warranty" value="Up to 3 years, Middle East" className="absolute right-24 bottom-28 hidden xl:flex" />
+      <Benefits benefits={home.benefits} />
     </section>
   );
 }

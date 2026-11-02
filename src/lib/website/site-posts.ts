@@ -73,10 +73,10 @@ async function rows(where: SQL | undefined, limit = 24, offset = 0): Promise<Row
     .offset(offset);
 }
 
-/** List: `kind` guides (guides, comparisons, industry pages) or articles; filters by industry slug, category or author slug. */
+/** List: `kind` guides (guides, comparisons, industry pages), articles or services; filters by industry slug, category or author slug. */
 export async function publicPosts(q: { kind?: string; industry?: string; category?: string; author?: string; page?: number }): Promise<SitePostsResponse> {
   const filters: (SQL | undefined)[] = [
-    q.kind === "guides" ? inArray(S.type, [...GUIDE_TYPES]) : q.kind === "articles" ? eq(S.type, "article") : undefined,
+    q.kind === "guides" ? inArray(S.type, [...GUIDE_TYPES]) : q.kind === "articles" ? eq(S.type, "article") : q.kind === "services" ? eq(S.type, "service") : undefined,
     q.industry ? eq(I.slug, q.industry) : undefined,
   ];
   let list = await rows(and(...filters), 500);
@@ -169,7 +169,7 @@ export async function publicSitemap(): Promise<SiteSitemapResponse> {
   return {
     contract: CONTRACT_VERSION,
     entries: [
-      ...["/", "/industries", "/products", "/guides", "/blog", "/contact"].map((path) => ({ path, updatedAt: now })),
+      ...["/", "/industries", "/products", "/services", "/guides", "/blog", "/contact"].map((path) => ({ path, updatedAt: now })),
       ...ind.map((x) => ({ path: `/industries/${x.slug}`, updatedAt: at(x.at) })),
       ...cats.map((x) => ({ path: `/products/${x.slug}`, updatedAt: at(x.at) })),
       ...prods.map((x) => ({ path: `/products/${x.cat}/${x.slug}`, updatedAt: at(x.at) })),

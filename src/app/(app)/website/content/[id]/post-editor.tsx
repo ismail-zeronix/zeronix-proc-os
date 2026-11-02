@@ -90,6 +90,7 @@ export function PostEditor({ id, initial, status, publishAt, checks, revisions, 
                 <NativeSelectOption value="article">Blog post (/blog)</NativeSelectOption>
                 <NativeSelectOption value="industry_page">Industry page (/guides)</NativeSelectOption>
                 <NativeSelectOption value="page">Company page (/about, /privacy...)</NativeSelectOption>
+                <NativeSelectOption value="service">IT service (/services)</NativeSelectOption>
               </NativeSelect>
             </Field>
             <Field id="slug" label="Web address">

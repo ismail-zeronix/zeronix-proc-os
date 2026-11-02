@@ -106,7 +106,7 @@ export function visitorKeyFor(ip: string, ua: string, day: string, secret: strin
 /** The kind of page a path is, and its slug, so events can be tied to a post, product or industry. */
 export function pageOf(path: string): { kind: "post" | "product" | "industry" | "other"; slug: string } {
   const p = path.replace(/\/+$/, "");
-  let m = p.match(/^\/(?:guides|blog)\/([^/]+)$/);
+  let m = p.match(/^\/(?:guides|blog|services)\/([^/]+)$/);
   if (m && m[1] !== "category" && m[1] !== "author") return { kind: "post", slug: m[1] };
   m = p.match(/^\/products\/[^/]+\/([^/]+)$/);
   if (m) return { kind: "product", slug: m[1] };
@@ -114,6 +114,6 @@ export function pageOf(path: string): { kind: "post" | "product" | "industry" | 
   if (m) return { kind: "industry", slug: m[1] };
   // company pages (about, contact, privacy...) are posts of type "page" at the root
   m = p.match(/^\/([^/]+)$/);
-  if (m && !["industries", "products", "guides", "blog", "brands", "compare", "quote", "brand"].includes(m[1])) return { kind: "post", slug: m[1] };
+  if (m && !["industries", "products", "services", "guides", "blog", "brands", "compare", "quote", "brand"].includes(m[1])) return { kind: "post", slug: m[1] };
   return { kind: "other", slug: "" };
 }

@@ -29,14 +29,14 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const [{ brand }, nav] = await Promise.all([getSettings(), getNav()]);
+  const [{ brand, home }, nav] = await Promise.all([getSettings(), getNav()]);
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
       <body className="flex min-h-dvh flex-col font-sans">
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-lime-400 focus:px-3 focus:py-2 focus:text-forest-950">
           Skip to content
         </a>
-        <Header brand={brand} nav={nav} />
+        <Header brand={brand} home={home} nav={nav} />
         <main id="main" className="flex-1">
           {children}
         </main>
