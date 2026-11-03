@@ -1,3 +1,4 @@
+import { PackageOpen } from "lucide-react";
 import Link from "next/link";
 import { AddToQuote } from "@/components/quote/quote-buttons";
 import { AddToCart } from "@/components/store/cart-buttons";
@@ -145,7 +146,17 @@ export function ProductCard({
   const slug = href.split("/").pop() ?? "";
   return (
     <div className={cn("group relative flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-shadow duration-200 hover:shadow-lift", className)}>
-      <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
+      {photo ? (
+        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
+      ) : (
+        // no catalog picture yet: a calm neutral tile with the brand, never the design-time "photo slot"
+        <div className="grid aspect-square place-items-center rounded-inner bg-paper">
+          <span className="grid justify-items-center gap-2 text-center">
+            <PackageOpen className="size-9 text-ink/20" strokeWidth={1.25} />
+            <span className="font-heading text-sm font-semibold tracking-tight text-ink/35">{brand}</span>
+          </span>
+        </div>
+      )}
       <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
         <span className="text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">{brand}</span>
         <h3 className="line-clamp-2 min-h-[2.6em] text-sm leading-snug font-semibold text-ink">
@@ -157,7 +168,7 @@ export function ProductCard({
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           {price ? (
             <p className="leading-tight">
-              <span className="block text-base font-bold text-ink tabular-nums sm:text-[1.0625rem]">{price}</span>
+              <span className="block text-[0.9375rem] font-bold whitespace-nowrap text-ink tabular-nums sm:text-[1.0625rem]">{price}</span>
               <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>
             </p>
           ) : (

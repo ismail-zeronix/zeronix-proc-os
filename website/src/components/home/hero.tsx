@@ -1,90 +1,172 @@
-import { Building2, Check } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Action } from "@/components/brand/action";
-import { Photo } from "@/components/brand/photo";
-import type { SiteBrand, SiteHome } from "@/lib/contract";
+import { Float } from "@/components/motion/motion";
+import type { SiteBrand, SiteHome, SiteProductSummary } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
-import { imageFor } from "@/lib/images";
+import { formatPrice } from "@/lib/price";
+import { cn } from "@/lib/utils";
+
+/**
+ * Home hero, "the catalog in the window": a deep forest frame with the promise on the left and real products from the
+ * catalog on the right (picture, name, price), so the first screen already shows what the store sells instead of a
+ * stock photo. Benefits run along the bottom of the frame as a trust bar. The product cards float slowly (Motion), out
+ * of step with each other. Nothing sits under the frame: the category row follows straight on.
+ *
+ * Colour roles stay BRAND.md: forest frame, mint for the one highlight on dark, lime on buttons and one small badge.
+ */
 
 /** Last two words of the headline in mint: the brand's one emphasis (never a gradient). */
 function Headline({ text }: { text: string }) {
   const words = text.trim().split(/\s+/);
   const cut = Math.max(1, words.length - 2);
   return (
-    <h1 className="max-w-md text-display text-white xl:max-w-lg">
+    <h1 className="max-w-xl font-heading text-[2.125rem] leading-[1.04] font-medium tracking-[-0.035em] text-white sm:text-5xl lg:text-[3.5rem]">
       {words.slice(0, cut).join(" ")} <span className="text-mint-300">{words.slice(cut).join(" ")}</span>
     </h1>
   );
 }
 
-/**
- * The two side cards next to the main banner: business buying (white, with the lime button) and the new-office
- * checklist (sage). Lime stays on buttons only (BRAND.md). Phones show the business card alone, to keep the top short.
- */
-function SideCards({ business, office }: { business: SiteHome["business"]; office: SiteHome["office"] }) {
+const productHref = (p: SiteProductSummary) => `/products/${p.categorySlug}/${p.slug}`;
+
+/** Price line on dark-panel cards: the price, or "Price on request" in the brand's quiet tone. */
+function PriceLine({ p, big = false }: { p: SiteProductSummary; big?: boolean }) {
+  const price = formatPrice(p.price, p.currency);
+  return price ? (
+    <span className={cn("font-heading font-semibold text-ink tabular-nums", big ? "text-xl" : "text-sm")}>
+      {price}
+      {big && <span className="ml-1.5 align-middle text-[0.6875rem] font-normal text-muted-ink">incl. VAT</span>}
+    </span>
+  ) : (
+    <span className={cn("font-semibold text-forest-700", big ? "text-sm" : "text-xs")}>Price on request</span>
+  );
+}
+
+/** The lead product: a large white card with the picture on white (the catalog photos are shot on white). */
+function LeadCard({ p }: { p: SiteProductSummary }) {
   return (
-    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
-      {business.title && (
-        <div className="flex flex-col gap-4 rounded-frame border border-line/70 bg-white p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-forest-900 text-mint-300">
-              <Building2 className="size-5" strokeWidth={1.75} />
-            </span>
-            <span className="grid gap-1">
-              <span className="text-[0.9375rem] leading-snug font-semibold text-ink sm:text-lg">{business.title}</span>
-              {business.text && <span className="line-clamp-3 text-xs text-muted-ink sm:text-sm">{business.text}</span>}
-            </span>
-          </div>
-          {business.cta && (
-            <Action href={business.href || "/quote"} className="mt-auto self-start" track="home-business">
-              {business.cta}
-            </Action>
-          )}
-        </div>
-      )}
-      {office.title && (
-        <div className="hidden flex-col gap-2.5 rounded-frame bg-sage-100 p-4 sm:flex sm:p-5">
-          <span className="text-[0.9375rem] leading-snug font-semibold text-forest-950 sm:text-lg">{office.title}</span>
-          <ul className="grid gap-1.5">
-            {office.items.map((l) => (
-              <li key={l.href + l.label}>
-                <Link href={l.href} className="group inline-flex items-start gap-2 text-sm text-forest-950/85 hover:text-forest-950">
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-forest-700" strokeWidth={3} />
-                  <span className="underline-offset-2 group-hover:underline">{l.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    <Link href={productHref(p)} className="group relative flex flex-col rounded-[1.125rem] bg-white p-3 shadow-[0_24px_48px_-24px_rgb(0_0_0/0.55)] transition-transform duration-300 hover:-translate-y-1" data-track="home-hero-product">
+      <span className="relative block aspect-[4/3] overflow-hidden rounded-inner bg-white">
+        {p.image && <Image src={p.image.src} alt={p.image.alt || p.name} fill priority sizes="(min-width: 1024px) 340px, 80vw" className="object-contain p-3 transition-transform duration-500 group-hover:scale-[1.04]" />}
+      </span>
+      <span className="grid gap-1 px-1.5 pt-2.5 pb-1">
+        <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-muted-ink uppercase">{p.brand || p.category}</span>
+        <span className="line-clamp-2 text-[0.9375rem] leading-snug font-semibold text-ink">{p.name}</span>
+        <span className="mt-1 flex items-center justify-between gap-3">
+          <PriceLine p={p} big />
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-forest-900 text-lime-400 transition-transform duration-200 group-hover:rotate-45">
+            <ArrowUpRight className="size-4" />
+          </span>
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+/** A small product row card: picture, name, price. */
+function MiniCard({ p, className }: { p: SiteProductSummary; className?: string }) {
+  return (
+    <Link href={productHref(p)} className={cn("group flex items-center gap-3 rounded-2xl bg-white p-2 pr-3 shadow-[0_18px_36px_-22px_rgb(0_0_0/0.6)] transition-transform duration-300 hover:-translate-y-0.5", className)} data-track="home-hero-product">
+      <span className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-white">
+        {p.image && <Image src={p.image.src} alt="" fill sizes="56px" className="object-contain p-1" />}
+      </span>
+      <span className="grid min-w-0 gap-0.5">
+        <span className="truncate text-xs font-semibold text-ink">{p.name}</span>
+        <PriceLine p={p} />
+      </span>
+    </Link>
   );
 }
 
 /**
- * Store-style top of the home page: a slim forest banner (words, two actions, product photo) with two side cards, then
- * quick-link chips (what visitors came to do) and a one-line benefit strip. Built for phones first.
+ * The right side of the frame: thin rings drawn behind the cards give depth without a glow or a grid (both banned in
+ * BRAND.md), then one lead card and two small ones, offset like a hand of cards.
  */
-export function Hero({ brand, home }: { brand: SiteBrand; home: SiteHome }) {
-  const h = home.hero;
+function Showcase({ products, chip }: { products: SiteProductSummary[]; chip?: { value: string; label: string } }) {
+  const [lead, ...rest] = products;
+  if (!lead) return null;
   return (
-    <section className="container-site grid gap-2.5 pt-3 sm:gap-3 sm:pt-4">
-      <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-[2.2fr_1fr]">
-        <div className="relative isolate grid overflow-hidden rounded-frame bg-forest-900 text-white sm:grid-cols-[1.15fr_1fr]">
-          <div className="grid content-center gap-3 p-5 sm:gap-4 sm:p-7 lg:p-8">
-            {h.eyebrow && <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-mint-300 uppercase">{h.eyebrow}</p>}
+    <div className="relative hidden min-h-[25rem] items-center justify-center overflow-hidden rounded-[1.25rem] bg-forest-900 p-8 lg:flex">
+      <svg aria-hidden viewBox="0 0 400 400" className="pointer-events-none absolute top-1/2 left-1/2 size-[140%] -translate-x-1/2 -translate-y-1/2 text-white/[0.06]" fill="none" stroke="currentColor">
+        {[60, 105, 150, 195].map((r) => (
+          <circle key={r} cx="200" cy="200" r={r} strokeWidth="1" />
+        ))}
+      </svg>
+      <div className="relative w-full max-w-[19rem]">
+        {chip && (
+          <span className="absolute -top-4 -left-6 z-20 inline-flex items-center gap-2 rounded-full bg-lime-400 py-1.5 pr-3.5 pl-1.5 text-xs font-semibold text-forest-950 shadow-lift">
+            <span className="grid h-6 min-w-6 place-items-center rounded-full bg-forest-950 px-1.5 font-heading text-[0.6875rem] text-lime-400">{chip.value}</span>
+            {chip.label}
+          </span>
+        )}
+        <Float distance={5}>
+          <LeadCard p={lead} />
+        </Float>
+        {rest[0] && (
+          <Float delay={1.6} distance={8} className="absolute top-[42%] -left-20 w-56 xl:-left-28">
+            <MiniCard p={rest[0]} />
+          </Float>
+        )}
+        {rest[1] && (
+          <Float delay={3.2} distance={8} className="absolute top-6 -right-14 w-56 xl:-right-24">
+            <MiniCard p={rest[1]} />
+          </Float>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Phones and tablets: the same products as a short swipeable row inside the frame. */
+function ShowcaseRow({ products }: { products: SiteProductSummary[] }) {
+  if (!products.length) return null;
+  return (
+    <ul className="scroll-row mt-1 lg:hidden" aria-label="Featured products">
+      {products.map((p) => (
+        <li key={p.slug} className="w-64">
+          <MiniCard p={p} className="shadow-none" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The three products the hero shows: pictured ones only, priced first (a price is what a store visitor looks for). */
+export function heroPicks(products: SiteProductSummary[]) {
+  return products
+    .filter((p) => p.image)
+    .sort((a, b) => Number(Boolean(formatPrice(b.price))) - Number(Boolean(formatPrice(a.price))))
+    .slice(0, 3);
+}
+
+export function Hero({ brand, home, picks }: { brand: SiteBrand; home: SiteHome; picks: SiteProductSummary[] }) {
+  const h = home.hero;
+  const chip = home.stats.find((s) => s.value && s.label);
+
+  return (
+    <section className="container-site pt-3 sm:pt-4">
+      <div className="relative isolate overflow-hidden rounded-frame bg-forest-950 text-white">
+        <div className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[1.1fr_1fr] lg:gap-8 lg:p-3 lg:pl-12">
+          <div className="grid content-center gap-4 sm:gap-5 lg:py-10">
+            {h.eyebrow && (
+              <p className="inline-flex items-center gap-2 justify-self-start rounded-full border border-white/15 py-1 pr-3 pl-2 text-[0.625rem] font-semibold tracking-[0.1em] text-white/80 uppercase sm:text-[0.6875rem] sm:tracking-[0.12em]">
+                <span className="size-1.5 rounded-full bg-mint-300" />
+                {h.eyebrow}
+              </p>
+            )}
             <Headline text={h.title || brand.tagline} />
-            {h.subtitle && <p className="max-w-md text-sm text-white/75 sm:text-[0.9375rem]">{h.subtitle}</p>}
+            {h.subtitle && <p className="max-w-lg text-[0.9375rem] leading-relaxed text-white/70 sm:text-base">{h.subtitle}</p>}
             <div className="flex flex-wrap gap-2">
-              <Action href="/products" track="home-hero-shop">
+              <Action href="/products" size="lg" track="home-hero-shop">
                 {h.shopLabel}
               </Action>
-              <Action href="/quote" variant="onDark" arrow={false} track="home-hero-quote">
+              <Action href="/quote" size="lg" variant="onDark" arrow={false} track="home-hero-quote">
                 {brand.ctaLabel}
               </Action>
             </div>
             {h.checks.length > 0 && (
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/65">
                 {h.checks.map((c) => (
                   <li key={c} className="inline-flex items-center gap-1.5">
                     <Check className="size-3.5 text-mint-300" strokeWidth={2.5} /> {c}
@@ -92,46 +174,27 @@ export function Hero({ brand, home }: { brand: SiteBrand; home: SiteHome }) {
                 ))}
               </ul>
             )}
+            <ShowcaseRow products={picks} />
           </div>
-          <Photo
-            src={imageFor("hero") ?? imageFor("industry-corporate-offices")}
-            subject="Business laptops, a monitor and a desktop on a bright office desk"
-            fill
-            priority
-            sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 100vw"
-            tone="dark"
-            className="hidden rounded-none sm:block"
-          />
+          <Showcase products={picks} chip={chip} />
         </div>
-        <SideCards business={home.business} office={home.office} />
+
+        {home.benefits.length > 0 && (
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-white/10 px-5 py-4 sm:px-8 lg:grid-cols-4 lg:divide-x lg:divide-white/10 lg:px-6">
+            {home.benefits.map((b) => (
+              <li key={b.title} className="flex items-center gap-2.5 lg:px-6 lg:first:pl-6">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-mint-300">
+                  <SiteIconView name={b.icon} className="size-[1.125rem]" strokeWidth={1.75} />
+                </span>
+                <span className="grid leading-tight">
+                  <span className="text-xs font-semibold text-white sm:text-sm">{b.title}</span>
+                  {b.text && <span className="hidden text-xs text-white/55 sm:block">{b.text}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-
-      {home.intents.length > 0 && (
-        <nav aria-label="What do you need?" className="scroll-row lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
-          {home.intents.map((x) => (
-            <Link key={x.href} href={x.href} className="inline-flex h-11 items-center gap-2.5 rounded-full border border-line/70 bg-white pr-4 pl-1.5 text-sm font-semibold text-ink transition-colors hover:border-forest-900" data-track="home-intent">
-              <span className="grid size-8 place-items-center rounded-full bg-forest-900 text-lime-400">
-                <SiteIconView name={x.icon} className="size-4" strokeWidth={1.75} />
-              </span>
-              {x.label}
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      {home.benefits.length > 0 && (
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-3 rounded-card border border-line/70 bg-white px-4 py-3 lg:grid-cols-4 lg:divide-x lg:divide-line/70 lg:px-2">
-          {home.benefits.map((b) => (
-            <li key={b.title} className="flex items-center gap-2.5 lg:px-4">
-              <SiteIconView name={b.icon} className="size-5 shrink-0 text-forest-700" strokeWidth={1.75} />
-              <span className="grid leading-tight">
-                <span className="text-xs font-semibold text-ink sm:text-sm">{b.title}</span>
-                {b.text && <span className="hidden text-xs text-muted-ink sm:block">{b.text}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }

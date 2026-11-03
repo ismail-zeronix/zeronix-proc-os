@@ -13,6 +13,8 @@ export const BRAND_DEFAULTS: SiteBrand = {
   whatsapp: "",
   address: "Dubai, United Arab Emirates",
   ctaLabel: "Get B2B pricing",
+  // Zeronix's own profiles (linked from zeronix.ae, checked 2026-11-04); Website › Settings › Brand can change them
+  profiles: "https://www.linkedin.com/company/zeronixtechnology https://www.instagram.com/zeronixuae https://www.facebook.com/zeronixuae https://www.youtube.com/@ZeronixTech https://x.com/zeronixuae https://www.trustpilot.com/review/zeronix.ae",
 };
 
 /** The home page's words before anyone has edited Website › Pages. The hero title falls back to the brand tagline. */
@@ -29,33 +31,12 @@ export const HOME_DEFAULTS: SiteHome = {
     shopLabel: "Shop products",
     checks: ["IT products", "Solutions and deployment", "Ongoing support"],
   },
-  intents: [
-    { icon: "users", label: "Equip teams", href: "/industries" },
-    { icon: "network", label: "Build IT infrastructure", href: "/services/networking-wifi" },
-    { icon: "shield-check", label: "Secure your business", href: "/services/cybersecurity" },
-    { icon: "layers", label: "Scale with support", href: "/services/it-amc-support" },
-  ],
   benefits: [
     { icon: "truck", title: "UAE-wide delivery", text: "Fast, tracked and insured" },
     { icon: "building", title: "Business and bulk pricing", text: "Special rates for companies" },
     { icon: "badge-check", title: "Genuine products", text: "UAE stock from leading brands" },
     { icon: "headset", title: "Expert IT support", text: "From setup to after-sales" },
   ],
-  business: {
-    title: "Buying for your company?",
-    text: "Bulk procurement, standard configurations, deployment and ongoing IT support.",
-    cta: "Request a business quote",
-    href: "/quote",
-  },
-  office: {
-    title: "Setting up a new office?",
-    items: [
-      { label: "IT infrastructure and networking", href: "/services/networking-wifi" },
-      { label: "Devices and software", href: "/products" },
-      { label: "Security and access control", href: "/services/access-control" },
-      { label: "AV and meeting rooms", href: "/services/av-meeting-rooms" },
-    ],
-  },
   bundles: {
     title: "Ready-to-work bundles",
     text: "Laptop, screen, dock and headset, matched to the role and priced together.",
@@ -113,22 +94,22 @@ export async function saveBrand(brand: SiteBrand, userId: number): Promise<void>
 
 /**
  * Saved words over the defaults, section by section: a section saved before it existed falls back to the default (a
- * list saved empty stays empty, which hides that section), and fields from older layouts (features, steps) are dropped.
+ * list saved empty stays empty, which hides that section), and fields from older layouts (features, steps, and the
+ * hero row's intents, business and office panels, removed 2026-11-04) are dropped.
  */
 export function mergeHome(saved: Partial<SiteHome> | undefined): SiteHome {
   const d = HOME_DEFAULTS;
   const s = saved ?? {};
   const list = <K extends keyof SiteHome>(k: K): SiteHome[K] => (Array.isArray(s[k]) ? (s[k] as SiteHome[K]) : d[k]);
-  const obj = <K extends "business" | "office" | "bundles" | "featured" | "ctaBand">(k: K): SiteHome[K] => ({ ...d[k], ...s[k] });
-  // words saved for the first layout (before intents existed) were written for a different hero: start it fresh
-  const hero = { ...d.hero, ...(s.intents ? s.hero : undefined) };
+  const obj = <K extends "bundles" | "featured" | "ctaBand">(k: K): SiteHome[K] => ({ ...d[k], ...s[k] });
+  // Words saved for the first layout were written for a different hero: start it fresh. The store layout is known by
+  // its benefit strip (older saves of it also carry `intents`, now dropped).
+  const storeLayout = Array.isArray(s.benefits) || Array.isArray((s as { intents?: unknown }).intents);
+  const hero = { ...d.hero, ...(storeLayout ? s.hero : undefined) };
   return {
     topLinks: list("topLinks"),
     hero: { eyebrow: hero.eyebrow, title: hero.title, subtitle: hero.subtitle, shopLabel: hero.shopLabel || d.hero.shopLabel, checks: Array.isArray(hero.checks) ? hero.checks : d.hero.checks },
-    intents: list("intents"),
     benefits: list("benefits"),
-    business: obj("business"),
-    office: { ...obj("office"), items: Array.isArray(s.office?.items) ? s.office.items : d.office.items },
     bundles: obj("bundles"),
     featured: obj("featured"),
     services: list("services"),

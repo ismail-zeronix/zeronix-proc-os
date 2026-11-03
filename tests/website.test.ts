@@ -423,17 +423,26 @@ describe("home page words", async () => {
     const home = mergeHome(old as never);
     expect(home.hero).toEqual(HOME_DEFAULTS.hero);
     expect(home.stats).toEqual([{ value: "24h", label: "Quote" }]);
-    expect(home.intents).toEqual(HOME_DEFAULTS.intents);
+    expect(home).not.toHaveProperty("intents");
     expect(home).not.toHaveProperty("features");
     expect(home).not.toHaveProperty("steps");
   });
 
   it("keeps saved words, and a list saved empty hides its section", () => {
-    const home = mergeHome({ ...HOME_DEFAULTS, hero: { ...HOME_DEFAULTS.hero, title: "Mine" }, services: [], business: { ...HOME_DEFAULTS.business, title: "Buying?" } });
+    const home = mergeHome({ ...HOME_DEFAULTS, hero: { ...HOME_DEFAULTS.hero, title: "Mine" }, services: [], bundles: { ...HOME_DEFAULTS.bundles, title: "Kits" } });
     expect(home.hero.title).toBe("Mine");
     expect(home.services).toEqual([]);
-    expect(home.business.title).toBe("Buying?");
-    expect(home.business.cta).toBe(HOME_DEFAULTS.business.cta);
+    expect(home.bundles.title).toBe("Kits");
+    expect(home.bundles.cta).toBe(HOME_DEFAULTS.bundles.cta);
+  });
+
+  it("drops the removed hero-row panels from older saves but keeps their hero words", () => {
+    const saved = { ...HOME_DEFAULTS, hero: { ...HOME_DEFAULTS.hero, title: "Kept" }, intents: [{ icon: "users", label: "Equip teams", href: "/industries" }], business: { title: "x" }, office: { title: "y", items: [] } };
+    const home = mergeHome(saved as never);
+    expect(home.hero.title).toBe("Kept");
+    expect(home).not.toHaveProperty("intents");
+    expect(home).not.toHaveProperty("business");
+    expect(home).not.toHaveProperty("office");
   });
 
   it("gives service pages their own address", () => {

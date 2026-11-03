@@ -1,63 +1,28 @@
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Action, ArrowCircle } from "@/components/brand/action";
+import { Action } from "@/components/brand/action";
 import { Photo } from "@/components/brand/photo";
 import { PostGrid } from "@/components/content/post-card";
 import type { SiteBrand, SiteHome, SiteIndustryCard, SiteNavLink, SitePostSummary, SiteProductSummary } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
 import { imageFor } from "@/lib/images";
+import { RiseItem } from "@/components/motion/motion";
+import { type CategoryCardData, CategoryRail } from "./category-rail";
 import { ProductRail } from "./product-rail";
+import { ShelfHeading } from "./shelf-heading";
 
 /** Home page sections, store-style: small headings, tight spacing, rows that scroll sideways on phones (BRAND.md colours). */
 
-/** Section header row: title (a short lime rule in front), an optional line under it, and "view all" on the right. */
-function ShelfHeading({ title, lead, href, linkLabel }: { title: string; lead?: string; href?: string; linkLabel?: string }) {
-  return (
-    <div className="mb-3 flex items-end justify-between gap-4 sm:mb-4">
-      <div className="min-w-0">
-        <h2 className="flex items-center gap-2.5 text-h2 text-ink">
-          <span aria-hidden className="h-1 w-6 shrink-0 rounded-full bg-lime-400" />
-          {title}
-        </h2>
-        {lead && <p className="mt-1 hidden text-sm text-muted-ink sm:block">{lead}</p>}
-      </div>
-      {href && linkLabel && (
-        <Link href={href} className="group inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-forest-800 hover:text-forest-950 sm:text-sm">
-          {linkLabel} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
 const section = "container-site py-4 sm:py-5";
 
-/** Category tiles right under the hero: a sideways row on phones, a grid on desktop. Photo when there is one, else the icon. */
-export function CategoryTiles({ categories }: { categories: SiteNavLink[] }) {
-  if (!categories.length) return null;
+/** "Shop by category" right under the hero: categories, then brand picks, in one sideways row (CategoryRail). */
+export function CategoryTiles({ cards }: { cards: CategoryCardData[] }) {
+  if (!cards.length) return null;
   return (
     <section className={section}>
       <ShelfHeading title="Shop by category" href="/products" linkLabel="All products" />
-      <ul className="scroll-row lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] lg:gap-3 lg:overflow-visible lg:px-0">
-        {categories.map((c) => {
-          const photo = imageFor(`category-${c.slug}`);
-          return (
-            <li key={c.slug} className="w-24 sm:w-28 lg:w-auto">
-              <Link href={`/products/${c.slug}`} className="group flex h-full flex-col items-center gap-2 rounded-card border border-line/70 bg-white p-2 pb-2.5 text-center transition-colors hover:border-forest-900">
-                {photo ? (
-                  <Photo src={photo} subject={c.name} ratio="1:1" sizes="120px" className="w-full" />
-                ) : (
-                  <span className="grid aspect-square w-full place-items-center rounded-inner bg-sage-50 text-forest-800 transition-colors group-hover:bg-sage-100">
-                    <SiteIconView name={c.icon} className="size-8" strokeWidth={1.25} />
-                  </span>
-                )}
-                <span className="line-clamp-2 text-xs leading-snug font-semibold text-ink">{c.name}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <CategoryRail cards={cards} />
     </section>
   );
 }
@@ -123,72 +88,41 @@ export function BundlesBand({ bundles }: { bundles: SiteHome["bundles"] }) {
   );
 }
 
-/** A service's picture whole at 16:9 (the artwork has its own title in it, so it is never cropped or covered). */
-function ServicePicture({ href, icon, sizes, priority = false }: { href: string; icon: SiteHome["services"][number]["icon"]; sizes: string; priority?: boolean }) {
-  const photo = imageFor(`service-${href.split("/").pop()}`);
-  return (
-    <span className="relative block aspect-video overflow-hidden rounded-inner bg-forest-900">
-      {photo ? (
-        <Image src={photo} alt="" fill sizes={sizes} priority={priority} className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]" />
-      ) : (
-        <span aria-hidden className="absolute inset-0 grid place-items-center text-mint-300">
-          <SiteIconView name={icon} className="size-12" strokeWidth={1.25} />
-        </span>
-      )}
-    </span>
-  );
-}
-
 /**
- * IT services as a bento grid. Every picture keeps its 16:9 shape with the name under it, so nothing is cut off: the
- * first service is the large card (two columns, two rows on desktop, with its summary), the others are small cards,
- * and a forest "not sure what you need?" card closes the grid. Two columns on phones, four on desktop.
+ * IT services as an even grid of the service artwork. Each picture already carries its own title, so the card is the
+ * picture alone (the name is the link's accessible label) and nothing is written twice. A service with no picture yet
+ * gets a forest card set in the same style: big white title, mint icon. A sideways row on phones (the artwork's own
+ * words would be too small in two columns), four across from `lg`.
  */
-export function ServicesBento({ services, excerpts, ctaLabel }: { services: SiteHome["services"]; excerpts: Record<string, string>; ctaLabel: string }) {
+export function ServicesBento({ services }: { services: SiteHome["services"] }) {
   if (!services.length) return null;
-  const [lead, ...rest] = services;
-  const card = "group flex h-full flex-col rounded-card border border-line/70 bg-white p-1.5 transition-[border-color,box-shadow] duration-200 hover:border-forest-900 hover:shadow-lift";
   return (
     <section className={section}>
       <ShelfHeading title="IT services" lead="Build, secure and run your office IT with one team." href="/services" linkLabel="All services" />
-      <ul className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
-        <li className="col-span-2 lg:row-span-2">
-          <Link href={lead.href} className={card}>
-            <ServicePicture href={lead.href} icon={lead.icon} sizes="(min-width: 1024px) 50vw, 100vw" />
-            <span className="flex flex-1 items-end justify-between gap-4 px-2.5 pt-3 pb-2 sm:px-3">
-              <span className="grid gap-1">
-                <span className="text-lg leading-snug font-semibold text-ink sm:text-xl">{lead.label}</span>
-                {excerpts[lead.href] && <span className="line-clamp-2 text-sm text-muted-ink">{excerpts[lead.href]}</span>}
-              </span>
-              <ArrowCircle />
-            </span>
-          </Link>
-        </li>
-        {rest.map((s) => (
-          <li key={s.href} className="reveal">
-            <Link href={s.href} className={card}>
-              <ServicePicture href={s.href} icon={s.icon} sizes="(min-width: 1024px) 25vw, 50vw" />
-              <span className="flex flex-1 items-center gap-2 px-1.5 pt-2.5 pb-1.5 sm:px-2">
-                <span className="hidden size-7 shrink-0 place-items-center rounded-full bg-forest-900 text-lime-400 sm:grid">
-                  <SiteIconView name={s.icon} className="size-3.5" strokeWidth={2} />
+      <ul className="scroll-row lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-3 lg:overflow-visible lg:px-0">
+        {services.map((s, i) => {
+          const photo = imageFor(`service-${s.href.split("/").pop()}`);
+          return (
+            <RiseItem key={s.href} index={i % 4} className="w-[78%] sm:w-[46%] lg:w-auto">
+              <Link href={s.href} aria-label={s.label} className="group relative block aspect-video overflow-hidden rounded-card bg-forest-900 ring-1 ring-line/70 transition-shadow duration-300 hover:shadow-lift">
+                {photo ? (
+                  <Image src={photo} alt="" fill sizes="(min-width: 1024px) 25vw, 78vw" className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" />
+                ) : (
+                  <span className="absolute inset-0 flex flex-col justify-between p-4 text-white sm:p-5">
+                    <span className="grid max-w-[70%] gap-2.5">
+                      <span className="font-heading text-lg leading-tight font-bold sm:text-xl">{s.label}</span>
+                      <span aria-hidden className="h-1 w-9 rounded-full bg-lime-400" />
+                    </span>
+                    <SiteIconView name={s.icon} className="size-10 self-end text-mint-300" strokeWidth={1.25} />
+                  </span>
+                )}
+                <span className="absolute right-2.5 bottom-2.5 grid size-8 place-items-center rounded-full bg-white text-forest-900 opacity-0 shadow-lift transition-all duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <ArrowUpRight className="size-4" />
                 </span>
-                <span className="min-w-0 flex-1 text-xs leading-snug font-semibold text-ink sm:text-sm">{s.label}</span>
-                <ArrowUpRight className="size-4 shrink-0 text-forest-700 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </span>
-            </Link>
-          </li>
-        ))}
-        <li className="reveal">
-          <div className="flex h-full flex-col justify-between gap-3 rounded-card bg-forest-900 p-3.5 text-white sm:p-5">
-            <span className="grid gap-1">
-              <span className="text-[0.9375rem] leading-snug font-semibold sm:text-lg">Not sure what you need?</span>
-              <span className="hidden text-sm text-white/65 sm:block">Tell us about your office and we will plan the IT with you.</span>
-            </span>
-            <Action href="/quote" size="md" className="self-start" track="home-services-cta">
-              {ctaLabel}
-            </Action>
-          </div>
-        </li>
+              </Link>
+            </RiseItem>
+          );
+        })}
       </ul>
     </section>
   );
@@ -216,7 +150,7 @@ export function HowItWorks({ ctaLabel }: { ctaLabel: string }) {
         </div>
         <ol className="grid gap-4 sm:grid-cols-3 sm:gap-3">
           {steps.map((s, i) => (
-            <li key={s.title} className="relative grid content-start gap-2 rounded-card bg-sage-50 p-4">
+            <li key={s.title} className="relative grid content-start gap-2 rounded-card border border-line/70 bg-paper p-4">
               <span className="font-heading text-3xl font-medium tracking-tight text-forest-700">0{i + 1}</span>
               <span className="text-[0.9375rem] font-semibold text-ink">{s.title}</span>
               <span className="text-sm text-muted-ink">{s.text}</span>
@@ -292,28 +226,6 @@ export function Brands({ brands }: { brands: SiteNavLink[] }) {
             </li>
           ))}
         </ul>
-      </div>
-    </section>
-  );
-}
-
-/** Closing lime band: the one big call to action, kept slim. */
-export function CtaBand({ cta, brand }: { cta: SiteHome["ctaBand"]; brand: SiteBrand }) {
-  return (
-    <section className="container-site pt-2 pb-6 sm:pb-8">
-      <div className="flex flex-col gap-4 rounded-frame bg-sage-100 px-5 py-6 text-forest-950 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-h2">{cta.title}</h2>
-          {cta.text && <p className="mt-1 max-w-2xl text-sm text-forest-950/75">{cta.text}</p>}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Action href="/quote" track="home-cta">
-            {brand.ctaLabel}
-          </Action>
-          <Action href="/contact" variant="outline" arrow={false}>
-            Talk to sales
-          </Action>
-        </div>
       </div>
     </section>
   );

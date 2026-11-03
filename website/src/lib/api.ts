@@ -16,6 +16,7 @@ import {
   type SiteProductsResponse,
   type SiteSearchResponse,
   type SiteSettingsResponse,
+  type SiteLlmsResponse,
   type SiteSitemapResponse,
 } from "./contract";
 import { BRAND_FALLBACK, HOME_FALLBACK } from "./defaults";
@@ -99,3 +100,4 @@ export const getPosts = (q: { kind?: "guides" | "articles" | "services"; industr
 export const getPost = (slug: string) => getOne<SitePostPage>(`/posts/${enc(slug)}`, ["posts", "catalog"]);
 export const getAuthor = (slug: string) => getOne<SiteAuthorPage>(`/authors/${enc(slug)}`, ["posts"]);
 export const getSitemap = () => get<SiteSitemapResponse>("/sitemap", ["posts", "catalog"], { contract: CONTRACT_VERSION, entries: [] });
+export const getLlms = () => get<SiteLlmsResponse>("/llms", ["posts", "catalog"], { contract: CONTRACT_VERSION, industries: [], categories: [], brands: [], products: [], posts: [] });

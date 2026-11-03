@@ -174,7 +174,8 @@ export async function publicIndustry(slug: string): Promise<SiteIndustryPage | n
 
 export async function publicCategories(): Promise<SiteCategoriesResponse> {
   const rows = await siteDb
-    .select({ slug: C.slug, name: C.name, icon: C.icon, summary: C.description, image: C.image, count: sql<number>`(select count(*)::int from site_products p where p.category_id = ${C.id} and p.status = 'published')` })
+    .select({ slug: C.slug, name: C.name, icon: C.icon, summary: C.description, image: C.image, // the outer row is named in full: drizzle prints ${C.id} as a bare "id" here, which Postgres reads as p.id
+      count: sql<number>`(select count(*)::int from site_products p where p.category_id = "site_categories"."id" and p.status = 'published')` })
     .from(C)
     .where(eq(C.status, "published"))
     .orderBy(asc(C.sort), asc(C.name));

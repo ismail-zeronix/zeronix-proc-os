@@ -112,6 +112,10 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
       SITE_URL: ${SITE_URL:-https://zeronixtech.com}
       SITE_INDEXING: ${SITE_INDEXING:-false}
+      # search engine ownership tags and IndexNow (website/SEO-PLAN.md); empty means off
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+      BING_SITE_VERIFICATION: ${BING_SITE_VERIFICATION:-}
+      INDEXNOW_KEY: ${INDEXNOW_KEY:-}
       COMMERCE_ENABLED: "false"
     mem_limit: 256m
     expose:

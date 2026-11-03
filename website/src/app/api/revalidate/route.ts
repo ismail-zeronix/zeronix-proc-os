@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
+import { autoSubmit } from "@/lib/indexnow";
 
 /**
  * The portal calls this (over site-net) right after something is published, with the cache tags that changed. Those
@@ -19,5 +21,7 @@ export async function POST(req: Request) {
   // Pages prerendered while the portal was out of reach (every Docker build) hold no tags, so the tags alone would miss
   // them. Mark every page stale too; each is rebuilt on its next visit, not all at once.
   revalidatePath("/", "layout");
+  // new or changed catalog and posts: tell Bing and the other IndexNow engines (switched off without INDEXNOW_KEY)
+  if (tags.some((t) => t === "posts" || t === "catalog")) after(() => autoSubmit().catch(() => undefined));
   return Response.json({ revalidated: tags });
 }

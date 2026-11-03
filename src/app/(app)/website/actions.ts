@@ -27,10 +27,7 @@ const promo = z.object({ title: text(90), text: text(200), cta: text(40), href }
 const homeSchema = z.object({
   topLinks: z.array(link).max(4),
   hero: z.object({ eyebrow: text(60), title: text(120), subtitle: text(320), shopLabel: text(40), checks: z.array(text(40)).max(3) }),
-  intents: z.array(iconLink).max(4),
   benefits: z.array(z.object({ icon, title: text(40), text: text(60) })).max(4),
-  business: promo,
-  office: z.object({ title: text(90), items: z.array(link).max(5) }),
   bundles: promo,
   featured: z.object({ title: text(90), text: text(200) }),
   services: z.array(iconLink).max(8),
@@ -46,9 +43,7 @@ export async function updateHome(input: SiteHome): Promise<Result<{ siteRefreshe
     const home = homeSchema.parse(input);
     home.topLinks = home.topLinks.filter((l) => l.label && l.href);
     home.hero.checks = home.hero.checks.filter(Boolean);
-    home.intents = home.intents.filter((l) => l.label && l.href);
     home.benefits = home.benefits.filter((b) => b.title);
-    home.office.items = home.office.items.filter((l) => l.label && l.href);
     home.services = home.services.filter((l) => l.label && l.href);
     home.stats = home.stats.filter((s) => s.value || s.label);
     home.reasons = home.reasons.filter((r) => r.title);

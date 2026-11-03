@@ -2,6 +2,9 @@ import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import Link from "next/link";
 import type { SiteBrand, SiteIconLink, SiteNavResponse } from "@/lib/contract";
 import { Logo } from "@/components/brand/logo";
+import { KeywordHub, type EmirateKeywords } from "@/components/home/keyword-hub";
+import { profileLinks } from "@/lib/seo";
+import { SocialLinks } from "./social-links";
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
 
@@ -25,7 +28,23 @@ function Column({ title, links }: { title: string; links: { href: string; label:
 
 const contact = "inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm text-white/85 transition-colors hover:border-lime-400 hover:bg-lime-400 hover:text-forest-950";
 
-/** Full-width forest footer: brand and contact row, link columns, emirates served, and a large faded wordmark. */
+/** Searches per emirate (home page only, see KeywordHub): every link goes to a real category or service page. */
+function emirateKeywords(nav: SiteNavResponse, services: SiteIconLink[]): EmirateKeywords[] {
+  return EMIRATES.map((e) => ({
+    emirate: e,
+    products: [
+      ...nav.categories.map((c) => ({ href: `/products/${c.slug}`, label: `${c.name} in ${e}` })),
+      { href: "/products", label: `IT hardware supplier in ${e}` },
+      { href: "/quote", label: `Bulk IT orders in ${e}` },
+    ],
+    services: [...services.map((s) => ({ href: s.href, label: `${s.label} in ${e}` })), { href: "/services", label: `IT company in ${e}` }],
+  }));
+}
+
+/**
+ * Full-width forest footer: brand and contact row, link columns, then either popular searches by emirate (home) or the
+ * emirates we deliver to (other pages), the legal line, and a large faded wordmark.
+ */
 export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNavResponse; services: SiteIconLink[] }) {
   const wa = brand.whatsapp.replace(/\D/g, "");
   return (
@@ -37,6 +56,7 @@ export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNa
             <p className="text-sm leading-relaxed text-white/60">
               {brand.tagline} {brand.subline}
             </p>
+            <SocialLinks profiles={profileLinks(brand)} brandName={brand.name} />
           </div>
           <ul className="flex flex-wrap gap-2">
             {brand.phone && (
@@ -80,16 +100,22 @@ export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNa
           />
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-white/10 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/55">
-            <MapPin className="size-3.5 text-lime-400" />
-            {brand.address ? `${brand.address} · ` : ""}Delivery and on-site service in
+        <KeywordHub groups={emirateKeywords(nav, services)}>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/10 py-5 text-xs text-white/55">
+            Delivery and on-site service in
             {EMIRATES.map((e, i) => (
               <span key={e} className="text-white/75">
                 {e}
                 {i < EMIRATES.length - 1 ? "," : ""}
               </span>
             ))}
+          </p>
+        </KeywordHub>
+
+        <div className="flex flex-col gap-3 border-t border-white/10 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <p className="flex items-center gap-2 text-xs text-white/55">
+            <MapPin className="size-3.5 text-lime-400" />
+            {brand.address || "United Arab Emirates"}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/50">
             <span>

@@ -56,6 +56,8 @@ export interface SiteBrand {
   address: string;
   /** Header button and the default call to action. */
   ctaLabel: string;
+  /** The company's own profiles elsewhere (LinkedIn, Google Business, Instagram...), separated by spaces: schema.org sameAs and llms.txt. */
+  profiles?: string;
 }
 
 export interface SiteLink {
@@ -84,13 +86,8 @@ export interface SiteHome {
   topLinks: SiteLink[];
   /** `shopLabel` is the first button (to /products); the second is the brand's call to action (to /quote). */
   hero: { eyebrow: string; title: string; subtitle: string; shopLabel: string; checks: string[] };
-  /** The white card on the hero: what visitors came to do, each a link. */
-  intents: SiteIconLink[];
-  /** The strip across the bottom of the hero. */
+  /** The trust bar along the bottom of the hero. */
   benefits: { icon: SiteIcon | ""; title: string; text: string }[];
-  /** Dark panel ("Buying for your company?") next to the office checklist panel. */
-  business: SitePromo;
-  office: { title: string; items: SiteLink[] };
   bundles: SitePromo;
   featured: { title: string; text: string };
   services: SiteIconLink[];
@@ -315,4 +312,14 @@ export interface SiteAuthorPage {
 export interface SiteSitemapResponse {
   contract: number;
   entries: { path: string; updatedAt: string }[];
+}
+
+/** Everything published, in short form, for /llms.txt and /llms-full.txt (a map of the site for AI assistants). */
+export interface SiteLlmsResponse {
+  contract: number;
+  industries: { slug: string; name: string; summary: string }[];
+  categories: { slug: string; name: string; summary: string; count: number }[];
+  brands: { slug: string; name: string }[];
+  products: (SiteProductSummary & { mpn: string; path: string; updatedAt: string })[];
+  posts: { path: string; type: SitePostType; title: string; excerpt: string; updatedAt: string }[];
 }

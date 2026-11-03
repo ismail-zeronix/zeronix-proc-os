@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Action } from "@/components/brand/action";
 import { CtaStrip, Faq, JsonLd, PageHero, ProductGrid, quoteLink } from "@/components/catalog/page-parts";
+import { MoreProducts } from "@/components/catalog/more-products";
 import { Pagination } from "@/components/catalog/pagination";
 import { getCategory, getSettings } from "@/lib/api";
 import { SITE_URL } from "@/lib/defaults";
@@ -111,7 +112,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
             </div>
           </div>
         )}
-        <Pagination page={page} pages={pages} href={(n) => listHref(base, { ...filters, page: n })} label={`${c.name} pages`} />
+        <MoreProducts category={c.slug} brand={brandFilter} industry={industryFilter} page={page} pages={pages} per={PER_PAGE}>
+          <Pagination page={page} pages={pages} href={(n) => listHref(base, { ...filters, page: n })} label={`${c.name} pages`} />
+        </MoreProducts>
       </section>
 
       {landing && c.introHtml && (

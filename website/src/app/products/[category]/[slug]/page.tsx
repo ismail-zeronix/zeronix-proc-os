@@ -218,6 +218,21 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
           url,
           description: p.highlights.join(". ") || undefined,
           additionalProperty: p.specGroups.flatMap((g) => g.rows.map((r) => ({ "@type": "PropertyValue", name: r.label, value: r.value }))),
+          // a price only when the product shows one; "price on request" products carry no offer rather than a made-up one
+          offers:
+            p.priceMode === "public" && Number(p.price) > 0
+              ? {
+                  "@type": "Offer",
+                  url,
+                  price: Number(p.price).toFixed(2),
+                  priceCurrency: p.currency || "AED",
+                  availability: p.uaeAvailable ? "https://schema.org/InStock" : "https://schema.org/BackOrder",
+                  itemCondition: "https://schema.org/NewCondition",
+                  priceSpecification: { "@type": "UnitPriceSpecification", price: Number(p.price).toFixed(2), priceCurrency: p.currency || "AED", valueAddedTaxIncluded: true },
+                  eligibleRegion: { "@type": "Country", name: "AE" },
+                  seller: { "@id": `${SITE_URL}/#organization` },
+                }
+              : undefined,
         }}
       />
     </>

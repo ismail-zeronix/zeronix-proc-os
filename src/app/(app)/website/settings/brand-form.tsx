@@ -17,6 +17,7 @@ const FIELDS: { key: keyof SiteBrand; label: string; hint?: string; type?: strin
   { key: "phone", label: "Phone", type: "tel" },
   { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Number with country code, e.g. 9715..." },
   { key: "address", label: "Address" },
+  { key: "profiles", label: "Company profiles", hint: "LinkedIn, Google Business, Instagram... links separated by spaces. Search engines and AI assistants use them to recognise the company." },
 ];
 
 export function BrandForm({ brand, canEdit }: { brand: SiteBrand; canEdit: boolean }) {
@@ -38,7 +39,7 @@ export function BrandForm({ brand, canEdit }: { brand: SiteBrand; canEdit: boole
         {FIELDS.map((x) => (
           <div key={x.key} className="grid gap-1.5">
             <Label htmlFor={`brand-${x.key}`}>{x.label}</Label>
-            <Input id={`brand-${x.key}`} type={x.type ?? "text"} value={f[x.key]} disabled={!canEdit} onChange={(e) => setF({ ...f, [x.key]: e.target.value })} />
+            <Input id={`brand-${x.key}`} type={x.type ?? "text"} value={f[x.key] ?? ""} disabled={!canEdit} onChange={(e) => setF({ ...f, [x.key]: e.target.value })} />
             {x.hint && <span className="text-xs text-muted-foreground">{x.hint}</span>}
           </div>
         ))}

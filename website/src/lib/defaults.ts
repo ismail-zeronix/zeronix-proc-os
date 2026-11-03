@@ -10,6 +10,8 @@ export const BRAND_FALLBACK: SiteBrand = {
   whatsapp: "",
   address: "Dubai, United Arab Emirates",
   ctaLabel: "Get B2B pricing",
+  // Zeronix's own profiles (linked from zeronix.ae, checked 2026-11-04); Website › Settings › Brand can change them
+  profiles: "https://www.linkedin.com/company/zeronixtechnology https://www.instagram.com/zeronixuae https://www.facebook.com/zeronixuae https://www.youtube.com/@ZeronixTech https://x.com/zeronixuae https://www.trustpilot.com/review/zeronix.ae",
 };
 
 export const HOME_FALLBACK: SiteHome = {
@@ -21,10 +23,7 @@ export const HOME_FALLBACK: SiteHome = {
     shopLabel: "Shop products",
     checks: [],
   },
-  intents: [],
   benefits: [],
-  business: { title: "Buying for your company?", text: "Bulk procurement, standard configurations, deployment and ongoing IT support.", cta: "Request a business quote", href: "/quote" },
-  office: { title: "", items: [] },
   bundles: { title: "", text: "", cta: "", href: "" },
   featured: { title: "Featured products", text: "" },
   services: [],

@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProductCard } from "@/components/brand/cards";
+import { RAIL_ROW } from "@/components/brand/skeleton";
 import type { SiteProductSummary } from "@/lib/contract";
 import { formatPrice } from "@/lib/price";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,7 @@ export function ProductRail({ products, label }: { products: SiteProductSummary[
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onDragStart={(e) => e.preventDefault()}
-        className="-mx-3 grid snap-x snap-mandatory auto-cols-[46%] grid-flow-col gap-2.5 overflow-x-auto overscroll-x-contain scroll-px-3 px-3 pb-1 [scrollbar-width:none] sm:-mx-5 sm:auto-cols-[31%] sm:scroll-px-5 sm:gap-3 sm:px-5 lg:mx-0 lg:auto-cols-[calc((100%-3rem)/5)] lg:scroll-px-0 lg:px-0 xl:auto-cols-[calc((100%-3.75rem)/6)] [&::-webkit-scrollbar]:hidden"
+        className={cn(RAIL_ROW, "snap-x snap-mandatory")}
       >
         {products.map((p) => (
           <li key={p.slug} className="snap-start">

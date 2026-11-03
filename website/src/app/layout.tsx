@@ -6,6 +6,8 @@ import { Header } from "@/components/layout/header";
 import { getNav, getSettings } from "@/lib/api";
 import { SITE_URL } from "@/lib/defaults";
 import { flags } from "@/lib/flags";
+import { JsonLd } from "@/components/catalog/page-parts";
+import { siteJsonLd } from "@/lib/seo";
 import "./globals.css";
 
 // BRAND.md section 3. Self-hosted (next/font/google fails in the server's Docker build); variable fonts, SIL OFL.
@@ -19,8 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${brand.name} · ${brand.tagline}`, template: `%s · ${brand.name}` },
     description: brand.subline,
     applicationName: brand.name,
+    publisher: brand.name,
+    category: "technology",
+    formatDetection: { telephone: false, email: false, address: false },
+    alternates: { types: { "application/rss+xml": [{ url: "/rss.xml", title: `${brand.name} guides and articles` }] } },
     openGraph: { type: "website", siteName: brand.name, locale: "en_AE" },
-    robots: flags.indexing ? undefined : { index: false, follow: false },
+    twitter: { card: "summary_large_image" },
+    robots: flags.indexing ? { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } : { index: false, follow: false },
+    // Search Console and Bing Webmaster Tools ownership checks (website/SEO-PLAN.md, owner steps)
+    verification: {
+      google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+      other: process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : undefined,
+    },
   };
 }
 
@@ -41,6 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <Footer brand={brand} nav={nav} services={home.services} />
+        <JsonLd data={siteJsonLd(brand)} />
         <Tracker />
         {/* the portal's chat widget (the portal's widget/README.md), in the brand colours; chats are tagged with this site */}
         {process.env.PORTAL_PUBLIC_URL && (

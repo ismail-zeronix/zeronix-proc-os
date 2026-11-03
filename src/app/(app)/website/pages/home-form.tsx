@@ -74,9 +74,7 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
     ...home,
     topLinks: pad(home.topLinks, 4, link),
     hero: { ...home.hero, checks: pad(home.hero.checks, 3, "") },
-    intents: pad(home.intents, 4, iconLink),
     benefits: pad(home.benefits, 4, { icon: "", title: "", text: "" }),
-    office: { ...home.office, items: pad(home.office.items, 5, link) },
     services: pad(home.services, 8, iconLink),
     stats: pad(home.stats, 4, { value: "", label: "" }),
     reasons: pad(home.reasons, 4, { icon: "", title: "", text: "" }),
@@ -84,11 +82,9 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
   const [pending, start] = useTransition();
 
   const hero = (k: "eyebrow" | "title" | "subtitle" | "shopLabel") => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, hero: { ...f.hero, [k]: e.target.value } });
-  type Lists = "topLinks" | "intents" | "benefits" | "services" | "stats" | "reasons";
+  type Lists = "topLinks" | "benefits" | "services" | "stats" | "reasons";
   const setRow = <K extends Lists>(list: K, i: number, k: string, v: string) => setF({ ...f, [list]: f[list].map((r, j) => (j === i ? { ...r, [k]: v } : r)) });
   const row = (list: Lists, i: number, k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setRow(list, i, k, e.target.value);
-  const officeItem = (i: number, k: "label" | "href") => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setF({ ...f, office: { ...f.office, items: f.office.items.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) } });
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,17 +136,7 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
           </div>
         </Section>
 
-        <Section title="Hero card" hint="The white card on the hero photo: what visitors came to do">
-          {f.intents.map((x, i) => (
-            <div key={i} className="grid gap-2 sm:grid-cols-[10rem_1fr_16rem]">
-              <IconSelect label={`Card row ${i + 1} icon`} value={x.icon} onChange={(v) => setRow("intents", i, "icon", v)} />
-              <Input aria-label={`Card row ${i + 1}`} placeholder="Equip teams" value={x.label} onChange={row("intents", i, "label")} />
-              <Input aria-label={`Card row ${i + 1} link`} placeholder="/industries" value={x.href} onChange={row("intents", i, "href")} />
-            </div>
-          ))}
-        </Section>
-
-        <Section title="Benefit strip" hint="Four short promises across the bottom of the hero">
+        <Section title="Benefit strip" hint="Four short promises in the trust bar along the bottom of the hero">
           {f.benefits.map((b, i) => (
             <div key={i} className="grid gap-2 sm:grid-cols-[10rem_14rem_1fr]">
               <IconSelect label={`Benefit ${i + 1} icon`} value={b.icon} onChange={(v) => setRow("benefits", i, "icon", v)} />
@@ -159,23 +145,6 @@ export function HomeForm({ home, tagline, siteUrl, canEdit }: { home: SiteHome; 
             </div>
           ))}
         </Section>
-
-        <div className="grid gap-3 lg:grid-cols-2">
-          <Section title="Business panel" hint="Dark panel after the industries">
-            <PromoFields id="biz" value={f.business} onChange={(business) => setF({ ...f, business })} />
-          </Section>
-          <Section title="New office panel" hint="Light panel with a checklist of links">
-            <Field id="office-title" label="Title">
-              <Input id="office-title" value={f.office.title} onChange={(e) => setF({ ...f, office: { ...f.office, title: e.target.value } })} />
-            </Field>
-            {f.office.items.map((l, i) => (
-              <div key={i} className="grid grid-cols-[1fr_12rem] gap-2">
-                <Input aria-label={`Checklist ${i + 1}`} placeholder="IT infrastructure and networking" value={l.label} onChange={officeItem(i, "label")} />
-                <Input aria-label={`Checklist ${i + 1} link`} placeholder="/services/networking-wifi" value={l.href} onChange={officeItem(i, "href")} />
-              </div>
-            ))}
-          </Section>
-        </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
           <Section title="Bundles band" hint="Forest band before the featured products">

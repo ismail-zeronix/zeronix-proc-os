@@ -23,6 +23,9 @@ const brandSchema = z.object({
   whatsapp: text(40),
   address: text(200),
   ctaLabel: text(40).min(2, "Enter the button text"),
+  profiles: text(1500)
+    .optional()
+    .refine((v) => !v || v.split(/\s+/).every((u) => /^https:\/\/\S+$/.test(u)), "Each company profile link must start with https://"),
 });
 
 /** Brand and contact details shown on every page of the site. Admins only; the site refreshes right away. */
