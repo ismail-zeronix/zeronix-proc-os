@@ -1,55 +1,61 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { Pager, PAGE_SIZE, pageParam } from "@/components/pager";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
 import { listCategories } from "@/lib/website/catalog";
+import { StatusBulkActions } from "../bulk-actions";
+import { FillButton } from "../industries/fill-button";
+import { DataTable } from "../data-table";
 import { StatusBadge } from "../status-badge";
+import { LIST_PAGE } from "../list-page";
 
 export const metadata = { title: "Categories · Zeronix Website" };
 
-export default async function CategoriesPage() {
-  await requireApp("website");
-  const rows = await listCategories();
+export default async function CategoriesPage({ searchParams }: PageProps<"/website/categories">) {
+  const { user } = await requireApp("website");
+  const sp = await searchParams;
+  const page = pageParam(sp.page);
+  const all = await listCategories();
+  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
-    <div className="grid gap-3">
+    <div className={LIST_PAGE}>
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-semibold">Categories</h1>
         <span className="text-xs text-muted-foreground">Each one decides which specs its products show, compare and filter on</span>
-        <Button size="sm" className="ml-auto" nativeButton={false} render={<Link href="/website/categories/new" />}>
-          <Plus /> New category
-        </Button>
+        <div className="ml-auto flex gap-2">
+          {user.role === "admin" && <FillButton kind="category" />}
+          <Button size="sm" nativeButton={false} render={<Link href="/website/categories/new" />}>
+            <Plus /> New category
+          </Button>
+        </div>
       </div>
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Web address</TableHead>
-              <TableHead className="text-right">Spec fields</TableHead>
-              <TableHead className="text-right">Products</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  <Link href={`/website/categories/${r.id}`} className="hover:underline">
-                    {r.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground">/products/{r.slug}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.specTemplate.groups.reduce((n, g) => n + g.fields.length, 0)}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.products}</TableCell>
-                <TableCell>
-                  <StatusBadge status={r.status} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        noun="category"
+        total={all.length}
+        empty="No categories yet."
+        actions={<StatusBulkActions list="categories" noun="category" />}
+        pager={<Pager path="/website/categories" params={sp} page={page} total={all.length} showSingle />}
+        columns={[{ label: "Name" }, { label: "Web address" }, { label: "Spec fields", className: "text-right" }, { label: "Products", className: "text-right" }, { label: "Status" }]}
+        rows={rows.map((r) => ({
+          id: r.id,
+          cells: [
+            <Link key="n" href={`/website/categories/${r.id}`} className="font-medium hover:underline">
+              {r.name}
+            </Link>,
+            <span key="a" className="text-muted-foreground">
+              /products/{r.slug}
+            </span>,
+            <span key="f" className="tabular-nums">
+              {r.specTemplate.groups.reduce((n, g) => n + g.fields.length, 0)}
+            </span>,
+            <span key="p" className="tabular-nums">
+              {r.products}
+            </span>,
+            <StatusBadge key="s" status={r.status} />,
+          ],
+        }))}
+      />
     </div>
   );
 }

@@ -1,60 +1,59 @@
 "use client";
 
 import { Pencil, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BrandInput } from "@/lib/website/catalog";
 import { saveBrandAction } from "../catalog-actions";
 import { Field, StatusSelect, useLocal, useSave } from "../catalog-ui";
+import { StatusBulkActions } from "../bulk-actions";
+import { DataTable } from "../data-table";
 import { StatusBadge } from "../status-badge";
 
 type Row = BrandInput & { id: number; products: number };
 const blank: BrandInput = { slug: "", name: "", website: "", uaeWarrantyNote: "", sort: 0, status: "draft" };
 
-/** Brands are small records, so they are edited in a dialog right on the list. */
-export function BrandsTable({ rows }: { rows: Row[] }) {
+/** Brands are small records, so they are edited in a dialog right on the list; ticked ones publish or archive together. */
+export function BrandsTable({ rows, total, pager }: { rows: Row[]; total: number; pager: ReactNode }) {
   const [editing, setEditing] = useState<Row | "new" | null>(null);
   return (
     <>
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Website</TableHead>
-              <TableHead>UAE warranty</TableHead>
-              <TableHead className="text-right">Products</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-10 text-right">
-                <Button size="icon-sm" variant="ghost" aria-label="New brand" onClick={() => setEditing("new")}>
-                  <Plus />
-                </Button>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell className="max-w-56 truncate text-muted-foreground">{r.website}</TableCell>
-                <TableCell className="max-w-64 truncate text-muted-foreground">{r.uaeWarrantyNote}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.products}</TableCell>
-                <TableCell>
-                  <StatusBadge status={r.status} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button size="icon-sm" variant="ghost" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)}>
-                    <Pencil />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => setEditing("new")}>
+          <Plus /> New brand
+        </Button>
       </div>
+      <DataTable
+        noun="brand"
+        total={total}
+        empty="No brands yet."
+        actions={<StatusBulkActions list="brands" noun="brand" />}
+        pager={pager}
+        columns={[{ label: "Name" }, { label: "Website", className: "max-w-56 truncate" }, { label: "UAE warranty", className: "max-w-64 truncate" }, { label: "Products", className: "text-right" }, { label: "Status" }, { label: "", className: "w-10 text-right" }]}
+        rows={rows.map((r) => ({
+          id: r.id,
+          cells: [
+            <span key="n" className="font-medium">
+              {r.name}
+            </span>,
+            <span key="w" className="text-muted-foreground">
+              {r.website}
+            </span>,
+            <span key="u" className="text-muted-foreground">
+              {r.uaeWarrantyNote}
+            </span>,
+            <span key="p" className="tabular-nums">
+              {r.products}
+            </span>,
+            <StatusBadge key="s" status={r.status} />,
+            <Button key="e" size="icon-sm" variant="ghost" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)}>
+              <Pencil />
+            </Button>,
+          ],
+        }))}
+      />
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent>
           <DialogHeader>

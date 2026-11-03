@@ -2,6 +2,7 @@ import { MapPin, MessageCircle, Phone, Search } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { QuoteListLink } from "@/components/quote/quote-buttons";
+import { AccountLink, CartLink } from "@/components/store/cart-buttons";
 import type { SiteBrand, SiteHome, SiteNavResponse } from "@/lib/contract";
 import { MegaMenu } from "./mega-menu";
 import { MobileNav } from "./mobile-nav";
@@ -85,6 +86,8 @@ export function Header({ brand, home, nav }: { brand: SiteBrand; home: SiteHome;
           <SearchBox className="mx-auto hidden max-w-xl flex-1 md:block" />
           <div className="ml-auto flex items-center gap-1 md:ml-0">
             <QuoteListLink withLabel />
+            <CartLink />
+            <AccountLink />
             <Link href="/quote" className="hidden h-10 items-center rounded-full bg-lime-400 px-4 text-sm font-semibold text-forest-950 transition-colors hover:bg-lime-500 lg:inline-flex" data-track="header">
               {brand.ctaLabel}
             </Link>

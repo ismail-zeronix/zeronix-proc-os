@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { assertApp } from "@/lib/auth/session";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { POST_TYPES, renderPostBody, type PostInput } from "@/lib/website/post-parse";
-import { importPost, revisionSnapshot, savePost, setPostStatus } from "@/lib/website/posts";
+import { bulkPostStatus, importPost, revisionSnapshot, savePost, setPostStatus } from "@/lib/website/posts";
 import { revalidateSite } from "@/lib/website/revalidate";
 
 /** Guides and blog posts in the Website app. Anyone with the app may upload, edit and publish; only admins change the byline. */
@@ -89,6 +89,16 @@ export async function setPostStatusAction(id: number, kind: "publish" | "schedul
     } else await setPostStatus(id, { kind }, me.id);
     refresh(id);
     return undefined;
+  });
+}
+
+/** Publish, unpublish or archive the posts ticked in the Content list. */
+export async function bulkPostStatusAction(ids: number[], kind: "publish" | "unpublish" | "archive"): Promise<Result<number>> {
+  return attempt(async () => {
+    const me = await assertApp("website");
+    const n = await bulkPostStatus(z.array(z.number().int().positive()).max(500).parse(ids), z.enum(["publish", "unpublish", "archive"]).parse(kind), me.id);
+    revalidatePath("/website", "layout");
+    return n;
   });
 }
 

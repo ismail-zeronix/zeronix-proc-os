@@ -97,7 +97,7 @@ export function ProductTile({ p, label }: { p: SiteProductSummary; label?: strin
   return (
     <div className="relative h-full">
       {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-lime-400 px-2 py-0.5 text-[0.6875rem] font-semibold text-forest-950">{label}</span>}
-      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} />
+      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} />
     </div>
   );
 }

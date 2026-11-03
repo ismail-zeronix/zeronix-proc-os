@@ -1,7 +1,8 @@
 "use client";
 
-import { Link2, X } from "lucide-react";
+import { ImageDown, Link2, X } from "lucide-react";
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -9,8 +10,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { ago } from "@/lib/format";
 import type { ProductInput } from "@/lib/website/catalog";
-import type { SiteSpecTemplate } from "@/lib/website/types";
-import { saveProductAction, searchPortalProductsAction } from "../../catalog-actions";
+import type { SiteImage, SiteSpecTemplate } from "@/lib/website/types";
+import { picturesFromLinksAction, saveProductAction, searchPortalProductsAction } from "../../catalog-actions";
 import { FaqRows, Field, ImagesField, LinesInput, Panel, Rows, StatusSelect, useLocal, useSave } from "../../catalog-ui";
 
 const blank: ProductInput = {
@@ -183,13 +184,24 @@ export function ProductForm({ id, initial, checkedAt, categories, brands, indust
           <Field id="status" label="Status">
             <StatusSelect value={f.status} onChange={(status) => patch({ status })} />
           </Field>
-          <p className="text-xs text-muted-foreground">Price: on request (B2B). Prices arrive with the shop.</p>
+          <div className="grid grid-cols-[1fr_7rem] gap-2">
+            <Field id="price-mode" label="How it's sold">
+              <NativeSelect id="price-mode" value={f.priceMode ?? "on_request"} onChange={(e) => patch({ priceMode: e.target.value as NonNullable<ProductInput["priceMode"]> })}>
+                <NativeSelectOption value="public">Sell online: price + Add to cart</NativeSelectOption>
+                <NativeSelectOption value="on_request">Quote only: Add to quote</NativeSelectOption>
+              </NativeSelect>
+            </Field>
+            <Field id="price" label="AED, with VAT">
+              <Input id="price" inputMode="decimal" value={f.listPrice ?? ""} disabled={f.priceMode !== "public"} onChange={(e) => patch({ listPrice: e.target.value })} />
+            </Field>
+          </div>
           <Button type="submit" pending={pending}>
             Save
           </Button>
         </Panel>
         <Panel title="Pictures" hint="The first one is the main picture">
           <ImagesField multiple value={f.images} onChange={(images) => patch({ images })} altDefault={f.name} />
+          <PictureLinks alt={f.name} onAdd={(images) => patch({ images: [...f.images, ...images].slice(0, 12) })} />
         </Panel>
         <Panel title="In the UAE">
           <label className="flex items-center gap-2 text-sm">
@@ -214,6 +226,39 @@ export function ProductForm({ id, initial, checkedAt, categories, brands, indust
         </Panel>
       </div>
     </form>
+  );
+}
+
+/** "Add pictures from links": the maker's or distributor's picture links, downloaded and saved under our own names. */
+function PictureLinks({ alt, onAdd }: { alt: string; onAdd: (images: SiteImage[]) => void }) {
+  const [links, setLinks] = useState("");
+  const [pending, start] = useTransition();
+  return (
+    <div className="grid gap-1.5">
+      <Textarea aria-label="Picture links" rows={2} value={links} placeholder="Or paste picture links, one per line" onChange={(e) => setLinks(e.target.value)} className="text-xs" />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="justify-self-start"
+        pending={pending}
+        disabled={!links.trim()}
+        onClick={() =>
+          start(async () => {
+            const res = await picturesFromLinksAction(links.split(/\s+/).filter(Boolean), alt);
+            if (res.error !== undefined) return void toast.error(res.error);
+            if (res.value.images.length) {
+              onAdd(res.value.images);
+              setLinks("");
+              toast.success(`${res.value.images.length} picture(s) added: Save to keep them`);
+            }
+            if (res.value.problems.length) toast.error(`Not added: ${res.value.problems.join("; ")}`, { duration: 12000 });
+          })
+        }
+      >
+        <ImageDown /> Add from links
+      </Button>
+    </div>
   );
 }
 

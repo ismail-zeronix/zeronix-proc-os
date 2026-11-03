@@ -1,4 +1,4 @@
-import { BadgeCheck, Boxes, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
+import { ShoppingCart, BadgeCheck, Boxes, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -54,6 +54,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/website/content", label: "Content", icon: Newspaper },
         { href: "/website/seo", label: "SEO plan", icon: SearchCheck },
         { href: "/website/leads", label: "Leads", icon: Inbox, badge: "leads" },
+        { href: "/website/orders", label: "Orders", icon: ShoppingCart, badge: "orders" },
         { href: "/website/pages", label: "Pages", icon: FileText },
       ],
     },

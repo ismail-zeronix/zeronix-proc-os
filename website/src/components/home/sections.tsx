@@ -1,11 +1,13 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { Action } from "@/components/brand/action";
+import { Action, ArrowCircle } from "@/components/brand/action";
 import { Photo } from "@/components/brand/photo";
-import type { SiteBrand, SiteHome, SiteIndustryCard, SiteNavLink } from "@/lib/contract";
+import { PostGrid } from "@/components/content/post-card";
+import type { SiteBrand, SiteHome, SiteIndustryCard, SiteNavLink, SitePostSummary, SiteProductSummary } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
 import { imageFor } from "@/lib/images";
-import { FeaturedShelf, type Shelf } from "./featured";
+import { ProductRail } from "./product-rail";
 
 /** Home page sections, store-style: small headings, tight spacing, rows that scroll sideways on phones (BRAND.md colours). */
 
@@ -60,13 +62,23 @@ export function CategoryTiles({ categories }: { categories: SiteNavLink[] }) {
   );
 }
 
-export function Featured({ featured, shelves }: { featured: SiteHome["featured"]; shelves: Shelf[] }) {
-  const withProducts = shelves.filter((s) => s.products.length);
-  if (!withProducts.length) return null;
+export function Featured({ featured, products }: { featured: SiteHome["featured"]; products: SiteProductSummary[] }) {
+  if (!products.length) return null;
   return (
     <section className={section}>
       <ShelfHeading title={featured.title} lead={featured.text} href="/products" linkLabel="View all" />
-      <FeaturedShelf shelves={withProducts} />
+      <ProductRail products={products} label={featured.title} />
+    </section>
+  );
+}
+
+/** One category's products as a sideways rail, with "view all" to the category page. */
+export function CategoryShelf({ category, products }: { category: SiteNavLink; products: SiteProductSummary[] }) {
+  if (!products.length) return null;
+  return (
+    <section className={section}>
+      <ShelfHeading title={category.name} lead={category.summary} href={`/products/${category.slug}`} linkLabel="View all" />
+      <ProductRail products={products} label={category.name} />
     </section>
   );
 }
@@ -111,24 +123,118 @@ export function BundlesBand({ bundles }: { bundles: SiteHome["bundles"] }) {
   );
 }
 
-/** IT services as small icon tiles: a sideways row on phones, eight across on desktop. */
-export function Services({ services }: { services: SiteHome["services"] }) {
+/** A service's picture whole at 16:9 (the artwork has its own title in it, so it is never cropped or covered). */
+function ServicePicture({ href, icon, sizes, priority = false }: { href: string; icon: SiteHome["services"][number]["icon"]; sizes: string; priority?: boolean }) {
+  const photo = imageFor(`service-${href.split("/").pop()}`);
+  return (
+    <span className="relative block aspect-video overflow-hidden rounded-inner bg-forest-900">
+      {photo ? (
+        <Image src={photo} alt="" fill sizes={sizes} priority={priority} className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]" />
+      ) : (
+        <span aria-hidden className="absolute inset-0 grid place-items-center text-mint-300">
+          <SiteIconView name={icon} className="size-12" strokeWidth={1.25} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * IT services as a bento grid. Every picture keeps its 16:9 shape with the name under it, so nothing is cut off: the
+ * first service is the large card (two columns, two rows on desktop, with its summary), the others are small cards,
+ * and a forest "not sure what you need?" card closes the grid. Two columns on phones, four on desktop.
+ */
+export function ServicesBento({ services, excerpts, ctaLabel }: { services: SiteHome["services"]; excerpts: Record<string, string>; ctaLabel: string }) {
   if (!services.length) return null;
+  const [lead, ...rest] = services;
+  const card = "group flex h-full flex-col rounded-card border border-line/70 bg-white p-1.5 transition-[border-color,box-shadow] duration-200 hover:border-forest-900 hover:shadow-lift";
   return (
     <section className={section}>
       <ShelfHeading title="IT services" lead="Build, secure and run your office IT with one team." href="/services" linkLabel="All services" />
-      <ul className="scroll-row lg:mx-0 lg:grid lg:grid-cols-8 lg:gap-3 lg:overflow-visible lg:px-0">
-        {services.map((s) => (
-          <li key={s.href} className="w-28 lg:w-auto">
-            <Link href={s.href} className="group flex h-full flex-col items-center gap-2 rounded-card border border-line/70 bg-white px-2 py-3.5 text-center transition-colors hover:border-forest-900">
-              <span className="grid size-10 place-items-center rounded-full bg-sage-100 text-forest-900 transition-colors group-hover:bg-lime-400 group-hover:text-forest-950">
-                <SiteIconView name={s.icon} className="size-5" strokeWidth={1.75} />
+      <ul className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <li className="col-span-2 lg:row-span-2">
+          <Link href={lead.href} className={card}>
+            <ServicePicture href={lead.href} icon={lead.icon} sizes="(min-width: 1024px) 50vw, 100vw" />
+            <span className="flex flex-1 items-end justify-between gap-4 px-2.5 pt-3 pb-2 sm:px-3">
+              <span className="grid gap-1">
+                <span className="text-lg leading-snug font-semibold text-ink sm:text-xl">{lead.label}</span>
+                {excerpts[lead.href] && <span className="line-clamp-2 text-sm text-muted-ink">{excerpts[lead.href]}</span>}
               </span>
-              <span className="text-xs leading-snug font-semibold text-ink">{s.label}</span>
+              <ArrowCircle />
+            </span>
+          </Link>
+        </li>
+        {rest.map((s) => (
+          <li key={s.href} className="reveal">
+            <Link href={s.href} className={card}>
+              <ServicePicture href={s.href} icon={s.icon} sizes="(min-width: 1024px) 25vw, 50vw" />
+              <span className="flex flex-1 items-center gap-2 px-1.5 pt-2.5 pb-1.5 sm:px-2">
+                <span className="hidden size-7 shrink-0 place-items-center rounded-full bg-forest-900 text-lime-400 sm:grid">
+                  <SiteIconView name={s.icon} className="size-3.5" strokeWidth={2} />
+                </span>
+                <span className="min-w-0 flex-1 text-xs leading-snug font-semibold text-ink sm:text-sm">{s.label}</span>
+                <ArrowUpRight className="size-4 shrink-0 text-forest-700 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </span>
             </Link>
           </li>
         ))}
+        <li className="reveal">
+          <div className="flex h-full flex-col justify-between gap-3 rounded-card bg-forest-900 p-3.5 text-white sm:p-5">
+            <span className="grid gap-1">
+              <span className="text-[0.9375rem] leading-snug font-semibold sm:text-lg">Not sure what you need?</span>
+              <span className="hidden text-sm text-white/65 sm:block">Tell us about your office and we will plan the IT with you.</span>
+            </span>
+            <Action href="/quote" size="md" className="self-start" track="home-services-cta">
+              {ctaLabel}
+            </Action>
+          </div>
+        </li>
       </ul>
+    </section>
+  );
+}
+
+/** B2B buying in three steps, so a first-time company buyer knows what happens after they ask. */
+export function HowItWorks({ ctaLabel }: { ctaLabel: string }) {
+  const steps = [
+    { title: "Tell us what you need", text: "Send a quote list, part numbers or just the team size and the work they do." },
+    { title: "Get B2B pricing", text: "A written quote with UAE stock, warranty details and a VAT invoice." },
+    { title: "Delivered and set up", text: "Delivery across the UAE, with setup and ongoing support if you want it." },
+  ];
+  return (
+    <section className={section}>
+      <div className="grid gap-5 rounded-frame border border-line/70 bg-white p-5 sm:p-7 lg:grid-cols-[1fr_2.4fr] lg:items-center lg:gap-10">
+        <div className="grid gap-3">
+          <h2 className="flex items-center gap-2.5 text-h2 text-ink">
+            <span aria-hidden className="h-1 w-6 shrink-0 rounded-full bg-lime-400" />
+            How B2B buying works
+          </h2>
+          <p className="text-sm text-muted-ink">Three steps from a question to working devices on every desk.</p>
+          <Action href="/quote" variant="dark" className="justify-self-start" track="home-steps">
+            {ctaLabel}
+          </Action>
+        </div>
+        <ol className="grid gap-4 sm:grid-cols-3 sm:gap-3">
+          {steps.map((s, i) => (
+            <li key={s.title} className="relative grid content-start gap-2 rounded-card bg-sage-50 p-4">
+              <span className="font-heading text-3xl font-medium tracking-tight text-forest-700">0{i + 1}</span>
+              <span className="text-[0.9375rem] font-semibold text-ink">{s.title}</span>
+              <span className="text-sm text-muted-ink">{s.text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/** The latest buying guides: the content that answers "which laptop for my team". */
+export function LatestGuides({ posts }: { posts: SitePostSummary[] }) {
+  if (!posts.length) return null;
+  return (
+    <section className={section}>
+      <ShelfHeading title="Buying guides" lead="Plain-English advice on choosing IT for your kind of business." href="/guides" linkLabel="All guides" />
+      <PostGrid posts={posts.slice(0, 3)} />
     </section>
   );
 }
@@ -195,16 +301,16 @@ export function Brands({ brands }: { brands: SiteNavLink[] }) {
 export function CtaBand({ cta, brand }: { cta: SiteHome["ctaBand"]; brand: SiteBrand }) {
   return (
     <section className="container-site pt-2 pb-6 sm:pb-8">
-      <div className="flex flex-col gap-4 rounded-frame bg-lime-400 px-5 py-6 text-forest-950 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-frame bg-sage-100 px-5 py-6 text-forest-950 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-h2">{cta.title}</h2>
           {cta.text && <p className="mt-1 max-w-2xl text-sm text-forest-950/75">{cta.text}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Action href="/quote" variant="dark" track="home-cta">
+          <Action href="/quote" track="home-cta">
             {brand.ctaLabel}
           </Action>
-          <Action href="/contact" variant="outline" arrow={false} className="border-forest-950/20 bg-transparent hover:bg-white/40">
+          <Action href="/contact" variant="outline" arrow={false}>
             Talk to sales
           </Action>
         </div>

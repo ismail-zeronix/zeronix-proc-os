@@ -1,12 +1,13 @@
 import { siteDbConfigured } from "@/db/site";
 import { pruneEvents, rebuildDaily } from "@/lib/website/analytics";
 import { dailySearchImport } from "@/lib/website/gsc";
+import { runPictureQueue } from "@/lib/website/picture-queue";
 import { publishDuePosts } from "@/lib/website/posts";
 import { dubaiDay } from "@/lib/website/traffic";
 
 const TICK_MS = 60_000;
 const ROLLUP_MS = 15 * 60_000;
-const g = globalThis as unknown as { __websiteTimer?: NodeJS.Timeout; __websiteBusy?: boolean; __websiteDown?: boolean; __websiteRollupAt?: number; __websitePrunedOn?: string; __websiteGscOn?: string };
+const g = globalThis as unknown as { __websiteTimer?: NodeJS.Timeout; __websiteBusy?: boolean; __websiteDown?: boolean; __websiteRollupAt?: number; __websitePrunedOn?: string; __websiteGscOn?: string; __websitePicturesTimer?: NodeJS.Timeout };
 
 /**
  * Public website, on the website's own database: publishes scheduled posts when their time comes, and every 15
@@ -50,9 +51,22 @@ async function tick() {
   }
 }
 
+/** Pictures for imported products (picture-queue.ts), apart from tick() so slow downloads never hold up the rest. */
+async function picturesTick() {
+  if (!siteDbConfigured() || g.__websiteDown) return;
+  try {
+    const n = await runPictureQueue();
+    if (n) console.log(`[website] pictures saved for ${n} imported product(s)`);
+  } catch (e) {
+    console.error("[website] picture fetch failed:", (e as Error).message);
+  }
+}
+
 export function startWebsiteScheduler() {
   if (g.__websiteTimer) return;
   g.__websiteTimer = setInterval(() => void tick(), TICK_MS);
   g.__websiteTimer.unref?.();
+  g.__websitePicturesTimer = setInterval(() => void picturesTick(), TICK_MS);
+  g.__websitePicturesTimer.unref?.();
   console.log("[website] scheduled posts checked every minute, analytics rolled up every 15 minutes");
 }

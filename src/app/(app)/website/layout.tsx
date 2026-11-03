@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { siteDbReachable } from "@/db/site";
 import { requireApp } from "@/lib/auth/session";
 import { quoteCounts } from "@/lib/website/quotes";
+import { orderCounts } from "@/lib/website/store";
 
 export default async function WebsiteLayout({ children }: LayoutProps<"/website">) {
   await requireApp("website");
@@ -32,9 +33,14 @@ export default async function WebsiteLayout({ children }: LayoutProps<"/website"
       </AppShell>
     );
   }
-  // new B2B pricing requests wait on the Leads item until someone converts them or marks them as spam
+  // new B2B pricing requests wait on the Leads item until someone converts them or marks them as spam, and new web
+  // orders wait on Orders until someone confirms them
+  const orders = await orderCounts().then(
+    (c) => c.new ?? 0,
+    () => 0,
+  );
   return (
-    <AppShell app="website" badges={{ leads }}>
+    <AppShell app="website" badges={{ leads, orders }}>
       {children}
     </AppShell>
   );

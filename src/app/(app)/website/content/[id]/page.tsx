@@ -14,7 +14,7 @@ export default async function PostPage({ params }: PageProps<"/website/content/[
   const { user } = await requireApp("website");
   const post = await getPost(Number((await params).id));
   if (!post) notFound();
-  const [industries, categories, products, authors] = await Promise.all([industryOptions(), listCategories(), listProducts(), authorOptions()]);
+  const [industries, categories, products, authors] = await Promise.all([industryOptions(), listCategories(), listProducts({ pageSize: 1000 }).then((r) => r.rows), authorOptions()]);
   const siteUrl = process.env.SITE_PUBLIC_URL ?? "https://zeronixtech.com";
   const input: PostInput = {
     type: post.type,

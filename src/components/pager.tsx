@@ -14,9 +14,24 @@ export function pageParam(v: string | string[] | undefined): number {
  * "51-100 of 340" with previous / next links. Keeps the other search params (filters) in the links, so paging never
  * loses them. Renders nothing when everything fits on one page.
  */
-export function Pager({ path, params, page, total, pageSize = PAGE_SIZE }: { path: string; params: Record<string, string | string[] | undefined>; page: number; total: number; pageSize?: number }) {
+export function Pager({
+  path,
+  params,
+  page,
+  total,
+  pageSize = PAGE_SIZE,
+  showSingle = false,
+}: {
+  path: string;
+  params: Record<string, string | string[] | undefined>;
+  page: number;
+  total: number;
+  pageSize?: number;
+  /** Say "1-11 of 11" even when everything fits on one page (list footers). */
+  showSingle?: boolean;
+}) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  if (pages <= 1) return null;
+  if (pages <= 1) return showSingle && total > 0 ? <span className="text-xs text-muted-foreground tabular-nums">{total === 1 ? "1 row" : `1-${total} of ${total}`}</span> : null;
   const current = Math.min(page, pages);
   const href = (p: number) => {
     const q = new URLSearchParams();

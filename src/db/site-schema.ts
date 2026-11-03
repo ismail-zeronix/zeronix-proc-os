@@ -77,6 +77,10 @@ export const siteCategories = pgTable("site_categories", {
   description: text("description").notNull().default(""),
   image: jsonb("image").$type<SiteImage>(),
   specTemplate: jsonb("spec_template").$type<SiteSpecTemplate>().notNull().default({ groups: [] }),
+  /** Buying advice under the product grid (Markdown, and the HTML the portal renders from it), plus questions. */
+  intro: text("intro").notNull().default(""),
+  introHtml: text("intro_html").notNull().default(""),
+  faq: jsonb("faq").$type<SiteFaq[]>().notNull().default([]),
   seo: jsonb("seo").$type<SiteSeo>().notNull().default({}),
   sort: integer("sort").notNull().default(0),
   status: text("status", { enum: siteStatus }).notNull().default("draft"),
@@ -357,4 +361,83 @@ export const siteKeywords = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("site_keywords_keyword_uq").on(sql`lower(${t.keyword})`), index("site_keywords_cluster_idx").on(t.cluster), index("site_keywords_status_idx").on(t.status, t.plannedFor)],
+);
+
+/**
+ * Pictures waiting to be fetched for an imported product (Website › Products › Import listing): the listing's product
+ * page is read by the worker, its gallery pictures are saved under our own names and set on the product.
+ */
+export const sitePictureQueue = pgTable(
+  "site_picture_queue",
+  {
+    productId: integer("product_id")
+      .primaryKey()
+      .references(() => siteProducts.id, { onDelete: "cascade" }),
+    pageUrl: text("page_url").notNull(),
+    status: text("status", { enum: ["queued", "done", "failed"] }).notNull().default("queued"),
+    pictures: integer("pictures").notNull().default(0),
+    error: text("error").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("site_picture_queue_status_idx").on(t.status, t.updatedAt)],
+);
+
+// ---------- Shop (S.3): customers, sign-in codes, orders ----------
+
+/** A shopper who signed in with an email code. Guests who check out without signing in have no row here. */
+export const siteCustomers = pgTable("site_customers", {
+  id: serial("id").primaryKey(),
+  /** Lower case. */
+  email: text("email").notNull().unique(),
+  name: text("name").notNull().default(""),
+  phone: text("phone").notNull().default(""),
+  company: text("company").notNull().default(""),
+  trn: text("trn").notNull().default(""),
+  address: jsonb("address").$type<{ emirate: string; area: string; street: string }>().notNull().default({ emirate: "", area: "", street: "" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+});
+
+/** 6-digit sign-in codes, stored hashed; valid 10 minutes, 5 tries. */
+export const siteLoginCodes = pgTable(
+  "site_login_codes",
+  {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    tries: integer("tries").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("site_login_codes_email_idx").on(t.email, t.createdAt)],
+);
+
+/** A web order: priced by the portal from site_products when it was placed (never from the browser). */
+export const siteOrders = pgTable(
+  "site_orders",
+  {
+    id: serial("id").primaryKey(),
+    number: text("number").notNull().unique(),
+    customerId: integer("customer_id").references(() => siteCustomers.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull().default(""),
+    company: text("company").notNull().default(""),
+    trn: text("trn").notNull().default(""),
+    delivery: text("delivery", { enum: ["delivery", "pickup"] }).notNull().default("delivery"),
+    address: jsonb("address").$type<{ emirate: string; area: string; street: string }>().notNull().default({ emirate: "", area: "", street: "" }),
+    payment: text("payment", { enum: ["request", "cod", "bank"] }).notNull(),
+    items: jsonb("items").$type<{ productId: number; slug: string; name: string; mpn: string; qty: number; unitPrice: string }[]>().notNull().default([]),
+    subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+    vat: numeric("vat", { precision: 12, scale: 2 }).notNull(),
+    total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+    notes: text("notes").notNull().default(""),
+    internalNote: text("internal_note").notNull().default(""),
+    status: text("status", { enum: ["new", "confirmed", "paid", "shipped", "delivered", "cancelled"] }).notNull().default("new"),
+    site: text("site").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("site_orders_status_idx").on(t.status, t.createdAt), index("site_orders_customer_idx").on(t.customerId, t.createdAt)],
 );

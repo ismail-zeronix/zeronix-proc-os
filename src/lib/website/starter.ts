@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { siteDb, siteSchema } from "@/db/site";
 import type { SiteIcon } from "./contract";
 import { renderMarkdown } from "./markdown";
+import { CATEGORY_CONTENT } from "./category-content";
 import { INDUSTRY_CONTENT } from "./starter-content";
 import type { SiteSpecTemplate } from "./types";
 
@@ -57,11 +58,30 @@ const SERVER_SPECS: SiteSpecTemplate = {
   ],
 };
 
+const MONITOR_SPECS: SiteSpecTemplate = {
+  groups: [
+    group("Display", [["display", "Display", true], ["refresh_rate", "Refresh rate", true], ["panel", "Panel", true]]),
+    group("Connectivity", [["ports", "Ports"]]),
+    group("Warranty", [["warranty", "Warranty"]]),
+  ],
+};
+
+const ACCESSORY_SPECS: SiteSpecTemplate = {
+  groups: [group("Product", [["type", "Type", true], ["connection", "Connection", true], ["compatibility", "Works with"], ["colour", "Colour"]]), group("Warranty", [["warranty", "Warranty"]])],
+};
+
+const SOFTWARE_SPECS: SiteSpecTemplate = {
+  groups: [group("Licence", [["licence", "Licence type", true], ["users", "Users / devices"], ["term", "Term", true], ["platform", "Platform", true]])],
+};
+
 const CATEGORIES: { slug: string; name: string; icon: SiteIcon; description: string; specTemplate: SiteSpecTemplate }[] = [
   { slug: "laptops", name: "Business laptops", icon: "laptop", description: "Thin, secure business series for every role, from agents to engineers.", specTemplate: LAPTOP_SPECS },
   { slug: "desktops", name: "Desktops", icon: "monitor", description: "Compact and tower desktops for offices, front desks and finance teams.", specTemplate: PC_SPECS },
   { slug: "workstations", name: "Workstations", icon: "cpu", description: "Certified mobile and tower workstations for CAD, BIM, 3D and video.", specTemplate: PC_SPECS },
   { slug: "servers", name: "Servers", icon: "server", description: "Tower and rack servers for file sharing, ERP and virtualisation.", specTemplate: SERVER_SPECS },
+  { slug: "monitors", name: "Monitors", icon: "presentation", description: "Office, ultrawide and colour-accurate monitors for single or multi-screen desks.", specTemplate: MONITOR_SPECS },
+  { slug: "accessories", name: "Accessories", icon: "keyboard", description: "Docks, headsets, keyboards, mice and bags that match your laptops.", specTemplate: ACCESSORY_SPECS },
+  { slug: "software", name: "Software", icon: "key-round", description: "Microsoft 365, Windows and Office licences for business, set up for you.", specTemplate: SOFTWARE_SPECS },
 ];
 
 const BRANDS: { slug: string; name: string; website: string }[] = [
@@ -90,6 +110,27 @@ export async function fillEmptyIndustryPages(): Promise<number> {
       .update(siteSchema.siteIndustries)
       .set({ heroTitle: row.heroTitle || c.heroTitle, intro: c.intro, introHtml: renderMarkdown(c.intro), painPoints: c.painPoints, roles: c.roles, faq: c.faq, updatedAt: new Date() })
       .where(eq(siteSchema.siteIndustries.id, row.id));
+    filled++;
+  }
+  return filled;
+}
+
+/**
+ * Gives category pages with no buying advice and no FAQ the copy from category-content.ts, plus the search title and
+ * description where those are still blank. Pages someone has written on are left alone. Returns how many were filled.
+ */
+export async function fillEmptyCategoryPages(): Promise<number> {
+  const C = siteSchema.siteCategories;
+  const empty = await siteDb
+    .select({ id: C.id, slug: C.slug, seo: C.seo })
+    .from(C)
+    .where(and(eq(C.intro, ""), sql`${C.faq} = '[]'::jsonb`));
+  let filled = 0;
+  for (const row of empty) {
+    const c = CATEGORY_CONTENT[row.slug];
+    if (!c) continue;
+    const seo = { ...row.seo, title: row.seo.title || c.seo.title, description: row.seo.description || c.seo.description };
+    await siteDb.update(C).set({ intro: c.intro, introHtml: renderMarkdown(c.intro), faq: c.faq, seo }).where(eq(C.id, row.id));
     filled++;
   }
   return filled;

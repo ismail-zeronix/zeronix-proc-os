@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pager, PAGE_SIZE, pageParam } from "@/components/pager";
 import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -6,6 +7,7 @@ import { pageTitles } from "@/lib/website/analytics";
 import { listQuoteRequests, quoteCounts } from "@/lib/website/quotes";
 import { SOURCE_LABEL, type TrafficSource } from "@/lib/website/traffic";
 import { LeadActions } from "./lead-row";
+import { LIST_PAGE } from "../list-page";
 
 export const metadata = { title: "Leads · Zeronix Website" };
 
@@ -18,14 +20,16 @@ const TABS = [
 /** "Get B2B pricing" requests from the site. Website chats are in Chat › Website chats (with a site badge). */
 export default async function LeadsPage({ searchParams }: PageProps<"/website/leads">) {
   await requireApp("website");
-  const tab = String((await searchParams).tab ?? "new");
+  const sp = await searchParams;
+  const tab = String(sp.tab ?? "new");
   const status = (TABS.find((t) => t.key === tab)?.key ?? "new") as "new" | "converted" | "spam";
-  const [rows, counts] = await Promise.all([listQuoteRequests(status), quoteCounts()]);
+  const page = pageParam(sp.page);
+  const [rows, counts] = await Promise.all([listQuoteRequests(status, page, PAGE_SIZE), quoteCounts()]);
   // the page that brought each visitor in (first touch), by name
   const titles = await pageTitles(rows.map(({ r }) => r.landingPath).filter(Boolean));
 
   return (
-    <div className="grid gap-3">
+    <div className={LIST_PAGE}>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-sm font-semibold">Leads</h1>
         <nav className="flex gap-1">
@@ -91,6 +95,9 @@ export default async function LeadsPage({ searchParams }: PageProps<"/website/le
           </li>
         ))}
       </ul>
+      <div className="sticky bottom-0 z-20 -mx-1 mt-auto flex min-h-12 items-center border-t bg-background/95 py-2 pr-20 pl-1 backdrop-blur">
+        <div className="ml-auto"><Pager path="/website/leads" params={sp} page={page} total={counts[status] ?? 0} showSingle /></div>
+      </div>
     </div>
   );
 }

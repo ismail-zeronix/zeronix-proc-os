@@ -220,6 +220,9 @@ export interface SiteCategoryPage extends SiteNavLink {
   brands: { slug: string; name: string; count: number }[];
   industries: { slug: string; name: string; count: number }[];
   products: (SiteProductSummary & { industries: string[] })[];
+  /** Buying advice shown under the products (HTML rendered by the portal) and its questions. */
+  introHtml: string;
+  faq: SiteFaqItem[];
   seo: { title?: string; description?: string };
 }
 

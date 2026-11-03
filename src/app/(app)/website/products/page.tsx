@@ -1,77 +1,111 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { Pager, PAGE_SIZE, pageParam } from "@/components/pager";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
-import { listProducts } from "@/lib/website/catalog";
+import { listCategories, listProducts, type ProductFilter } from "@/lib/website/catalog";
+import { getStore } from "@/lib/website/store";
+import { ProductBulkActions, ProductFilters } from "../bulk-actions";
+import { DataTable } from "../data-table";
 import { StatusBadge } from "../status-badge";
+import { ListingImport } from "./listing-import";
 import { ProductUpload } from "./product-upload";
+import { LIST_PAGE } from "../list-page";
 
 export const metadata = { title: "Products · Zeronix Website" };
 
+const STATUSES = ["draft", "published", "archived"] as const;
+
 export default async function ProductsPage({ searchParams }: PageProps<"/website/products">) {
-  await requireApp("website");
-  const q = typeof (await searchParams).q === "string" ? String((await searchParams).q) : "";
-  const rows = await listProducts({ q: q || undefined });
+  const { user } = await requireApp("website");
+  const sp = await searchParams;
+  const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
+  const page = pageParam(sp.page);
+  const category = one(sp.category);
+  const filter: ProductFilter = {
+    q: one(sp.q).trim().slice(0, 120) || undefined,
+    status: STATUSES.find((s) => s === one(sp.status)),
+    categoryId: category !== "" && Number.isInteger(Number(category)) && Number(category) >= 0 ? Number(category) : undefined,
+  };
+  const [{ rows, total }, store, categories] = await Promise.all([listProducts({ ...filter, page, pageSize: PAGE_SIZE }), getStore(), listCategories()]);
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
+
   return (
-    <div className="grid gap-3">
+    <div className={LIST_PAGE}>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-sm font-semibold">Products</h1>
-        <span className="text-xs text-muted-foreground">{rows.length} · upload a product .md from your research, or add one by hand</span>
-        <form className="ml-auto">
-          <input name="q" defaultValue={q} placeholder="Name or part number" className="h-8 w-56 rounded-md border bg-background px-2 text-sm" />
-        </form>
+        <span className="text-xs text-muted-foreground">Import a listing, upload a product .md, or add one by hand</span>
+        <span className="ml-auto" />
+        <ListingImport markup={store.markupPercent} />
         <ProductUpload />
         <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/website/products/new" />}>
           <Plus /> New product
         </Button>
       </div>
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Part number</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Specs</TableHead>
-              <TableHead className="text-right">Pictures</TableHead>
-              <TableHead className="text-right">Industries</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Updated</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                  No products yet. Upload a product .md (WEBSITE-PLAN.md section 6) or add one by hand.
-                </TableCell>
-              </TableRow>
-            )}
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  <Link href={`/website/products/${r.id}`} className="hover:underline">
-                    {r.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{r.mpn}</TableCell>
-                <TableCell>{r.brand ?? "—"}</TableCell>
-                <TableCell>{r.category ?? <span className="text-amber-700">Pick one</span>}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.specs}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.images}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.industries}</TableCell>
-                <TableCell>
-                  <StatusBadge status={r.status} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{ago(r.updatedAt)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <ProductFilters categories={categoryOptions} />
+      <DataTable
+        noun="product"
+        total={total}
+        empty={filter.q || filter.status || filter.categoryId !== undefined ? "No products match these filters." : "No products yet. Import a listing or upload a product .md."}
+        actions={<ProductBulkActions filter={filter} categories={categoryOptions} canDelete={user.role === "admin"} />}
+        pager={<Pager path="/website/products" params={sp} page={page} total={total} showSingle />}
+        columns={[
+          { label: "Product" },
+          { label: "Part number" },
+          { label: "Brand" },
+          { label: "Category" },
+          { label: "Sold as", className: "text-right whitespace-nowrap" },
+          { label: "Specs", className: "text-right" },
+          { label: "Pictures", className: "text-right" },
+          { label: "Industries", className: "text-right" },
+          { label: "Status" },
+          { label: "Updated", className: "whitespace-nowrap" },
+        ]}
+        rows={rows.map((r) => ({
+          id: r.id,
+          cells: [
+            <Link key="n" href={`/website/products/${r.id}`} className="font-medium hover:underline">
+              {r.name}
+            </Link>,
+            <span key="m" className="text-muted-foreground">
+              {r.mpn}
+            </span>,
+            r.brand ?? "—",
+            r.category ?? <span className="text-amber-700 dark:text-amber-500">Pick one</span>,
+            <span key="p" className="tabular-nums">
+              {r.priceMode === "public" && r.listPrice ? `AED ${Number(r.listPrice).toLocaleString("en-US")}` : <span className="text-muted-foreground">Quote</span>}
+            </span>,
+            <span key="s" className="tabular-nums">
+              {r.specs}
+            </span>,
+            r.images > 0 ? (
+              <span key="i" className="tabular-nums">
+                {r.images}
+              </span>
+            ) : r.pictureStatus === "queued" ? (
+              <span key="i" className="text-muted-foreground" title={r.pictureError || "The worker fetches them within a few minutes"}>
+                Fetching…
+              </span>
+            ) : r.pictureStatus === "failed" ? (
+              <span key="i" className="text-red-700 dark:text-red-400" title={r.pictureError ?? ""}>
+                Failed
+              </span>
+            ) : (
+              <span key="i" className="text-amber-700 dark:text-amber-500">
+                None
+              </span>
+            ),
+            <span key="d" className="tabular-nums">
+              {r.industries}
+            </span>,
+            <StatusBadge key="st" status={r.status} />,
+            <span key="u" className="text-muted-foreground">
+              {ago(r.updatedAt)}
+            </span>,
+          ],
+        }))}
+      />
     </div>
   );
 }

@@ -1,12 +1,15 @@
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Pager, PAGE_SIZE, pageParam } from "@/components/pager";
 import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { listPosts, postCounts } from "@/lib/website/posts";
 import { cn } from "@/lib/utils";
+import { PostBulkActions } from "../bulk-actions";
+import { DataTable } from "../data-table";
 import { StatusBadge } from "../status-badge";
 import { ContentUpload, NewPostButton } from "./content-upload";
+import { LIST_PAGE } from "../list-page";
 
 export const metadata = { title: "Content · Zeronix Website" };
 
@@ -21,12 +24,14 @@ const TYPE_LABEL: Record<string, string> = { guide: "Guide", comparison: "Compar
 
 export default async function ContentPage({ searchParams }: PageProps<"/website/content">) {
   await requireApp("website");
-  const tab = String((await searchParams).tab ?? "draft");
+  const sp = await searchParams;
+  const tab = String(sp.tab ?? "draft");
   const status = TABS.some((t) => t.key === tab) ? tab : "draft";
-  const [rows, counts] = await Promise.all([listPosts(status), postCounts()]);
+  const page = pageParam(sp.page);
+  const [{ rows, total }, counts] = await Promise.all([listPosts(status, page, PAGE_SIZE), postCounts()]);
 
   return (
-    <div className="grid gap-3">
+    <div className={LIST_PAGE}>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-sm font-semibold">Content</h1>
         <nav className="flex gap-1">
@@ -44,65 +49,45 @@ export default async function ContentPage({ searchParams }: PageProps<"/website/
         <ContentUpload />
         <NewPostButton />
       </div>
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Author</TableHead>
-              <TableHead>Checklist</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>{status === "scheduled" ? "Goes live" : status === "published" ? "Published" : "Updated"}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                  Nothing here. Upload a post from your claude-seo research to start.
-                </TableCell>
-              </TableRow>
-            )}
-            {rows.map((r) => {
-              const fail = r.checks.filter((c) => c.level === "fail").length;
-              const warn = r.checks.filter((c) => c.level === "warn").length;
-              return (
-                <TableRow key={r.id}>
-                  <TableCell className="max-w-md font-medium">
-                    <Link href={`/website/content/${r.id}`} className="line-clamp-1 hover:underline">
-                      {r.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{TYPE_LABEL[r.type]}</TableCell>
-                  <TableCell>{r.author ?? "—"}</TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center gap-2 text-xs">
-                      {fail > 0 && (
-                        <span className="inline-flex items-center gap-1 text-destructive">
-                          <CircleAlert className="size-3.5" /> {fail}
-                        </span>
-                      )}
-                      {warn > 0 && (
-                        <span className="inline-flex items-center gap-1 text-amber-700">
-                          <TriangleAlert className="size-3.5" /> {warn}
-                        </span>
-                      )}
-                      {!fail && !warn && <CircleCheck className="size-4 text-emerald-600" aria-label="All checks pass" />}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={r.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {status === "scheduled" && r.publishAt ? r.publishAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dubai" }) : ago(status === "published" && r.publishedAt ? r.publishedAt : r.updatedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        noun="post"
+        total={total}
+        empty="Nothing here. Upload a post from your claude-seo research to start."
+        actions={<PostBulkActions />}
+        pager={<Pager path="/website/content" params={sp} page={page} total={total} showSingle />}
+        columns={[{ label: "Title", className: "max-w-md" }, { label: "Type" }, { label: "Author" }, { label: "Checklist" }, { label: "Status" }, { label: status === "scheduled" ? "Goes live" : status === "published" ? "Published" : "Updated" }]}
+        rows={rows.map((r) => {
+          const fail = r.checks.filter((c) => c.level === "fail").length;
+          const warn = r.checks.filter((c) => c.level === "warn").length;
+          return {
+            id: r.id,
+            cells: [
+              <Link key="t" href={`/website/content/${r.id}`} className="line-clamp-1 font-medium hover:underline">
+                {r.title}
+              </Link>,
+              TYPE_LABEL[r.type],
+              r.author ?? "—",
+              <span key="c" className="inline-flex items-center gap-2 text-xs">
+                {fail > 0 && (
+                  <span className="inline-flex items-center gap-1 text-destructive">
+                    <CircleAlert className="size-3.5" /> {fail}
+                  </span>
+                )}
+                {warn > 0 && (
+                  <span className="inline-flex items-center gap-1 text-amber-700">
+                    <TriangleAlert className="size-3.5" /> {warn}
+                  </span>
+                )}
+                {!fail && !warn && <CircleCheck className="size-4 text-emerald-600" aria-label="All checks pass" />}
+              </span>,
+              <StatusBadge key="s" status={r.status} />,
+              <span key="d" className="text-muted-foreground">
+                {status === "scheduled" && r.publishAt ? r.publishAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dubai" }) : ago(status === "published" && r.publishedAt ? r.publishedAt : r.updatedAt)}
+              </span>,
+            ],
+          };
+        })}
+      />
     </div>
   );
 }

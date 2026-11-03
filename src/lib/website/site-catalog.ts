@@ -207,6 +207,8 @@ export async function publicCategory(slug: string): Promise<SiteCategoryPage | n
     brands: count(rows.filter((r) => r.brandSlug).map((r) => ({ key: r.brandSlug!, name: r.brand! }))),
     industries: count(links.map((l) => ({ key: l.slug, name: l.name }))),
     products: rows.map((r) => ({ ...toSummary(r), industries: links.filter((l) => l.productId === r.id).map((l) => l.slug) })),
+    introHtml: c.introHtml,
+    faq: c.faq,
     seo: { title: c.seo.title, description: c.seo.description },
   };
 }

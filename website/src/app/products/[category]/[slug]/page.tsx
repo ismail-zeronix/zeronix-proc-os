@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Action, ArrowCircle, SectionHeading, Tag } from "@/components/brand/action";
-import { Photo } from "@/components/brand/photo";
+import { ProductGallery } from "@/components/catalog/product-gallery";
+import { BuyBox } from "@/components/store/buy-box";
 import { Breadcrumbs, CtaStrip, Faq, JsonLd, ProductGrid, quoteLink } from "@/components/catalog/page-parts";
 import { SpecTable } from "@/components/catalog/spec-table";
 import { AddToQuote } from "@/components/quote/quote-buttons";
@@ -50,17 +51,8 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
           ]}
         />
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_1fr] lg:gap-8">
-          <div className="grid content-start gap-3">
-            <div className="rounded-frame bg-white p-3">
-              <Photo src={p.images[0]?.src} subject={`${p.name}: product shot on sage, three-quarter view`} ratio="4:3" priority sizes="(min-width: 1024px) 50vw, 100vw" className="rounded-card" />
-            </div>
-            {p.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-3">
-                {p.images.slice(1, 5).map((img) => (
-                  <Photo key={img.src} src={img.src} subject={img.alt} ratio="4:3" sizes="12vw" />
-                ))}
-              </div>
-            )}
+          <div className="grid content-start">
+            <ProductGallery images={p.images} name={p.name} />
           </div>
 
           <div className="grid content-start gap-6">
@@ -91,6 +83,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
                 ))}
               </ul>
             )}
+            {p.priceMode === "public" && p.price ? (
+              <BuyBox item={{ slug: p.slug, name: p.name, href: `/products/${p.categorySlug}/${p.slug}`, image: p.images[0]?.src ?? null, price: p.price }} quoteHref={quote} />
+            ) : (
             <div className="rounded-card bg-forest-900 p-6 text-white">
               <p className="text-sm text-white/60">Price</p>
               <p className="mt-1 font-heading text-2xl font-medium">B2B price on request</p>
@@ -106,6 +101,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
               </div>
               <ChatNowButton message={`Hi, I'm looking for B2B pricing on the ${p.name}.`} context={{ product: p.slug, category: p.categorySlug, cta: "Product page" }} className="mt-3 bg-white/10 hover:bg-white/15" />
             </div>
+            )}
             {facts.length > 0 && (
               <dl className="grid gap-3 sm:grid-cols-3">
                 {facts.map((f) => (

@@ -7,7 +7,7 @@ import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { SITE_ICONS, type SiteHome } from "@/lib/website/contract";
 import { revalidateSite } from "@/lib/website/revalidate";
 import { saveHome } from "@/lib/website/settings";
-import { addStarterCatalog, fillEmptyIndustryPages } from "@/lib/website/starter";
+import { addStarterCatalog, fillEmptyCategoryPages, fillEmptyIndustryPages } from "@/lib/website/starter";
 
 async function assertAdmin() {
   const me = await assertApp("website");
@@ -63,6 +63,16 @@ export async function fillIndustryPages(): Promise<Result<{ filled: number; site
   return attempt(async () => {
     await assertAdmin();
     const filled = await fillEmptyIndustryPages();
+    revalidatePath("/website", "layout");
+    return { filled, siteRefreshed: await revalidateSite(["catalog"]) };
+  });
+}
+
+/** Buying advice, FAQ and search text for category pages nobody has written on yet (lib/website/category-content.ts). */
+export async function fillCategoryPages(): Promise<Result<{ filled: number; siteRefreshed: boolean }>> {
+  return attempt(async () => {
+    await assertAdmin();
+    const filled = await fillEmptyCategoryPages();
     revalidatePath("/website", "layout");
     return { filled, siteRefreshed: await revalidateSite(["catalog"]) };
   });

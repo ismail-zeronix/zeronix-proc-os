@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AddToQuote } from "@/components/quote/quote-buttons";
+import { AddToCart } from "@/components/store/cart-buttons";
 import { SiteIconView } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { ArrowCircle, Tag } from "./action";
@@ -127,6 +128,7 @@ export function ProductCard({
   specs,
   photo,
   price,
+  buy,
   className,
 }: {
   href: string;
@@ -136,6 +138,8 @@ export function ProductCard({
   photo?: string;
   /** Formatted public price ("AED 4,399"); null shows "price on request". */
   price?: string | null;
+  /** The raw price ("4489.00") when the product is sold online: the card then has Add to cart instead of Add to quote. */
+  buy?: string | null;
   className?: string;
 }) {
   const slug = href.split("/").pop() ?? "";
@@ -162,7 +166,11 @@ export function ProductCard({
               <span className="block font-normal text-muted-ink">Get B2B quote</span>
             </Link>
           )}
-          <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
+          {buy ? (
+            <AddToCart item={{ slug, name, href, image: photo ?? null, price: buy }} className="relative z-10 size-9 w-9" />
+          ) : (
+            <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
+          )}
         </div>
       </div>
     </div>

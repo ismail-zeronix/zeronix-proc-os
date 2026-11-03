@@ -7,12 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import type { CategoryInput } from "@/lib/website/catalog";
 import { templateToText, textToTemplate } from "@/lib/website/spec-template";
 import { saveCategoryAction } from "../../catalog-actions";
-import { Field, IconSelect, ImagesField, Panel, StatusSelect, useLocal, useSave } from "../../catalog-ui";
+import { FaqRows, Field, IconSelect, ImagesField, Panel, StatusSelect, useLocal, useSave } from "../../catalog-ui";
 
-const blank: CategoryInput = { slug: "", name: "", icon: "", description: "", specTemplate: { groups: [] }, seo: {}, image: null, sort: 0, status: "draft" };
+const blank: CategoryInput = { slug: "", name: "", icon: "", description: "", specTemplate: { groups: [] }, intro: "", faq: [], seo: {}, image: null, sort: 0, status: "draft" };
 
 export function CategoryForm({ id, initial }: { id?: number; initial?: Partial<CategoryInput> }) {
-  const [f, patch] = useLocal<CategoryInput>({ ...blank, ...initial, seo: initial?.seo ?? {}, image: initial?.image ?? null });
+  const [f, patch] = useLocal<CategoryInput>({ ...blank, ...initial, seo: initial?.seo ?? {}, faq: initial?.faq ?? [], image: initial?.image ?? null });
   const [specText, setSpecText] = useState(templateToText(f.specTemplate));
   const [pending, save] = useSave("/website/categories", id);
   const parsed = textToTemplate(specText);
@@ -38,6 +38,12 @@ export function CategoryForm({ id, initial }: { id?: number; initial?: Partial<C
           <Field id="desc" label="Description" hint="Card, mega menu and the top of the category page">
             <Textarea id="desc" rows={2} value={f.description} onChange={(e) => patch({ description: e.target.value })} />
           </Field>
+        </Panel>
+        <Panel title="Buying advice" hint="Under the products on page 1 of the category">
+          <Field id="intro" label="Text (Markdown)" hint="## headings, short paragraphs and lists; links to guides and industries help search">
+            <Textarea id="intro" rows={12} value={f.intro} onChange={(e) => patch({ intro: e.target.value })} />
+          </Field>
+          <FaqRows value={f.faq} onChange={(faq) => patch({ faq })} />
         </Panel>
         <Panel title="Spec template" hint={`${parsed.groups.length} groups · ${parsed.groups.reduce((n, g) => n + g.fields.length, 0)} fields`}>
           <Textarea id="specs" rows={16} className="font-mono text-xs" value={specText} onChange={(e) => setSpecText(e.target.value)} />

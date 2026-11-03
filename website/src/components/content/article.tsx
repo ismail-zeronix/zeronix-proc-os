@@ -6,7 +6,7 @@ import { CompareTable } from "@/components/catalog/compare-table";
 import { Breadcrumbs, CtaStrip, Faq, JsonLd, ProductTile, quoteLink, type Crumb } from "@/components/catalog/page-parts";
 import type { SiteBrand, SitePostPage } from "@/lib/contract";
 import { SITE_URL } from "@/lib/defaults";
-import { AuthorAvatar, Byline, PostGrid, TYPE_LABEL } from "./post-card";
+import { AuthorAvatar, Byline, coverSrc, PostGrid, TYPE_LABEL } from "./post-card";
 
 const PROSE =
   "prose prose-lg max-w-none prose-headings:scroll-mt-28 prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-forest-700 prose-a:underline-offset-2 prose-strong:text-ink prose-img:rounded-card prose-table:text-base prose-th:text-left";
@@ -57,9 +57,9 @@ function Picks({ post }: { post: SitePostPage }) {
 
 function InlineCta({ text, href, label }: { text: string; href: string; label: string }) {
   return (
-    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-lime-400 p-6 text-forest-950 sm:flex-row sm:items-center sm:justify-between">
+    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-forest-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
       <p className="font-heading text-xl font-medium">{text || "Want B2B pricing on these models?"}</p>
-      <Action href={href} variant="dark">
+      <Action href={href}>
         {label}
       </Action>
     </div>
@@ -71,6 +71,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
   const quote = quoteLink({ industry: post.industry?.slug, product: post.picks[0]?.slug });
   const compareInline = post.blocks.some((b) => b.kind === "compare");
   const url = `${SITE_URL}${post.path}`;
+  const cover = coverSrc(post);
   const toc = [...post.toc, ...(post.picks.length ? [{ id: "picks", text: "Our picks" }] : []), ...(post.faq.length ? [{ id: "faq", text: "FAQ" }] : [])];
 
   return (
@@ -92,9 +93,9 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
         </div>
       </section>
 
-      {post.cover && (
+      {cover && (
         <div className="container-site pt-8">
-          <Photo src={post.cover.src} subject={post.cover.alt} ratio="21:9" priority sizes="(min-width: 1280px) 1240px, 100vw" className="rounded-frame" />
+          <Photo src={cover} subject={post.cover?.alt ?? post.title} ratio="21:9" priority sizes="(min-width: 1280px) 1240px, 100vw" className="rounded-frame" />
         </div>
       )}
 
@@ -180,7 +181,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
           "@type": post.type === "article" ? "BlogPosting" : "Article",
           headline: post.title,
           description: post.seo.description || post.excerpt,
-          image: post.cover ? [`${SITE_URL}${post.cover.src}`] : undefined,
+          image: cover ? [`${SITE_URL}${cover}`] : undefined,
           datePublished: post.publishedAt,
           dateModified: post.updatedAt,
           mainEntityOfPage: url,

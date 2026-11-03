@@ -1,4 +1,4 @@
-import { ArrowRight, Check } from "lucide-react";
+import { Building2, Check } from "lucide-react";
 import Link from "next/link";
 import { Action } from "@/components/brand/action";
 import { Photo } from "@/components/brand/photo";
@@ -17,30 +17,40 @@ function Headline({ text }: { text: string }) {
   );
 }
 
-/** The two side cards next to the main banner: business buying (lime) and the new-office checklist (white). */
+/**
+ * The two side cards next to the main banner: business buying (white, with the lime button) and the new-office
+ * checklist (sage). Lime stays on buttons only (BRAND.md). Phones show the business card alone, to keep the top short.
+ */
 function SideCards({ business, office }: { business: SiteHome["business"]; office: SiteHome["office"] }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-1 lg:gap-3">
+    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
       {business.title && (
-        <Link href={business.href || "/quote"} className="group flex flex-col justify-between gap-3 rounded-frame bg-lime-400 p-4 text-forest-950 sm:p-5" data-track="home-business">
-          <span className="grid gap-1">
-            <span className="text-[0.9375rem] leading-snug font-semibold sm:text-lg">{business.title}</span>
-            {business.text && <span className="line-clamp-3 text-xs text-forest-950/75 sm:text-sm">{business.text}</span>}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold sm:text-sm">
-            {business.cta} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </Link>
+        <div className="flex flex-col gap-4 rounded-frame border border-line/70 bg-white p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-forest-900 text-mint-300">
+              <Building2 className="size-5" strokeWidth={1.75} />
+            </span>
+            <span className="grid gap-1">
+              <span className="text-[0.9375rem] leading-snug font-semibold text-ink sm:text-lg">{business.title}</span>
+              {business.text && <span className="line-clamp-3 text-xs text-muted-ink sm:text-sm">{business.text}</span>}
+            </span>
+          </div>
+          {business.cta && (
+            <Action href={business.href || "/quote"} className="mt-auto self-start" track="home-business">
+              {business.cta}
+            </Action>
+          )}
+        </div>
       )}
       {office.title && (
-        <div className="flex flex-col gap-2.5 rounded-frame border border-line/70 bg-white p-4 sm:p-5">
-          <span className="text-[0.9375rem] leading-snug font-semibold text-ink sm:text-lg">{office.title}</span>
+        <div className="hidden flex-col gap-2.5 rounded-frame bg-sage-100 p-4 sm:flex sm:p-5">
+          <span className="text-[0.9375rem] leading-snug font-semibold text-forest-950 sm:text-lg">{office.title}</span>
           <ul className="grid gap-1.5">
-            {office.items.map((l, i) => (
-              <li key={l.href + l.label} className={i > 1 ? "hidden sm:block" : undefined}>
-                <Link href={l.href} className="inline-flex items-start gap-2 text-xs text-ink hover:text-forest-700 sm:text-sm">
+            {office.items.map((l) => (
+              <li key={l.href + l.label}>
+                <Link href={l.href} className="group inline-flex items-start gap-2 text-sm text-forest-950/85 hover:text-forest-950">
                   <Check className="mt-0.5 size-3.5 shrink-0 text-forest-700" strokeWidth={3} />
-                  {l.label}
+                  <span className="underline-offset-2 group-hover:underline">{l.label}</span>
                 </Link>
               </li>
             ))}
@@ -100,7 +110,7 @@ export function Hero({ brand, home }: { brand: SiteBrand; home: SiteHome }) {
         <nav aria-label="What do you need?" className="scroll-row lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
           {home.intents.map((x) => (
             <Link key={x.href} href={x.href} className="inline-flex h-11 items-center gap-2.5 rounded-full border border-line/70 bg-white pr-4 pl-1.5 text-sm font-semibold text-ink transition-colors hover:border-forest-900" data-track="home-intent">
-              <span className="grid size-8 place-items-center rounded-full bg-lime-400 text-forest-950">
+              <span className="grid size-8 place-items-center rounded-full bg-forest-900 text-lime-400">
                 <SiteIconView name={x.icon} className="size-4" strokeWidth={1.75} />
               </span>
               {x.label}

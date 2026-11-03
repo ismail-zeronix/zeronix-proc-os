@@ -8,6 +8,8 @@ import type { SiteBrand } from "@/lib/website/contract";
 import { revalidateSite } from "@/lib/website/revalidate";
 import { importSearch, saveGsc, testGsc } from "@/lib/website/gsc";
 import { saveBrand } from "@/lib/website/settings";
+import { saveStore } from "@/lib/website/store";
+import { PAYMENT_METHODS, type StoreSettings } from "@/lib/website/store-core";
 import { dubaiDay } from "@/lib/website/traffic";
 
 const text = (max: number) => z.string().trim().max(max);
@@ -73,5 +75,29 @@ export async function importGscNowAction(): Promise<Result<{ rows: number }>> {
     });
     revalidatePath("/website", "layout");
     return { rows };
+  });
+}
+
+// ---------- Store (S.3) ----------
+
+const storeSchema = z.object({
+  markupPercent: z.number().min(0, "The markup cannot be negative").max(200),
+  payments: z.array(z.enum(PAYMENT_METHODS)).min(1, "Leave at least one way to pay"),
+  bankDetails: text(1000),
+  deliveryNote: text(300),
+  mailUserId: z.number().int().positive().nullable(),
+  notifyEmail: z.union([z.literal(""), z.email("Enter a valid email for new orders")]),
+});
+
+/** Markup, ways to pay, bank details and the store mailbox. Admins only; checkout picks it up straight away. */
+export async function saveStoreAction(input: StoreSettings): Promise<Result<null>> {
+  return attempt(async () => {
+    const me = await assertApp("website");
+    if (me.role !== "admin") throw new Problem("Only an admin can change the store settings.");
+    const v = storeSchema.parse(input);
+    if (v.payments.includes("bank") && !v.bankDetails.trim()) throw new Problem("Add the bank details, or switch Bank transfer off.");
+    await saveStore(v, me.id);
+    revalidatePath("/website/settings");
+    return null;
   });
 }

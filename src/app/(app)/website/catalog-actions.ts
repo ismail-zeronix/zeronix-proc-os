@@ -5,7 +5,12 @@ import { z } from "zod";
 import { assertApp } from "@/lib/auth/session";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import {
+  bulkProducts,
+  bulkStatus,
+  importListing,
   importProductMarkdown,
+  picturesFromLinks,
+  productIdsMatching,
   saveBrand,
   saveCategory,
   saveIndustry,
@@ -13,11 +18,15 @@ import {
   saveSiteImage,
   searchPortalProducts,
   type BrandInput,
+  type BulkStatusList,
   type CategoryInput,
   type IndustryInput,
+  type ListingImportResult,
+  type ProductBulkOp,
   type ProductInput,
 } from "@/lib/website/catalog";
 import { SITE_ICONS } from "@/lib/website/contract";
+import type { ListingItem } from "@/lib/website/listing-import";
 import { revalidateSite } from "@/lib/website/revalidate";
 import type { SiteImage } from "@/lib/website/types";
 
@@ -67,6 +76,8 @@ const categorySchema = z.object({
   name: text(80).min(2, "Enter the category name"),
   icon,
   description: text(300),
+  intro: text(20000),
+  faq,
   specTemplate: z.object({ groups: z.array(z.object({ label: text(60), fields: z.array(z.object({ key: text(60), label: text(60), filter: z.boolean().optional() })) })).max(20) }),
   seo,
   image: image.nullable(),
@@ -124,8 +135,24 @@ const productSchema = z
     portalProductId: z.number().int().positive().nullable(),
     status,
     links: z.array(z.object({ industryId: z.number().int().positive(), role: text(120), label: text(80), rank: z.number().int().min(0) })).max(20),
+    priceMode: z.enum(["hidden", "on_request", "public"]).optional(),
+    listPrice: z
+      .string()
+      .trim()
+      .nullable()
+      .optional()
+      .transform((v, ctx) => {
+        const n = (v ?? "").replace(/,/g, "");
+        if (!n) return null;
+        if (!/^\d{1,9}(\.\d{1,2})?$/.test(n)) {
+          ctx.addIssue({ code: "custom", message: "The price is a number like 4149 or 4149.50" });
+          return z.NEVER;
+        }
+        return Number(n).toFixed(2);
+      }),
   })
-  .refine((p) => p.status !== "published" || p.categoryId, { message: "Pick a category before publishing" });
+  .refine((p) => p.status !== "published" || p.categoryId, { message: "Pick a category before publishing" })
+  .refine((p) => p.priceMode !== "public" || p.listPrice, { message: 'Enter the price, or set it to "Price on request"' });
 
 export async function saveProductAction(input: ProductInput, id?: number): Promise<Result<number>> {
   return attempt(async () => {
@@ -163,6 +190,45 @@ export async function importProductAction(form: FormData): Promise<Result<{ id: 
   });
 }
 
+const listingItem = z.object({
+  mpn: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9#.-]{3,40}$/),
+  brand: text(60).min(1),
+  name: text(160).min(2),
+  category: text(40),
+  sourceCategory: text(120),
+  price: z
+    .string()
+    .regex(/^\d{1,9}\.\d{2}$/)
+    .nullable(),
+  specs: z.record(z.string().max(40), text(400)),
+  keyboard: text(80),
+  highlights: z.array(text(200)).max(8),
+  pageUrl: z.union([z.literal(""), z.url({ protocol: /^https$/ }).max(500)]),
+});
+
+/** "Import listing": products read in the browser from pasted JSON, sent a batch at a time, become drafts. */
+export async function importListingAction(items: ListingItem[]): Promise<Result<ListingImportResult>> {
+  return attempt(async () => {
+    const me = await assertApp("website");
+    const list = z.array(listingItem).min(1).max(100).parse(items);
+    const res = await importListing(list, me.id).catch((e: Error) => {
+      throw new Problem(e.message);
+    });
+    await done("/website/products", ["catalog", "nav"]);
+    return res;
+  });
+}
+
+/** "Add pictures from links" in the product editor: the pictures come back for the form; Save keeps them. */
+export async function picturesFromLinksAction(urls: string[], alt: string): Promise<Result<{ images: SiteImage[]; problems: string[] }>> {
+  return attempt(async () => {
+    const me = await assertApp("website");
+    const list = z.array(z.string().trim().max(2000)).max(12, "12 links at a time at most").parse(urls).filter(Boolean);
+    if (!list.length) throw new Problem("Paste at least one picture link");
+    return picturesFromLinks(list, text(300).parse(alt), me.id);
+  });
+}
+
 export async function searchPortalProductsAction(q: string) {
   await assertApp("website");
   return searchPortalProducts(q);
@@ -172,4 +238,41 @@ export async function searchPortalProductsAction(q: string) {
 function uniqueSlug(e: unknown): never {
   if ((e as { code?: string }).code === "23505") throw new Problem("Another record already uses this web address (slug). Change the slug.");
   throw e;
+}
+
+// ---------- bulk changes from the lists ----------
+
+const productFilter = z.object({
+  q: z.string().trim().max(120).optional(),
+  status: status.optional(),
+  categoryId: z.number().int().min(0).optional(),
+});
+const productTarget = z.union([z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }), z.object({ filter: productFilter })]);
+const productChange = z.union([
+  z.object({ op: z.enum(["publish", "draft", "archive", "sell_online", "quote_only", "delete"]) }),
+  z.object({ op: z.literal("category"), categoryId: z.number().int().positive() }),
+]);
+
+/** Many products at once: the ticked ones, or every product matching the list's filter ("select all N"). */
+export async function bulkProductsAction(target: z.infer<typeof productTarget>, change: ProductBulkOp): Promise<Result<{ changed: number; skipped: string[] }>> {
+  return attempt(async () => {
+    const me = await assertApp("website");
+    const t = productTarget.parse(target);
+    const c = productChange.parse(change);
+    if (c.op === "delete" && me.role !== "admin") throw new Problem("Only an admin can delete products.");
+    const ids = "ids" in t ? t.ids : await productIdsMatching(t.filter);
+    const res = await bulkProducts(ids, c);
+    await done("/website/products", ["catalog", "nav"]);
+    return res;
+  });
+}
+
+/** Publish, unpublish or archive many industries, categories or brands. */
+export async function bulkStatusAction(list: BulkStatusList, ids: number[], to: "published" | "draft" | "archived"): Promise<Result<number>> {
+  return attempt(async () => {
+    await assertApp("website");
+    const n = await bulkStatus(z.enum(["industries", "categories", "brands"]).parse(list), z.array(z.number().int().positive()).max(500).parse(ids), status.parse(to));
+    await done(`/website/${list}`, ["catalog", "nav"]);
+    return n;
+  });
 }

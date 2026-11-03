@@ -1,6 +1,6 @@
 import "server-only";
 import JSZip from "jszip";
-import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lte, ne, sql } from "drizzle-orm";
 import { siteDb, siteSchema } from "@/db/site";
 import { ensureAuthor, userNames } from "./authors";
 import { saveSiteImage } from "./catalog";
@@ -113,8 +113,11 @@ export async function importPost(file: File, userId: number): Promise<{ id: numb
   return { id, created: true, warnings, status: "draft" };
 }
 
-export async function listPosts(status?: string) {
-  return siteDb
+/** One page of posts with a status, and how many there are in all. */
+export async function listPosts(status?: string, page = 1, pageSize = 50) {
+  const where = status ? eq(S.status, status as "draft") : undefined;
+  const [{ total }] = await siteDb.select({ total: sql<number>`count(*)::int` }).from(S).where(where);
+  const rows = await siteDb
     .select({
       id: S.id,
       type: S.type,
@@ -129,9 +132,31 @@ export async function listPosts(status?: string) {
     })
     .from(S)
     .leftJoin(siteSchema.siteAuthors, eq(siteSchema.siteAuthors.portalUserId, S.authorUserId))
-    .where(status ? eq(S.status, status as "draft") : undefined)
-    .orderBy(desc(S.updatedAt))
-    .limit(300);
+    .where(where)
+    .orderBy(desc(S.updatedAt), desc(S.id))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  return { rows, total };
+}
+
+/** Publish, unpublish (draft) or archive many posts at once; the site is told once at the end. */
+export async function bulkPostStatus(ids: number[], kind: "publish" | "unpublish" | "archive", userId: number): Promise<number> {
+  if (!ids.length) return 0;
+  const now = new Date();
+  const rows =
+    kind === "publish"
+      ? await siteDb
+          .update(S)
+          .set({ status: "published", publishAt: null, publishedAt: sql`coalesce(${S.publishedAt}, now())`, publishedBy: userId, updatedAt: now })
+          .where(inArray(S.id, ids))
+          .returning({ id: S.id })
+      : await siteDb
+          .update(S)
+          .set({ status: kind === "archive" ? "archived" : "draft", publishAt: null, updatedAt: now })
+          .where(inArray(S.id, ids))
+          .returning({ id: S.id });
+  await revalidateSite(["posts", "catalog"]);
+  return rows.length;
 }
 
 export async function postCounts(): Promise<Record<string, number>> {

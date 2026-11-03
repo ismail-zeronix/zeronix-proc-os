@@ -67,14 +67,15 @@ export async function createQuoteRequest(input: QuoteInput, site: string): Promi
   return row.id;
 }
 
-export async function listQuoteRequests(status: "new" | "converted" | "spam") {
+export async function listQuoteRequests(status: "new" | "converted" | "spam", page = 1, pageSize = 50) {
   return siteDb
     .select({ r: siteSchema.siteQuoteRequests, industryName: siteSchema.siteIndustries.name })
     .from(siteSchema.siteQuoteRequests)
     .leftJoin(siteSchema.siteIndustries, eq(siteSchema.siteIndustries.slug, siteSchema.siteQuoteRequests.industry))
     .where(eq(siteSchema.siteQuoteRequests.status, status))
-    .orderBy(desc(siteSchema.siteQuoteRequests.createdAt))
-    .limit(300);
+    .orderBy(desc(siteSchema.siteQuoteRequests.createdAt), desc(siteSchema.siteQuoteRequests.id))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
 }
 
 export async function quoteCounts(): Promise<Record<string, number>> {

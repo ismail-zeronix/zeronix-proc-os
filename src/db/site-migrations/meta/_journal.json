@@ -8,6 +8,27 @@
       "when": 1793570812812,
       "tag": "0000_site_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793660240926,
+      "tag": "0001_picture_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793664224090,
+      "tag": "0002_store",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793668042390,
+      "tag": "0003_category_content",
+      "breakpoints": true
     }
   ]
 }
