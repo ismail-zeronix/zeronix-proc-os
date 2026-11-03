@@ -104,6 +104,8 @@ export async function saveBrand(input: z.input<typeof brandSchema> & { logo?: st
 
 const settingsSchema = z.object({
   llm_model: z.string().trim().min(1).max(100),
+  /** "" = local Ollama, else a Prospecting AI provider id. */
+  llm_provider_id: z.string().regex(/^\d*$/).default(""),
   stale_days: z.coerce.number().int().min(1).max(365),
   fx_usd: z.coerce.number().min(1).max(10),
 });
@@ -112,6 +114,7 @@ export async function saveSettings(input: z.input<typeof settingsSchema>) {
   await requireAdmin();
   const d = settingsSchema.parse(input);
   await setSetting("llm_model", d.llm_model);
+  await setSetting("llm_provider_id", d.llm_provider_id);
   await setSetting("stale_days", String(d.stale_days));
   await setSetting("fx_usd", String(d.fx_usd));
   revalidatePath("/", "layout");

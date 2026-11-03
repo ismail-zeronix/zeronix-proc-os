@@ -99,7 +99,7 @@ export async function refreshFreeModels(p: ProviderRow, today: string): Promise<
  * the work is spread over the good models instead of wearing one out (a model rate-limited upstream stays limited for
  * a while); untried models come after. Resting and switched-off models are left out.
  */
-async function readyModels(providerId: number, skip: string[]): Promise<string[]> {
+async function readyModels(providerId: number, skip: string[], json = false): Promise<string[]> {
   const rows = await db
     .select({ modelId: schema.prospectAiModels.modelId })
     .from(schema.prospectAiModels)
@@ -111,7 +111,8 @@ async function readyModels(providerId: number, skip: string[]): Promise<string[]
         skip.length ? notInArray(schema.prospectAiModels.modelId, skip) : undefined,
       ),
     )
-    .orderBy(sql`(${schema.prospectAiModels.okCount} > 0) desc`, sql`${schema.prospectAiModels.lastUsedAt} asc nulls first`, asc(schema.prospectAiModels.position))
+    // JSON-mode models first when the caller needs strict JSON
+    .orderBy(...(json ? [sql`${schema.prospectAiModels.json} desc`] : []), sql`(${schema.prospectAiModels.okCount} > 0) desc`, sql`${schema.prospectAiModels.lastUsedAt} asc nulls first`, asc(schema.prospectAiModels.position))
     .limit(MODELS_PER_REQUEST);
   return rows.map((r) => r.modelId);
 }
@@ -144,7 +145,7 @@ type ChatBody = {
   error?: { message?: string; code?: number; metadata?: { raw?: string } };
 } | null;
 
-async function postChat(p: ProviderRow, apiKey: string, models: string[], prompt: string, search: boolean, maxTokens: number) {
+async function postChat(p: ProviderRow, apiKey: string, models: string[], prompt: string, search: boolean, maxTokens: number, json = false) {
   const isRouter = p.provider === "openrouter";
   const res = await fetch(`${baseOf(p)}/chat/completions`, {
     method: "POST",
@@ -155,6 +156,7 @@ async function postChat(p: ProviderRow, apiKey: string, models: string[], prompt
       messages: [{ role: "user", content: prompt }],
       max_tokens: maxTokens,
       temperature: 0,
+      ...(json ? { response_format: { type: "json_object" } } : {}),
       // many free models think before answering; keep that short and out of the reply, or it uses up max_tokens
       ...(isRouter ? { reasoning: { effort: "low", exclude: true } } : {}),
       ...(isRouter && search ? { plugins: [{ id: "web", max_results: 5 }] } : {}),
@@ -176,17 +178,23 @@ function replyOf(body: ChatBody, fallbackModel: string): AiReply {
  * key are told apart from a busy model: the daily allowance stops the provider until it resets, the per-minute limit
  * pauses it for a minute, and neither rests the models (they did nothing wrong).
  */
-async function openRouterFree(p: ProviderRow, prompt: string, search: boolean, maxTokens: number): Promise<AiReply> {
+async function openRouterFree(p: ProviderRow, prompt: string, search: boolean, maxTokens: number, json = false): Promise<AiReply> {
   const apiKey = keyOf(p);
   const tried: string[] = [];
   const problems: string[] = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const models = await readyModels(p.id, tried);
+    const models = await readyModels(p.id, tried, json);
     if (!models.length) break;
     tried.push(...models);
-    const { res, body, message } = await postChat(p, apiKey, models, prompt, search, maxTokens);
+    const { res, body, message } = await postChat(p, apiKey, models, prompt, search, maxTokens, json);
     if (res.ok) {
       const reply = replyOf(body, models[0]);
+      // an empty answer (a thinking model that used up its tokens, or a broken upstream) is no answer: try other models
+      if (!reply.text.trim()) {
+        await restModels(p.id, [reply.model], "Empty reply");
+        problems.push(`${reply.model}: empty reply`);
+        continue;
+      }
       await db
         .update(schema.prospectAiModels)
         .set({ okCount: sql`${schema.prospectAiModels.okCount} + 1`, failCount: 0, lastError: "", cooldownUntil: null, lastUsedAt: new Date() })
@@ -215,10 +223,10 @@ async function openRouterFree(p: ProviderRow, prompt: string, search: boolean, m
 }
 
 /** OpenAI-style chat: OpenRouter, OpenAI and compatible services with one fixed model. */
-async function chatCompletions(p: ProviderRow, prompt: string, search: boolean, maxTokens: number): Promise<AiReply> {
-  if (p.provider === "openrouter" && p.autoFree) return openRouterFree(p, prompt, search, maxTokens);
+async function chatCompletions(p: ProviderRow, prompt: string, search: boolean, maxTokens: number, json = false): Promise<AiReply> {
+  if (p.provider === "openrouter" && p.autoFree) return openRouterFree(p, prompt, search, maxTokens, json);
   const apiKey = keyOf(p);
-  const { res, body, message } = await postChat(p, apiKey, [p.model], prompt, search, maxTokens);
+  const { res, body, message } = await postChat(p, apiKey, [p.model], prompt, search, maxTokens, json);
   const label = aiProvider(p.provider)?.label ?? p.provider;
   if (res.status === 402) throw new AiUnavailable("quota", `${label} has no credits left for this.`);
   if (res.status === 429) {
@@ -317,7 +325,7 @@ async function claude(p: ProviderRow, prompt: string, search: boolean, maxTokens
 }
 
 /** Sends one prompt to one provider. `search` asks it to search the web (only for providers where canSearch is true). */
-export async function askProvider(p: ProviderRow, prompt: string, opts: { search: boolean; maxTokens?: number }): Promise<AiReply> {
+export async function askProvider(p: ProviderRow, prompt: string, opts: { search: boolean; maxTokens?: number; json?: boolean }): Promise<AiReply> {
   // room for a short think plus the answer: thinking models stop mid-answer when this is too low
   const maxTokens = opts.maxTokens ?? 3000;
   if (opts.search && !canSearch(p)) throw new AiUnavailable("setup", "This provider cannot search the web.");
@@ -327,7 +335,7 @@ export async function askProvider(p: ProviderRow, prompt: string, opts: { search
   if (p.provider === "ollama") throw new AiUnavailable("setup", "Ollama is not used for research.");
   if (p.provider === "tavily") throw new AiUnavailable("setup", "Tavily searches the web; it does not answer prompts.");
   if (!p.autoFree && !p.model) throw new AiUnavailable("setup", "Pick a model first.");
-  return chatCompletions(p, prompt, opts.search, maxTokens);
+  return chatCompletions(p, prompt, opts.search, maxTokens, opts.json);
 }
 
 /** Reloads the free-model list of every OpenRouter provider not refreshed in the last day (called by the worker). */

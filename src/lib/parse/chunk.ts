@@ -76,12 +76,12 @@ export function toBlocks(raw: string): Block[] {
   return blocks;
 }
 
-export function toBatches(blocks: Block[]): Batch[] {
+export function toBatches(blocks: Block[], limits = { blocks: MAX_BATCH_BLOCKS, chars: MAX_BATCH_CHARS }): Batch[] {
   const batches: Batch[] = [];
   let cur: Block[] = [];
   let chars = 0;
   for (const b of blocks) {
-    if (cur.length && (cur.length >= MAX_BATCH_BLOCKS || chars + b.text.length > MAX_BATCH_CHARS)) {
+    if (cur.length && (cur.length >= limits.blocks || chars + b.text.length > limits.chars)) {
       batches.push({ blocks: cur });
       cur = [];
       chars = 0;

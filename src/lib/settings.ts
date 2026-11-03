@@ -6,6 +6,8 @@ import { DEFAULT_QUOTE_EMAIL_BODY, DEFAULT_QUOTE_EMAIL_SUBJECT } from "@/lib/quo
 
 export const SETTING_DEFAULTS = {
   llm_model: process.env.LLM_MODEL ?? "qwen3.5:4b",
+  /** Reads pasted price lists: empty = the local Ollama model, else the id of an AI service from Prospecting → Settings. */
+  llm_provider_id: "",
   stale_days: "14",
   /** AED per 1 USD. The dirham is pegged at 3.6725; change it only if you price on a different rate. */
   fx_usd: "3.6725",

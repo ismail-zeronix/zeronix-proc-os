@@ -1,5 +1,5 @@
 import { buildMessages, type FewShot } from "@/lib/llm/prompt";
-import type { LlmProvider } from "@/lib/llm/provider";
+import { LlmUnavailable, type LlmProvider } from "@/lib/llm/provider";
 import { completeItem, llmOutJsonSchema, llmOutLenientSchema, type LlmItem, type OfferDraft } from "@/lib/llm/schema";
 import { toBatches, toBlocks, type Block } from "./chunk";
 import { fallbackDraft, toDraft } from "./postfix";
@@ -45,7 +45,7 @@ async function extractBatch(llm: LlmProvider, blocks: Block[], fewShots: FewShot
   const messages = buildMessages({ blocks }, fewShots);
   const textOf = new Map(blocks.map((b) => [b.index, b.text]));
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < (llm.counted ? 1 : 2); attempt++) {
     try {
       const json = await llm.extractJson({
         messages,
@@ -57,6 +57,7 @@ async function extractBatch(llm: LlmProvider, blocks: Block[], fewShots: FewShot
         .parse(json)
         .items.map((it) => completeItem(it, textOf.get(it.block) ?? blocks[0].text));
     } catch (e) {
+      if (e instanceof LlmUnavailable) throw e;
       lastErr = e;
     }
   }
@@ -86,7 +87,7 @@ export async function parsePriceList(raw: string, opts: ParseOptions): Promise<O
   await opts.onReused?.(reused);
 
   const blocks = fresh;
-  const batches = toBatches(blocks);
+  const batches = toBatches(blocks, opts.llm.batch);
   let done = 0;
   await opts.onProgress?.({ done, total: blocks.length });
 
@@ -102,28 +103,48 @@ export async function parsePriceList(raw: string, opts: ParseOptions): Promise<O
     return seen;
   };
 
-  for (const batch of batches) {
+  const read = async (part: Block[]): Promise<void> => {
     try {
-      const items = await extractBatch(opts.llm, batch.blocks, fewShots);
-      const seen = emit(items, batch.blocks);
+      const items = await extractBatch(opts.llm, part, fewShots);
+      const seen = emit(items, part);
+      if (opts.llm.counted) return;
       // Blocks with a price that produced no item are re-tried alone (cheap, catches skips).
-      for (const b of batch.blocks) {
+      for (const b of part) {
         if (seen.has(b.index) || !/\d/.test(b.text)) continue;
         try {
           emit(await extractBatch(opts.llm, [b], fewShots), [b]);
-        } catch {
+        } catch (e) {
+          if (e instanceof LlmUnavailable) throw e;
           /* model says not a product */
         }
       }
-    } catch {
-      for (const b of batch.blocks) {
+    } catch (e) {
+      // out of allowance or rate limited: the whole list waits, it is not filled with manual rows
+      if (e instanceof LlmUnavailable) throw e;
+      // a big hosted batch that failed is read again in small batches before going block by block
+      const small = toBatches(part);
+      if (small.length > 1) {
+        for (const b of small) await read(b.blocks);
+        return;
+      }
+      for (const b of part) {
+        // a counted allowance is not spent asking block by block: these rows are filled in by hand
+        if (opts.llm.counted) {
+          drafts.push(fallbackDraft(b, (e as Error).message.slice(0, 80)));
+          continue;
+        }
         try {
           emit(await extractBatch(opts.llm, [b], fewShots), [b]);
-        } catch (e) {
-          drafts.push(fallbackDraft(b, (e as Error).message.slice(0, 80)));
+        } catch (e2) {
+          if (e2 instanceof LlmUnavailable) throw e2;
+          drafts.push(fallbackDraft(b, (e2 as Error).message.slice(0, 80)));
         }
       }
     }
+  };
+
+  for (const batch of batches) {
+    await read(batch.blocks);
     done += batch.blocks.length;
     await opts.onProgress?.({ done, total: blocks.length });
   }

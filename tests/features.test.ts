@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { offersToCsv, quoteText } from "@/lib/export";
-import type { LlmProvider } from "@/lib/llm/provider";
+import { LlmUnavailable, type LlmProvider } from "@/lib/llm/provider";
 import type { OfferDraft } from "@/lib/llm/schema";
 import { preclean } from "@/lib/parse/preclean";
 import { blockCacheKey, parsePriceList } from "@/lib/parse/pipeline";
@@ -125,5 +125,38 @@ describe("reusing reviewed rows", () => {
     expect(drafts[0].include).toBe(false); // the reviewer's decision is kept
     expect(drafts[0].flags).toEqual([]);
     expect(drafts[0].productId).toBeNull(); // product matching is redone for the new list
+  });
+});
+
+describe("hosted AI reading", () => {
+  const list = Array.from({ length: 12 }, (_, i) => `HP 250 G${i} | i5 | 8GB\n@${1000 + i}/-`).join("\n\n");
+  const hosted = (extractJson: LlmProvider["extractJson"]): LlmProvider => ({
+    name: "openrouter", model: "OpenRouter free", batch: { blocks: 20, chars: 4000 }, counted: true,
+    health: async () => ({ ok: true, detail: "" }), isLoaded: async () => false, unload: async () => {}, extractJson,
+  });
+
+  it("reads a whole list in one request and does not re-ask skipped blocks", async () => {
+    let calls = 0;
+    const drafts = await parsePriceList(list, {
+      llm: hosted(async () => {
+        calls++;
+        // the model skipped the last block: with a counted allowance it is left out, not asked again
+        return { items: Array.from({ length: 11 }, (_, i) => ({ block: i, category: "laptop", brand: "HP", model_name: `250 G${i}`, part_number: "", cpu: "", ram: "8GB", storage: "", display: "", gpu: "", os: "", extras: "", price: 1000 + i })) };
+      }),
+    });
+    expect(calls).toBe(1);
+    expect(drafts).toHaveLength(11);
+  });
+
+  it("stops the list when the service is out instead of making manual rows", async () => {
+    let calls = 0;
+    const read = parsePriceList(list, {
+      llm: hosted(async () => {
+        calls++;
+        throw new LlmUnavailable("OpenRouter free: allowance used up");
+      }),
+    });
+    await expect(read).rejects.toBeInstanceOf(LlmUnavailable);
+    expect(calls).toBe(1);
   });
 });

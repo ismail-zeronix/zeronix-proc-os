@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { getLlm } from "@/lib/llm";
+import { getPriceListLlm } from "@/lib/llm";
+import { LlmUnavailable } from "@/lib/llm/provider";
 import { getSetting, getSettings, setSetting } from "@/lib/settings";
 import { runParse, StopRequested } from "./jobs";
 
@@ -30,7 +31,7 @@ async function claimNext(): Promise<number | null> {
 /** Frees the model's RAM now instead of waiting for Ollama's keep-alive timer. */
 export async function unloadModel() {
   try {
-    await getLlm(await getSetting("llm_model")).unload();
+    await (await getPriceListLlm()).unload();
   } catch {
     /* Ollama not running: nothing to free */
   }
@@ -60,6 +61,7 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
     let claimed = false;
     let processed = 0;
     let stopped = false;
+    let unavailable = "";
     for (;;) {
       // Stop pressed while this pass was running: leave the rest of the queue alone
       if (Date.parse(await getSetting("ai_stop_at")) > began || (!opts.manual && (await getSetting("ai_running")) !== "true")) {
@@ -78,12 +80,17 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
           stopped = true;
           break;
         }
+        // the AI service is out (allowance or rate limit): the list is back in the queue, try on a later pass
+        if (e instanceof LlmUnavailable) {
+          unavailable = e.message;
+          break;
+        }
         console.error(`[ai] list ${id} failed:`, (e as Error).message);
       }
     }
     // free the RAM as soon as the pass ends, also after a Stop
     if (claimed || opts.manual) await unloadModel();
-    return { ran: true, processed, note: stopped ? "Stopped by an admin" : processed ? `Read ${processed} list${processed === 1 ? "" : "s"}` : "Nothing was waiting" };
+    return { ran: true, processed, note: stopped ? "Stopped by an admin" : unavailable ? `Paused: ${unavailable}` : processed ? `Read ${processed} list${processed === 1 ? "" : "s"}` : "Nothing was waiting" };
   } finally {
     g.__aiAbort = undefined;
     g.__aiBusy = false;

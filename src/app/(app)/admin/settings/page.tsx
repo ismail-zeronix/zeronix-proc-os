@@ -4,23 +4,23 @@ import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
 import { getBrand, getBrandRow, getDocBrand } from "@/lib/brand";
-import { getLlm } from "@/lib/llm";
+import { getPriceListLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { db, schema } from "@/db";
 import { AdminSettings, DocumentSettings, QuoteSettings, WorkHoursSettings } from "../admin-ui";
 import { BrandCard } from "../brand-ui";
 import { DocumentBrandCard } from "../doc-brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
-import { ollamaModels } from "../data";
+import { hostedEngines, ollamaModels } from "../data";
 
 
 export const metadata = { title: "Settings · Admin · Zeronix" };
 
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const me = (await requireApp("admin")).user;
-  const [{ tab }, settings, models, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), getBrand()]);
+  const [{ tab }, settings, models, engines, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), hostedEngines(), getBrand()]);
   const [health, [last], types, templates, docBrand, brandRow] = await Promise.all([
-    getLlm(settings.llm_model).health(),
+    getPriceListLlm().then((llm) => llm.health()),
     db.select({ number: schema.invoices.number }).from(schema.invoices).orderBy(desc(schema.invoices.createdAt)).limit(1),
     db.select().from(schema.projectTypes).orderBy(asc(schema.projectTypes.position), asc(schema.projectTypes.label)),
     db.select().from(schema.projectTaskTemplates),
@@ -66,7 +66,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
             key: "comparison",
             label: "AI & comparison",
             icon: <Scale />,
-            content: <AdminSettings settings={settings} models={models} health={health} />,
+            content: <AdminSettings settings={settings} models={models} engines={engines} health={health} />,
           },
           {
             key: "branding",

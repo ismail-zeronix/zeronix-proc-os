@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { getLlm } from "@/lib/llm";
+import { getPriceListLlm } from "@/lib/llm";
+import { LlmUnavailable } from "@/lib/llm/provider";
 import type { OfferDraft } from "@/lib/llm/schema";
 import { blockCacheKey, parsePriceList } from "@/lib/parse/pipeline";
 import { attachMatches } from "@/lib/products";
@@ -13,13 +14,13 @@ export class StopRequested extends Error {
   }
 }
 
-/** Reads one queued price list with the local model. Called by the AI scheduler, never directly on paste. */
+/** Reads one queued price list with the chosen model (local or hosted). Called by the AI scheduler, never directly on paste. */
 export async function runParse(priceListId: number, signal?: AbortSignal) {
   const [pl] = await db.select().from(schema.priceLists).where(eq(schema.priceLists.id, priceListId));
   if (!pl || pl.status === "saved") return;
 
-  const model = await getSetting("llm_model");
-  const llm = getLlm(model, signal);
+  const llm = await getPriceListLlm(signal);
+  const model = llm.model;
   const fewShots = (
     await db
       .select()
@@ -79,6 +80,14 @@ export async function runParse(priceListId: number, signal?: AbortSignal) {
       await db
         .update(schema.priceLists)
         .set({ status: "queued", error: null, progressDone: 0, reusedBlocks: 0 })
+        .where(eq(schema.priceLists.id, priceListId));
+      throw e;
+    }
+    // the AI service is out for now: the list waits in the queue, with the reason shown, and is read on a later pass
+    if (e instanceof LlmUnavailable) {
+      await db
+        .update(schema.priceLists)
+        .set({ status: "queued", error: e.message.slice(0, 500), progressDone: 0, reusedBlocks: 0 })
         .where(eq(schema.priceLists.id, priceListId));
       throw e;
     }

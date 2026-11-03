@@ -39,12 +39,16 @@ function useAction() {
 export function AdminSettings({
   settings,
   models,
+  engines,
   health,
 }: {
-  settings: { llm_model: string; stale_days: string; fx_usd: string };
+  settings: { llm_model: string; llm_provider_id: string; stale_days: string; fx_usd: string };
   models: string[];
+  /** AI services saved in Prospecting → Settings. */
+  engines: { id: number; label: string; enabled: boolean }[];
   health: { ok: boolean; detail: string };
 }) {
+  const [engine, setEngine] = useState(settings.llm_provider_id);
   const [model, setModel] = useState(settings.llm_model);
   const [stale, setStale] = useState(settings.stale_days);
   const [fx, setFx] = useState(settings.fx_usd);
@@ -65,19 +69,43 @@ export function AdminSettings({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-[1fr_200px_200px_auto] md:items-start">
-        <div className="grid gap-1.5">
-          <Label>Local model (Ollama)</Label>
-          <NativeSelect value={model} onChange={(e) => setModel(e.target.value)}>
-            {options.map((m) => (
-              <NativeSelectOption key={m} value={m}>
-                {m}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <p className="text-xs text-muted-foreground">
-            qwen3.5:4b gives the best accuracy on CPU (~3.4 GB RAM). qwen3.5:2b is ~20% faster but less accurate.
-            Pull other models with <code>ollama pull &lt;name&gt;</code>.
-          </p>
+        <div className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label>Reads pasted price lists with</Label>
+            <NativeSelect value={engine} onChange={(e) => setEngine(e.target.value)}>
+              <NativeSelectOption value="">Local model (Ollama)</NativeSelectOption>
+              {engines.map((p) => (
+                <NativeSelectOption key={p.id} value={String(p.id)}>
+                  {p.label}
+                  {p.enabled ? "" : " (switched off)"}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <p className="text-xs text-muted-foreground">
+              AI services and keys are added in{" "}
+              <Link href="/prospecting/settings" className="underline">
+                Prospecting → Settings
+              </Link>
+              . OpenRouter free models read a list in a few seconds and share that key&apos;s 50 free requests a day; a
+              list waits in the queue when they run out.
+            </p>
+          </div>
+          {engine === "" && (
+            <div className="grid gap-1.5">
+              <Label>Local model (Ollama)</Label>
+              <NativeSelect value={model} onChange={(e) => setModel(e.target.value)}>
+                {options.map((m) => (
+                  <NativeSelectOption key={m} value={m}>
+                    {m}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <p className="text-xs text-muted-foreground">
+                qwen3.5:4b gives the best accuracy on CPU (~3.4 GB RAM). qwen3.5:2b is ~20% faster but less accurate.
+                Pull other models with <code>ollama pull &lt;name&gt;</code>.
+              </p>
+            </div>
+          )}
         </div>
         <div className="grid gap-1.5">
           <Label>Offer is “old” after (days)</Label>
@@ -95,7 +123,7 @@ export function AdminSettings({
           className="md:mt-[1.375rem]"
           pending={pending}
           onClick={() =>
-            run(() => saveSettings({ llm_model: model, stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")
+            run(() => saveSettings({ llm_model: model, llm_provider_id: engine, stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")
           }
         >
           Save

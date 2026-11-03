@@ -47,6 +47,8 @@ export interface AiState {
   reading: number;
   modelLoaded: boolean;
   model: string;
+  /** An AI service (OpenRouter...) instead of the local model: nothing to load or unload. */
+  hosted: boolean;
 }
 
 export function AiControl({ ai }: { ai: AiState }) {
@@ -71,9 +73,9 @@ export function AiControl({ ai }: { ai: AiState }) {
           {ai.running ? <Badge>Running</Badge> : <Badge variant="secondary">Stopped</Badge>}
         </CardTitle>
         <CardDescription>
-          Pasted WhatsApp lists wait in a queue. While this is running, the local model reads the waiting lists on the
-          interval below and then unloads itself. While it is stopped, the model stays out of memory. Excel imports and
-          live feeds never use the model.
+          {ai.hosted
+            ? `Pasted WhatsApp lists wait in a queue. While this is running, ${ai.model} reads the waiting lists on the interval below; when its allowance runs out a list waits for the next look. Excel imports and live feeds never use AI.`
+            : "Pasted WhatsApp lists wait in a queue. While this is running, the local model reads the waiting lists on the interval below and then unloads itself. While it is stopped, the model stays out of memory. Excel imports and live feeds never use the model."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -113,7 +115,7 @@ export function AiControl({ ai }: { ai: AiState }) {
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="Waiting in queue" value={ai.waiting} />
           <Fact label="Being read now" value={ai.reading} />
-          <Fact label={`Model (${ai.model})`} value={ai.modelLoaded ? "In memory" : "Not loaded"} />
+          <Fact label={`Model (${ai.model})`} value={ai.hosted ? "AI service" : ai.modelLoaded ? "In memory" : "Not loaded"} />
           <Fact
             label={ai.running ? "Next look" : "Last look"}
             value={ai.running ? nextLook : ai.lastRunAt ? ago(ai.lastRunAt) : "Never"}

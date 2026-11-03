@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/db";
+import { getSettings } from "@/lib/settings";
 import { OllamaProvider } from "./ollama";
 import type { LlmProvider } from "./provider";
 
@@ -10,4 +13,22 @@ export function getLlm(modelOverride?: string | null, signal?: AbortSignal): Llm
     keepAlive: process.env.LLM_KEEP_ALIVE ?? "1m",
     signal,
   });
+}
+
+/**
+ * What reads pasted price lists: the local Ollama model, or an AI service saved in Prospecting → Settings
+ * (setting llm_provider_id). A provider that was deleted falls back to the local model.
+ */
+export async function getPriceListLlm(signal?: AbortSignal): Promise<LlmProvider> {
+  const s = await getSettings();
+  const id = Number(s.llm_provider_id);
+  if (id) {
+    const [row] = await db.select().from(schema.prospectAiProviders).where(eq(schema.prospectAiProviders.id, id));
+    if (row) {
+      // loaded only when used: it pulls in server-only code that scripts cannot import
+      const { HostedProvider } = await import("./hosted");
+      return new HostedProvider(row);
+    }
+  }
+  return getLlm(s.llm_model, signal);
 }

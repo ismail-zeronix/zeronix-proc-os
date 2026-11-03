@@ -15,6 +15,15 @@ export async function ollamaModels(): Promise<string[]> {
   }
 }
 
+/** AI services saved in Prospecting → Settings that can read price lists (search services and Ollama left out). */
+export async function hostedEngines(): Promise<{ id: number; label: string; enabled: boolean }[]> {
+  const rows = await db
+    .select({ id: schema.prospectAiProviders.id, label: schema.prospectAiProviders.label, provider: schema.prospectAiProviders.provider, enabled: schema.prospectAiProviders.enabled })
+    .from(schema.prospectAiProviders)
+    .orderBy(asc(schema.prospectAiProviders.id));
+  return rows.filter((r) => r.provider !== "tavily" && r.provider !== "ollama").map(({ id, label, enabled }) => ({ id, label, enabled }));
+}
+
 /** When a started AI looks at the queue next (ISO), or null when stopped or already due. */
 export function nextLook(s: { ai_running: string; ai_last_run_at: string; ai_interval_minutes: string }, now = Date.now()): string | null {
   const last = Date.parse(s.ai_last_run_at);
