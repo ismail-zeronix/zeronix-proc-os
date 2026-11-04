@@ -76,7 +76,18 @@ async function getOne<T extends { contract: number }>(path: string, tags: string
 
 const enc = encodeURIComponent;
 
-export const getSettings = () => get<SiteSettingsResponse>("/settings", ["settings"], { contract: CONTRACT_VERSION, brand: BRAND_FALLBACK, home: HOME_FALLBACK });
+const getRawSettings = () => get<SiteSettingsResponse>("/settings", ["settings"], { contract: CONTRACT_VERSION, brand: BRAND_FALLBACK, home: HOME_FALLBACK });
+
+/**
+ * Site settings, with every service link checked against the published service pages: a link to a service page that
+ * is not published (yet) points at its card on /services instead of a 404. It points back by itself once published.
+ */
+export async function getSettings(): Promise<SiteSettingsResponse> {
+  const [s, live] = await Promise.all([getRawSettings(), getPosts({ kind: "services" })]);
+  const paths = new Set(live.posts.map((p) => p.path));
+  const services = s.home.services.map((x) => (x.href.startsWith("/services/") && !paths.has(x.href) ? { ...x, href: `/services#${x.href.slice(10)}` } : x));
+  return { ...s, home: { ...s.home, services } };
+}
 export const getNav = () => get<SiteNavResponse>("/nav", ["nav"], { contract: CONTRACT_VERSION, industries: [], categories: [], brands: [] });
 export const getIndustries = () => get<SiteIndustriesResponse>("/industries", ["catalog"], { contract: CONTRACT_VERSION, industries: [] });
 export const getProducts = (q: { category?: string; limit?: number } = {}) => {
