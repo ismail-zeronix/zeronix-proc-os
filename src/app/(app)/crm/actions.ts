@@ -8,6 +8,7 @@ import { assertAnyApp, assertApp } from "@/lib/auth/session";
 import { assertCompany, assertContact, assertDeal, canSeeCompany, currentViewer } from "@/lib/auth/visibility";
 import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
+import { dealAssigned } from "@/lib/notifications/events";
 import { companyOwners, saveCompanyOwners } from "@/lib/company-owners";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
@@ -284,6 +285,8 @@ export async function createDeal(input: DealInput) {
     }
     return { id: deal.id, reusedCompany: reused, projectId: project?.id ?? null };
   });
+  // a deal made for other people tells them (never the person who made it)
+  await dealAssigned(result.id, ownerIds, [], me.id);
   refresh();
   return result;
 }
@@ -294,6 +297,12 @@ const dealPatch = z.object({
   source: text(60).optional(),
   valueAed: z.number().min(0).max(1e10).nullable().optional(),
   expectedClose: day.optional(),
+  /** Next follow-up as an ISO date-time; "" clears it. */
+  followUpAt: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || !Number.isNaN(Date.parse(v)), "Pick a valid date and time")
+    .optional(),
   contactId: id.nullable().optional(),
 });
 export type DealPatch = z.input<typeof dealPatch>;
@@ -308,6 +317,7 @@ export async function updateDeal(dealId: number, patch: DealPatch) {
   if (d.source !== undefined) set.source = d.source;
   if (d.valueAed !== undefined) set.valueAed = d.valueAed;
   if (d.expectedClose !== undefined) set.expectedClose = d.expectedClose || null;
+  if (d.followUpAt !== undefined) set.followUpAt = d.followUpAt ? new Date(d.followUpAt) : null;
   if (d.contactId !== undefined) set.contactId = d.contactId;
   if (!Object.keys(set).length) return;
   await db.update(schema.deals).set(set).where(eq(schema.deals.id, dealId));
@@ -357,6 +367,7 @@ export async function setAssignees(dealId: number, userIds: number[]) {
   const names = ids.length
     ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, ids))
     : [];
+  const before = (await db.select({ id: schema.dealAssignees.userId }).from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, dealId))).map((r) => r.id);
   await db.transaction(async (tx) => {
     await tx.delete(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, dealId));
     if (ids.length) await tx.insert(schema.dealAssignees).values(ids.map((userId, position) => ({ dealId, userId, position })));
@@ -371,6 +382,12 @@ export async function setAssignees(dealId: number, userIds: number[]) {
   });
   // the deal's chat thread follows its team
   await syncDealThread(dealId);
+  await dealAssigned(
+    dealId,
+    ids.filter((i) => !before.includes(i)),
+    before.filter((i) => !ids.includes(i)),
+    me.id,
+  );
   refresh();
 }
 
@@ -430,7 +447,7 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
   await assertDeal(dealId);
   const d = logSchema.parse(input);
   const [deal] = await db
-    .select({ title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, ownerId: schema.deals.ownerId })
+    .select({ title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, ownerId: schema.deals.ownerId, followUpAt: schema.deals.followUpAt })
     .from(schema.deals)
     .where(eq(schema.deals.id, dealId));
   if (!deal) throw new Error("That deal no longer exists.");
@@ -439,6 +456,10 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
       .insert(schema.activities)
       .values({ type: d.type, body: d.body, dealId, companyId: deal.companyId, userId: me.id })
       .returning({ id: schema.activities.id });
+    // talking to the customer on (or after) the planned follow-up day counts as the follow-up done
+    if (d.type !== "note" && deal.followUpAt && deal.followUpAt.getTime() <= Date.now() + 12 * 3600_000) {
+      await tx.update(schema.deals).set({ followUpAt: null }).where(eq(schema.deals.id, dealId));
+    }
     // talking to a customer about a brand-new deal means it has been contacted
     if (deal.stage === "new" && d.type !== "note") {
       await tx.update(schema.deals).set({ stage: "contacted", stageChangedAt: new Date() }).where(eq(schema.deals.id, dealId));

@@ -1,5 +1,6 @@
 /** Shapes shared by the chat server code and the widget (no server imports here). */
 
+import type { NotificationView } from "@/lib/notifications/types";
 import type { WebMessage } from "@/lib/webchat/types";
 
 export type ChannelKind = "dm" | "group" | "record" | "system";
@@ -126,7 +127,11 @@ export type ChatEvent =
   /** Website chat: a visitor arrived, left, sent the lead form, or a chat was accepted or closed. Re-read the list. */
   | { t: "web.update"; chatId: number }
   | { t: "web.message"; message: WebMessage }
-  | { t: "web.typing"; chatId: number };
+  | { t: "web.typing"; chatId: number }
+  /** A new (or reopened) line in the bell. */
+  | { t: "notification"; n: NotificationView }
+  /** Lines were read, resolved or snoozed elsewhere: re-read the bell. */
+  | { t: "notification.sync" };
 
 /** online = the portal is open; away = its tab has been in the background a while; dnd = do not disturb. */
 export type PresenceStatus = "online" | "away" | "dnd" | "offline";

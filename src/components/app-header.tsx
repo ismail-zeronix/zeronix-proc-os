@@ -6,6 +6,7 @@ import { logout } from "@/app/(auth)/login/actions";
 import { HeaderClock } from "@/components/attendance/header-clock";
 import type { PunchProps } from "@/components/attendance/punch-toggle";
 import { GlobalSearch } from "@/components/global-search";
+import { NotificationBell } from "@/components/notifications/bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { QuickAddTask } from "@/components/task-ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { APPS, type AppKey, type Role } from "@/lib/apps";
+import type { BellData } from "@/lib/notifications/types";
 
 /**
  * The bar on every page: brand (home), apps switcher, search, theme and the user menu.
@@ -32,6 +34,7 @@ export function AppHeader({
   visible,
   withSidebar = false,
   punch,
+  bell,
 }: {
   user: { name: string; email: string; role: Role };
   /** Every app the user may open (drives search). */
@@ -41,10 +44,12 @@ export function AppHeader({
   withSidebar?: boolean;
   /** Punch state for the clock; left out, no clock is shown. */
   punch?: PunchProps;
+  /** The bell's first load (later updates come live and from re-reads). */
+  bell?: BellData;
 }) {
   const switcher = APPS.filter((a) => visible.includes(a.key));
   return (
-    <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur">
+    <header className="sticky top-0 z-10 flex h-12 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur sm:gap-2 sm:px-3">
       {withSidebar && <SidebarTrigger />}
       <Link
         href="/"
@@ -103,6 +108,7 @@ export function AppHeader({
       <div className="flex-1" />
       {punch && <HeaderClock {...punch} />}
       {apps.includes("tasks") && <QuickAddTask />}
+      <NotificationBell initial={bell} />
       <span data-punch-allow className="contents">
         <ThemeToggle />
       </span>

@@ -12,6 +12,7 @@ import { orderedBoq } from "@/lib/boq";
 import { PROJECT_VALID_DAYS } from "@/lib/proposal";
 import { getFx, toAed } from "@/lib/fx";
 import { addDays, isQuoteStatus, marginOf, money, quoteNumber, quoteStatusLabel, round2, sellPrice, totals, type QuoteStatus } from "@/lib/quotation";
+import { quoteDecided } from "@/lib/notifications/events";
 import { snapshotForQuote } from "@/lib/proposals-data";
 import { quoteDefaults } from "@/lib/quotes-data";
 import { stageLabel } from "@/lib/sales";
@@ -335,7 +336,7 @@ export async function setQuoteStatus(quoteId: number, status: string) {
       .from(schema.quotes)
       .where(eq(schema.quotes.id, quoteId));
     if (!q) throw new Error("That quote no longer exists.");
-    if (q.status === next) return { dealId: q.dealId, stage: null as string | null };
+    if (q.status === next) return { dealId: q.dealId, stage: null as string | null, changed: false };
     const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
     if (order) throw new Error(`This quote became sales order ${order.number}, so it stays Accepted. Cancel the order instead.`);
     // an instant quote has no deal: no stage to move, no other quotes to keep in line
@@ -401,11 +402,12 @@ export async function setQuoteStatus(quoteId: number, status: string) {
       companyId: q.companyId,
       userId: me.id,
     });
-    return { dealId: q.dealId, stage: movedTo };
+    return { dealId: q.dealId, stage: movedTo, changed: true };
   });
+  if (result.changed && (next === "accepted" || next === "rejected")) await quoteDecided(quoteId, next, me.id);
   refresh(result.dealId);
   revalidatePath(`/sales/quotes/${quoteId}`);
-  return result;
+  return { dealId: result.dealId, stage: result.stage };
 }
 
 /** A draft can be removed by anyone in Sales; a quote that was sent can only be removed by an admin. */

@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertDeal } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
+import { projectManagerSet } from "@/lib/notifications/events";
 import { checklistDue, isProjectStatus, projectStatusLabel } from "@/lib/projects";
 import { salesUsers } from "@/lib/sales-data";
 
@@ -31,6 +32,7 @@ async function projectFor(projectId: number) {
       number: schema.projects.number,
       completedOn: schema.projects.completedOn,
       startDate: schema.projects.startDate,
+      managerId: schema.projects.managerId,
       stage: schema.deals.stage,
       companyId: schema.deals.companyId,
     })
@@ -53,7 +55,7 @@ const detailsSchema = z.object({
 export type ProjectDetails = z.input<typeof detailsSchema>;
 
 export async function updateProjectDetails(projectId: number, input: ProjectDetails) {
-  const { p } = await projectFor(projectId);
+  const { me, p } = await projectFor(projectId);
   const d = detailsSchema.parse(input);
   if (d.startDate && d.targetDate && d.targetDate < d.startDate) throw new Error("The target date is before the start date.");
   if (d.managerId != null && !(await salesUsers()).some((u) => u.id === d.managerId)) throw new Error("That person cannot run projects.");
@@ -87,6 +89,7 @@ export async function updateProjectDetails(projectId: number, input: ProjectDeta
       );
     for (const t of moving) await tx.update(schema.tasks).set({ dueDate: checklistDue(t.group ?? "", t.offset, dubaiToday(), start) }).where(eq(schema.tasks.id, t.id));
   });
+  if (d.managerId != null && d.managerId !== p.managerId) await projectManagerSet(p.id, d.managerId, me.id);
   refresh();
 }
 

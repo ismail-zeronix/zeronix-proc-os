@@ -1,5 +1,5 @@
-import { asc, desc } from "drizzle-orm";
-import { Building2, Clock, FileText, FolderKanban, Receipt, Scale } from "lucide-react";
+import { asc, desc, eq } from "drizzle-orm";
+import { Bell, Building2, Clock, FileText, FolderKanban, Receipt, Scale } from "lucide-react";
 import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
@@ -12,6 +12,8 @@ import { BrandCard } from "../brand-ui";
 import { DocumentBrandCard } from "../doc-brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
 import { hostedEngines, ollamaModels } from "../data";
+import { NotifySettings } from "../notify-ui";
+import { ruleConfigs, RULES } from "@/lib/notifications/rules";
 
 
 export const metadata = { title: "Settings · Admin · Zeronix" };
@@ -19,13 +21,18 @@ export const metadata = { title: "Settings · Admin · Zeronix" };
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const me = (await requireApp("admin")).user;
   const [{ tab }, settings, models, engines, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), hostedEngines(), getBrand()]);
-  const [health, [last], types, templates, docBrand, brandRow] = await Promise.all([
+  const [health, [last], types, templates, docBrand, brandRow, mailboxes] = await Promise.all([
     getPriceListLlm().then((llm) => llm.health()),
     db.select({ number: schema.invoices.number }).from(schema.invoices).orderBy(desc(schema.invoices.createdAt)).limit(1),
     db.select().from(schema.projectTypes).orderBy(asc(schema.projectTypes.position), asc(schema.projectTypes.label)),
     db.select().from(schema.projectTaskTemplates),
     getDocBrand(),
     getBrandRow(),
+    db
+      .select({ id: schema.mailAccounts.id, address: schema.mailAccounts.imapUser, owner: schema.users.name, enabled: schema.mailAccounts.enabled })
+      .from(schema.mailAccounts)
+      .innerJoin(schema.users, eq(schema.users.id, schema.mailAccounts.userId))
+      .orderBy(asc(schema.mailAccounts.imapUser)),
   ]);
 
   return (
@@ -67,6 +74,12 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
             label: "AI & comparison",
             icon: <Scale />,
             content: <AdminSettings settings={settings} models={models} engines={engines} health={health} />,
+          },
+          {
+            key: "notifications",
+            label: "Notifications",
+            icon: <Bell />,
+            content: <NotifySettings rules={[...RULES]} configs={ruleConfigs(settings.notify_rules)} mailboxes={mailboxes} digestFrom={settings.notify_digest_from} />,
           },
           {
             key: "branding",

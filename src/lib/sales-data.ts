@@ -111,7 +111,7 @@ export async function getDeal(id: number, v: Viewer) {
   const [row] = await dealQuery().where(and(eq(schema.deals.id, id), dealVisible(v, schema.deals.id)));
   if (!row) return null;
   const [full] = await db
-    .select({ requirement: schema.deals.requirement, source: schema.deals.source, lostReason: schema.deals.lostReason })
+    .select({ requirement: schema.deals.requirement, source: schema.deals.source, lostReason: schema.deals.lostReason, followUpAt: schema.deals.followUpAt })
     .from(schema.deals)
     .where(eq(schema.deals.id, id));
   return { ...toRow(row), ...full };

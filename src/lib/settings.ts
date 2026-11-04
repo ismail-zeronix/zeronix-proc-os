@@ -48,6 +48,12 @@ export const SETTING_DEFAULTS = {
   bank_swift: "",
   /** Website chat: ring the sales team for every visitor who lands on the site ("visitors"), or only once they send the lead form ("leads"). */
   webchat_ring: "visitors",
+  /** Notification rules (lib/notifications/rules.ts): JSON {ruleKey: {enabled, limit, warn, escalate}}; "{}" = the defaults. */
+  notify_rules: "{}",
+  /** Id of the connected mailbox (mail_accounts) that sends the morning digests; empty = no digest emails. */
+  notify_digest_from: "",
+  /** UAE day the morning digests were last sent (so a restart never sends them twice). */
+  notify_digest_day: "",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

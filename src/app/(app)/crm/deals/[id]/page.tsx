@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import {
   ArrowRightLeft,
   Building2,
+  AlarmClock,
   CalendarCheck,
   CircleCheck,
   CalendarClock,
@@ -41,6 +42,7 @@ import { ago } from "@/lib/format";
 import { aed, daysSince, isLeadStage, stageLabel } from "@/lib/sales";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
 import { listOrders } from "@/lib/orders-data";
+import { isPast } from "@/lib/notifications/types";
 import { projectOfDeal, projectTypes } from "@/lib/projects-data";
 import { quoteLines, quotesOfDeal } from "@/lib/quotes-data";
 import { type TaskRow } from "@/lib/tasks";
@@ -148,6 +150,11 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
         <span className={`${meta} ${nextTask?.dueDate && nextTask.dueDate < today ? "text-red-700 dark:text-red-400" : ""}`} title={nextTask ? `Next follow-up: ${nextTask.title}` : "No follow-up booked"}>
           <CalendarCheck /> {nextTask ? `Next: ${nextTask.dueDate ? dayLabel(nextTask.dueDate) : "no date"}` : "No follow-up"}
         </span>
+        {deal.followUpAt && (
+          <span className={`${meta} ${isPast(deal.followUpAt) ?"font-medium text-red-700 dark:text-red-400" : ""}`} title="Next follow-up time (change it in Details)">
+            <AlarmClock /> Follow up {deal.followUpAt.toLocaleString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
         {deal.source && (
           <span className={meta}>
             <Tag /> {deal.source}
@@ -235,7 +242,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
             </TabsContent>
             <TabsContent value="details" className="pt-1">
               <DetailsPanel
-                deal={{ id: deal.id, title: deal.title, valueAed: deal.valueAed, expectedClose: deal.expectedClose, source: deal.source, contactId: deal.contactId }}
+                deal={{ id: deal.id, title: deal.title, valueAed: deal.valueAed, expectedClose: deal.expectedClose, followUpAt: deal.followUpAt?.toISOString() ?? null, source: deal.source, contactId: deal.contactId }}
                 contacts={contacts}
               />
               <KindPanel dealId={deal.id} kind={deal.kind} projectType={project?.typeKey ?? ""} projectTypes={types.map((t) => ({ key: t.key, label: t.label }))} />

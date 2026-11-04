@@ -172,13 +172,15 @@ export function DetailsPanel({
   deal,
   contacts,
 }: {
-  deal: { id: number; title: string; valueAed: number | null; expectedClose: string | null; source: string; contactId: number | null };
+  deal: { id: number; title: string; valueAed: number | null; expectedClose: string | null; followUpAt: string | null; source: string; contactId: number | null };
   contacts: { id: number; name: string; jobTitle: string }[];
 }) {
   const [f, setF] = useState({
     title: deal.title,
     value: deal.valueAed != null ? String(deal.valueAed) : "",
     expectedClose: deal.expectedClose ?? "",
+    // shown and typed in UAE time (UTC+4), whatever the browser's time zone
+    followUp: deal.followUpAt ? new Date(Date.parse(deal.followUpAt) + 4 * 3600_000).toISOString().slice(0, 16) : "",
     source: deal.source,
     contactId: deal.contactId ?? 0,
   });
@@ -186,7 +188,8 @@ export function DetailsPanel({
   const save = () => {
     const v = f.value.trim() ? Number(f.value.replace(/,/g, "")) : null;
     if (v !== null && !Number.isFinite(v)) return void toast.error("The value must be a number.");
-    run(() => updateDeal(deal.id, { title: f.title, valueAed: v, expectedClose: f.expectedClose, source: f.source, contactId: f.contactId || null }), "Deal updated");
+    const followUpAt = f.followUp ? new Date(`${f.followUp}:00+04:00`).toISOString() : "";
+    run(() => updateDeal(deal.id, { title: f.title, valueAed: v, expectedClose: f.expectedClose, followUpAt, source: f.source, contactId: f.contactId || null }), "Deal updated");
   };
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -201,6 +204,11 @@ export function DetailsPanel({
       <div className="grid gap-1.5">
         <Label htmlFor="d-close">Expected close</Label>
         <Input id="d-close" type="date" value={f.expectedClose} onChange={(e) => setF({ ...f, expectedClose: e.target.value })} />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="d-follow">Next follow-up (UAE time)</Label>
+        <Input id="d-follow" type="datetime-local" value={f.followUp} onChange={(e) => setF({ ...f, followUp: e.target.value })} />
+        <span className="text-xs text-muted-foreground">You get an alert before it. Logging a call, message, email or meeting clears it.</span>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="d-contact">Contact person</Label>

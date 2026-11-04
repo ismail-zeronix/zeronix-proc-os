@@ -330,6 +330,13 @@
       "when": 1793570805192,
       "tag": "0046_webchat_site",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793752910225,
+      "tag": "0047_notifications",
+      "breakpoints": true
     }
   ]
 }

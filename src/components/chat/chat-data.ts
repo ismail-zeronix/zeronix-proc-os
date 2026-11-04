@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { create } from "zustand";
+import { bellKey, onLiveNotification } from "@/components/notifications/data";
 import { previewOf } from "@/lib/chat/text";
 import { alertFor } from "./alerts";
 import { handleWebEvent } from "./web-data";
@@ -232,8 +233,15 @@ export function useChatStream(me: number) {
         case "web.typing":
           handleWebEvent(qc, evt, me);
           break;
+        case "notification":
+          onLiveNotification(qc, evt.n);
+          break;
+        case "notification.sync":
+          void qc.invalidateQueries({ queryKey: bellKey });
+          break;
         case "resync":
           void qc.invalidateQueries({ queryKey: chatKeys.all });
+          void qc.invalidateQueries({ queryKey: bellKey });
           break;
       }
     };

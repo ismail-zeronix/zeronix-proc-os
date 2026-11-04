@@ -421,6 +421,8 @@ export const deals = pgTable(
     /** Estimated value in AED. */
     valueAed: numeric("value_aed", { precision: 14, scale: 2, mode: "number" }),
     expectedClose: date("expected_close"),
+    /** When the salesman means to follow up next (optional). Alerts use it when it comes before the stage's time limit. */
+    followUpAt: timestamp("follow_up_at", { withTimezone: true }),
     ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
     lostReason: text("lost_reason").notNull().default(""),
     /** The genuine-lead checklist (see lib/sales.ts CHECKS). */
@@ -1155,6 +1157,47 @@ export const chatPrefs = pgTable("chat_prefs", {
   desktop: boolean("desktop").notNull().default(true),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 });
+
+// ---------- Notifications ----------
+
+/**
+ * One line in someone's bell. `assign` = a record was given to them; `system` = a rule found work that is due or late
+ * (lib/notifications/rules.ts); `digest` = the admin's daily team summary. `dedupe_key` makes each step of a rule fire
+ * once per person ("deal_no_quote:12:overdue"). A system alert is resolved when its condition no longer holds.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["assign", "system", "digest"] }).notNull(),
+    /** The rule or event key, e.g. deal_no_quote, task_overdue, deal_assigned. */
+    rule: text("rule").notNull(),
+    priority: text("priority", { enum: ["critical", "high", "normal", "info"] }).notNull().default("normal"),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    /** Where clicking it goes (a portal path). */
+    link: text("link").notNull().default(""),
+    recordType: text("record_type"),
+    recordId: integer("record_id"),
+    /** Who did it (assignments); null for the system. */
+    actorId: integer("actor_id").references(() => users.id, { onDelete: "set null" }),
+    dedupeKey: text("dedupe_key").notNull(),
+    /** The deadline the alert is about, for "in 3 h" / "2 days late". */
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("notifications_user_key_idx").on(t.userId, t.dedupeKey),
+    index("notifications_user_idx").on(t.userId, t.resolvedAt, t.readAt),
+    index("notifications_rule_idx").on(t.rule, t.resolvedAt),
+  ],
+);
 
 // ---------- Website chat ----------
 

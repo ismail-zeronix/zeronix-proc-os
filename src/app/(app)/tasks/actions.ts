@@ -8,6 +8,7 @@ import { assertApp } from "@/lib/auth/session";
 import { assertDeal } from "@/lib/auth/visibility";
 import { notifyMentions } from "@/lib/chat/mentions";
 import { parseMentions } from "@/lib/chat/text";
+import { taskAssigned } from "@/lib/notifications/events";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Write what needs doing").max(200),
@@ -61,6 +62,7 @@ export async function createTask(input: TaskInput) {
     .returning({ id: schema.tasks.id });
   // people @mentioned in the notes get a card for the task in their chat Activity
   await notifyMentions({ authorId: me.id, body: d.notes, event: "task", record: { type: "task", id: row.id }, source: "task", sourceId: row.id });
+  await taskAssigned(row.id, me.id);
   refresh();
 }
 
@@ -94,6 +96,8 @@ export async function updateTask(id: number, input: TaskInput) {
   const added = parseMentions(d.notes).filter((u) => !before.has(u));
   if (added.length)
     await notifyMentions({ authorId: me.id, body: d.notes, event: "task", record: { type: "task", id }, source: "task", sourceId: id, allowed: added });
+  // handed to someone new: tell them
+  if (d.assignedTo && d.assignedTo !== task.assignedTo) await taskAssigned(id, me.id);
   refresh();
 }
 

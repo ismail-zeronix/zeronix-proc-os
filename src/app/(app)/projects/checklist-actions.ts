@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { assertDeal, type Viewer } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
+import { taskAssigned } from "@/lib/notifications/events";
 import { isChecklistGroup } from "@/lib/projects";
 import { seedChecklist } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
@@ -45,7 +46,7 @@ async function projectFor(projectId: number) {
 
 async function taskFor(taskId: number) {
   const [t] = await db
-    .select({ id: schema.tasks.id, projectId: schema.tasks.relatedId, group: schema.tasks.checklistGroup, title: schema.tasks.title })
+    .select({ id: schema.tasks.id, projectId: schema.tasks.relatedId, group: schema.tasks.checklistGroup, title: schema.tasks.title, assignedTo: schema.tasks.assignedTo })
     .from(schema.tasks)
     .where(and(eq(schema.tasks.id, z.number().int().positive().parse(taskId)), eq(schema.tasks.relatedType, "project")));
   if (!t || t.projectId == null) throw new Error("That task no longer exists.");
@@ -83,17 +84,21 @@ export async function addChecklistTask(projectId: number, input: z.input<typeof 
     .select({ n: sql<number>`coalesce(max(${schema.tasks.position}), -1)::int` })
     .from(schema.tasks)
     .where(and(eq(schema.tasks.relatedType, "project"), eq(schema.tasks.relatedId, p.id)));
-  await db.insert(schema.tasks).values({
-    title: d.title,
-    dueDate: d.dueDate || null,
-    assignedTo: assignee,
-    createdBy: me.id,
-    relatedType: "project",
-    relatedId: p.id,
-    checklistGroup: d.group,
-    position: last.n + 1,
-    required: d.required,
-  });
+  const [row] = await db
+    .insert(schema.tasks)
+    .values({
+      title: d.title,
+      dueDate: d.dueDate || null,
+      assignedTo: assignee,
+      createdBy: me.id,
+      relatedType: "project",
+      relatedId: p.id,
+      checklistGroup: d.group,
+      position: last.n + 1,
+      required: d.required,
+    })
+    .returning({ id: schema.tasks.id });
+  await taskAssigned(row.id, me.id);
   refresh(p.id);
 }
 
@@ -105,7 +110,7 @@ const patchSchema = z.object({
 });
 
 export async function updateChecklistTask(taskId: number, patch: z.input<typeof patchSchema>) {
-  const { v, p, t } = await taskFor(taskId);
+  const { me, v, p, t } = await taskFor(taskId);
   const d = patchSchema.parse(patch);
   const set: Partial<typeof schema.tasks.$inferInsert> = {};
   if (d.title !== undefined) set.title = d.title;
@@ -121,6 +126,7 @@ export async function updateChecklistTask(taskId: number, patch: z.input<typeof 
   }
   if (!Object.keys(set).length) return;
   await db.update(schema.tasks).set(set).where(eq(schema.tasks.id, t.id));
+  if (d.assignedTo !== undefined && d.assignedTo !== t.assignedTo) await taskAssigned(t.id, me.id);
   refresh(p.id);
 }
 
