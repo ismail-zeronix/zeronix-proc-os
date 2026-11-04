@@ -300,7 +300,7 @@ function EditBox({ m, onDone }: { m: ChatMessage; onDone: () => void }) {
           }
         }}
         aria-label="Edit message"
-        className="field-sizing-content max-h-40 min-h-9 resize-none rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="field-sizing-content max-h-40 min-h-9 resize-none rounded-lg border border-input bg-background px-2.5 py-1.5 text-base outline-none md:text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       />
       <span className="text-[10px] text-muted-foreground">Enter to save · Esc to cancel</span>
     </div>

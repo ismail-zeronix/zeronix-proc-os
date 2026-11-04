@@ -268,7 +268,7 @@ function Toggle({ on, onChange, icon, label, title }: { on: boolean; onChange: (
  */
 function ResultsTable({ products, staleDays, fetching }: { products: ProductHit[]; staleDays: number; fetching: boolean }) {
   return (
-    <div className={cn("max-h-[calc(100svh-9.5rem)] overflow-auto rounded-xl border bg-card transition-opacity", fetching && "opacity-70")}>
+    <div className={cn("max-h-[calc(100svh-var(--mobile-nav-h)-9.5rem)] overflow-auto rounded-xl border bg-card transition-opacity", fetching && "opacity-70")}>
       <table className="w-full table-fixed text-sm sm:table-auto">
         <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
           <tr>

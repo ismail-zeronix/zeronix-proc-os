@@ -13,7 +13,7 @@ export default async function MailLayout({ children }: LayoutProps<"/mail">) {
     .from(schema.mailAccounts)
     .where(eq(schema.mailAccounts.userId, user.id));
   return (
-    <div className="flex h-svh flex-col">
+    <div className="flex h-svh flex-col pb-(--mobile-nav-h)">
       <PortalHeader />
       <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col p-2 md:p-4">
         {!acc || !acc.enabled ? <MailNotReady paused={!!acc} reason={acc?.lastError ?? ""} /> : <MailShell webmailUrl={mailServer().webmailUrl}>{children}</MailShell>}

@@ -183,8 +183,8 @@ export function DataTable({
             })}
           </ul>
         )}
-        {/* fixed to the bottom of the screen: the selection's actions on the left, the pages on the right */}
-        <div className={cn("sticky bottom-0 z-20 -mx-1 mt-auto flex min-h-12 flex-wrap items-center gap-2 border-t bg-background/95 py-2 pr-20 pl-1 backdrop-blur", count > 0 && "border-primary/40")}>
+        {/* fixed to the bottom of the screen (above the phone bottom bar): the selection's actions on the left, the pages on the right */}
+        <div className={cn("sticky bottom-(--mobile-nav-h) z-20 -mx-1 mt-auto flex min-h-12 flex-wrap items-center gap-2 border-t bg-background/95 py-2 pr-1 pl-1 backdrop-blur md:pr-20", count > 0 && "border-primary/40")}>
           {count > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium">{plural(count)} selected</span>

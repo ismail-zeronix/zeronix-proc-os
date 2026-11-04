@@ -130,7 +130,7 @@ export async function PipelineView({ mode, searchParams }: { mode: "leads" | "de
               <section
                 key={s.key}
                 aria-label={s.label}
-                className="flex max-h-[calc(100svh-8.5rem)] w-68 shrink-0 snap-start flex-col rounded-xl bg-muted/40"
+                className="flex max-h-[calc(100svh-var(--mobile-nav-h)-8.5rem)] w-68 shrink-0 snap-start flex-col rounded-xl bg-muted/40"
               >
                 <header className="flex items-center gap-1 px-3 pt-2 pb-1">
                   <h2 className="min-w-0 flex-1 truncate text-xs font-semibold" title={s.hint}>

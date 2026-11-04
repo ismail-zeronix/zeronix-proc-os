@@ -76,7 +76,7 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
       />
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <section className="overflow-hidden rounded-xl border bg-card" aria-label="The invoice the customer receives">
+        <section className="overflow-x-auto rounded-xl border bg-card" aria-label="The invoice the customer receives">
           {opening ? (
             <p className="p-6 text-sm text-muted-foreground">
               Opening balance carried over from Zoho: the tax invoice itself is in Zoho. It counts in what the customer owes, not in this year&apos;s sales or VAT.

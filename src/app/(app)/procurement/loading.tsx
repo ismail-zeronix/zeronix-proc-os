@@ -9,7 +9,7 @@ export default function Loading() {
         <Skeleton className="h-7 w-48" />
         <Skeleton className="ml-auto h-7 w-24" />
       </div>
-      <Skeleton className="h-[calc(100svh-9rem)] w-full" />
+      <Skeleton className="h-[calc(100svh-var(--mobile-nav-h)-9rem)] w-full" />
     </div>
   );
 }

@@ -196,7 +196,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
             </TabsList>
             <TabsContent value="timeline" className="grid gap-3 pt-1">
               <ActivityForm dealId={deal.id} canAssign={seesAll} assigneeIds={deal.assignees.map((a) => a.id)} />
-              <ol className="grid max-h-[calc(100svh-26rem)] min-h-40 gap-2.5 overflow-y-auto border-t pt-3">
+              <ol className="grid max-h-[calc(100svh-var(--mobile-nav-h)-26rem)] min-h-40 gap-2.5 overflow-y-auto border-t pt-3">
                 {activities.map((a) => {
                   const Icon = ICON[a.type] ?? StickyNote;
                   return (

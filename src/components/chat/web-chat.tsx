@@ -406,7 +406,7 @@ export function WebConversation({
             autoFocus
             placeholder={chat.online ? "Reply to the visitor" : "The visitor left; they see it if they come back"}
             aria-label="Reply to the visitor"
-            className="field-sizing-content max-h-32 min-h-9 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            className="field-sizing-content max-h-32 min-h-9 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none md:text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
           />
           <Button type="submit" size="icon" disabled={!text.trim()} aria-label="Send" title="Send (Enter)">
             <SendHorizontal />

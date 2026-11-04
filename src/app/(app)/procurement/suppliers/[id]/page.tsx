@@ -129,7 +129,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
           </TabsList>
 
           <TabsContent value="offers" className="pt-1">
-            <div className="max-h-[calc(100svh-19rem)] overflow-auto rounded-md border">
+            <div className="max-h-[calc(100svh-var(--mobile-nav-h)-19rem)] overflow-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>

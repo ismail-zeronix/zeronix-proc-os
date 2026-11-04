@@ -24,13 +24,13 @@ export async function AppShell({
   return (
     <SidebarProvider defaultOpen={open}>
       <AppSidebar app={app} badges={badges} />
-      <SidebarInset className={fill ? "h-svh overflow-hidden" : undefined}>
+      <SidebarInset className={fill ? "h-svh overflow-hidden pb-(--mobile-nav-h)" : undefined}>
         <PortalHeader withSidebar />
         {fill ? (
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col p-2 md:p-3">{children}</div>
         ) : (
-          // bottom padding keeps the last row of every page clear of the round chat button
-          <div className="mx-auto w-full min-w-0 max-w-[1800px] flex-1 p-3 pb-20 md:p-4 md:pb-20">{children}</div>
+          // bottom padding keeps the last row of every page clear of the round chat button (desktop) or the bottom bar (phones)
+          <div className="mx-auto w-full min-w-0 max-w-[1800px] flex-1 p-3 pb-[calc(var(--mobile-nav-h)+1rem)] md:p-4 md:pb-20">{children}</div>
         )}
       </SidebarInset>
     </SidebarProvider>

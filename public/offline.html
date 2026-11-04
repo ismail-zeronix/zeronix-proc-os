@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B1220" />
+    <title>Offline · Zeronix OS</title>
+    <link rel="icon" href="/icons/zeronix-mark.svg" />
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+        background: #0b1220;
+        color: #f8fafc;
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+      }
+      main { max-width: 22rem; }
+      img { display: block; width: 64px; height: 64px; margin: 0 auto 20px; }
+      h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+      p { margin: 0; color: #94a3b8; }
+      button {
+        margin-top: 24px;
+        min-height: 44px;
+        padding: 0 22px;
+        border: 0;
+        border-radius: 10px;
+        background: #35c7a5;
+        color: #0b1220;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:focus-visible { outline: 3px solid #f8fafc; outline-offset: 3px; }
+      .status { margin-top: 12px; font-size: 13px; min-height: 1.5em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/zeronix-mark.svg" alt="Zeronix OS" />
+      <h1>You're offline</h1>
+      <p>Zeronix OS needs a connection to load your data. Check your Wi-Fi or mobile data and try again.</p>
+      <button type="button" id="retry">Try again</button>
+      <p class="status" id="status" role="status"></p>
+    </main>
+    <script>
+      (function () {
+        var msg = document.getElementById("status");
+        // this page stands in for the one that failed, so reloading opens that page again
+        function retry() {
+          msg.textContent = "Reconnecting…";
+          location.reload();
+        }
+        document.getElementById("retry").addEventListener("click", retry);
+        // come back by itself as soon as the connection returns
+        window.addEventListener("online", retry);
+      })();
+    </script>
+  </body>
+</html>

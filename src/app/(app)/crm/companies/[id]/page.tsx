@@ -167,7 +167,7 @@ export default async function CompanyPage({ params }: PageProps<"/crm/companies/
 
           <TabsContent value="notes" className="grid gap-3 pt-1">
             <CompanyNoteForm companyId={c.id} />
-            <ol className="grid max-h-[calc(100svh-24rem)] min-h-32 gap-2.5 overflow-y-auto border-t pt-3">
+            <ol className="grid max-h-[calc(100svh-var(--mobile-nav-h)-24rem)] min-h-32 gap-2.5 overflow-y-auto border-t pt-3">
               {c.activities.map((a) => (
                 <li key={a.id} className="text-sm">
                   <div className="text-xs text-muted-foreground">

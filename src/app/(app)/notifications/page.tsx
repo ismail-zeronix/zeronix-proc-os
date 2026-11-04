@@ -36,7 +36,7 @@ export default async function NotificationsPage({ searchParams }: PageProps<"/no
     const rows = await teamOpen();
     const people = [...new Set(rows.map((r) => r.userName))];
     return (
-      <div className="grid gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         <PageToolbar title="Team alerts" meta={`${rows.length} open critical or high · ${people.length} ${people.length === 1 ? "person" : "people"}`}>
           {viewSwitch}
         </PageToolbar>
@@ -84,7 +84,7 @@ export default async function NotificationsPage({ searchParams }: PageProps<"/no
   const unread = items.filter((n) => !n.readAt && !n.resolvedAt).length;
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       <PageToolbar title="Notifications" meta={`${items.length} shown${unread ? ` · ${unread} unread` : ""}`}>
         {viewSwitch}
         <Segmented items={STATES.map((s) => ({ href: href({ state: s.key }), title: s.label, label: s.label, active: s.key === state }))} />

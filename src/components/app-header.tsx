@@ -2,6 +2,7 @@
 
 import { ChevronDown, LayoutGrid, LogOut, UserCog } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { logout } from "@/app/(auth)/login/actions";
 import { HeaderClock } from "@/components/attendance/header-clock";
 import type { PunchProps } from "@/components/attendance/punch-toggle";
@@ -21,12 +22,17 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QuickAddTask } from "@/components/task-ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { APPS, type AppKey, type Role } from "@/lib/apps";
+import { navFor } from "@/lib/app-nav";
+import { APPS, appOfPath, type AppKey, type Role } from "@/lib/apps";
 import type { BellData } from "@/lib/notifications/types";
 
 /**
  * The bar on every page: brand (home), apps switcher, search, theme and the user menu.
  * `withSidebar` must be true only inside an app layout that has a SidebarProvider.
+ *
+ * On phones (below md) it is a compact app bar: mark, the page title, search, clock and the user menu. The sidebar
+ * trigger, apps switcher, quick task, bell and theme move to the bottom bar and its Menu (components/mobile-nav.tsx).
+ * It also pads itself below the status bar of the installed iPhone app.
  */
 export function AppHeader({
   user,
@@ -48,22 +54,20 @@ export function AppHeader({
   bell?: BellData;
 }) {
   const switcher = APPS.filter((a) => visible.includes(a.key));
+  const title = pageTitle(usePathname());
   return (
-    <header className="sticky top-0 z-10 flex h-12 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur sm:gap-2 sm:px-3">
-      {withSidebar && <SidebarTrigger />}
-      <Link
-        href="/"
-        data-punch-allow
-        className={`items-center gap-2 rounded-md px-1 font-semibold tracking-tight ${withSidebar ? "hidden sm:flex" : "flex"}`}
-      >
-        <span className="flex size-6 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">
+    <header className="sticky top-0 z-10 flex h-(--header-h) items-center gap-1 border-b bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur sm:gap-2 sm:px-3">
+      {withSidebar && <SidebarTrigger className="max-md:hidden" />}
+      <Link href="/" data-punch-allow className="flex min-w-0 items-center gap-2 rounded-md px-1 font-semibold tracking-tight">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">
           Z
         </span>
-        <span className="hidden sm:inline">Zeronix</span>
+        <span className="hidden md:inline">Zeronix</span>
+        <span className="truncate md:hidden">{title}</span>
       </Link>
 
       <Popover>
-        <PopoverTrigger render={<Button variant="ghost" size="sm" aria-label="Switch app" />}>
+        <PopoverTrigger render={<Button variant="ghost" size="sm" aria-label="Switch app" className="max-md:hidden" />}>
           <LayoutGrid />
           <span className="hidden sm:inline">Apps</span>
         </PopoverTrigger>
@@ -107,19 +111,25 @@ export function AppHeader({
       <GlobalSearch apps={apps} />
       <div className="flex-1" />
       {punch && <HeaderClock {...punch} />}
-      {apps.includes("tasks") && <QuickAddTask />}
-      <NotificationBell initial={bell} />
-      <span data-punch-allow className="contents">
+      {apps.includes("tasks") && (
+        <span className="contents max-md:hidden">
+          <QuickAddTask />
+        </span>
+      )}
+      <span className="contents max-md:hidden">
+        <NotificationBell initial={bell} />
+      </span>
+      <span data-punch-allow className="contents max-md:hidden">
         <ThemeToggle />
       </span>
 
       <DropdownMenu>
-        <DropdownMenuTrigger data-punch-allow render={<Button variant="ghost" size="sm" />}>
-          <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-medium">
+        <DropdownMenuTrigger data-punch-allow render={<Button variant="ghost" size="sm" aria-label="Your account" className="max-md:size-10 max-md:px-0" />}>
+          <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-medium md:size-6">
             {user.name.slice(0, 1).toUpperCase()}
           </span>
           <span className="hidden max-w-32 truncate sm:inline">{user.name.split(" ")[0]}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground" />
+          <ChevronDown className="size-3.5 text-muted-foreground max-md:hidden" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuGroup>
@@ -142,4 +152,18 @@ export function AppHeader({
       </DropdownMenu>
     </header>
   );
+}
+
+/** What the phone header calls the page: the sidebar page you are on, the app (on its overview), or the screen. */
+function pageTitle(pathname: string): string {
+  if (pathname === "/") return "Home";
+  if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return "Notifications";
+  if (pathname === "/account" || pathname.startsWith("/account/")) return "My account";
+  const app = appOfPath(pathname);
+  if (!app) return "Zeronix";
+  const under = (base: string) => pathname.startsWith(base + "/");
+  const item = navFor(app.key as AppKey)
+    .flatMap((g) => g.items)
+    .find((n) => pathname === n.href || (!n.exact && under(n.href)) || !!n.also?.some(under));
+  return item && !item.exact ? item.label : app.label;
 }

@@ -249,7 +249,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                 key: "timeline",
                 label: `Activity (${activities.length})`,
                 content: (
-                  <ol className="grid max-h-[calc(100svh-24rem)] min-h-40 gap-2.5 overflow-y-auto pt-1">
+                  <ol className="grid max-h-[calc(100svh-var(--mobile-nav-h)-24rem)] min-h-40 gap-2.5 overflow-y-auto pt-1">
                     {activities.map((a) => {
                       const Icon = ICON[a.type] ?? StickyNote;
                       return (

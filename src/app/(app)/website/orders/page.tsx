@@ -86,7 +86,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/website/o
           </li>
         ))}
       </ul>
-      <div className="sticky bottom-0 z-20 -mx-1 mt-auto flex min-h-12 items-center border-t bg-background/95 py-2 pr-20 pl-1 backdrop-blur">
+      <div className="sticky bottom-(--mobile-nav-h) z-20 -mx-1 mt-auto flex min-h-12 items-center border-t bg-background/95 py-2 pr-1 pl-1 backdrop-blur md:pr-20">
         <div className="ml-auto"><Pager path="/website/orders" params={sp} page={page} total={counts[status] ?? 0} showSingle /></div>
       </div>
     </div>

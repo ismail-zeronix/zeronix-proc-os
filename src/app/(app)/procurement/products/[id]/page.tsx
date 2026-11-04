@@ -173,7 +173,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
                 <PriceChart series={series} currency={currency} />
               </div>
             )}
-            <div className="max-h-[calc(100svh-24rem)] min-h-40 overflow-auto rounded-md border">
+            <div className="max-h-[calc(100svh-var(--mobile-nav-h)-24rem)] min-h-40 overflow-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>

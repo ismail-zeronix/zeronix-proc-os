@@ -233,7 +233,7 @@ function Board({ rows, add, canSales }: { rows: ProjectRow[]; add: (stage?: stri
       {BOARD.map((p) => {
         const list = rows.filter((r) => r.phase === p);
         return (
-          <section key={p} aria-label={phaseLabel(p)} className="flex max-h-[calc(100svh-8.5rem)] w-[17rem] shrink-0 snap-start flex-col rounded-xl bg-muted/40">
+          <section key={p} aria-label={phaseLabel(p)} className="flex max-h-[calc(100svh-var(--mobile-nav-h)-8.5rem)] w-[17rem] shrink-0 snap-start flex-col rounded-xl bg-muted/40">
             <header className="flex min-h-9 items-center gap-1 px-3 pt-2 pb-1">
               <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">
                 {phaseLabel(p)}

@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   // stay as they were: standalone output needs symlink rights on Windows and does not run under `next start`.
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   poweredByHeader: false,
+  // Fixed when the app is built: the service worker (src/app/sw.js) carries it, so each deploy is seen as a new version.
+  env: { APP_VERSION: new Date().toISOString() },
   // `npm run dev -- -H 0.0.0.0` serves the office LAN; without this, pages opened by IP load without their dev JS.
   allowedDevOrigins: ["192.168.*.*"],
   serverExternalPackages: ["pg", "pg-boss", "bcryptjs"],

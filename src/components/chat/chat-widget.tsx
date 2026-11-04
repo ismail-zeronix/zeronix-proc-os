@@ -24,7 +24,8 @@ const noop = () => () => {};
 
 /**
  * The team chat on every signed-in page: a round button bottom-right with the unread count, which opens a panel
- * upwards (full screen on a phone). Alt+C opens and closes it, Esc closes it.
+ * upwards. On a phone the bottom bar's Chat tab opens it instead, filling the screen above the bar. Alt+C opens and
+ * closes it, Esc closes it.
  */
 export function ChatWidget({ me }: { me: Me }) {
   const pathname = usePathname();
@@ -67,7 +68,7 @@ export function ChatWidget({ me }: { me: Me }) {
           onKeyDown={(e) => {
             if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
           }}
-          className="fixed right-4 bottom-20 z-40 flex h-140 max-h-[calc(100dvh-6rem)] w-95 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-4 max-sm:inset-0 max-sm:h-auto max-sm:max-h-none max-sm:w-auto max-sm:rounded-none"
+          className="fixed right-4 bottom-20 z-40 flex h-140 max-h-[calc(100dvh-6rem)] w-95 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-4 max-md:inset-x-0 max-md:top-0 max-md:bottom-(--mobile-nav-h) max-md:h-auto max-md:max-h-none max-md:w-auto max-md:rounded-none max-md:border-0 max-md:pt-[env(safe-area-inset-top)]"
         >
           <Panel me={me} channels={channels.data ?? []} loading={channels.isPending} fetching={channels.isFetching} error={channels.error as Error | null} />
         </div>
@@ -77,7 +78,7 @@ export function ChatWidget({ me }: { me: Me }) {
         onClick={toggle}
         aria-label={open ? "Close chat" : unread ? `Open chat, ${unread} unread` : "Open chat"}
         title="Chat (Alt+C)"
-        className={`fixed right-4 bottom-4 z-40 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${open ? "max-sm:hidden" : ""}`}
+        className={`fixed right-4 bottom-4 z-40 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none max-md:hidden`}
       >
         {open ? <X className="size-5" /> : <MessageCircle className="size-5" />}
         {!open && unread > 0 && (
@@ -223,7 +224,8 @@ export function ChannelList({
                 className={`flex h-8 items-center gap-1.5 rounded-md px-2 text-sm ${tab === t.key ? "bg-muted font-semibold" : "text-muted-foreground hover:bg-muted/60"}`}
               >
                 <t.icon className="size-4" />
-                {t.label}
+                {/* phones: only the open tab is named, so the buttons on the right stay on screen */}
+                <span className={tab === t.key ? undefined : "max-sm:sr-only"}>{t.label}</span>
                 {n > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] leading-4 font-semibold text-primary-foreground">{n}</span>}
               </button>
             );

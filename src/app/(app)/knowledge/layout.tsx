@@ -15,7 +15,7 @@ export default async function KnowledgeLayout({ children }: LayoutProps<"/knowle
     text: `${a.tags.join(" ")} ${articleText(a)}`,
   }));
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="flex min-h-svh flex-col pb-(--mobile-nav-h)">
       <PortalHeader />
       <div className="mx-auto grid w-full max-w-7xl flex-1 items-start gap-4 p-3 md:p-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <KnowledgeTree items={items} sections={SECTIONS} />

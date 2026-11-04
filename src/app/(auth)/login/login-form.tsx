@@ -1,6 +1,5 @@
 "use client";
 
-import { PackageSearch } from "lucide-react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +12,9 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <PackageSearch className="size-5" />
-        </div>
-        <CardTitle className="text-xl">Zeronix Portal</CardTitle>
+        {/* eslint-disable-next-line @next/next/no-img-element -- a tiny static SVG, nothing to optimise */}
+        <img src="/icons/zeronix-mark.svg" alt="" width={40} height={40} className="mb-2 size-10 rounded-lg" />
+        <CardTitle className="text-xl">Zeronix OS</CardTitle>
         <CardDescription>Sign in to continue.</CardDescription>
       </CardHeader>
       <CardContent>

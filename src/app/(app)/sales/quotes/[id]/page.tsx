@@ -134,7 +134,7 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section className="overflow-hidden rounded-xl border bg-card" aria-label="The quotation the customer receives">
+        <section className="overflow-x-auto rounded-xl border bg-card" aria-label="The quotation the customer receives">
           {snapshot && pBrand ? (
             <ProposalDocument blocks={snapshot.blocks} cover={{ ...snapshot.cover, validUntil: snapshot.cover.validUntil ?? q.validUntil }} boq={snapshot.boq} brand={pBrand} />
           ) : (

@@ -40,7 +40,19 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 - Single-measure bars use one colour. Do not colour bars by value.
 - **Attendance** (`components/attendance/`): one look everywhere from `status-cell.tsx`. Filled square = at work (present green, late amber), outlined + tint = away (absent red, medical blue, other magenta), grey = day off. The fill/outline split is the second cue next to colour; the colours are `--att-*` tokens checked with the dataviz validator.
 
-## 6. Checks before shipping a screen
+## 6. Phones and the installed app
+
+The portal installs as an app (Zeronix OS) on phones and desktops: `src/app/manifest.ts`, the service worker at `src/app/sw.js/route.ts`, the icons from `scripts/make-app-icons.mjs` and `components/pwa/`.
+
+- **Below `md` (768 px) the bottom bar** (`components/mobile-nav.tsx`: Home, Chat, Tasks, Alerts, Menu) replaces the sidebar drawer, the apps switcher and the round chat button. The Menu sheet (`components/mobile-menu.tsx`) lists the current app's pages from `lib/app-nav.ts`, so a new sidebar page shows up there by itself.
+- **Nothing pinned to the bottom of the screen without the bar's height.** Use `bottom-(--mobile-nav-h)` for sticky or fixed bars, and subtract `var(--mobile-nav-h)` from any `100svh` height (`max-h-[calc(100svh-var(--mobile-nav-h)-8rem)]`). The variable is 0 on desktop, so desktop is unchanged. The header is `var(--header-h)` tall.
+- **Safe areas:** the installed iPhone app draws under the status bar, so anything fixed to the very top or bottom pads itself with `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` (the header and bottom bar already do).
+- **Form controls are 16 px on phones** (`text-base md:text-sm`); smaller text makes iPhone zoom in on focus. Do not force `text-sm` or `text-xs` on an input, select or textarea.
+- **Dialogs scroll** (the base `DialogContent` has a max height); keep long forms in one.
+- **Touch targets** on phone-only controls are at least 44 px (`min-h-11`, `size-10`/`size-11`).
+- **No business data in the browser cache.** The service worker only caches build files, icons and the offline page. Never add API routes, pages or PDFs to it.
+
+## 7. Checks before shipping a screen
 
 1. Does it fit a laptop screen without scrolling the page?
 2. Is any text bigger or heavier than it needs to be? Is any card only there to hold a heading?

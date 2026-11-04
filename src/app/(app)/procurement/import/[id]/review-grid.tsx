@@ -301,7 +301,7 @@ export function ReviewGrid({
           {actions}
         </div>
         {/* the Table component wraps <table> in its own scroll box: give that box a height so the header can stick */}
-        <div className="rounded-md border [&_[data-slot=table-container]]:max-h-[calc(100svh-12.5rem)] [&_[data-slot=table-container]]:overflow-auto">
+        <div className="rounded-md border [&_[data-slot=table-container]]:max-h-[calc(100svh-var(--mobile-nav-h)-12.5rem)] [&_[data-slot=table-container]]:overflow-auto">
           <Table className="min-w-[1600px] table-fixed">
             <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_var(--border)]">
               {table.getHeaderGroups().map((hg) => (

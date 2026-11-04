@@ -210,7 +210,7 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
               value={s.rawText}
               onChange={(e) => s.set({ rawText: e.target.value })}
               placeholder={"Paste the full message here, emojis and all. You can also drop a WhatsApp chat export (.txt) on this box.\n\n*HP ProBook 440 G11*\nCore Ultra 5 125U | 16GB | 512GB | 14\" | DOS\n@3000/-"}
-              className={cn("min-h-[calc(100svh-19rem)] font-mono text-sm", dragging && "border-primary ring-2 ring-primary/30")}
+              className={cn("min-h-[calc(100svh-var(--mobile-nav-h)-19rem)] font-mono text-sm", dragging && "border-primary ring-2 ring-primary/30")}
             />
             {dragging && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-primary/5 text-sm font-medium text-primary">
