@@ -9,7 +9,7 @@ import type { BrandInput } from "@/lib/website/catalog";
 import { saveBrandAction } from "../catalog-actions";
 import { Field, StatusSelect, useLocal, useSave } from "../catalog-ui";
 import { StatusBulkActions } from "../bulk-actions";
-import { DataTable } from "../data-table";
+import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
 
 type Row = BrandInput & { id: number; products: number };

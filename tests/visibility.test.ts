@@ -94,16 +94,16 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
 
     // Ali sees all of it
     expect((await S.listDeals(own(ali))).some((d) => d.id === id)).toBe(true);
-    expect((await S.listCompanies(own(ali))).some((c) => c.id === deal.companyId)).toBe(true);
-    expect((await S.listContacts(own(ali))).some((c) => c.name === "Omar" && c.companyId === deal.companyId)).toBe(true);
+    expect((await S.listCompanies(own(ali), tag)).rows.some((c) => c.id === deal.companyId)).toBe(true);
+    expect((await S.listContacts(own(ali), tag)).rows.some((c) => c.name === "Omar" && c.companyId === deal.companyId)).toBe(true);
     expect((await QD.listQuotes(own(ali))).some((q) => q.id === quote.id)).toBe(true);
 
     // Sara sees none of it, in lists, searches and by opening the link
     expect((await S.listDeals(own(sara))).some((d) => d.id === id)).toBe(false);
     expect(await S.getDeal(id, own(sara))).toBeNull();
     expect(await S.getCompany(deal.companyId, own(sara))).toBeNull();
-    expect((await S.listCompanies(own(sara))).some((c) => c.id === deal.companyId)).toBe(false);
-    expect((await S.listContacts(own(sara))).some((c) => c.companyId === deal.companyId)).toBe(false);
+    expect((await S.listCompanies(own(sara), tag)).rows.some((c) => c.id === deal.companyId)).toBe(false);
+    expect((await S.listContacts(own(sara), tag)).rows.some((c) => c.companyId === deal.companyId)).toBe(false);
     expect(await S.searchCompanies(own(sara), `${tag} Alpha`)).toHaveLength(0);
     expect((await QD.listQuotes(own(sara))).some((q) => q.id === quote.id)).toBe(false);
     expect(await QD.getQuote(quote.id, own(sara))).toBeNull();

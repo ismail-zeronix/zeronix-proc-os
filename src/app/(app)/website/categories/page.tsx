@@ -6,9 +6,9 @@ import { requireApp } from "@/lib/auth/session";
 import { listCategories } from "@/lib/website/catalog";
 import { StatusBulkActions } from "../bulk-actions";
 import { FillButton } from "../industries/fill-button";
-import { DataTable } from "../data-table";
+import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Categories · Zeronix Website" };
 

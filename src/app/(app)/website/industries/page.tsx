@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { requireApp } from "@/lib/auth/session";
 import { listIndustries } from "@/lib/website/catalog";
 import { StatusBulkActions } from "../bulk-actions";
-import { DataTable } from "../data-table";
+import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
 import { FillButton } from "./fill-button";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Industries · Zeronix Website" };
 

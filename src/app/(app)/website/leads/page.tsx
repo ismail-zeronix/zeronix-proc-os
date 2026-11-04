@@ -7,7 +7,7 @@ import { pageTitles } from "@/lib/website/analytics";
 import { listQuoteRequests, quoteCounts } from "@/lib/website/quotes";
 import { SOURCE_LABEL, type TrafficSource } from "@/lib/website/traffic";
 import { LeadActions } from "./lead-row";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Leads · Zeronix Website" };
 

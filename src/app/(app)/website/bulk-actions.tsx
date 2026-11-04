@@ -12,7 +12,7 @@ import type { Result } from "@/lib/prospecting/result";
 import type { ProductBulkOp, ProductFilter } from "@/lib/website/catalog";
 import { bulkProductsAction, bulkStatusAction } from "./catalog-actions";
 import { bulkPostStatusAction } from "./content-actions";
-import { useSelection } from "./data-table";
+import { useSelection } from "@/components/data-table";
 
 /** Runs one bulk action, reports the outcome, clears the selection and reloads the list. */
 function useBulk() {

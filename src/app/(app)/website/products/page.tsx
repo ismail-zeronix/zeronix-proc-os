@@ -7,11 +7,11 @@ import { ago } from "@/lib/format";
 import { listCategories, listProducts, type ProductFilter } from "@/lib/website/catalog";
 import { getStore } from "@/lib/website/store";
 import { ProductBulkActions, ProductFilters } from "../bulk-actions";
-import { DataTable } from "../data-table";
+import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
 import { ListingImport } from "./listing-import";
 import { ProductUpload } from "./product-upload";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Products · Zeronix Website" };
 

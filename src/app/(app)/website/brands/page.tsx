@@ -2,7 +2,7 @@ import { Pager, PAGE_SIZE, pageParam } from "@/components/pager";
 import { requireApp } from "@/lib/auth/session";
 import { listBrands } from "@/lib/website/catalog";
 import { BrandsTable } from "./brands-table";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Brands · Zeronix Website" };
 

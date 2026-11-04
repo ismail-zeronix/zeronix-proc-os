@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
@@ -82,12 +82,27 @@ function toRow(r: Awaited<ReturnType<typeof dealQuery>>[number]): DealRow {
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /** Deals for the board and list, as far as the viewer may see them. `memberId` limits to the deals one person is assigned to. */
-export async function listDeals(v: Viewer, opts: { memberId?: number; q?: string; kind?: "product" | "project" } = {}): Promise<DealRow[]> {
+export interface DealFilter {
+  /** Only the deals this person is assigned to. */
+  memberId?: number;
+  kind?: "product" | "project";
+  /** Only these stages. */
+  stages?: StageKey[];
+}
+
+/** The WHERE for a deal list; it only touches `deals`, so the per-stage totals can use it without the joins. */
+function dealWhere(v: Viewer, f: DealFilter): SQL | undefined {
   const where: (SQL | undefined)[] = [dealVisible(v, schema.deals.id)];
-  if (opts.kind) where.push(eq(schema.deals.kind, opts.kind));
-  if (opts.memberId) {
-    where.push(sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = ${schema.deals.id} AND a.user_id = ${opts.memberId})`);
+  if (f.kind) where.push(eq(schema.deals.kind, f.kind));
+  if (f.memberId) {
+    where.push(sql`EXISTS (SELECT 1 FROM deal_assignees a WHERE a.deal_id = ${schema.deals.id} AND a.user_id = ${f.memberId})`);
   }
+  if (f.stages) where.push(f.stages.length ? inArray(schema.deals.stage, f.stages) : sql`false`);
+  return and(...where);
+}
+
+export async function listDeals(v: Viewer, opts: DealFilter & { q?: string; limit?: number; offset?: number } = {}): Promise<DealRow[]> {
+  const where: (SQL | undefined)[] = [dealWhere(v, opts)];
   const q = opts.q?.trim();
   if (q) {
     where.push(
@@ -101,9 +116,21 @@ export async function listDeals(v: Viewer, opts: { memberId?: number; q?: string
   }
   const rows = await dealQuery()
     .where(and(...where))
-    .orderBy(desc(schema.deals.stageChangedAt))
-    .limit(500);
+    // id breaks ties so paging never shows a deal twice or skips one
+    .orderBy(desc(schema.deals.stageChangedAt), desc(schema.deals.id))
+    .limit(Math.min(opts.limit ?? 500, 500))
+    .offset(opts.offset ?? 0);
   return rows.map(toRow);
+}
+
+/** How many deals and how much value per stage, for tab counts and board column headers, without loading the deals. */
+export async function dealStageStats(v: Viewer, f: Omit<DealFilter, "stages"> = {}): Promise<Partial<Record<StageKey, { count: number; value: number }>>> {
+  const rows = await db
+    .select({ stage: schema.deals.stage, count: sql<number>`count(*)::int`, value: sql<number>`coalesce(sum(${schema.deals.valueAed}), 0)::float8` })
+    .from(schema.deals)
+    .where(dealWhere(v, f))
+    .groupBy(schema.deals.stage);
+  return Object.fromEntries(rows.map((r) => [r.stage, { count: r.count, value: r.value }]));
 }
 
 /** One deal, or null when it does not exist or the viewer may not see it. */
@@ -147,10 +174,15 @@ export interface CompanyRow {
   createdAt: Date;
 }
 
-export async function listCompanies(v: Viewer, q?: string): Promise<CompanyRow[]> {
+/** One page of companies (A-Z) and how many match in all. */
+export async function listCompanies(v: Viewer, q?: string, page = 1, pageSize = 50): Promise<{ rows: CompanyRow[]; total: number }> {
   const term = q?.trim();
   const mine = dealVisible(v, sql`d.id`);
-  const rows = await db
+  const where = and(
+    companyVisible(v, schema.companies.id),
+    term ? or(ilike(schema.companies.name, like(term)), ilike(schema.companies.website, like(term)), ilike(schema.companies.phone, like(term))) : undefined,
+  );
+  const rowsQuery = db
     .select({
       id: schema.companies.id,
       name: schema.companies.name,
@@ -166,15 +198,12 @@ export async function listCompanies(v: Viewer, q?: string): Promise<CompanyRow[]
     })
     .from(schema.companies)
     .leftJoin(owner, eq(owner.id, schema.companies.ownerId))
-    .where(
-      and(
-        companyVisible(v, schema.companies.id),
-        term ? or(ilike(schema.companies.name, like(term)), ilike(schema.companies.website, like(term)), ilike(schema.companies.phone, like(term))) : undefined,
-      ),
-    )
-    .orderBy(asc(schema.companies.name))
-    .limit(500);
-  return rows;
+    .where(where)
+    .orderBy(asc(schema.companies.name), asc(schema.companies.id))
+    .limit(pageSize)
+    .offset((Math.max(1, page) - 1) * pageSize);
+  const [rows, [n]] = await Promise.all([rowsQuery, db.select({ total: sql<number>`count(*)::int` }).from(schema.companies).where(where)]);
+  return { rows, total: n?.total ?? 0 };
 }
 
 /** One company with its contacts, the deals the viewer may see and their history. Null when hidden from the viewer. */
@@ -214,9 +243,21 @@ export async function getCompany(id: number, v: Viewer) {
   return { ...company.c, ownerName: company.ownerName, contacts, deals: deals.map(toRow), activities };
 }
 
-export async function listContacts(v: Viewer, q?: string) {
+/** One page of contacts (A-Z) and how many match in all. */
+export async function listContacts(v: Viewer, q?: string, page = 1, pageSize = 50) {
   const term = q?.trim();
-  return db
+  const where = and(
+    companyVisible(v, schema.companies.id),
+    term
+      ? or(
+          ilike(schema.contacts.name, like(term)),
+          ilike(schema.contacts.email, like(term)),
+          ilike(schema.contacts.phone, like(term)),
+          ilike(schema.companies.name, like(term)),
+        )
+      : undefined,
+  );
+  const rowsQuery = db
     .select({
       id: schema.contacts.id,
       name: schema.contacts.name,
@@ -230,21 +271,17 @@ export async function listContacts(v: Viewer, q?: string) {
     })
     .from(schema.contacts)
     .innerJoin(schema.companies, eq(schema.companies.id, schema.contacts.companyId))
-    .where(
-      and(
-        companyVisible(v, schema.companies.id),
-        term
-          ? or(
-              ilike(schema.contacts.name, like(term)),
-              ilike(schema.contacts.email, like(term)),
-              ilike(schema.contacts.phone, like(term)),
-              ilike(schema.companies.name, like(term)),
-            )
-          : undefined,
-      ),
-    )
-    .orderBy(asc(schema.contacts.name))
-    .limit(500);
+    .where(where)
+    .orderBy(asc(schema.contacts.name), asc(schema.contacts.id))
+    .limit(pageSize)
+    .offset((Math.max(1, page) - 1) * pageSize);
+  const count = db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(schema.contacts)
+    .innerJoin(schema.companies, eq(schema.companies.id, schema.contacts.companyId))
+    .where(where);
+  const [rows, [n]] = await Promise.all([rowsQuery, count]);
+  return { rows, total: n?.total ?? 0 };
 }
 
 /** Companies for the "pick a company" box, best matches first. */

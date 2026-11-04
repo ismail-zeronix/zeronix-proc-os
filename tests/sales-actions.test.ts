@@ -247,6 +247,75 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     expect(row.assignees.map((a) => a.id)).toEqual([colleague, seller]);
   });
 
+  it("pages deals by stage and counts them per stage without loading them", async () => {
+    await as(boss, "boss", "admin");
+    const { listDeals, dealStageStats } = await import("@/lib/sales-data");
+    const all = { id: boss, seesAll: true };
+    const before = (await dealStageStats(all, { memberId: colleague })).negotiation ?? { count: 0, value: 0 };
+    for (const n of [1, 2, 3]) await A.createDeal({ companyName: `${tag} Page${n}`, requirement: "x", stage: "negotiation", valueAed: 100 * n, ownerIds: [colleague] });
+    const after = (await dealStageStats(all, { memberId: colleague })).negotiation!;
+    expect(after.count).toBe(before.count + 3);
+    expect(after.value).toBeCloseTo(before.value + 600);
+    // two pages never overlap, and together hold what the count says (up to the 4 asked for)
+    const f = { memberId: colleague, stages: ["negotiation" as const] };
+    const p1 = await listDeals(all, { ...f, limit: 2, offset: 0 });
+    const p2 = await listDeals(all, { ...f, limit: 2, offset: 2 });
+    expect(p1).toHaveLength(2);
+    expect(p2.filter((d) => p1.some((x) => x.id === d.id))).toHaveLength(0);
+    expect(p1.length + p2.length).toBe(Math.min(4, after.count));
+    expect([...p1, ...p2].every((d) => d.stage === "negotiation")).toBe(true);
+    // an empty stage list matches nothing rather than everything
+    expect(await listDeals(all, { stages: [] })).toHaveLength(0);
+  });
+
+  it("bulk actions change only the deals the person may work on, and say why the rest were skipped", async () => {
+    await as(colleague, "colleague");
+    const { id: hidden } = await A.createDeal({ companyName: `${tag} BulkHidden`, requirement: "x" });
+    await as(seller, "seller");
+    const { id: a } = await A.createDeal({ companyName: `${tag} BulkA`, requirement: "x" });
+    const { id: b } = await A.createDeal({ companyName: `${tag} BulkB`, requirement: "x" });
+
+    const moved = await A.bulkMoveDeals([a, b, hidden], "requirement");
+    expect(moved.done).toBe(2);
+    expect(moved.skipped).toHaveLength(1);
+    // a deal the seller cannot see is named by number only, never by its title
+    expect(moved.skipped[0]).toContain(`Deal #${hidden}`);
+    expect(moved.skipped[0]).not.toContain("BulkHidden");
+    const stages = await db.select({ id: schema.deals.id, stage: schema.deals.stage }).from(schema.deals).where(inArray(schema.deals.id, [a, b, hidden]));
+    expect(stages.find((d) => d.id === a)?.stage).toBe("requirement");
+    expect(stages.find((d) => d.id === hidden)?.stage).toBe("new");
+    // the timeline gets the move, as for a single deal
+    const log = await db.select().from(schema.activities).where(eq(schema.activities.dealId, a));
+    expect(log.some((x) => x.type === "stage" && x.body.includes("Qualified"))).toBe(true);
+
+    expect((await A.bulkMoveDeals([a], "won")).error).toBeTruthy();
+    expect((await A.bulkMoveDeals([a], "lost")).error).toMatch(/reason/);
+    expect((await A.bulkMoveDeals([], "requirement")).error).toBeTruthy();
+    const lost = await A.bulkMoveDeals([a, b], "lost", "No response");
+    expect(lost.done).toBe(2);
+    const [la] = await db.select().from(schema.deals).where(eq(schema.deals.id, a));
+    expect(la.lostReason).toBe("No response");
+
+    // only admins / "All data" change teams
+    expect((await A.bulkAddAssignee([a], colleague)).error).toMatch(/admin/);
+    await as(boss, "boss", "admin");
+    const added = await A.bulkAddAssignee([a, b], colleague);
+    expect(added.done).toBe(2);
+    const team = await db.select().from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, a));
+    expect(team.map((t) => t.userId).sort()).toEqual([seller, colleague].sort());
+    // adding someone already on the team changes nothing
+    expect((await A.bulkAddAssignee([a], colleague)).done).toBe(1);
+    expect(await db.select().from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, a))).toHaveLength(2);
+
+    await as(seller, "seller");
+    const gone = await A.bulkDeleteDeals([a, b, hidden]);
+    expect(gone.done).toBe(2);
+    expect(gone.skipped).toHaveLength(1);
+    expect(await db.select().from(schema.deals).where(inArray(schema.deals.id, [a, b]))).toHaveLength(0);
+    expect(await db.select().from(schema.deals).where(eq(schema.deals.id, hidden))).toHaveLength(1);
+    expect((await A.bulkDeleteCompanies([1])).error).toMatch(/admin/);
+  });
+
   it("starts a deal at the column's stage (and skips the contact-them-today task)", async () => {
     await as(seller, "seller");
     const { id } = await A.createDeal({ companyName: `${tag} Omicron`, requirement: "x", stage: "sourcing" });

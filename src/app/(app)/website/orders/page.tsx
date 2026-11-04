@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { listOrders, orderCounts } from "@/lib/website/store";
 import { ORDER_LABEL, ORDER_STATUSES, PAYMENT_LABEL, type OrderStatus } from "@/lib/website/store-core";
 import { OrderActions } from "./order-actions";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Orders · Zeronix Website" };
 

@@ -6,10 +6,10 @@ import { ago } from "@/lib/format";
 import { listPosts, postCounts } from "@/lib/website/posts";
 import { cn } from "@/lib/utils";
 import { PostBulkActions } from "../bulk-actions";
-import { DataTable } from "../data-table";
+import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
 import { ContentUpload, NewPostButton } from "./content-upload";
-import { LIST_PAGE } from "../list-page";
+import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Content · Zeronix Website" };
 

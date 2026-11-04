@@ -29,6 +29,7 @@ How screens in the Zeronix portal are built. They come from the owner's review o
 ## 4. Tables and filters
 
 - **One table, not many cards.** When a page lists groups of rows (Compare: products with their supplier offers) use one table with one sticky header and a heading row per group; the table scrolls inside its panel.
+- **Lists with pages and bulk actions** use `components/data-table.tsx` inside a `LIST_PAGE` root (`components/list-page.ts`): tick boxes, a bar stuck to the bottom with the selection's actions on the left and the `Pager` (`components/pager.tsx`, 50 a page, loaded with SQL `limit/offset`) on the right. Bulk actions run the single-record action per row so its checks still apply. Boards never load every card: columns load a first batch and a "Show more".
 - **Filters:** the search box and the two or three things used most stay on the toolbar; everything else lives in a **Filters** popover with a count badge, and active filters show as removable chips. Yes/no filters are small on/off pills.
 - **Detail pages:** a one-row header (back arrow, title, badges, icon buttons), a slim stat strip (`components/stat-strip.tsx`), then tabs for the lists and forms.
 

@@ -8,10 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 
 /**
- * The Website app's lists: a checkbox on every row, "select all" for the page (and then for every matching row across
- * pages), and a bar fixed to the bottom of the screen with the selection's actions on the left and the pages on the
- * right. Rows and cells are rendered by the server page; bulk actions are client components that read the selection
- * with useSelection().
+ * The portal's list with bulk actions (Website, CRM): a checkbox on every row, "select all" for the page (and then,
+ * where the actions support it, for every matching row across pages), and a bar fixed to the bottom of the screen with
+ * the selection's actions on the left and the pages (components/pager.tsx) on the right. Rows and cells are rendered
+ * by the server page; bulk actions are client components that read the selection with useSelection(). Put it in a
+ * LIST_PAGE root (components/list-page.ts) so the bar sits on the bottom edge even when the list is short.
  */
 
 export interface Selection {
@@ -40,9 +41,12 @@ export function DataTable({
   actions,
   pager,
   empty,
+  acrossPages = true,
+  selectable = true,
 }: {
   columns: Column[];
-  rows: { id: number; cells: ReactNode[] }[];
+  /** `card`: the row as a small card for phones. When rows have one, phones get cards instead of a sideways table. */
+  rows: { id: number; cells: ReactNode[]; card?: ReactNode }[];
   /** Rows matching the filter on every page. */
   total: number;
   /** "product" → "3 products selected". */
@@ -52,6 +56,10 @@ export function DataTable({
   /** The Pager for this list (server-rendered links). */
   pager?: ReactNode;
   empty: ReactNode;
+  /** Offer "Select all N" across pages. Off when the actions only take ids (the selection then stays on one page). */
+  acrossPages?: boolean;
+  /** Tick boxes and the selection bar; off for people who may not use any of the actions (the pages still show). */
+  selectable?: boolean;
 }) {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
@@ -65,7 +73,8 @@ export function DataTable({
   const ids = rowIds.filter((id) => picked.has(id));
   const pageAll = rows.length > 0 && ids.length === rows.length;
   const count = allMatching ? total : ids.length;
-  const plural = (n: number) => `${n.toLocaleString("en-US")} ${noun}${n === 1 ? "" : "s"}`;
+  const plural = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? noun : /[^aeiou]y$/.test(noun) ? `${noun.slice(0, -1)}ies` : `${noun}s`}`;
+  const withCards = rows.some((r) => r.card !== undefined);
   const selection: Selection = {
     ids,
     allMatching,
@@ -88,7 +97,7 @@ export function DataTable({
   return (
     <SelectionContext.Provider value={selection}>
       <div className="flex flex-1 flex-col gap-2">
-        {pageAll && total > rows.length && (
+        {selectable && acrossPages && pageAll && total > rows.length && (
           <p className="rounded-md bg-muted px-3 py-1.5 text-center text-xs">
             {allMatching ? (
               <>
@@ -108,11 +117,12 @@ export function DataTable({
           </p>
         )}
         {/* a 0-wide grid column lets the table scroll inside its box instead of widening the page */}
-        <div className="grid grid-cols-[minmax(0,1fr)]">
+        <div className={cn("grid grid-cols-[minmax(0,1fr)]", withCards && "hidden md:grid")}>
         <div className="overflow-x-auto rounded-lg border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
+                {selectable && (
                 <TableHead className="w-9">
                   <Checkbox
                     aria-label="Select all on this page"
@@ -125,6 +135,7 @@ export function DataTable({
                     }}
                   />
                 </TableHead>
+                )}
                 {columns.map((c, i) => (
                   <TableHead key={i} className={c.className}>
                     {c.label}
@@ -135,16 +146,18 @@ export function DataTable({
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={columns.length + 1} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className="py-8 text-center text-sm text-muted-foreground">
                     {empty}
                   </TableCell>
                 </TableRow>
               )}
               {rows.map((r) => (
                 <TableRow key={r.id} data-state={picked.has(r.id) || allMatching ? "selected" : undefined}>
-                  <TableCell className="w-9">
-                    <Checkbox aria-label="Select row" checked={picked.has(r.id) || allMatching} onCheckedChange={() => toggle(r.id)} />
-                  </TableCell>
+                  {selectable && (
+                    <TableCell className="w-9">
+                      <Checkbox aria-label="Select row" checked={picked.has(r.id) || allMatching} onCheckedChange={() => toggle(r.id)} />
+                    </TableCell>
+                  )}
                   {r.cells.map((cell, i) => (
                     <TableCell key={i} className={columns[i]?.className}>
                       {cell}
@@ -156,6 +169,20 @@ export function DataTable({
           </Table>
         </div>
         </div>
+        {/* phones: one small card per row (with its own tick box) instead of a table that scrolls sideways */}
+        {withCards && (
+          <ul className="grid gap-2 md:hidden">
+            {rows.map((r) => {
+              const on = picked.has(r.id) || allMatching;
+              return (
+                <li key={r.id} className={cn("flex items-start gap-2.5 rounded-lg border bg-card p-3", on && "border-primary/50 bg-primary/5")}>
+                  {selectable && <Checkbox aria-label="Select row" className="mt-0.5" checked={on} onCheckedChange={() => toggle(r.id)} />}
+                  <div className="min-w-0 flex-1">{r.card}</div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {/* fixed to the bottom of the screen: the selection's actions on the left, the pages on the right */}
         <div className={cn("sticky bottom-0 z-20 -mx-1 mt-auto flex min-h-12 flex-wrap items-center gap-2 border-t bg-background/95 py-2 pr-20 pl-1 backdrop-blur", count > 0 && "border-primary/40")}>
           {count > 0 ? (
@@ -166,9 +193,9 @@ export function DataTable({
                 <X />
               </Button>
             </div>
-          ) : (
+          ) : selectable ? (
             <span className="text-xs text-muted-foreground">Tick rows to act on several at once</span>
-          )}
+          ) : null}
           <div className="ml-auto">{pager}</div>
         </div>
       </div>

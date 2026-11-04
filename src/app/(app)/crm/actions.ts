@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertAnyApp, assertApp } from "@/lib/auth/session";
-import { assertCompany, assertContact, assertDeal, canSeeCompany, currentViewer } from "@/lib/auth/visibility";
+import { assertCompany, assertContact, assertDeal, canSeeCompany, canSeeDeal, currentViewer } from "@/lib/auth/visibility";
 import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
 import { dealAssigned } from "@/lib/notifications/events";
@@ -595,4 +595,89 @@ export async function markDealWon(dealId: number, input: z.input<typeof wonSchem
   refresh();
   revalidatePath("/sales", "layout");
   return { gaps };
+}
+
+// ---------- bulk actions (the list's bottom bar) ----------
+
+/**
+ * What a bulk action did: how many records changed and why the others were left alone, or `error` when nothing was
+ * tried. Returned rather than thrown, because production builds hide the message of a thrown server-action error.
+ */
+export interface BulkResult {
+  done: number;
+  skipped: string[];
+  error?: string;
+}
+
+const bulkIds = z.array(id).min(1, "Tick at least one row.").max(100, "Pick at most 100 at a time.");
+
+/**
+ * Runs a single-record action for each id, so every check, timeline entry and notification of that action still
+ * applies. One record failing (no access, has an order) never stops the others; its reason is returned instead.
+ */
+async function eachOf(ids: number[], name: (id: number) => Promise<string>, fn: (id: number) => Promise<unknown>): Promise<BulkResult> {
+  await assertApp("crm");
+  const parsed = bulkIds.safeParse(ids);
+  if (!parsed.success) return { done: 0, skipped: [], error: parsed.error.issues[0]?.message ?? "Tick at least one row." };
+  const list = [...new Set(parsed.data)];
+  const out: BulkResult = { done: 0, skipped: [] };
+  for (const one of list) {
+    try {
+      await fn(one);
+      out.done++;
+    } catch (e) {
+      out.skipped.push(`${await name(one).catch(() => `#${one}`)}: ${e instanceof Error ? e.message : "could not be changed"}`);
+    }
+  }
+  refresh();
+  return out;
+}
+
+// names for the "skipped" list, only of records the person may see (a hidden one reads as a number, as if it did not exist)
+const dealName = async (dealId: number) =>
+  ((await canSeeDeal(await currentViewer(), dealId)) && (await db.select({ t: schema.deals.title }).from(schema.deals).where(eq(schema.deals.id, dealId)))[0]?.t) || `Deal #${dealId}`;
+const companyName = async (companyId: number) =>
+  ((await canSeeCompany(await currentViewer(), companyId)) && (await db.select({ n: schema.companies.name }).from(schema.companies).where(eq(schema.companies.id, companyId)))[0]?.n) || `Company #${companyId}`;
+
+/** Moves the ticked deals to one stage. Won is left out: each win asks for its quote and customer details. */
+export async function bulkMoveDeals(ids: number[], stage: string, lostReason = ""): Promise<BulkResult> {
+  if (!isStage(stage) || stage === "won") return { done: 0, skipped: [], error: "Pick a stage." };
+  if (stage === "lost" && !lostReason.trim()) return { done: 0, skipped: [], error: "Pick the reason these deals were lost." };
+  return eachOf(ids, dealName, (dealId) => moveDeal(dealId, stage, lostReason));
+}
+
+/** Adds one person to the team of each ticked deal (admins and "All data" users, as on a single deal). */
+export async function bulkAddAssignee(ids: number[], userId: number): Promise<BulkResult> {
+  const person = id.safeParse(userId);
+  if (!person.success) return { done: 0, skipped: [], error: "Pick a person." };
+  if (!(await currentViewer()).seesAll) return { done: 0, skipped: [], error: "Only an admin can change who works on a deal." };
+  return eachOf(ids, dealName, async (dealId) => {
+    await assertDeal(dealId);
+    const team = (await db.select({ id: schema.dealAssignees.userId }).from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, dealId)).orderBy(schema.dealAssignees.position)).map((r) => r.id);
+    if (team.includes(person.data)) return;
+    if (team.length >= 10) throw new Error("the team already has 10 people");
+    await setAssignees(dealId, [...team, person.data]);
+  });
+}
+
+export async function bulkDeleteDeals(ids: number[]): Promise<BulkResult> {
+  return eachOf(ids, dealName, (dealId) => deleteDeal(dealId));
+}
+
+export async function bulkDeleteContacts(ids: number[]): Promise<BulkResult> {
+  const name = async (contactId: number) => {
+    const [c] = await db.select({ n: schema.contacts.name, companyId: schema.contacts.companyId }).from(schema.contacts).where(eq(schema.contacts.id, contactId));
+    return (c && (await canSeeCompany(await currentViewer(), c.companyId)) && c.n) || `Contact #${contactId}`;
+  };
+  return eachOf(ids, name, (contactId) => deleteContact(contactId));
+}
+
+/** Admin only, like deleting one company: removes each with its contacts, deals and history; companies with orders stay. */
+export async function bulkDeleteCompanies(ids: number[]): Promise<BulkResult> {
+  const me = await assertApp("crm");
+  if (me.role !== "admin") return { done: 0, skipped: [], error: "Only an admin can delete a company." };
+  return eachOf(ids, companyName, async (companyId) => {
+    await assertCompany(companyId);
+    await deleteCompany(companyId);
+  });
 }
