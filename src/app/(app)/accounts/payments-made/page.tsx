@@ -25,7 +25,7 @@ export default async function PaymentsMadePage() {
     <div className="grid gap-3">
       <PageToolbar title="Payments made" meta={`${money(thisMonth)} paid out this month`} />
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Voucher</TableHead>

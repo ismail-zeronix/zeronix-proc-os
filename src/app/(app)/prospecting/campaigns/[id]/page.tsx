@@ -95,7 +95,7 @@ export default async function CampaignPage({ params, searchParams }: PageProps<"
         items={FILTERS.map((f) => ({ href: f.key ? `/prospecting/campaigns/${id}?status=${f.key}` : `/prospecting/campaigns/${id}`, label: f.label, title: f.label, active: (status ?? "") === f.key }))}
       />
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Prospect</TableHead>

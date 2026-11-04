@@ -46,7 +46,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/procureme
 
       <div className="overflow-x-auto rounded-lg border bg-card">
         {tab === "quiet" ? (
-          <Table>
+          <Table cards>
             <TableHeader>
               <TableRow className="text-xs">
                 <TableHead>Supplier</TableHead>
@@ -77,7 +77,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/procureme
 
 function MovesTable({ rows, days, kind }: { rows: Awaited<ReturnType<typeof priceMoves>>; days: number; kind: "drops" | "rises" }) {
   return (
-    <Table>
+    <Table cards>
       <TableHeader>
         <TableRow className="text-xs">
           <TableHead>Product</TableHead>

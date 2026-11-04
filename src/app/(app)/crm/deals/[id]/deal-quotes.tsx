@@ -6,6 +6,7 @@ import { dayLabel } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { lineTotal, money } from "@/lib/quotation";
 import type { QuoteSummary, quoteLines } from "@/lib/quotes-data";
+import { PhoneCards } from "@/components/phone-cards";
 
 type Line = Awaited<ReturnType<typeof quoteLines>>[number];
 
@@ -93,7 +94,7 @@ export function DealQuotes({
           <div className="border-b px-3 py-2 text-xs text-muted-foreground">
             Lines of <span className="font-mono font-medium text-foreground">{latest.number}</span>
           </div>
-          <table className="w-full text-sm">
+          <PhoneCards><table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b">
                 <th className="px-3 py-1.5 text-left font-medium">Description</th>
@@ -123,7 +124,7 @@ export function DealQuotes({
                 <td className="px-3 py-1.5 text-right font-medium tabular-nums">{money(latest.total)}</td>
               </tr>
             </tfoot>
-          </table>
+          </table></PhoneCards>
         </div>
       )}
     </div>

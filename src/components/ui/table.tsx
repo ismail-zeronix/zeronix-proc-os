@@ -2,11 +2,17 @@
 
 import * as React from "react"
 import { cn } from "cn"
+import { usePhoneCards } from "@/components/phone-cards"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+/** `cards`: on phones every row shows as a small labelled card instead of a table that scrolls sideways (phone-cards.tsx). */
+function Table({ className, cards = false, ...props }: React.ComponentProps<"table"> & { cards?: boolean }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  usePhoneCards(ref, cards)
   return (
     <div
+      ref={ref}
       data-slot="table-container"
+      data-cards={cards ? "" : undefined}
       className="relative w-full overflow-x-auto"
     >
       <table

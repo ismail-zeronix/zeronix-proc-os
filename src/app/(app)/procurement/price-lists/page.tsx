@@ -132,7 +132,7 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
       </div>
 
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>#</TableHead>

@@ -22,6 +22,7 @@ import { fillTemplate, quoteEmailValues, quotePdfName } from "@/lib/quote-email"
 import { getSettings } from "@/lib/settings";
 import { EmailQuote } from "./email-quote";
 import { DeleteQuote, QuoteEdit, StatusSelect } from "./quote-controls";
+import { FitWidth } from "@/components/fit-width";
 
 export async function generateMetadata({ params }: PageProps<"/sales/quotes/[id]">) {
   const q = await getQuote(Number((await params).id), financeViewerOf(await requireApp("sales"))).catch(() => null);
@@ -135,11 +136,14 @@ export default async function QuotePage({ params }: PageProps<"/sales/quotes/[id
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="overflow-x-auto rounded-xl border bg-card" aria-label="The quotation the customer receives">
-          {snapshot && pBrand ? (
-            <ProposalDocument blocks={snapshot.blocks} cover={{ ...snapshot.cover, validUntil: snapshot.cover.validUntil ?? q.validUntil }} boq={snapshot.boq} brand={pBrand} />
-          ) : (
-            <QuoteDocument q={doc} brand={brand} />
-          )}
+          {/* phones: the paper layout scaled down, like a PDF preview */}
+          <FitWidth>
+            {snapshot && pBrand ? (
+              <ProposalDocument blocks={snapshot.blocks} cover={{ ...snapshot.cover, validUntil: snapshot.cover.validUntil ?? q.validUntil }} boq={snapshot.boq} brand={pBrand} />
+            ) : (
+              <QuoteDocument q={doc} brand={brand} />
+            )}
+          </FitWidth>
         </section>
 
         <aside className="grid gap-3">

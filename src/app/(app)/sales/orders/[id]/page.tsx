@@ -136,7 +136,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/sa
             content: (
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
                 <div className="overflow-x-auto rounded-lg border bg-card">
-                  <Table>
+                  <Table cards>
                     <TableHeader>
                       <TableRow className="text-xs">
                         <TableHead className="w-8">#</TableHead>

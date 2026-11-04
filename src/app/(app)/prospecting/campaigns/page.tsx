@@ -38,7 +38,7 @@ export default async function CampaignsPage({ searchParams }: PageProps<"/prospe
         />
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Campaign</TableHead>

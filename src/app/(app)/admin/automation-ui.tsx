@@ -178,7 +178,7 @@ export function FeedSchedules({ feeds }: { feeds: FeedRow[] }) {
       <CardContent>
         {feeds.length ? (
           <div className="overflow-x-auto">
-            <Table>
+            <Table cards>
               <TableHeader>
                 <TableRow>
                   <TableHead>Supplier</TableHead>

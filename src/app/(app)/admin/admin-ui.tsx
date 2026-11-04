@@ -274,7 +274,7 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
         <AddUserDialog run={run} pending={pending} />
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Person</TableHead>

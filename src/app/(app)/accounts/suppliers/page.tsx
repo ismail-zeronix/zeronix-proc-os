@@ -19,7 +19,7 @@ export default async function AccountsSuppliersPage() {
     <div className="grid gap-3">
       <PageToolbar title="Suppliers" meta={`${rows.length} suppliers · we owe ${money(owed)} · open one for its bills and statement`} />
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Supplier</TableHead>

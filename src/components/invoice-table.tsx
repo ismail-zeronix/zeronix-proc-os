@@ -13,7 +13,7 @@ import { longDay, money } from "@/lib/quotation";
 export function InvoiceTable({ rows, empty, showCustomer = true, finance = true }: { rows: InvoiceRow[]; empty: string; showCustomer?: boolean; finance?: boolean }) {
   return (
     <div className="overflow-x-auto rounded-lg border bg-card">
-      <Table>
+      <Table cards>
         <TableHeader>
           <TableRow className="text-xs">
             <TableHead>Invoice</TableHead>

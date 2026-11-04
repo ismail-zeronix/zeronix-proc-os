@@ -150,7 +150,7 @@ export function SupplierDialog({ supplier }: { supplier?: SupplierRow }) {
 
 export function SupplierTable({ rows }: { rows: SupplierRow[] }) {
   return (
-    <Table>
+    <Table cards>
       <TableHeader>
         <TableRow className="text-xs">
           <TableHead>Name</TableHead>

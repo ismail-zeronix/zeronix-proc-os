@@ -35,7 +35,7 @@ export default async function ToInvoicePage() {
     <div className="grid gap-3">
       <PageToolbar title="To invoice" meta={`${rows.length} delivered order${rows.length === 1 ? "" : "s"} · next invoice ${nextNumber}`} />
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Sales order</TableHead>

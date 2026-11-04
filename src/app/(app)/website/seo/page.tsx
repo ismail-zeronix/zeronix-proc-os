@@ -7,6 +7,7 @@ import { getGsc, pageStats, queryStats } from "@/lib/website/gsc";
 import { listKeywords, type KeywordView } from "@/lib/website/keywords";
 import { dubaiDay } from "@/lib/website/traffic";
 import { KeywordDelete, KeywordImport, KeywordState } from "./seo-controls";
+import { PhoneCards } from "@/components/phone-cards";
 
 export const metadata = { title: "SEO · Zeronix Website" };
 
@@ -127,7 +128,7 @@ function Clusters({ list, clusters, rank }: { list: KeywordView[]; clusters: str
               </div>
             </header>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
+              <PhoneCards><table className="w-full min-w-[760px] text-sm">
                 <tbody className="divide-y">
                   {rows.map((k) => (
                     <tr key={k.id}>
@@ -158,7 +159,7 @@ function Clusters({ list, clusters, rank }: { list: KeywordView[]; clusters: str
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             </div>
           </section>
         );

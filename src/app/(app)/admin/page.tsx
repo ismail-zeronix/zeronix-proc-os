@@ -51,7 +51,7 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
       />
 
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Person</TableHead>

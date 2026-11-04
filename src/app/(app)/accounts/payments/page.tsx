@@ -21,7 +21,7 @@ export default async function PaymentsPage() {
     <div className="grid gap-3">
       <PageToolbar title="Payments" meta={`${live.length} received · cash ${money(total("cash"))} · bank ${money(total("bank"))}`} />
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Receipt</TableHead>

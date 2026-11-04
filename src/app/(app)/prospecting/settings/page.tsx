@@ -50,7 +50,7 @@ function Mailboxes({ rows, admin }: { rows: MailboxRow[]; admin: boolean }) {
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Mailbox</TableHead>
@@ -164,7 +164,7 @@ function AiProviders({ rows, models, admin }: { rows: AiProviderRow[]; models: A
         )}
       </div>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Provider</TableHead>

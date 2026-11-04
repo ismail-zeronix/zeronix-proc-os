@@ -24,7 +24,7 @@ export default async function DoNotContactPage({ searchParams }: PageProps<"/pro
         </p>
       </section>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Email or domain</TableHead>

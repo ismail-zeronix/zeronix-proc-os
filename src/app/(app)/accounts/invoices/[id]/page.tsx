@@ -16,6 +16,7 @@ import { listFiles } from "@/lib/files-data";
 import { methodLabel, termsLabel } from "@/lib/invoicing";
 import { longDay, money } from "@/lib/quotation";
 import { quoteBrand } from "@/lib/quote-view";
+import { FitWidth } from "@/components/fit-width";
 
 export async function generateMetadata({ params }: PageProps<"/accounts/invoices/[id]">) {
   const inv = await getInvoice(Number((await params).id)).catch(() => null);
@@ -82,7 +83,10 @@ export default async function InvoicePage({ params }: PageProps<"/accounts/invoi
               Opening balance carried over from Zoho: the tax invoice itself is in Zoho. It counts in what the customer owes, not in this year&apos;s sales or VAT.
             </p>
           ) : (
-            <SalesDocument d={doc} brand={brand} />
+            // phones: the paper layout scaled down, like a PDF preview
+            <FitWidth>
+              <SalesDocument d={doc} brand={brand} />
+            </FitWidth>
           )}
         </section>
         <aside className="grid gap-3">

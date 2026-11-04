@@ -48,6 +48,8 @@ The portal installs as an app (Zeronix OS) on phones and desktops: `src/app/mani
 - **Nothing pinned to the bottom of the screen without the bar's height.** Use `bottom-(--mobile-nav-h)` for sticky or fixed bars, and subtract `var(--mobile-nav-h)` from any `100svh` height (`max-h-[calc(100svh-var(--mobile-nav-h)-8rem)]`). The variable is 0 on desktop, so desktop is unchanged. The header is `var(--header-h)` tall.
 - **Safe areas:** the installed iPhone app draws under the status bar, so anything fixed to the very top or bottom pads itself with `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` (the header and bottom bar already do).
 - **Form controls are 16 px on phones** (`text-base md:text-sm`); smaller text makes iPhone zoom in on focus. Do not force `text-sm` or `text-xs` on an input, select or textarea.
+- **List tables become cards on phones** with `<Table cards>` (or `<PhoneCards>` around a plain `<table>`): the first named column is the card title, the other columns show as "label value" lines with labels taken from the header, and unnamed columns (tick boxes, action buttons) sit on the title line. `DataTable` does it by itself unless a row gives its own `card`. Editing grids, matrices and documents are not cards.
+- **Paper documents on phones** (quote, invoice) are wrapped in `FitWidth` (`components/fit-width.tsx`): laid out at A4 width and scaled down like a PDF preview.
 - **Dialogs scroll** (the base `DialogContent` has a max height); keep long forms in one.
 - **Touch targets** on phone-only controls are at least 44 px (`min-h-11`, `size-10`/`size-11`).
 - **No business data in the browser cache.** The service worker only caches build files, icons and the offline page. Never add API routes, pages or PDFs to it.

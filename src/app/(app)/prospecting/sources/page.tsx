@@ -34,7 +34,7 @@ export default async function SourcesPage({ searchParams }: PageProps<"/prospect
         )}
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Source</TableHead>

@@ -66,7 +66,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/sales/ord
         />
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Sales order</TableHead>

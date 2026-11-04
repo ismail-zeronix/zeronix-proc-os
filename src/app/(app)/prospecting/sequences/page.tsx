@@ -23,7 +23,7 @@ export default async function SequencesPage() {
         </Button>
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
+        <Table cards>
           <TableHeader>
             <TableRow className="text-xs">
               <TableHead>Sequence</TableHead>

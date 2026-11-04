@@ -70,7 +70,7 @@ export function NotifySettings({
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="overflow-x-auto">
-            <Table>
+            <Table cards>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">On</TableHead>

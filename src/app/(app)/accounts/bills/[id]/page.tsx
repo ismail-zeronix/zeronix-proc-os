@@ -11,6 +11,7 @@ import { methodLabel, termsLabel } from "@/lib/invoicing";
 import { billKindLabel, categoryLabel, lineCost } from "@/lib/purchases";
 import { getBill } from "@/lib/purchases-data";
 import { longDay, money } from "@/lib/quotation";
+import { PhoneCards } from "@/components/phone-cards";
 
 export async function generateMetadata({ params }: PageProps<"/accounts/bills/[id]">) {
   await requireFinance();
@@ -61,7 +62,7 @@ export default async function BillPage({ params }: PageProps<"/accounts/bills/[i
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full text-sm">
+          <PhoneCards><table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-b">
                 <th className="px-3 py-2 text-left font-medium">Item</th>
@@ -100,7 +101,7 @@ export default async function BillPage({ params }: PageProps<"/accounts/bills/[i
                 <td className="px-3 py-1 text-right font-semibold tabular-nums">{money(b.total)}</td>
               </tr>
             </tfoot>
-          </table>
+          </table></PhoneCards>
         </section>
 
         <aside className="grid gap-3">

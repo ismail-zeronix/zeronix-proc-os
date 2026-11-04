@@ -1,3 +1,5 @@
+/* layer order: phone cards (below) sit before Tailwind utilities, so a page utility like `hidden` still wins */
+@layer theme, base, components, phone-cards, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -183,6 +185,87 @@ body {
   html,
   body {
     overscroll-behavior-y: none;
+  }
+}
+
+/* Phones: list tables as one small card per row (<Table cards>, <PhoneCards>; labels from components/phone-cards.tsx).
+   In their own layer, ordered before the utilities (top of file), so page utilities still win (a column hidden on phones stays hidden); the few
+   !important lines beat the table cell's own nowrap and padding. */
+@layer phone-cards {
+  @media (max-width: 767px) {
+    [data-cards] {
+      overflow: visible;
+    }
+    [data-cards] table,
+    [data-cards] tbody,
+    [data-cards] tfoot {
+      display: block;
+      width: 100%;
+      min-width: 0 !important;
+    }
+    [data-cards] thead {
+      display: none;
+    }
+    [data-cards] tbody tr,
+    [data-cards] tfoot tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      column-gap: 0.5rem;
+      row-gap: 0.125rem;
+      padding: 0.5rem 0.75rem;
+    }
+    [data-cards] tbody td,
+    [data-cards] tfoot td {
+      display: flex;
+      flex: 1 0 100%;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      column-gap: 0.5rem;
+      min-width: 0;
+      width: auto !important;
+      max-width: none !important;
+      padding: 0 !important;
+      font-size: 0.8125rem;
+      text-align: right;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+    }
+    [data-cards] td::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      max-width: 45%;
+      margin-right: auto;
+      color: var(--muted-foreground);
+      font-size: 0.75rem;
+      text-align: left;
+    }
+    [data-cards] td[data-card-title] {
+      order: -2;
+      display: block;
+      flex: 1 1 0;
+      padding-bottom: 0.125rem !important;
+      font-size: 0.875rem;
+      text-align: left;
+    }
+    [data-cards] td[data-card-bare] {
+      order: -1;
+      flex: 0 0 auto;
+    }
+    [data-cards] td[data-card-bare]:first-child {
+      order: -3;
+    }
+    [data-cards] td[data-card-bare="wide"] {
+      display: block;
+      flex: 1 0 100%;
+      text-align: center;
+    }
+    [data-cards] td[data-card-title]::before,
+    [data-cards] td[data-card-bare]::before,
+    [data-cards] td:not([data-label])::before {
+      content: none;
+    }
   }
 }
 

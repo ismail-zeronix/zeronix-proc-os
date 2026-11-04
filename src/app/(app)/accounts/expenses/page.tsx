@@ -54,7 +54,7 @@ export default async function ExpensesPage({ searchParams }: PageProps<"/account
       />
       <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="overflow-x-auto rounded-lg border bg-card">
-          <Table>
+          <Table cards>
             <TableHeader>
               <TableRow className="text-xs">
                 <TableHead>Date</TableHead>

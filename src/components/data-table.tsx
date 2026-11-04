@@ -119,7 +119,8 @@ export function DataTable({
         {/* a 0-wide grid column lets the table scroll inside its box instead of widening the page */}
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", withCards && "hidden md:grid")}>
         <div className="overflow-x-auto rounded-lg border bg-card">
-          <Table>
+          {/* lists without their own phone card still become labelled cards on phones */}
+          <Table cards={!withCards}>
             <TableHeader>
               <TableRow>
                 {selectable && (
@@ -169,7 +170,7 @@ export function DataTable({
           </Table>
         </div>
         </div>
-        {/* phones: one small card per row (with its own tick box) instead of a table that scrolls sideways */}
+        {/* phones: the page's own small card per row (with its own tick box), when it gives one */}
         {withCards && (
           <ul className="grid gap-2 md:hidden">
             {rows.map((r) => {

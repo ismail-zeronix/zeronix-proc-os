@@ -18,6 +18,7 @@ import { supplierOffers } from "@/lib/supplier-stats";
 import { cn } from "@/lib/utils";
 import { FeedBadge, FeedCard } from "../feed-card";
 import { SupplierDialog } from "../supplier-ui";
+import { PhoneCards } from "@/components/phone-cards";
 
 const STATUS = { queued: "Queued", parsing: "Reading", review: "Needs review", saved: "Saved", failed: "Failed" } as const;
 const th = "px-3 py-1.5 font-medium";
@@ -130,7 +131,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
 
           <TabsContent value="offers" className="pt-1">
             <div className="max-h-[calc(100svh-var(--mobile-nav-h)-19rem)] overflow-auto rounded-md border">
-              <table className="w-full text-sm">
+              <PhoneCards><table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>
                     <th className={cn(th, "text-left")}>Product</th>
@@ -195,13 +196,13 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             </div>
           </TabsContent>
 
           <TabsContent value="lists" className="pt-1">
             <div className="overflow-auto rounded-md border">
-              <table className="w-full text-sm">
+              <PhoneCards><table className="w-full text-sm">
                 <thead className="bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>
                     <th className={cn(th, "text-left")}>List</th>
@@ -235,7 +236,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             </div>
           </TabsContent>
 

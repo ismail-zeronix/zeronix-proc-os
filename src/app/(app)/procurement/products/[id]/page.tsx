@@ -19,6 +19,7 @@ import { productLabel } from "@/lib/products";
 import { searchOffers } from "@/lib/search";
 import { getSetting } from "@/lib/settings";
 import { cn } from "@/lib/utils";
+import { PhoneCards } from "@/components/phone-cards";
 
 const th = "px-3 py-1.5 font-medium";
 
@@ -107,7 +108,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
 
           <TabsContent value="current" className="pt-1">
             <div className="overflow-auto rounded-md border">
-              <table className="w-full text-sm">
+              <PhoneCards><table className="w-full text-sm">
                 <thead className="bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>
                     <th className={cn(th, "text-left")}>Supplier</th>
@@ -162,7 +163,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
                     );
                   })}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             </div>
           </TabsContent>
 
@@ -174,7 +175,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
               </div>
             )}
             <div className="max-h-[calc(100svh-var(--mobile-nav-h)-24rem)] min-h-40 overflow-auto rounded-md border">
-              <table className="w-full text-sm">
+              <PhoneCards><table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                   <tr>
                     <th className={cn(th, "text-left")}>Date</th>
@@ -202,7 +203,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             </div>
           </TabsContent>
         </Tabs>

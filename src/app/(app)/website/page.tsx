@@ -10,6 +10,7 @@ import { overview, RANGES, type Overview } from "@/lib/website/analytics";
 import { getGsc, searchOverview } from "@/lib/website/gsc";
 import { contentCounts, setupChecks } from "@/lib/website/overview";
 import { StarterButton } from "./starter-button";
+import { PhoneCards } from "@/components/phone-cards";
 
 export const metadata = { title: "Overview · Zeronix Website" };
 
@@ -180,7 +181,7 @@ export default async function WebsiteOverviewPage({ searchParams }: PageProps<"/
             {search.top.length === 0 ? (
               <p className="px-4 pb-4 text-sm text-muted-foreground">No searches yet in this period.</p>
             ) : (
-              <table className="w-full text-sm">
+              <PhoneCards><table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground">
                   <tr className="border-y">
                     <th className="px-4 py-1.5 text-left font-medium">Search</th>
@@ -199,7 +200,7 @@ export default async function WebsiteOverviewPage({ searchParams }: PageProps<"/
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></PhoneCards>
             )}
           </section>
         </div>
@@ -258,7 +259,7 @@ function TopPages({ o, className = "" }: { o: Overview; className?: string }) {
         <p className="px-4 pb-4 text-sm text-muted-foreground">No page views yet. They appear here once the site is live and the tracker is running.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <PhoneCards><table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground">
               <tr className="border-y">
                 <th className="px-4 py-1.5 text-left font-medium">Page</th>
@@ -288,7 +289,7 @@ function TopPages({ o, className = "" }: { o: Overview; className?: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></PhoneCards>
         </div>
       )}
     </section>
