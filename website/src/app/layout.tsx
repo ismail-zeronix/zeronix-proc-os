@@ -1,3 +1,4 @@
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Tracker } from "@/components/analytics/tracker";
@@ -36,6 +37,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Google Analytics 4 (the Google tag, gtag.js), loaded after the page is interactive. Live site only (SITE_INDEXING=true),
+// so local and test visits never reach the real property. GA_MEASUREMENT_ID can replace the id without a code change.
+const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
+
 export const viewport: Viewport = {
   themeColor: "#f6f6f1",
 };
@@ -70,6 +75,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           />
         )}
       </body>
+      {flags.indexing && GA_ID && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

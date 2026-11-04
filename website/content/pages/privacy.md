@@ -1,11 +1,11 @@
 ---
-# Company page. It describes what the site really does (cookie-less tracker, quote form, chat, Search Console).
+# Company page. It describes what the site really does (own tracker, Google Analytics, quote form, chat, Search Console).
 # Before publishing: have it reviewed, add the legal entity name and contact email where marked.
 type: page
 title: "Privacy policy"
 slug: privacy
 meta_title: "Privacy Policy · Zeronix Tech"
-meta_description: "How Zeronix Tech collects and uses information on zeronixtech.com: no cookies for analytics, quote and chat details used only to answer your request."
+meta_description: "How Zeronix Tech collects and uses information on zeronixtech.com: our own analytics, Google Analytics, and quote and chat details used only to answer your request."
 excerpt: "What we collect on this website, why, and what you can ask us to do with it."
 primary_keyword: "privacy policy"
 ---
@@ -13,7 +13,10 @@ This policy explains what information zeronixtech.com collects, why, and how you
 
 ## What we collect
 
-**When you browse.** We measure visits with our own analytics, without cookies and without third-party advertising trackers. For each page view we record the page, the site that sent you (for example a search engine), campaign tags in the link, your device type and your country. We do not store your IP address: it is used only to make a visitor code that changes every day, so we can count visitors without following anyone from one day to the next. Your browser keeps a random session code for the current tab, and remembers the first page you visited so that a later request can tell us what brought you here.
+**When you browse.** We measure visits in two ways.
+
+- **Our own analytics**, without cookies. For each page view we record the page, the site that sent you (for example a search engine), campaign tags in the link, your device type and your country. We do not store your IP address: it is used only to make a visitor code that changes every day, so we can count visitors without following anyone from one day to the next. Your browser keeps a random session code for the current tab, and remembers the first page you visited so that a later request can tell us what brought you here.
+- **Google Analytics 4**, a service of Google. It sets cookies (names starting with `_ga`) to recognise a returning browser for up to two years, and records the pages you view, how you arrived, your device, browser and approximate location. Google handles this data under its own privacy terms (policies.google.com/privacy). You can block these cookies in your browser settings or with Google's opt-out add-on (tools.google.com/dlpage/gaoptout); the site works the same without them. We do not use Google Analytics for advertising.
 
 **When you ask for pricing or contact us.** The form collects your name, company, email, phone number and what you need (industry, products, quantities, budget and timeline, and your notes).
 
