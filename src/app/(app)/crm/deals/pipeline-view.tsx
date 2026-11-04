@@ -142,8 +142,10 @@ export async function PipelineView({ mode, searchParams }: { mode: "leads" | "de
                   </h2>
                   <DealDialog users={users} meId={user.id} stage={s.key} projectTypes={typeOptions} kind={kind} />
                 </header>
-                {/* minmax(0,1fr): the cards take the column's width; a long name or part number wraps or is cut, it never widens the column */}
-                <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-x-hidden overflow-y-auto px-2 pb-2">
+                {/* minmax(0,1fr): the cards take the column's width; a long name or part number wraps or is cut, it never widens the column.
+                    auto-rows-max: every card keeps its full height and the column scrolls (the cards clip their overflow, so a plain
+                    auto row would let the grid squeeze them all to fit the column) */}
+                <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-x-hidden overflow-y-auto px-2 pb-2">
                   {rows.map((d) => (
                     <DealCard key={d.id} d={d} users={users} canAssign={seesAll} />
                   ))}

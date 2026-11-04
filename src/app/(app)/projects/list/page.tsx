@@ -245,7 +245,7 @@ function Board({ rows, add, canSales }: { rows: ProjectRow[]; add: (stage?: stri
               {p === "lead" && add()}
               {p === "quoted" && add("quoted")}
             </header>
-            <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-2 pb-2">
+            <div className="grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-y-auto px-2 pb-2">
               {list.map((r) => (
                 <article key={r.id} className="grid gap-1.5 rounded-lg border bg-card p-2.5 shadow-xs">
                   <Link href={`/projects/list/${r.id}`} className="line-clamp-2 text-sm leading-snug font-medium hover:underline">
