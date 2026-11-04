@@ -1,6 +1,6 @@
 ---
 # Company page. It describes what the site really does (own tracker, Google Analytics, quote form, chat, Search Console).
-# Before publishing: have it reviewed, add the legal entity name and contact email where marked.
+# Before publishing: have it reviewed.
 type: page
 title: "Privacy policy"
 slug: privacy
@@ -42,5 +42,6 @@ You can ask us what we hold about you, to correct it or to delete it, by writing
 
 ## Contact
 
-<!-- Owner: add the legal entity name and the email address for privacy requests. -->
-Questions about this policy: see our [contact page](/contact).
+This website is operated by **ZERONIX TECHNOLOGY LLC**, Dubai, United Arab Emirates, which is responsible for the information described in this policy.
+
+For questions about this policy, or to ask what we hold about you, to correct it or to delete it, email [info@zeronix.ae](mailto:info@zeronix.ae). You can also reach us through our [contact page](/contact).
