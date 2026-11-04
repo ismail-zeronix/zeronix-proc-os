@@ -130,8 +130,7 @@ export async function PipelineView({ mode, searchParams }: { mode: "leads" | "de
               <section
                 key={s.key}
                 aria-label={s.label}
-                // phones: one column at a time (most of the screen); wider: columns share the width, never narrower than a readable card
-                className="flex max-h-[calc(100svh-8.5rem)] w-[85vw] max-w-[24rem] shrink-0 snap-start flex-col rounded-xl bg-muted/40 sm:w-auto sm:max-w-[28rem] sm:min-w-[18rem] sm:flex-1 sm:basis-0"
+                className="flex max-h-[calc(100svh-8.5rem)] w-68 shrink-0 snap-start flex-col rounded-xl bg-muted/40"
               >
                 <header className="flex items-center gap-1 px-3 pt-2 pb-1">
                   <h2 className="min-w-0 flex-1 truncate text-xs font-semibold" title={s.hint}>
@@ -143,7 +142,8 @@ export async function PipelineView({ mode, searchParams }: { mode: "leads" | "de
                   </h2>
                   <DealDialog users={users} meId={user.id} stage={s.key} projectTypes={typeOptions} kind={kind} />
                 </header>
-                <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-2 pb-2">
+                {/* minmax(0,1fr): the cards take the column's width; a long name or part number wraps or is cut, it never widens the column */}
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-x-hidden overflow-y-auto px-2 pb-2">
                   {rows.map((d) => (
                     <DealCard key={d.id} d={d} users={users} canAssign={seesAll} />
                   ))}
@@ -261,10 +261,10 @@ function FollowUp({ due }: { due: string | null }) {
 /** A board card: title and the stage switch on top, so the footer only carries the team and the dates. */
 function DealCard({ d, users, canAssign }: { d: DealRow; users: Person[]; canAssign: boolean }) {
   return (
-    <article className="grid gap-2 rounded-lg border bg-card p-3 shadow-xs">
-      <div className="flex items-start gap-1">
+    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-card p-2.5 shadow-xs">
+      <div className="flex min-w-0 items-start gap-1">
         <div className="min-w-0 flex-1">
-          <Link href={`/crm/deals/${d.id}`} className="line-clamp-2 text-sm leading-snug font-medium break-words hover:underline">
+          <Link href={`/crm/deals/${d.id}`} className="line-clamp-2 text-sm leading-snug font-medium wrap-anywhere hover:underline">
             {d.kind === "project" && <ProjectMark />}
             {d.title}
           </Link>
@@ -286,9 +286,9 @@ function DealCard({ d, users, canAssign }: { d: DealRow; users: Person[]; canAss
         </span>
         <span className="shrink-0 text-sm font-semibold tabular-nums">{d.valueAed != null ? aedShort(d.valueAed) : <span className="text-xs font-normal text-muted-foreground">No value</span>}</span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2">
+      <div className="flex min-w-0 items-center justify-between gap-2 border-t pt-2">
         <AssignPopover dealId={d.id} assignees={d.assignees} users={users} size={22} readOnly={!canAssign} />
-        <span className="flex shrink-0 items-center gap-2.5">
+        <span className="flex shrink-0 items-center gap-2">
           <FollowUp due={d.nextDue} />
           <span className="text-[11px] text-muted-foreground tabular-nums" title="Days in this stage">
             {daysSince(d.stageChangedAt)}d
