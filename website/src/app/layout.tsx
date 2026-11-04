@@ -1,4 +1,4 @@
-import { GoogleAnalytics } from "@next/third-parties/google";
+import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Tracker } from "@/components/analytics/tracker";
@@ -40,6 +40,9 @@ export async function generateMetadata(): Promise<Metadata> {
 // Google Analytics 4 (the Google tag, gtag.js), loaded after the page is interactive. Live site only (SITE_INDEXING=true),
 // so local and test visits never reach the real property. GA_MEASUREMENT_ID can replace the id without a code change.
 const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
+// Google Tag Manager container (one per page, at the top as Google asks). GA4 stays on its own tag above: the container
+// does not hold the GA4 tag, so nothing is counted twice. If GA4 is ever added inside GTM, remove GoogleAnalytics below.
+const GTM_ID = process.env.GTM_ID || "GTM-PJ5JPS9P";
 
 export const viewport: Viewport = {
   themeColor: "#f6f6f1",
@@ -49,6 +52,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const [{ brand, home }, nav] = await Promise.all([getSettings(), getNav()]);
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
+      {flags.indexing && GTM_ID && <GoogleTagManager gtmId={GTM_ID} />}
       <body className="flex min-h-dvh flex-col font-sans">
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-lime-400 focus:px-3 focus:py-2 focus:text-forest-950">
           Skip to content
