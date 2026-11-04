@@ -26,7 +26,7 @@ export async function ThisWeekProcurement() {
   const drops = moves.filter((m) => m.changePct < 0).length;
   const rises = moves.length - drops;
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
       <Kpi
         label="Price lists to review"
         value={counts.review}
@@ -272,7 +272,7 @@ export async function ThisWeekSales({ userId, team }: { userId: number; team: bo
     return q ? `/crm/deals?${q}` : "/crm/deals";
   };
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
       <Kpi label="New deals" value={p.newThisWeek} hint={`this week · ${p.scope}`} href={to("new")} />
       <Kpi label="Open deals" value={p.openCount} hint={aed(p.openValue)} href={to()} />
       <Kpi label="Waiting for an answer" value={p.quotedCount} hint="quote sent" href={to("quoted")} />

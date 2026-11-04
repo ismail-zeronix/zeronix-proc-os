@@ -14,10 +14,10 @@ export function Kpi({
   href?: string;
 }) {
   const body = (
-    <Card className="h-full gap-1 py-4">
+    <Card className="h-full gap-1 py-3 md:py-4">
       <CardContent className="grid gap-0.5">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold tracking-tight">
+        <div className="truncate text-xs text-muted-foreground">{label}</div>
+        <div className="text-2xl font-semibold tracking-tight md:text-3xl">
           {typeof value === "number" ? value.toLocaleString("en-US") : value}
         </div>
         <div className="text-xs text-muted-foreground">{hint}</div>

@@ -180,6 +180,17 @@
 body {
   -webkit-tap-highlight-color: transparent;
 }
+/* Phones: iPhone zooms the page in when a field under 16 px gets focus. Every typing field is at least 16 px there,
+   even where a page asks for text-sm or text-xs (important beats those utilities); bigger text stays bigger. Pinch
+   zoom stays on (people zoom into quotes and small print), so this is done with font size, not the viewport. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"]),
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: max(16px, 1em) !important;
+  }
+}
 @media (display-mode: standalone) {
   /* an app does not rubber-band or pull-to-refresh behind its fixed bars */
   html,

@@ -95,14 +95,14 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
       <Button
         variant="outline"
         size="sm"
-        className="w-8 justify-center px-0 text-muted-foreground sm:w-64 sm:justify-start sm:px-2.5"
+        className="w-8 justify-center px-0 text-muted-foreground sm:w-44 sm:justify-start sm:px-2.5 xl:w-64"
         aria-label="Search or go to a page"
         title="Search (Ctrl K)"
         onClick={() => setOpen(true)}
       >
         <Search />
-        <span className="hidden flex-1 text-left sm:inline">{what ? "Search or go to a page…" : "Go to a page…"}</span>
-        <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
+        <span className="hidden min-w-0 flex-1 truncate text-left sm:inline">{what ? "Search or go to a page…" : "Go to a page…"}</span>
+        <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-medium xl:inline">Ctrl K</kbd>
       </Button>
       <CommandDialog
         open={open}

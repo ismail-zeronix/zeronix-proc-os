@@ -145,7 +145,7 @@ export function QuickAddTask() {
       trigger={
         <Button variant="ghost" size="sm" aria-label="Add task">
           <Plus />
-          <span className="hidden sm:inline">Task</span>
+          <span className="hidden lg:inline">Task</span>
         </Button>
       }
     />

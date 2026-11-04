@@ -1,11 +1,8 @@
 import { Quote } from "lucide-react";
 import { Suspense } from "react";
 import { AppTile } from "@/components/app-tile";
-import { PunchToggle } from "@/components/attendance/punch-toggle";
-import { PageHeader } from "@/components/page-header";
 import { accountsBadges } from "@/lib/accounts-data";
 import { listCounts } from "@/lib/alerts";
-import { punchState, workHours } from "@/lib/attendance-data";
 import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
@@ -38,13 +35,11 @@ export default async function HomePage() {
   const hasMail = apps.includes("mail");
 
   // a few cheap numbers for the badges on the tiles
-  const [toReview, newDeals, dueTasks, mailUnread, punch, hours, overdueInvoices, chatUnread] = await Promise.all([
+  const [toReview, newDeals, dueTasks, mailUnread, overdueInvoices, chatUnread] = await Promise.all([
     hasProcurement ? listCounts().then((c) => c.review + c.failed) : 0,
     hasSales ? salesPulse(user.id, seesAll).then((p) => p.newCount) : 0,
     hasTasks ? dueTasksFor(user.id).then((d) => d.tasks.length) : 0,
     hasMail ? unreadCount(user.id) : 0,
-    punchState(user.id),
-    workHours(),
     finance ? accountsBadges().then((b) => b.overdue) : 0,
     unreadTotal(user.id),
   ]);
@@ -58,26 +53,31 @@ export default async function HomePage() {
   };
 
   return (
-    <div className="grid gap-6">
-      <PageHeader
-        title={`${dubaiGreeting()}, ${user.name.split(" ")[0]}`}
-        description={dubaiDateLabel()}
-        actions={<PunchToggle {...punch} hours={hours} />}
-      />
+    <div className="grid gap-4 md:gap-6">
+      {/* one compact row: greeting and date, the quote of the day beside it (below it on a phone). Punching in and out
+          lives in the header clock on every page, so it is not repeated here. */}
+      <header className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between md:gap-6">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight md:text-2xl">
+            {dubaiGreeting()}, {user.name.split(" ")[0]}
+          </h1>
+          <p className="text-xs text-muted-foreground md:text-sm">{dubaiDateLabel()}</p>
+        </div>
+        <figure className="flex max-w-md items-start gap-2 text-xs text-muted-foreground md:text-right">
+          <Quote className="mt-0.5 size-3.5 shrink-0 md:order-last" aria-hidden />
+          <blockquote className="italic">{quoteOfTheDay()}</blockquote>
+        </figure>
+      </header>
 
-      <figure className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3">
-        <Quote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <blockquote className="text-sm">{quoteOfTheDay()}</blockquote>
-      </figure>
-
-      <section aria-label="Apps" className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+      {/* phones: a launcher grid of icons, like a phone home screen; wider screens: small one-row tiles */}
+      <section aria-label="Apps" className="grid grid-cols-4 gap-x-1 gap-y-2 sm:grid-cols-2 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
         {tiles.map((a) => (
           <AppTile key={a.key} app={a} badge={badges[a.key]?.n} badgeLabel={badges[a.key]?.label} />
         ))}
       </section>
 
       {(hasSales || hasProcurement) && (
-        <section className="grid gap-3">
+        <section className="grid gap-2 md:gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">This week</h2>
           {hasSales && (
             <Suspense fallback={<WidgetSkeleton className="h-24" />}>
@@ -92,7 +92,7 @@ export default async function HomePage() {
         </section>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 md:gap-4 lg:grid-cols-2">
         {hasTasks && (
           <Suspense fallback={<WidgetSkeleton />}>
             <MyTasksCard userId={user.id} />

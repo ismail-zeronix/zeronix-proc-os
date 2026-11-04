@@ -69,7 +69,7 @@ export function AppHeader({
       <Popover>
         <PopoverTrigger render={<Button variant="ghost" size="sm" aria-label="Switch app" className="max-md:hidden" />}>
           <LayoutGrid />
-          <span className="hidden sm:inline">Apps</span>
+          <span className="hidden lg:inline">Apps</span>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-80 gap-1 p-2">
           <div className="grid grid-cols-3 gap-1">
@@ -128,7 +128,7 @@ export function AppHeader({
           <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-medium md:size-6">
             {user.name.slice(0, 1).toUpperCase()}
           </span>
-          <span className="hidden max-w-32 truncate sm:inline">{user.name.split(" ")[0]}</span>
+          <span className="hidden max-w-32 truncate lg:inline">{user.name.split(" ")[0]}</span>
           <ChevronDown className="size-3.5 text-muted-foreground max-md:hidden" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
