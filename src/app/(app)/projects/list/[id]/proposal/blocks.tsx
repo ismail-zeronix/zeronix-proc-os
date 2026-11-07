@@ -11,6 +11,7 @@ import { type Block, type BlockOf, docText, type RichDoc, splitByPercent, STANDA
 import { longDay, money } from "@/lib/quotation";
 import { deleteTermsText, saveTermsText } from "../../../proposal-actions";
 import { RichText } from "./rich-text";
+import { errorText } from "@/lib/user-error";
 
 /** What the blocks show besides their own data: the project, the customer and references, the BOQ and our brand. */
 export interface ProposalContext {
@@ -405,7 +406,7 @@ function Terms({ b, onChange, ctx }: { b: BlockOf<"terms">; onChange: Change<"te
                         if (!confirm(`Remove "${t.title}" from the library?`)) return;
                         deleteTermsText(t.id!).then(
                           () => toast.success("Removed from the library"),
-                          (err: Error) => toast.error(err.message),
+                          (err: Error) => toast.error(errorText(err)),
                         );
                       }}
                     >
@@ -420,7 +421,7 @@ function Terms({ b, onChange, ctx }: { b: BlockOf<"terms">; onChange: Change<"te
               onClick={() =>
                 saveTermsText({ title: b.data.title, doc: b.data.doc }).then(
                   () => toast.success(`"${b.data.title}" saved to the library. Other proposals offer it from now on.`),
-                  (err: Error) => toast.error(err.message),
+                  (err: Error) => toast.error(errorText(err)),
                 )
               }
             >

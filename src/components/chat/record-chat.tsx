@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { openDealThread } from "@/app/(app)/chat/actions";
 import { Conversation } from "./conversation";
 import type { Me } from "./message-row";
+import { errorText } from "@/lib/user-error";
 
 /** The Chat tab on a deal or project: the deal's thread with everyone on the deal, live. */
 export function RecordChat({ dealId, me }: { dealId: number; me: Me }) {
@@ -13,7 +14,7 @@ export function RecordChat({ dealId, me }: { dealId: number; me: Me }) {
       {q.data ? (
         <Conversation channel={q.data} me={me} />
       ) : (
-        <p className={`py-8 text-center text-xs ${q.isError ? "text-destructive" : "text-muted-foreground"}`}>{q.isError ? (q.error as Error).message : "Loading…"}</p>
+        <p className={`py-8 text-center text-xs ${q.isError ? "text-destructive" : "text-muted-foreground"}`}>{q.isError ? errorText(q.error) : "Loading…"}</p>
       )}
     </div>
   );

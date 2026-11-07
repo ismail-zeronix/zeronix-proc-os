@@ -8,6 +8,7 @@ import { assertApp } from "@/lib/auth/session";
 import { enroll, type EnrollResult } from "@/lib/prospecting/outreach";
 import { MERGE_FIELDS, unfilled } from "@/lib/prospecting/outreach-rules";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
+import { parseInput } from "@/lib/user-error";
 
 const id = z.number().int().positive();
 const KNOWN = new Set<string>(MERGE_FIELDS.map((f) => f.key));
@@ -35,7 +36,7 @@ export type SequenceInput = z.input<typeof sequenceSchema>;
 export async function saveSequence(sequenceId: number | null, input: SequenceInput): Promise<Result<number>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const d = sequenceSchema.parse(input);
+    const d = parseInput(sequenceSchema, input);
     if (!d.steps[0].subject) throw new Problem("The first email needs a subject");
     d.steps.forEach((s, i) => {
       const bad = unfilled(`${s.subject} ${s.body}`).filter((f) => !KNOWN.has(f));
@@ -85,7 +86,7 @@ export type CampaignInput = z.input<typeof campaignSchema>;
 export async function createCampaign(input: CampaignInput): Promise<Result<number>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const d = campaignSchema.parse(input);
+    const d = parseInput(campaignSchema, input);
     const [row] = await db.insert(schema.outreachCampaigns).values({ ...d, ownerId: me.id }).returning({ id: schema.outreachCampaigns.id });
     refresh();
     return row.id;
@@ -95,7 +96,7 @@ export async function createCampaign(input: CampaignInput): Promise<Result<numbe
 export async function updateCampaign(campaignId: number, input: CampaignInput): Promise<Result<void>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const d = campaignSchema.parse(input);
+    const d = parseInput(campaignSchema, input);
     await db.update(schema.outreachCampaigns).set(d).where(eq(schema.outreachCampaigns.id, id.parse(campaignId)));
     refresh();
   });
@@ -105,7 +106,7 @@ export async function updateCampaign(campaignId: number, input: CampaignInput): 
 export async function setCampaignStatus(campaignId: number, status: "active" | "paused" | "finished"): Promise<Result<void>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const s = z.enum(["active", "paused", "finished"]).parse(status);
+    const s = parseInput(z.enum(["active", "paused", "finished"]), status);
     await db.transaction(async (tx) => {
       await tx.update(schema.outreachCampaigns).set({ status: s }).where(eq(schema.outreachCampaigns.id, campaignId));
       if (s === "finished") {
@@ -123,7 +124,7 @@ export async function setCampaignStatus(campaignId: number, status: "active" | "
 export async function addToCampaign(campaignId: number, companyIds: number[]): Promise<Result<EnrollResult>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const list = z.array(id).min(1, "Pick at least one prospect").max(500, "Add up to 500 prospects at a time").parse(companyIds);
+    const list = parseInput(z.array(id).min(1, "Pick at least one prospect").max(500, "Add up to 500 prospects at a time"), companyIds);
     const [c] = await db.select({ status: schema.outreachCampaigns.status }).from(schema.outreachCampaigns).where(eq(schema.outreachCampaigns.id, campaignId));
     if (!c) throw new Problem("That campaign no longer exists");
     if (c.status === "finished") throw new Problem("That campaign is finished. Start a new one.");
@@ -143,7 +144,7 @@ const draftSchema = z.object({
 export async function saveDraft(enrollmentId: number, input: z.input<typeof draftSchema>): Promise<Result<void>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const d = draftSchema.parse(input);
+    const d = parseInput(draftSchema, input);
     const [row] = await db
       .update(schema.outreachEnrollments)
       .set({ ...d, updatedAt: new Date() })
@@ -166,7 +167,7 @@ export interface ApproveResult {
 export async function approveDrafts(enrollmentIds: number[]): Promise<Result<ApproveResult>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const ids = z.array(id).min(1).max(200).parse(enrollmentIds);
+    const ids = parseInput(z.array(id).min(1).max(200), enrollmentIds);
     const rows = await db
       .select({ e: schema.outreachEnrollments, name: schema.prospectCompanies.name, domain: schema.prospectCompanies.domain, startAt: schema.outreachCampaigns.startAt })
       .from(schema.outreachEnrollments)
@@ -216,7 +217,7 @@ export async function approveDrafts(enrollmentIds: number[]): Promise<Result<App
 export async function skipDrafts(enrollmentIds: number[]): Promise<Result<number>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const ids = z.array(id).min(1).max(200).parse(enrollmentIds);
+    const ids = parseInput(z.array(id).min(1).max(200), enrollmentIds);
     const rows = await db
       .update(schema.outreachEnrollments)
       .set({ status: "skipped", stopReason: "Skipped in review", updatedAt: new Date() })

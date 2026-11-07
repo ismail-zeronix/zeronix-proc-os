@@ -24,6 +24,16 @@
   if (window.__zeronixChat) return;
   window.__zeronixChat = true;
 
+  // search engines, SEO tools, link previews and scripted browsers: no chat at all (the server checks the same list in
+  // src/lib/webchat/qualify.ts, isBot)
+  var UA = (navigator.userAgent || "").replace(/cubot/gi, "");
+  if (
+    navigator.webdriver ||
+    UA.length < 20 ||
+    /bot\b|bot\/|crawl|spider|slurp|bingpreview|mediapartners|adsbot|google-inspectiontool|headless|lighthouse|pagespeed|gtmetrix|pingdom|uptime|monitor|facebookexternalhit|preview|phantom|selenium|puppeteer|playwright|ahrefs|semrush|yandex|baidu|bytespider|gptbot|claudebot|applebot/i.test(UA)
+  )
+    return;
+
   var script =
     document.currentScript ||
     (function () {
@@ -261,9 +271,12 @@
         return post("session", { token: token, pageUrl: location.href, pageTitle: document.title, referrer: document.referrer, visitorKey: visitorKey, client: client });
       })
       .then(function (data) {
+        // the portal took this browser for a bot: stay hidden
+        if (data.skip || !data.token) return;
         token = data.token;
         set("localStorage", TOKEN_KEY, token);
         sendContext();
+        flushEvents();
         state = data.state;
         ratingDone = !!state.rated;
         render();
@@ -567,10 +580,41 @@
     var line = root.querySelector(".typing");
     if (line) line.textContent = "";
   }
-  function pingTyping() {
-    if (!state || state.status !== "active" || Date.now() - lastTypingSent < 3000) return;
+  // the message box goes to the sales team as it is typed (at most twice a second), so they can see the question coming
+  // before Enter, and keep it if the visitor leaves without sending
+  var draftTimer = null;
+  var draftSent = "";
+  function sendDraft() {
+    if (!token || !state || state.status === "closed") return;
+    clearTimeout(draftTimer);
+    var wait = 500 - (Date.now() - lastTypingSent);
+    if (wait > 0) {
+      draftTimer = setTimeout(sendDraft, wait);
+      return;
+    }
+    if (draft === draftSent) return;
+    draftSent = draft;
     lastTypingSent = Date.now();
-    post("typing", { token: token }).catch(function () {});
+    post("typing", { token: token, text: draft.slice(0, 2000) }).catch(function () {});
+  }
+
+  // the lead form's fields as they are filled in, so someone who leaves halfway can still be reached
+  var partialTimer = null;
+  var partialSent = "";
+  function sendPartial(now) {
+    if (!token || !state || state.leadDone) return;
+    clearTimeout(partialTimer);
+    if (!now) {
+      partialTimer = setTimeout(function () {
+        sendPartial(true);
+      }, 800);
+      return;
+    }
+    var data = { token: token, name: leadDraft.name || "", email: leadDraft.email || "", phone: leadDraft.phone || "", company: leadDraft.company || "", website: leadDraft.website || "" };
+    var key = JSON.stringify(data);
+    if (key === partialSent || !(data.name || data.email || data.phone || data.company)) return;
+    partialSent = key;
+    post("partial", data).catch(function () {});
   }
 
   // ---------- actions ----------
@@ -580,6 +624,9 @@
 
   function clearComposer() {
     draft = "";
+    // the server clears its copy when the line arrives
+    draftSent = "";
+    clearTimeout(draftTimer);
     if (ui && ui.input) ui.input.value = "";
   }
 
@@ -938,13 +985,12 @@
         ui.input.value = draft;
         ui.input.addEventListener("input", function () {
           draft = ui.input.value;
+          sendDraft();
           // they started typing: ask who they are, right in the chat
           if (!state.leadDone && draft.trim() && !formOpen) {
             formOpen = true;
             render();
-            return;
           }
-          pingTyping();
         });
         ui.input.addEventListener("keydown", function (e) {
           if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
@@ -1012,6 +1058,7 @@
             onclick: function () {
               draft = q;
               if (ui.input) ui.input.value = q;
+              sendDraft();
               openForm();
             },
           }),
@@ -1027,6 +1074,15 @@
     input.value = leadDraft[name] || "";
     input.addEventListener("input", function () {
       leadDraft[name] = input.value;
+      sendPartial();
+    });
+    // browser autofill fills every field at once, often without an input event per field
+    input.addEventListener("change", function () {
+      leadDraft[name] = input.value;
+      sendPartial();
+    });
+    input.addEventListener("blur", function () {
+      sendPartial(true);
     });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
@@ -1201,6 +1257,7 @@
       if (opts.message && !draft.trim()) draft = String(opts.message).slice(0, 500);
       setOpen(true);
       if (ui && ui.input && draft) ui.input.value = draft;
+      if (draft) sendDraft();
     },
     /** Someone from sales is online now. */
     online: function () {
@@ -1208,11 +1265,87 @@
     },
   };
 
+  // ---------- what they do on the site: phone, WhatsApp and email links, downloads, copying our details ----------
+  var pendingEvents = [];
+  function track(kind, label, url) {
+    pendingEvents.push({ kind: kind, label: String(label || "").slice(0, 200), url: String(url || "").slice(0, 1000) });
+    if (pendingEvents.length > 20) pendingEvents.shift();
+    flushEvents();
+  }
+  function flushEvents() {
+    if (!token) return; // sent once the chat has started
+    while (pendingEvents.length) {
+      var body = JSON.stringify(Object.assign({ token: token }, pendingEvents.shift()));
+      // a beacon still arrives when the click leaves the page (a download, the phone app)
+      try {
+        if (navigator.sendBeacon && navigator.sendBeacon(BASE + "/api/widget/event", new Blob([body], { type: "text/plain" }))) continue;
+      } catch {
+        /* fall through */
+      }
+      fetch(BASE + "/api/widget/event", { method: "POST", body: body, headers: { "Content-Type": "text/plain;charset=UTF-8" }, keepalive: true, credentials: "omit" }).catch(function () {});
+    }
+  }
+  document.addEventListener(
+    "click",
+    function (e) {
+      // clicks inside the chat itself arrive as the widget's host element, never as a link
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a) return;
+      var href = a.getAttribute("href") || "";
+      var kind = /^tel:/i.test(href)
+        ? "call"
+        : /wa\.me\/|whatsapp\.com|^whatsapp:/i.test(href)
+          ? "whatsapp"
+          : /^mailto:/i.test(href)
+            ? "email"
+            : a.hasAttribute("download") || /\.(pdf|docx?|xlsx?|pptx?|zip|csv)(\?|#|$)/i.test(href)
+              ? "download"
+              : "";
+      if (!kind) return;
+      var text = (a.textContent || "").replace(/\s+/g, " ").trim();
+      track(kind, text || href.replace(/^(tel|mailto):/i, ""), a.href || href);
+    },
+    true,
+  );
+  document.addEventListener(
+    "copy",
+    function () {
+      var text = String(window.getSelection ? window.getSelection() : "").trim();
+      // only our phone numbers and email addresses, not any text they copy
+      if (!text || text.length > 200 || !(/@/.test(text) || /\d{7,}/.test(text.replace(/[\s()+.-]/g, "")))) return;
+      track("copy", text, location.href);
+    },
+    true,
+  );
+
   // ---------- go ----------
+  /*
+   * The chat starts (and the portal rings) only once a person moves the mouse, touches the screen or presses a key:
+   * crawlers render the page but never do. A visitor who already has a chat, or had it open, starts straight away.
+   */
+  function whenHuman(fn) {
+    if (token || open) return fn();
+    var events = ["pointermove", "pointerdown", "touchstart", "wheel", "keydown"];
+    var done = false;
+    function go() {
+      if (done) return;
+      done = true;
+      events.forEach(function (name) {
+        window.removeEventListener(name, go, true);
+      });
+      fn();
+    }
+    events.forEach(function (name) {
+      window.addEventListener(name, go, { capture: true, passive: true });
+    });
+  }
+
   function boot() {
     document.body.appendChild(host);
     render();
-    start().then(watchForPopup);
+    whenHuman(function () {
+      start().then(watchForPopup);
+    });
   }
   if (document.body) boot();
   else document.addEventListener("DOMContentLoaded", boot);

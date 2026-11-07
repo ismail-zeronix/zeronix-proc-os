@@ -15,6 +15,7 @@ import { AI_INTERVALS, FEED_INTERVALS } from "@/lib/feed/intervals";
 import { ago } from "@/lib/format";
 import { syncFeedNow } from "../procurement/suppliers/feed-actions";
 import { requeueStuckLists, runAiNow, setAiInterval, setFeedSchedule, startAi, stopAi } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 function useAction() {
   const [pending, start] = useTransition();
@@ -24,7 +25,7 @@ function useAction() {
         await fn();
         if (ok) toast.success(ok);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

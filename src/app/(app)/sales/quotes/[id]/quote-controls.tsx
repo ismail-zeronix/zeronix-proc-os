@@ -1,9 +1,10 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { salesBaseOf } from "@/lib/sales-base";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { QUOTE_STATUSES } from "@/lib/quotation";
 import { deleteQuote, setQuoteStatus, updateQuote } from "../../quote-actions";
+import { errorText } from "@/lib/user-error";
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -21,7 +23,7 @@ function useRun() {
         if (ok) toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;
@@ -81,6 +83,7 @@ export function QuoteEdit({ quoteId, validUntil, terms, locked }: { quoteId: num
 }
 
 export function DeleteQuote({ quoteId, number }: { quoteId: number; number: string }) {
+  const pathname = usePathname();
   const router = useRouter();
   const [pending, run] = useRun();
   return (
@@ -91,7 +94,7 @@ export function DeleteQuote({ quoteId, number }: { quoteId: number; number: stri
       aria-label="Delete this quote"
       title="Delete this quote"
       pending={pending}
-      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.replace("/sales/quotes"))}
+      onClick={() => confirm(`Delete quote ${number}? This cannot be undone.`) && run(() => deleteQuote(quoteId), "Quote deleted", () => router.replace(`${salesBaseOf(pathname)}/quotes`))}
     >
       <Trash2 />
     </Button>

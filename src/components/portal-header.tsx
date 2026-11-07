@@ -6,13 +6,14 @@ import { bellFor } from "@/lib/notifications";
 
 /** Server wrapper: reads who is signed in and what they may open, then renders the header. */
 export async function PortalHeader({ withSidebar = false }: { withSidebar?: boolean }) {
-  const { user, apps } = await requireAccess();
+  const { user, apps, accountant } = await requireAccess();
   const visible = visibleApps({ role: user.role, apps }).map((a) => a.key);
   const [{ punchedIn, since, closedMinutes }, hours, bell] = await Promise.all([punchState(user.id), workHours(), bellFor(user.id)]);
   return (
     <AppHeader
       user={user}
       apps={apps}
+      perms={{ accountant }}
       visible={visible}
       withSidebar={withSidebar}
       punch={{ punchedIn, since, closedMinutes, hours }}

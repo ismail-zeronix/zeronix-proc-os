@@ -10,6 +10,7 @@ import { dubaiToday } from "@/lib/dates";
 import { projectManagerSet } from "@/lib/notifications/events";
 import { checklistDue, isProjectStatus, projectStatusLabel } from "@/lib/projects";
 import { salesUsers } from "@/lib/sales-data";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 const day = z.string().trim().regex(/^(\d{4}-\d{2}-\d{2})?$/, "Pick a valid date").default("");
@@ -39,7 +40,7 @@ async function projectFor(projectId: number) {
     .from(schema.projects)
     .innerJoin(schema.deals, eq(schema.deals.id, schema.projects.dealId))
     .where(eq(schema.projects.id, z.number().int().positive().parse(projectId)));
-  if (!p) throw new Error("That project does not exist or is not assigned to you.");
+  if (!p) throw new UserError("That project does not exist or is not assigned to you.");
   await assertDeal(p.dealId);
   return { me, p };
 }
@@ -56,9 +57,9 @@ export type ProjectDetails = z.input<typeof detailsSchema>;
 
 export async function updateProjectDetails(projectId: number, input: ProjectDetails) {
   const { me, p } = await projectFor(projectId);
-  const d = detailsSchema.parse(input);
-  if (d.startDate && d.targetDate && d.targetDate < d.startDate) throw new Error("The target date is before the start date.");
-  if (d.managerId != null && !(await salesUsers()).some((u) => u.id === d.managerId)) throw new Error("That person cannot run projects.");
+  const d = parseInput(detailsSchema, input);
+  if (d.startDate && d.targetDate && d.targetDate < d.startDate) throw new UserError("The target date is before the start date.");
+  if (d.managerId != null && !(await salesUsers()).some((u) => u.id === d.managerId)) throw new UserError("That person cannot run projects.");
   const start = d.startDate || null;
   await db.transaction(async (tx) => {
     await tx
@@ -102,8 +103,8 @@ export async function updateProjectDetails(projectId: number, input: ProjectDeta
  */
 export async function setProjectStatus(projectId: number, status: string, override = false): Promise<{ openRequired?: string[] }> {
   const { me, p } = await projectFor(projectId);
-  if (!isProjectStatus(status)) throw new Error("Unknown status.");
-  if (p.stage !== "won") throw new Error("The work status can be set once the deal is won. Until then, move the deal's stage.");
+  if (!isProjectStatus(status)) throw new UserError("Unknown status.");
+  if (p.stage !== "won") throw new UserError("The work status can be set once the deal is won. Until then, move the deal's stage.");
   if (p.status === status) return {};
   const today = dubaiToday();
   let overridden: string[] = [];
@@ -114,7 +115,7 @@ export async function setProjectStatus(projectId: number, status: string, overri
       .where(and(eq(schema.tasks.relatedType, "project"), eq(schema.tasks.relatedId, p.id), eq(schema.tasks.required, true), eq(schema.tasks.status, "open")));
     if (open.length) {
       if (!override) return { openRequired: open.map((t) => t.title) };
-      if (me.role !== "admin") throw new Error("Only an admin can complete a project with required tasks still open.");
+      if (me.role !== "admin") throw new UserError("Only an admin can complete a project with required tasks still open.");
       overridden = open.map((t) => t.title);
     }
   }

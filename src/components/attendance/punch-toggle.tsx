@@ -19,6 +19,7 @@ import {
   type WorkHours,
 } from "@/lib/attendance";
 import { dubaiToday } from "@/lib/dates";
+import { errorText } from "@/lib/user-error";
 
 /** Ticks every 30 s so the "worked today" figure stays current. */
 export function useNow(every = 30_000) {
@@ -54,7 +55,7 @@ export function usePunch({ punchedIn, hours }: Pick<PunchProps, "punchedIn" | "h
         toast.success(kind === "in" ? "Punched in. Have a good day." : "Punched out.");
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

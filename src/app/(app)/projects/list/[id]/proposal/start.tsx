@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { startProposal } from "../../../proposal-actions";
+import { errorText } from "@/lib/user-error";
 
 /** A project without a proposal: pick what it starts from. */
 export function StartProposal({ projectId, typeLabel, templates }: { projectId: number; typeLabel: string; templates: { id: number; name: string; forType: boolean; blocks: number }[] }) {
@@ -18,7 +19,7 @@ export function StartProposal({ projectId, typeLabel, templates }: { projectId: 
         await startProposal(projectId, templateId);
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   };

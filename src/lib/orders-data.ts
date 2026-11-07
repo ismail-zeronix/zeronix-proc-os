@@ -5,14 +5,15 @@ import { orderVisible, type Viewer } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
 import { invoiceState, type InvoiceState } from "@/lib/invoicing";
 
-/** Money received on each invoice (voided payments do not count). */
+/** Money set against each invoice (voided or taken off does not count). */
 export async function paidByInvoice(invoiceIds: number[]): Promise<Map<number, number>> {
   if (!invoiceIds.length) return new Map();
+  const a = schema.paymentAllocations;
   const rows = await db
-    .select({ id: schema.payments.invoiceId, paid: sql<number>`coalesce(sum(${schema.payments.amount}), 0)::float` })
-    .from(schema.payments)
-    .where(and(inArray(schema.payments.invoiceId, invoiceIds), isNull(schema.payments.voidedAt)))
-    .groupBy(schema.payments.invoiceId);
+    .select({ id: a.invoiceId, paid: sql<number>`coalesce(sum(${a.amount}), 0)::float` })
+    .from(a)
+    .where(and(inArray(a.invoiceId, invoiceIds), isNull(a.voidedAt)))
+    .groupBy(a.invoiceId);
   return new Map(rows.map((r) => [r.id, r.paid]));
 }
 
@@ -72,7 +73,7 @@ export async function listOrders(v: Viewer, opts: { companyId?: number; dealId?:
     .limit(opts.limit ?? 500);
   const invs = rows.length
     ? await db
-        .select({ id: schema.invoices.id, orderId: schema.invoices.orderId, number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, dueDate: schema.invoices.dueDate })
+        .select({ id: schema.invoices.id, orderId: schema.invoices.orderId, number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, creditedTotal: schema.invoices.creditedTotal, dueDate: schema.invoices.dueDate })
         .from(schema.invoices)
         .where(and(inArray(schema.invoices.orderId, rows.map((r) => r.id)), ne(schema.invoices.status, "cancelled")))
     : [];
@@ -118,6 +119,12 @@ export async function getOrder(id: number, v: Viewer) {
     author,
     invoices: invs.map((i) => ({ ...i, state: invoiceState(i, paid.get(i.id) ?? 0, today) })),
   };
+}
+
+/** The live invoice made straight from a quote, if any (for the quote page button). */
+export async function invoiceOfQuote(quoteId: number) {
+  const [i] = await db.select({ id: schema.invoices.id, number: schema.invoices.number }).from(schema.invoices).where(and(eq(schema.invoices.quoteId, quoteId), ne(schema.invoices.status, "cancelled")));
+  return i ?? null;
 }
 
 /** The order made from a quote, if any (for the quote page button). */

@@ -140,16 +140,16 @@ export async function resolveCards(access: Access, refs: string[]): Promise<Card
       }
       case "invoice": {
         const [i] = await db
-          .select({ number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, dueDate: schema.invoices.dueDate, dealId: schema.invoices.dealId, customer: schema.invoices.customerName })
+          .select({ number: schema.invoices.number, status: schema.invoices.status, total: schema.invoices.total, creditedTotal: schema.invoices.creditedTotal, dueDate: schema.invoices.dueDate, dealId: schema.invoices.dealId, customer: schema.invoices.customerName })
           .from(schema.invoices)
           .where(eq(schema.invoices.id, id));
         if (!i) return missing(type, id);
         const finance = a.seesAll || a.finance;
         if (!finance && !(i.dealId && (await canSeeDeal(v, i.dealId)))) return restricted(type, id);
         const [paid] = await db
-          .select({ s: sql<number>`coalesce(sum(${schema.payments.amount}), 0)::float` })
-          .from(schema.payments)
-          .where(and(eq(schema.payments.invoiceId, id), isNull(schema.payments.voidedAt)));
+          .select({ s: sql<number>`coalesce(sum(${schema.paymentAllocations.amount}), 0)::float` })
+          .from(schema.paymentAllocations)
+          .where(and(eq(schema.paymentAllocations.invoiceId, id), isNull(schema.paymentAllocations.voidedAt)));
         const st = invoiceState(i, paid?.s ?? 0, today);
         return {
           ref,

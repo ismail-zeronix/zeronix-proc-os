@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { assertSafeUrl } from "@/lib/feed/fetch";
 import { syncFeed, type SyncResult } from "@/lib/feed/sync";
 import { CURRENCIES } from "@/lib/fx";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const feedSchema = z.object({
   supplierId: z.coerce.number().int().positive(),
@@ -28,7 +29,7 @@ function refresh(supplierId: number) {
 /** Saves the feed settings and reads the sheet straight away, so a wrong link shows up immediately. */
 export async function saveFeed(input: z.input<typeof feedSchema>): Promise<SyncResult> {
   await requireAdmin();
-  const data = feedSchema.parse(input);
+  const data = parseInput(feedSchema, input);
   assertSafeUrl(data.url);
 
   const [existing] = await db.select().from(schema.supplierFeeds).where(eq(schema.supplierFeeds.supplierId, data.supplierId));
@@ -52,7 +53,7 @@ export async function saveFeed(input: z.input<typeof feedSchema>): Promise<SyncR
 export async function syncFeedNow(supplierId: number): Promise<SyncResult> {
   await requireAdmin();
   const [feed] = await db.select().from(schema.supplierFeeds).where(eq(schema.supplierFeeds.supplierId, supplierId));
-  if (!feed) throw new Error("This supplier has no live feed.");
+  if (!feed) throw new UserError("This supplier has no live feed.");
   // after an error the same sheet may need to be applied again (e.g. the "sheet shrank" safety check)
   const result = await syncFeed(supplierId, { force: feed.lastStatus === "error" });
   refresh(supplierId);

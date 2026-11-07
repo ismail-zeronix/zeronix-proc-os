@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { RuleConfig, RuleDef } from "@/lib/notifications/rules";
 import { PRIORITY_DOT, PRIORITY_LABEL } from "@/lib/notifications/types";
 import { runNotifyCheck, saveNotifyRules, setDigestSender } from "./notify-actions";
+import { errorText } from "@/lib/user-error";
 
 function NumberCell({ value, onChange, suffix, disabled }: { value: number; onChange: (v: number) => void; suffix: string; disabled?: boolean }) {
   return (
@@ -53,7 +54,7 @@ export function NotifySettings({
         const r = await fn();
         toast.success(typeof ok === "string" ? ok : ok(r));
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   const unit = (r: RuleDef) => (r.mode === "date" ? "days" : r.unit === "days" ? "work days" : "work h");

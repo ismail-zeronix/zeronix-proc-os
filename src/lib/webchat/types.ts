@@ -41,7 +41,41 @@ export interface WebChatSummary {
   site: string;
   /** Visits from their browser so far (1 = first time on the site). */
   visits: number;
+  /** Before the lead form: what they typed into it (or wrote in the chat box) without sending it. */
+  partial: WebPartialLead | null;
+  /** How warm they are, from what they did on the site. */
+  heat: WebHeat;
 }
+
+/** Contact details a visitor typed but did not send (any of them may be empty). */
+export interface WebPartialLead {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+}
+
+/** hot ≥ 60 points, warm ≥ 30, cold below; the reasons say where the points came from. */
+export interface WebHeat {
+  score: number;
+  level: "hot" | "warm" | "cold";
+  reasons: string[];
+}
+
+/** business = the organisation's own network (likely their employer); isp = home or mobile internet; hosting = data centre. */
+export type WebNetworkKind = "business" | "isp" | "hosting";
+
+/** Something the visitor did on the site outside the chat: clicked a phone, WhatsApp or email link, downloaded, copied. */
+export interface WebSiteEvent {
+  kind: "call" | "whatsapp" | "email" | "download" | "copy";
+  /** The link's text or the copied text. */
+  label: string;
+  /** The link, or the page they were on. */
+  url: string;
+  at: string;
+}
+
+export const WEB_EVENT_KINDS: readonly WebSiteEvent["kind"][] = ["call", "whatsapp", "email", "download", "copy"];
 
 /** One page the visitor opened: when, how long they stayed and how far down they scrolled (sent when they leave it). */
 export interface WebPageVisit {
@@ -125,6 +159,17 @@ export interface WebVisitorInfo {
   site: string;
   /** What they were looking at when they asked (industry, product, page) from a site's "Get B2B pricing". */
   context: Record<string, string> | null;
+  /** The chat box as they left it: text typed but never sent, and when. */
+  draft: string;
+  draftAt: string | null;
+  /** Calls, WhatsApp, email clicks, downloads and copies on the site, oldest first. */
+  events: WebSiteEvent[];
+  /** What kind of network their IP is on. */
+  network: WebNetworkKind | null;
+  /** The same browser sent its details in an earlier chat (when this one has none yet). */
+  known: { chatId: number; name: string; email: string; phone: string; company: string; at: string } | null;
+  /** A company already in the CRM that matches their email, email domain or network. */
+  crm: { companyId: number; companyName: string; contactName: string | null; how: "email" | "email domain" | "network"; deals: number; orders: number } | null;
 }
 
 /** What the visitor's widget knows about their chat. */
@@ -159,8 +204,12 @@ export function webPreview(m: Pick<WebMessage, "sender" | "body">): string {
 }
 
 /** "Ahmed (Acme Trading)", or "Visitor #12" before the lead form. */
-export function visitorLabel(c: Pick<WebChatSummary, "id" | "lead">): string {
-  if (!c.lead) return `Visitor #${c.id}`;
+export function visitorLabel(c: Pick<WebChatSummary, "id" | "lead"> & { partial?: WebPartialLead | null }): string {
+  if (!c.lead) {
+    const p = c.partial;
+    const who = p && (p.name || p.email || p.phone);
+    return who ? `${who}${p.company ? ` (${p.company})` : ""}` : `Visitor #${c.id}`;
+  }
   return c.lead.company ? `${c.lead.name} (${c.lead.company})` : c.lead.name;
 }
 

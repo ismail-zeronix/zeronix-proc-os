@@ -9,7 +9,7 @@ import { logout } from "@/app/(auth)/login/actions";
 import { promptInstall, useInstallMode } from "@/components/pwa/install";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { navFor, type NavItem } from "@/lib/app-nav";
+import { navFor, type NavItem, type NavPerms } from "@/lib/app-nav";
 import { APPS, appOfPath, type AppKey, type Role } from "@/lib/apps";
 
 /**
@@ -22,16 +22,18 @@ export function MobileMenu({
   user,
   visible,
   punchedIn,
+  perms,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { name: string; email: string; role: Role };
   visible: string[];
   punchedIn: boolean;
+  perms?: NavPerms;
 }) {
   const pathname = usePathname();
   const current = appOfPath(pathname);
-  const groups = current ? navFor(current.key as AppKey) : [];
+  const groups = current ? navFor(current.key as AppKey, perms) : [];
   const switcher = APPS.filter((a) => visible.includes(a.key));
   const close = () => onOpenChange(false);
 

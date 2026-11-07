@@ -5,7 +5,7 @@
 import { addDays, round2 } from "@/lib/quotation";
 
 /** ZSO-2026-0001 style numbers for documents numbered per year inside the portal. */
-export function yearNumber(prefix: "ZSO" | "ZDN" | "ZCN" | "ZRV" | "ZBL" | "ZPV", year: number, seq: number): string {
+export function yearNumber(prefix: "ZSO" | "ZDN" | "ZCN" | "ZDB" | "ZRF" | "ZRV" | "ZBL" | "ZPV", year: number, seq: number): string {
   return `${prefix}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
@@ -55,13 +55,13 @@ export interface InvoiceState {
  * Where an invoice stands today. Overdue = something is still owed and the due date has passed (a part-paid invoice can
  * be overdue too: the label says both).
  */
-export function invoiceState(inv: { status: string; total: number; dueDate: string }, paid: number, today: string): InvoiceState {
+export function invoiceState(inv: { status: string; total: number; creditedTotal: number; dueDate: string }, paid: number, today: string): InvoiceState {
   const p = round2(paid);
-  const balance = inv.status === "cancelled" ? 0 : round2(Math.max(0, inv.total - p));
+  const balance = inv.status === "cancelled" ? 0 : round2(Math.max(0, inv.total - inv.creditedTotal - p));
   const daysToDue = daysBetween(today, inv.dueDate);
   const base = { paid: p, balance, daysOverdue: 0, daysToDue };
   if (inv.status === "cancelled") return { ...base, key: "cancelled", label: "Cancelled" };
-  if (balance <= 0) return { ...base, key: "paid", label: "Paid" };
+  if (balance <= 0) return { ...base, key: "paid", label: p > 0 ? "Paid" : "Credited" };
   if (daysToDue < 0) {
     const d = -daysToDue;
     return { ...base, key: "overdue", daysOverdue: d, label: `${p > 0 ? "Part paid, overdue" : "Overdue"} ${d} day${d === 1 ? "" : "s"}` };
@@ -105,9 +105,9 @@ export const orderStatusLabel = (k: string) => ORDER_STATUSES.find((s) => s.key 
 /** One line of a statement of account, in date order, with the running balance. */
 export interface StatementLine {
   date: string;
-  kind: "invoice" | "payment" | "credit";
+  kind: "invoice" | "payment" | "credit" | "refund";
   number: string;
-  /** What it adds to (invoice) or takes off (payment, credit note) the balance. */
+  /** What it adds to (invoice, refund of an advance) or takes off (payment, credit note) the balance. */
   debit: number;
   credit: number;
   balance: number;
@@ -119,12 +119,13 @@ export function buildStatement(
   entries: { date: string; kind: StatementLine["kind"]; number: string; amount: number; note?: string }[],
   opening = 0,
 ): { lines: StatementLine[]; closing: number } {
-  const order = { invoice: 0, credit: 1, payment: 2 } as const;
+  const order = { invoice: 0, credit: 1, payment: 2, refund: 3 } as const;
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date) || order[a.kind] - order[b.kind] || a.number.localeCompare(b.number));
   let bal = round2(opening);
   const lines = sorted.map((e) => {
-    const debit = e.kind === "invoice" ? round2(e.amount) : 0;
-    const credit = e.kind === "invoice" ? 0 : round2(e.amount);
+    const adds = e.kind === "invoice" || e.kind === "refund";
+    const debit = adds ? round2(e.amount) : 0;
+    const credit = adds ? 0 : round2(e.amount);
     bal = round2(bal + debit - credit);
     return { date: e.date, kind: e.kind, number: e.number, debit, credit, balance: bal, note: e.note };
   });

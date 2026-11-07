@@ -1,5 +1,6 @@
 import { type AddressObject, simpleParser } from "mailparser";
 import { sanitizeEmailHtml } from "./sanitize";
+import { UserError } from "@/lib/user-error";
 
 export interface MailAddr {
   name: string;
@@ -65,7 +66,7 @@ export async function parseMessage(uid: number, source: Buffer, seen: boolean, l
 export async function pickAttachment(source: Buffer, index: number) {
   const mail = await simpleParser(source);
   const a = mail.attachments[index];
-  if (!a) throw new Error("That attachment was not found.");
+  if (!a) throw new UserError("That attachment was not found.");
   return { filename: a.filename || `attachment-${index + 1}`, contentType: a.contentType || "application/octet-stream", content: a.content };
 }
 

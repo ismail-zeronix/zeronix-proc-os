@@ -9,6 +9,7 @@ import { assertDeal } from "@/lib/auth/visibility";
 import { groupBoq } from "@/lib/boq";
 import { getBrand } from "@/lib/brand";
 import { type Block, blocksSchema, cloneBlock, defaultProposal, displayCompany } from "@/lib/proposal";
+import { parseInput, UserError } from "@/lib/user-error";
 
 /**
  * The proposal of a project. The editor saves the whole document a second after the last change (autosave). Each save
@@ -36,14 +37,14 @@ async function projectFor(projectId: number) {
     .innerJoin(schema.projectTypes, eq(schema.projectTypes.key, schema.projects.typeKey))
     .innerJoin(schema.companies, eq(schema.companies.id, schema.deals.companyId))
     .where(and(eq(schema.projects.id, pid.parse(projectId)), eq(schema.deals.kind, "project")));
-  if (!p) throw new Error("That project does not exist or is not assigned to you.");
+  if (!p) throw new UserError("That project does not exist or is not assigned to you.");
   await assertDeal(p.dealId);
   return { me, p };
 }
 
 async function proposalFor(proposalId: number) {
   const [r] = await db.select({ id: schema.proposals.id, projectId: schema.proposals.projectId }).from(schema.proposals).where(eq(schema.proposals.id, pid.parse(proposalId)));
-  if (!r) throw new Error("That proposal no longer exists.");
+  if (!r) throw new UserError("That proposal no longer exists.");
   return { ...(await projectFor(r.projectId)), proposalId: r.id };
 }
 
@@ -91,7 +92,7 @@ export async function startProposal(projectId: number, templateId: number | null
   let blocks: Block[];
   if (templateId != null) {
     const [t] = await db.select({ blocks: schema.proposalTemplates.blocks }).from(schema.proposalTemplates).where(eq(schema.proposalTemplates.id, pid.parse(templateId)));
-    if (!t) throw new Error("That template no longer exists.");
+    if (!t) throw new UserError("That template no longer exists.");
     blocks = fresh(t.blocks);
   } else {
     blocks = await standardFor(p);
@@ -114,7 +115,7 @@ export type SaveResult = { ok: true; version: number; savedAt: string } | { ok: 
 /** Saves the whole document if nobody saved a newer version since \`expectedVersion\`. */
 export async function saveProposal(proposalId: number, expectedVersion: number, input: z.input<typeof saveSchema>): Promise<SaveResult> {
   const { me, proposalId: id } = await proposalFor(proposalId);
-  const d = saveSchema.parse(input);
+  const d = parseInput(saveSchema, input);
   const [row] = await db
     .update(schema.proposals)
     .set({ title: d.title, blocks: d.blocks, version: sql`${schema.proposals.version} + 1`, updatedBy: me.id, updatedAt: new Date() })
@@ -136,7 +137,7 @@ export async function applyTemplate(proposalId: number, expectedVersion: number,
   let blocks: Block[];
   if (templateId != null) {
     const [t] = await db.select({ blocks: schema.proposalTemplates.blocks }).from(schema.proposalTemplates).where(eq(schema.proposalTemplates.id, pid.parse(templateId)));
-    if (!t) throw new Error("That template no longer exists.");
+    if (!t) throw new UserError("That template no longer exists.");
     blocks = fresh(t.blocks);
   } else {
     blocks = await standardFor(p);
@@ -146,7 +147,7 @@ export async function applyTemplate(proposalId: number, expectedVersion: number,
     .set({ blocks, version: sql`${schema.proposals.version} + 1`, updatedBy: me.id, updatedAt: new Date() })
     .where(and(eq(schema.proposals.id, id), eq(schema.proposals.version, expectedVersion)))
     .returning({ version: schema.proposals.version });
-  if (!row) throw new Error("Someone changed this proposal in the meantime. Reload the page, then try again.");
+  if (!row) throw new UserError("Someone changed this proposal in the meantime. Reload the page, then try again.");
   refresh(p.id);
   return { version: row.version, blocks };
 }
@@ -154,9 +155,9 @@ export async function applyTemplate(proposalId: number, expectedVersion: number,
 /** Saves the proposal as it is now as a template, for this project's type or for every type. */
 export async function saveAsTemplate(proposalId: number, name: string, forType: boolean) {
   const { me, p, proposalId: id } = await proposalFor(proposalId);
-  const n = z.string().trim().min(2, "Give the template a name").max(100).parse(name);
+  const n = parseInput(z.string().trim().min(2, "Give the template a name").max(100), name);
   const [prop] = await db.select({ blocks: schema.proposals.blocks }).from(schema.proposals).where(eq(schema.proposals.id, id));
-  const blocks = blocksSchema.parse(prop.blocks);
+  const blocks = parseInput(blocksSchema, prop.blocks);
   await db.insert(schema.proposalTemplates).values({ name: n, typeKey: forType ? p.typeKey : null, blocks, createdBy: me.id });
   revalidatePath("/projects", "layout");
 }
@@ -166,7 +167,7 @@ export async function deleteProposalTemplate(templateId: number) {
   const me = await assertApp("projects");
   const [t] = await db.select({ createdBy: schema.proposalTemplates.createdBy }).from(schema.proposalTemplates).where(eq(schema.proposalTemplates.id, pid.parse(templateId)));
   if (!t) return;
-  if (me.role !== "admin" && t.createdBy !== me.id) throw new Error("Only the person who saved this template, or an admin, can remove it.");
+  if (me.role !== "admin" && t.createdBy !== me.id) throw new UserError("Only the person who saved this template, or an admin, can remove it.");
   await db.delete(schema.proposalTemplates).where(eq(schema.proposalTemplates.id, templateId));
   revalidatePath("/projects", "layout");
 }
@@ -179,8 +180,8 @@ const termsSchema = z.object({
 /** Keeps a terms block's text in the library, so every proposal can insert it. */
 export async function saveTermsText(input: z.input<typeof termsSchema>) {
   const me = await assertApp("projects");
-  const d = termsSchema.parse(input);
-  if (JSON.stringify(d.doc).length > 100_000) throw new Error("This text is too long for the library.");
+  const d = parseInput(termsSchema, input);
+  if (JSON.stringify(d.doc).length > 100_000) throw new UserError("This text is too long for the library.");
   const [row] = await db.insert(schema.termsLibrary).values({ title: d.title, doc: d.doc, createdBy: me.id }).returning({ id: schema.termsLibrary.id });
   revalidatePath("/projects", "layout");
   return { id: row.id };
@@ -190,7 +191,7 @@ export async function deleteTermsText(id: number) {
   const me = await assertApp("projects");
   const [t] = await db.select({ createdBy: schema.termsLibrary.createdBy }).from(schema.termsLibrary).where(eq(schema.termsLibrary.id, pid.parse(id)));
   if (!t) return;
-  if (me.role !== "admin" && t.createdBy !== me.id) throw new Error("Only the person who saved this text, or an admin, can remove it.");
+  if (me.role !== "admin" && t.createdBy !== me.id) throw new UserError("Only the person who saved this text, or an admin, can remove it.");
   await db.delete(schema.termsLibrary).where(eq(schema.termsLibrary.id, id));
   revalidatePath("/projects", "layout");
 }

@@ -1,11 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
 import { companyVisible, dealVisible, type Viewer } from "@/lib/auth/visibility";
-import { temperature, type Checks, type StageKey, type Temperature } from "@/lib/sales";
+import { normName, temperature, type Checks, type StageKey, type Temperature } from "@/lib/sales";
 
 const owner = alias(schema.users, "owner");
 
@@ -420,5 +420,17 @@ export async function salesPeople() {
     .from(schema.users)
     .where(eq(schema.users.isActive, true))
     .orderBy(asc(schema.users.name));
-  return rows.filter((u) => allowedApps(u).includes("sales")).map((u) => ({ id: u.id, name: u.name }));
+  // Accounts can make quotes too, in their own name
+  return rows.filter((u) => allowedApps(u).includes("sales") || allowedApps(u).includes("accounts")).map((u) => ({ id: u.id, name: u.name }));
+}
+
+/** A company with the same name (ignoring case and punctuation), to stop the same customer being added twice. */
+export async function duplicateCompany(name: string, exceptId?: number) {
+  const norm = normName(name);
+  if (!norm) return null;
+  const [dup] = await db
+    .select({ id: schema.companies.id, name: schema.companies.name })
+    .from(schema.companies)
+    .where(and(eq(schema.companies.nameNorm, norm), exceptId ? ne(schema.companies.id, exceptId) : undefined));
+  return dup ?? null;
 }

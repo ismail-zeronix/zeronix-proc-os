@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Brand } from "@/lib/signature";
 import { saveMyProfile } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 /** The user's own signature details, with a live preview in the company style. */
 export function SignatureCard({
@@ -31,7 +32,7 @@ export function SignatureCard({
         await saveMyProfile(f);
         toast.success("Signature saved");
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return (

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { billState, billTotals, categoryLabel, isCategory } from "@/lib/purchases";
+import { billState, billTax, categoryLabel, isCategory } from "@/lib/purchases";
 
 let cookieValue: string | undefined;
 vi.mock("server-only", () => ({}));
@@ -18,13 +18,13 @@ vi.mock("next/navigation", () => ({
 
 describe("purchase rules", () => {
   it("adds up lines and VAT, and takes the supplier's VAT figure when given", () => {
-    expect(billTotals([{ qty: 2, unitCost: 100 }, { qty: 1, unitCost: 50.5 }], 5)).toEqual({ subtotal: 250.5, vatAmount: 12.53, total: 263.03 });
-    expect(billTotals([{ qty: 2, unitCost: 100 }, { qty: 1, unitCost: 50.5 }], 5, 12.52)).toEqual({ subtotal: 250.5, vatAmount: 12.52, total: 263.02 });
-    expect(billTotals([{ qty: 3, unitCost: 10 }], 0)).toEqual({ subtotal: 30, vatAmount: 0, total: 30 });
+    expect(billTax([{ qty: 2, unitCost: 100, taxCode: "SR" }, { qty: 1, unitCost: 50.5, taxCode: "SR" }])).toMatchObject({ subtotal: 250.5, vat: 12.53, total: 263.03 });
+    expect(billTax([{ qty: 2, unitCost: 100, taxCode: "SR" }, { qty: 1, unitCost: 50.5, taxCode: "SR" }], 12.52)).toMatchObject({ subtotal: 250.5, vat: 12.52, total: 263.02 });
+    expect(billTax([{ qty: 3, unitCost: 10, taxCode: "OS" }])).toMatchObject({ subtotal: 30, vat: 0, total: 30 });
   });
 
   it("reads a bill like an invoice: due, part paid, overdue, paid, void", () => {
-    const b = { status: "open", total: 1000, dueDate: "2026-11-10" };
+    const b = { status: "open", total: 1000, creditedTotal: 0, dueDate: "2026-11-10" };
     expect(billState(b, 0, "2026-11-01").label).toBe("Due in 9 days");
     expect(billState(b, 400, "2026-11-01")).toMatchObject({ key: "part", balance: 600 });
     expect(billState(b, 0, "2026-11-15")).toMatchObject({ key: "overdue", daysOverdue: 5 });
@@ -84,7 +84,8 @@ describe.skipIf(!live)("purchases (needs the dev database)", () => {
     const bills = await db.select({ id: schema.bills.id }).from(schema.bills).where(or(eq(schema.bills.supplierId, supplierId), like(schema.bills.paidTo, `${tag}%`)));
     const ids = bills.map((b) => b.id);
     if (ids.length) {
-      await db.delete(schema.supplierPayments).where(inArray(schema.supplierPayments.billId, ids));
+      const pays = await db.delete(schema.supplierPaymentAllocations).where(inArray(schema.supplierPaymentAllocations.billId, ids)).returning({ id: schema.supplierPaymentAllocations.paymentId });
+      if (pays.length) await db.delete(schema.supplierPayments).where(inArray(schema.supplierPayments.id, pays.map((p) => p.id)));
       await db.delete(schema.bills).where(inArray(schema.bills.id, ids));
     }
     await db.delete(schema.suppliers).where(like(schema.suppliers.name, `${tag}%`));
@@ -119,7 +120,7 @@ describe.skipIf(!live)("purchases (needs the dev database)", () => {
     await expect(P.recordSupplierPayment(b.id, { paidOn: today, amount: 100, method: "bank" })).rejects.toThrow(/bank reference/);
     const p2 = await P.recordSupplierPayment(b.id, { paidOn: today, amount: 450, method: "bank", reference: "FT123" });
     expect(p2.fullyPaid).toBe(true);
-    await expect(P.voidBill(b.id, "Wrong supplier")).rejects.toThrow(/Void them first/);
+    await expect(P.voidBill(b.id, "Wrong supplier")).rejects.toThrow(/Void them or take them off/);
     await P.voidSupplierPayment(p2.id, "Typed twice");
     expect((await PD.getBill(b.id))!.state).toMatchObject({ key: "part", balance: 450 });
   });

@@ -13,6 +13,7 @@ import { dayLabel, dubaiToday } from "@/lib/dates";
 import { CHECKLIST_GROUPS } from "@/lib/projects";
 import type { ChecklistTask } from "@/lib/projects-data";
 import { addChecklistTask, addTypeChecklist, deleteChecklistTask, moveChecklistTask, setChecklistDone, updateChecklistTask } from "../../checklist-actions";
+import { errorText } from "@/lib/user-error";
 
 type Person = { id: number; name: string };
 
@@ -25,7 +26,7 @@ function useRun() {
         if (ok) toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

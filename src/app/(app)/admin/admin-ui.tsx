@@ -18,9 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UserAvatar } from "@/components/user-avatar";
 import { allowedApps, GRANTABLE_APPS, type AppDef } from "@/lib/apps";
 import { Textarea } from "@/components/ui/textarea";
-import { invoiceNumber, termsLabel, TERMS_OPTIONS } from "@/lib/invoicing";
 import { QUOTE_EMAIL_FIELDS } from "@/lib/quote-email";
-import { createUser, saveDocumentSettings, saveQuoteSettings, saveSettings, saveWorkHours, updateUser } from "./actions";
+import { createUser, saveQuoteSettings, saveSettings, saveWorkHours, updateUser } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 function useAction() {
   const [pending, start] = useTransition();
@@ -30,7 +30,7 @@ function useAction() {
         await fn();
         toast.success(ok);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;
@@ -212,6 +212,8 @@ interface UserRow {
   apps: string[] | null;
   /** Which sales records they see: their own deals, or everyone's. */
   dataScope: "own" | "all";
+  /** Journals, chart of accounts, reconciliation, VAT filing and the lock date in Accounts. */
+  isAccountant: boolean;
   jobTitle: string;
 }
 
@@ -220,8 +222,9 @@ function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; r
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(user.apps !== null);
   const [picked, setPicked] = useState<string[]>(user.apps ?? allowedApps({ role: user.role }));
+  const [accountant, setAccountant] = useState(user.isAccountant);
   if (user.role === "admin") return <span className="text-sm text-muted-foreground">All apps</span>;
-  const count = user.apps === null ? "Role defaults" : `${user.apps.length} app${user.apps.length === 1 ? "" : "s"}`;
+  const count = (user.apps === null ? "Role defaults" : `${user.apps.length} app${user.apps.length === 1 ? "" : "s"}`) + (user.isAccountant ? " · Accountant" : "");
   const toggle = (key: string, on: boolean) => setPicked(on ? [...picked, key] : picked.filter((k) => k !== key));
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -245,10 +248,27 @@ function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; r
             </label>
           ))}
         </div>
+        {(() => {
+          const hasAccounts = custom ? picked.includes("accounts") : allowedApps({ role: user.role }).includes("accounts");
+          return (
+            <label
+              className="flex items-start gap-2 border-t pt-2 text-sm aria-disabled:opacity-50"
+              aria-disabled={!hasAccounts}
+              title="Journals, chart of accounts, bank reconciliation, VAT returns and the lock date. Needs the Accounts app."
+            >
+              <Checkbox className="mt-0.5" disabled={!hasAccounts} checked={hasAccounts && accountant} onCheckedChange={(v) => setAccountant(!!v)} />
+              <span className="grid leading-tight">
+                Accountant
+                <span className="text-xs text-muted-foreground">Journals, reconciliation, VAT filing, lock date</span>
+              </span>
+            </label>
+          );
+        })()}
         <Button
           size="sm"
           onClick={() => {
-            run(() => updateUser(user.id, { apps: custom ? picked : null }), "Apps saved");
+            const hasAccounts = custom ? picked.includes("accounts") : allowedApps({ role: user.role }).includes("accounts");
+            run(() => updateUser(user.id, { apps: custom ? picked : null, isAccountant: hasAccounts && accountant }), "Apps saved");
             setOpen(false);
           }}
         >
@@ -329,7 +349,7 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
                     </NativeSelect>
                   </TableCell>
                   <TableCell className="hidden py-1.5 md:table-cell">
-                    <UserApps key={`${u.id}-${u.role}-${u.apps?.join(",") ?? "-"}`} user={u} disabled={pending} run={run} />
+                    <UserApps key={`${u.id}-${u.role}-${u.apps?.join(",") ?? "-"}-${u.isAccountant}`} user={u} disabled={pending} run={run} />
                   </TableCell>
                   <TableCell className="hidden py-1.5 md:table-cell">
                     {u.role === "admin" ? (
@@ -518,90 +538,6 @@ export function WorkHoursSettings({
         </div>
         <div>
           <Button pending={pending} onClick={() => run(() => saveWorkHours({ ...f, work_off_days: off }), "Work hours saved")}>
-            Save
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-type DocSettings = {
-  quote_trn: string;
-  invoice_prefix: string;
-  invoice_next_number: string;
-  invoice_digits: string;
-  default_terms_days: string;
-  bank_name: string;
-  bank_account_name: string;
-  bank_account_number: string;
-  bank_iban: string;
-  bank_swift: string;
-};
-
-/** Our TRN and bank details (printed on invoices), the invoice number series and the default credit terms. */
-export function DocumentSettings({ settings, lastIssued }: { settings: DocSettings; lastIssued: string | null }) {
-  const [f, setF] = useState<DocSettings>(settings);
-  const [pending, run] = useAction();
-  const set = (k: keyof DocSettings) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const preview = invoiceNumber(f.invoice_prefix, Math.max(1, Number(f.invoice_next_number) || 1), Number(f.invoice_digits) || 5);
-  const field = (k: keyof DocSettings, label: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`doc-${k}`}>{label}</Label>
-      <Input id={`doc-${k}`} value={f[k]} onChange={set(k)} {...extra} />
-    </div>
-  );
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Documents</CardTitle>
-        <CardDescription>Printed on quotes, proformas and tax invoices. Company name, address and logo come from Email branding.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-5">
-        <section className="grid gap-3">
-          <h3 className="text-sm font-medium">Tax invoice numbers</h3>
-          <div className="grid max-w-3xl gap-4 sm:grid-cols-4">
-            {field("invoice_prefix", "Prefix", { placeholder: "INV-" })}
-            {field("invoice_next_number", "Next number", { type: "number", min: 1 })}
-            {field("invoice_digits", "Digits", { type: "number", min: 1, max: 10 })}
-            <div className="grid gap-1.5">
-              <span className="text-sm font-medium">Next invoice</span>
-              <span className="flex h-8 items-center font-mono text-sm">{preview}</span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            To continue from Zoho, set the next number to the one after your last Zoho invoice and match its prefix and digits.
-            {lastIssued ? ` Last invoice issued in the portal: ${lastIssued}.` : " No invoice has been issued in the portal yet."}
-          </p>
-        </section>
-        <section className="grid gap-3">
-          <h3 className="text-sm font-medium">Tax and credit terms</h3>
-          <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
-            {field("quote_trn", "Our TRN (tax registration number)", { placeholder: "100XXXXXXXXXXX3" })}
-            <div className="grid gap-1.5">
-              <Label htmlFor="doc-terms">Default credit terms for new orders</Label>
-              <NativeSelect id="doc-terms" value={f.default_terms_days} onChange={set("default_terms_days")}>
-                {TERMS_OPTIONS.map((t) => (
-                  <NativeSelectOption key={t} value={String(t)}>
-                    {termsLabel(t)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-          </div>
-        </section>
-        <section className="grid gap-3">
-          <h3 className="text-sm font-medium">Bank details for payment</h3>
-          <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
-            {field("bank_account_name", "Account name", { placeholder: "Zeronix Technology LLC" })}
-            {field("bank_name", "Bank", { placeholder: "e.g. Emirates NBD" })}
-            {field("bank_account_number", "Account number")}
-            {field("bank_iban", "IBAN", { placeholder: "AE07 0331 2345 6789 0123 456" })}
-            {field("bank_swift", "SWIFT / BIC")}
-          </div>
-        </section>
-        <div>
-          <Button pending={pending} onClick={() => run(() => saveDocumentSettings(f), "Document settings saved")}>
             Save
           </Button>
         </div>

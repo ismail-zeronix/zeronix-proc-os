@@ -1,5 +1,6 @@
 import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, safeColor, TotalsBlock, zebra } from "@/components/doc-parts";
 import { lineTotal, round2 } from "@/lib/quotation";
+import { chargedRate, taxCodeLabel } from "@/lib/tax/doc-tax";
 import { aedInWords } from "@/lib/words";
 
 export interface BankDetails {
@@ -13,13 +14,15 @@ export interface BankDetails {
 export interface SalesDocData {
   /** "TAX INVOICE", "PROFORMA INVOICE", "DELIVERY NOTE", "TAX CREDIT NOTE" */
   title: string;
+  /** Who it is addressed to, when not "Bill to". */
+  partyLabel?: string;
   number: string;
   /** Label / value pairs under the number: dates, PO, terms... */
   meta: [string, string][];
   to: { name: string; lines: string[]; trn?: string };
   /** Second address block, e.g. "Deliver to". */
   shipTo?: { label: string; lines: string[] };
-  items: { id: number; description: string; qty: number; unitPrice: number }[];
+  items: { id: number; description: string; qty: number; unitPrice: number; taxCode?: string }[];
   /** Delivery notes show quantities only. */
   showPrices: boolean;
   /** Tax invoices and credit notes show the VAT rate and amount on every line. */
@@ -28,6 +31,8 @@ export interface SalesDocData {
   subtotal: number;
   vatAmount: number;
   total: number;
+  /** A money document with no VAT on it: leaves the VAT row out. */
+  noVat?: boolean;
   /** Printed under the totals in words. */
   amountInWords?: boolean;
   notes?: string[];
@@ -53,6 +58,14 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
     ...(d.showPrices ? [{ label: "Rate (AED)", className: "w-22 text-right" }, { label: d.vatPerLine ? "Taxable (AED)" : "Amount (AED)", className: "w-26 text-right" }] : []),
     ...(d.showPrices && d.vatPerLine ? [{ label: "VAT %", className: "w-14 text-right" }, { label: "VAT (AED)", className: "w-22 text-right" }] : []),
   ];
+  // documents saved before line codes, and order documents, carry one rate
+  const rateOf = (i: SalesDocData["items"][number]) => (i.taxCode ? chargedRate(i.taxCode) : d.vatPct);
+  const codes = [...new Set(d.items.map((i) => i.taxCode).filter((c): c is string => !!c))];
+  // more than one VAT code: the amount under each, as a tax invoice must show
+  const byCode: [string, string][] =
+    codes.length > 1 ? codes.map((c) => [`${taxCodeLabel(c)} on ${amt(round2(d.items.filter((i) => i.taxCode === c).reduce((s, i) => s + lineTotal(i), 0)))}`, amt(c === "SR" ? d.vatAmount : 0)]) : [];
+  const single = codes.length === 1 ? codes[0] : null;
+  const vatLabel = single === "EX" ? "Exempt from VAT" : single === "OS" ? "Outside the scope of VAT" : d.vatPct > 0 ? `VAT (${d.vatPct}%)` : "VAT 0% (zero-rated)";
   const notes = d.notes && d.notes.length > 0 ? <NumberedList label="Notes" items={d.notes} accent={accent} /> : null;
   const bankBox = bank && (
     <div className="rounded-lg border border-neutral-200 px-3.5 py-2.5 break-inside-avoid">
@@ -84,7 +97,7 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
       <MetaStrip items={d.meta} />
 
       <Parties count={d.shipTo ? 2 : 1}>
-        <Party primary accent={accent} label={d.title.includes("DELIVERY") ? "Customer" : "Bill to"} name={d.to.name} lines={[...d.to.lines, d.to.trn ? `TRN: ${d.to.trn}` : ""]} />
+        <Party primary accent={accent} label={d.partyLabel ?? (d.title.includes("DELIVERY") ? "Customer" : "Bill to")} name={d.to.name} lines={[...d.to.lines, d.to.trn ? `TRN: ${d.to.trn}` : ""]} />
         {d.shipTo && <Party accent={accent} label={d.shipTo.label} lines={d.shipTo.lines} />}
       </Parties>
 
@@ -98,8 +111,8 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
               <td className={`${cell} text-right whitespace-nowrap tabular-nums`}>{i.qty}</td>
               {d.showPrices && <td className={`${cell} text-right tabular-nums`}>{amt(i.unitPrice)}</td>}
               {d.showPrices && <td className={`${cell} text-right font-semibold text-neutral-900 tabular-nums`}>{amt(amount)}</td>}
-              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{d.vatPct}%</td>}
-              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{amt(round2((amount * d.vatPct) / 100))}</td>}
+              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{i.taxCode === "EX" ? "Exempt" : i.taxCode === "OS" ? "N/A" : `${rateOf(i)}%`}</td>}
+              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{amt(round2((amount * rateOf(i)) / 100))}</td>}
             </tr>
           );
         })}
@@ -118,8 +131,8 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
           words={d.amountInWords ? aedInWords(d.total) : undefined}
           total={amt(d.total)}
           rows={[
-            ["Total excluding VAT", amt(d.subtotal)],
-            [d.vatPct > 0 ? `VAT (${d.vatPct}%)` : "VAT 0% (zero-rated)", amt(d.vatAmount)],
+            ...(d.noVat ? [] : [["Total excluding VAT", amt(d.subtotal)] as [string, string]]),
+            ...(d.noVat ? [] : byCode.length ? byCode : [[vatLabel, amt(d.vatAmount)] as [string, string]]),
           ]}
         >
           {/* notes and bank details sit beside the totals, where the customer looks when paying */}

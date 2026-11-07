@@ -1,50 +1,45 @@
-import { HBarPanel } from "@/components/charts/hbar-panel";
-import { InvoiceTable } from "@/components/invoice-table";
-import { PageToolbar } from "@/components/page-toolbar";
-import { StatStrip } from "@/components/stat-strip";
-import { receivables } from "@/lib/accounts-data";
+import { Suspense } from "react";
+import { DashboardBoard } from "@/components/dashboard/board";
+import { Widget, WidgetSkeleton } from "@/components/dashboard/widgets";
+import { Segmented } from "@/components/segmented";
+import { dashboardLayout } from "@/lib/accounts-dashboard";
 import { requireApp } from "@/lib/auth/session";
-import { money } from "@/lib/quotation";
+import { dubaiToday } from "@/lib/dates";
+import { currentOrgId } from "@/lib/org";
+import { periodRange } from "@/lib/reports";
+import { param } from "@/lib/sales-base";
 
 export const metadata = { title: "Accounts · Zeronix" };
 
-/** Money owed today: totals, how late it is, and the open invoices with the most overdue first. */
-export default async function AccountsOverview() {
+const PERIODS = [
+  { key: "this-month", label: "This month" },
+  { key: "last-month", label: "Last month" },
+  { key: "this-quarter", label: "This quarter" },
+  { key: "this-year", label: "This year" },
+  { key: "last-year", label: "Last year" },
+];
 
-  await requireApp("accounts");
-  const r = await receivables();
-  const overdueCount = r.open.filter((i) => i.state.key === "overdue").length;
-  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+/** The Accounts overview: each person's own arrangement of ready-made widgets, for the period picked at the top. */
+export default async function AccountsOverview({ searchParams }: PageProps<"/accounts">) {
+  const access = await requireApp("accounts");
+  const asked = param((await searchParams).period) ?? "";
+  const period = periodRange(PERIODS.some((p) => p.key === asked) ? asked : "this-month", dubaiToday());
+  const [layout, orgId] = await Promise.all([dashboardLayout(access.user.id, access.accountant), currentOrgId()]);
+  const context = { access, orgId, period };
+  const slots = Object.fromEntries(
+    layout.map((p) => [
+      p.id,
+      <Suspense key={p.id} fallback={<WidgetSkeleton id={p.id} />}>
+        <Widget id={p.id} context={context} />
+      </Suspense>,
+    ]),
+  );
   return (
-    <div className="grid gap-3">
-      <PageToolbar title="Money owed" meta={`${plural(r.open.length, "open invoice")}`} />
-      <StatStrip
-        items={[
-          { label: "Customers owe", value: money(r.owed), hint: `${plural(r.open.length, "invoice")} not fully paid` },
-          { label: "Overdue", value: money(r.overdue), hint: overdueCount ? `${plural(overdueCount, "invoice")} past the due date` : "nothing late" },
-          { label: "Due in the next 7 days", value: money(r.dueSoon) },
-          { label: "Collected this month", value: money(r.collectedThisMonth) },
-        ]}
-      />
-      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <InvoiceTable rows={r.open} empty="Nothing owed. Every invoice is paid." />
-        <HBarPanel
-          title="How late"
-          hint="Unpaid amounts by days past the due date"
-          color="var(--series-2)"
-          views={[
-            {
-              key: "amount",
-              label: "Amount",
-              format: "aed",
-              unit: "AED owed",
-              empty: "Nothing owed.",
-              data: r.buckets.map((b) => ({ label: b.label, value: b.amount, note: plural(b.count, "invoice") })),
-            },
-            { key: "count", label: "Invoices", format: "count", unit: "invoices", empty: "Nothing owed.", data: r.buckets.map((b) => ({ label: b.label, value: b.count })) },
-          ]}
-        />
-      </div>
-    </div>
+    <DashboardBoard
+      initial={layout}
+      slots={slots}
+      accountant={access.accountant}
+      toolbar={<Segmented items={PERIODS.map((p) => ({ href: p.key === "this-month" ? "/accounts" : `/accounts?period=${p.key}`, label: p.label, title: p.label, active: period.key === p.key }))} />}
+    />
   );
 }

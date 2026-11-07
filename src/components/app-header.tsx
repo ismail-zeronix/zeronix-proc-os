@@ -7,6 +7,7 @@ import { logout } from "@/app/(auth)/login/actions";
 import { HeaderClock } from "@/components/attendance/header-clock";
 import type { PunchProps } from "@/components/attendance/punch-toggle";
 import { GlobalSearch } from "@/components/global-search";
+import { NewMenu } from "@/components/new-menu";
 import { NotificationBell } from "@/components/notifications/bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { QuickAddTask } from "@/components/task-ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { navFor } from "@/lib/app-nav";
+import { navFor, type NavPerms } from "@/lib/app-nav";
 import { APPS, appOfPath, type AppKey, type Role } from "@/lib/apps";
 import type { BellData } from "@/lib/notifications/types";
 
@@ -37,6 +38,7 @@ import type { BellData } from "@/lib/notifications/types";
 export function AppHeader({
   user,
   apps,
+  perms,
   visible,
   withSidebar = false,
   punch,
@@ -45,6 +47,8 @@ export function AppHeader({
   user: { name: string; email: string; role: Role };
   /** Every app the user may open (drives search). */
   apps: AppKey[];
+  /** Extra permissions (Accountant) for the pages search offers. */
+  perms?: NavPerms;
   /** Apps shown in the switcher, in order. */
   visible: string[];
   withSidebar?: boolean;
@@ -54,7 +58,8 @@ export function AppHeader({
   bell?: BellData;
 }) {
   const switcher = APPS.filter((a) => visible.includes(a.key));
-  const title = pageTitle(usePathname());
+  const pathname = usePathname();
+  const title = pageTitle(pathname);
   return (
     <header className="sticky top-0 z-10 flex h-(--header-h) items-center gap-1 border-b bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur sm:gap-2 sm:px-3">
       {withSidebar && <SidebarTrigger className="max-md:hidden" />}
@@ -108,8 +113,9 @@ export function AppHeader({
         </PopoverContent>
       </Popover>
 
-      <GlobalSearch apps={apps} />
+      <GlobalSearch apps={apps} perms={perms} />
       <div className="flex-1" />
+      {pathname.startsWith("/accounts") && <NewMenu />}
       {punch && <HeaderClock {...punch} />}
       {apps.includes("tasks") && (
         <span className="contents max-md:hidden">
@@ -162,7 +168,7 @@ function pageTitle(pathname: string): string {
   const app = appOfPath(pathname);
   if (!app) return "Zeronix";
   const under = (base: string) => pathname.startsWith(base + "/");
-  const item = navFor(app.key as AppKey)
+  const item = navFor(app.key as AppKey, { accountant: true })
     .flatMap((g) => g.items)
     .find((n) => pathname === n.href || (!n.exact && under(n.href)) || !!n.also?.some(under));
   return item && !item.exact ? item.label : app.label;

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_ATTACHMENT_BYTES, MAX_FILES, MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/mail/compose";
 import type { Brand, Person } from "@/lib/signature";
+import { errorText } from "@/lib/user-error";
 
 const sizeLabel = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const TITLES = { new: "New email", reply: "Reply", replyall: "Reply all", forward: "Forward" } as const;
@@ -79,7 +80,7 @@ export function ComposeForm({
       qc.invalidateQueries({ queryKey: ["mail-list"] });
       goBack();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
       setSending(false);
     }
   };

@@ -1,0 +1,1 @@
+ALTER TABLE "accounting_settings" ADD COLUMN "account_map" jsonb DEFAULT '{}'::jsonb NOT NULL;

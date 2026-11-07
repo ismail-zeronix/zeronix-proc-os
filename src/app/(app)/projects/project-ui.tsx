@@ -10,6 +10,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_STATUSES } from "@/lib/projects";
 import { setProjectStatus, updateProjectDetails } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -19,7 +20,7 @@ function useRun() {
         await fn();
         if (ok) toast.success(ok);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

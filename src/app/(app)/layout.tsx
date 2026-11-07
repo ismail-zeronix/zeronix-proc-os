@@ -1,5 +1,6 @@
 import { PunchGate } from "@/components/attendance/punch-gate";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { ExportWatcher } from "@/components/export-button";
 import { MobileNav } from "@/components/mobile-nav";
 import { punchState } from "@/lib/attendance-data";
 import { visibleApps } from "@/lib/apps";
@@ -11,15 +12,16 @@ import { requireAccess } from "@/lib/auth/session";
  * (Home, Chat, Tasks, Alerts, Menu) takes its place.
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const { user, apps } = await requireAccess();
+  const { user, apps, accountant } = await requireAccess();
   const { punchedIn } = await punchState(user.id);
   const visible = visibleApps({ role: user.role, apps }).map((a) => a.key);
   return (
     <>
       <PunchGate locked={!punchedIn} />
+      <ExportWatcher />
       {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}
       {children}
-      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} />
+      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} perms={{ accountant }} />
     </>
   );
 }

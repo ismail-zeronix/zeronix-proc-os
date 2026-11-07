@@ -41,6 +41,7 @@ export function listUsers() {
       isActive: schema.users.isActive,
       apps: schema.users.apps,
       dataScope: schema.users.dataScope,
+      isAccountant: schema.users.isAccountant,
       jobTitle: schema.users.jobTitle,
       createdAt: schema.users.createdAt,
     })

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { changeMyPassword } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 /** Change your own password: current one first, new one twice. */
 export function PasswordForm() {
@@ -27,7 +28,7 @@ export function PasswordForm() {
             setF(blank);
             toast.success("Password changed. Use the new one next time you sign in.");
           } catch (err) {
-            toast.error((err as Error).message);
+            toast.error(errorText(err));
           }
         });
       }}

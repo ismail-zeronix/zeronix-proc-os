@@ -14,6 +14,7 @@ import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { rescoreIn } from "@/lib/prospecting/rescore";
 import { latestResearch, queueResearch, researchQueue, RUNNING, stopQueuedResearch, type ResearchQueue } from "@/lib/prospecting/research";
 import { normName } from "@/lib/sales";
+import { parseInput } from "@/lib/user-error";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 const id = z.number().int().positive();
@@ -95,7 +96,7 @@ function columns(d: z.output<typeof prospectSchema>) {
 export async function createProspect(input: ProspectInput & { sourceKey?: string }) {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const d = prospectSchema.parse(input);
+    const d = parseInput(prospectSchema, input);
     const cols = columns(d);
     const dup = await duplicateOf(d.name, cols.domain ?? "");
     if (dup) throw new Problem(`"${dup.name}" is already in the list. Open it instead of adding it twice.`);
@@ -115,7 +116,7 @@ export async function updateProspect(companyId: number, input: ProspectInput) {
   return attempt(async () => {
     await assertApp("prospecting");
     await mustExist(companyId);
-    const d = prospectSchema.parse(input);
+    const d = parseInput(prospectSchema, input);
     const cols = columns(d);
     const dup = await duplicateOf(d.name, cols.domain ?? "", companyId);
     if (dup) throw new Problem(`"${dup.name}" already has this name or website. Two prospects cannot be the same company.`);
@@ -147,8 +148,8 @@ const statusSchema = z.object({
 export async function setProspectStatus(ids: number[], input: z.input<typeof statusSchema>) {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const list = z.array(id).min(1).max(1000).parse(ids);
-    const d = statusSchema.parse(input);
+    const list = parseInput(z.array(id).min(1).max(1000), ids);
+    const d = parseInput(statusSchema, input);
     if (d.status === "disqualified" && !DISQUALIFY_REASONS.includes(d.reason as (typeof DISQUALIFY_REASONS)[number])) throw new Problem("Pick why it is disqualified");
     if (d.status === "not_now" && (!d.snoozeUntil || d.snoozeUntil <= dubaiToday())) throw new Problem("Pick a date in the future to look again");
     const rows = await db
@@ -172,7 +173,7 @@ export async function setProspectStatus(ids: number[], input: z.input<typeof sta
 export async function setProspectOwner(ids: number[], ownerId: number | null) {
   return attempt(async () => {
     await assertApp("prospecting");
-    const list = z.array(id).min(1).max(1000).parse(ids);
+    const list = parseInput(z.array(id).min(1).max(1000), ids);
     await db.update(schema.prospectCompanies).set({ ownerId: ownerId ? id.parse(ownerId) : null, updatedAt: new Date() }).where(inArray(schema.prospectCompanies.id, list));
     refresh();
   });
@@ -183,7 +184,7 @@ export async function savePersonalLine(companyId: number, line: string) {
   return attempt(async () => {
     await assertApp("prospecting");
     await mustExist(companyId);
-    const v = z.string().trim().max(400, "Keep the personal line under 400 characters").parse(line);
+    const v = parseInput(z.string().trim().max(400, "Keep the personal line under 400 characters"), line);
     await db.update(schema.prospectCompanies).set({ personalLine: v, updatedAt: new Date() }).where(eq(schema.prospectCompanies.id, companyId));
     refresh();
   });
@@ -224,7 +225,7 @@ export async function addPerson(companyId: number, input: PersonInput) {
   return attempt(async () => {
     const me = await assertApp("prospecting");
     await mustExist(companyId);
-    const d = personSchema.parse(input);
+    const d = parseInput(personSchema, input);
     const n = await db.$count(schema.prospectPeople, eq(schema.prospectPeople.companyId, companyId));
     const [row] = await db
       .insert(schema.prospectPeople)
@@ -240,7 +241,7 @@ export async function addPerson(companyId: number, input: PersonInput) {
 export async function updatePerson(personId: number, input: PersonInput) {
   return attempt(async () => {
     await assertApp("prospecting");
-    const d = personSchema.parse(input);
+    const d = parseInput(personSchema, input);
     const [row] = await db.update(schema.prospectPeople).set(d).where(eq(schema.prospectPeople.id, personId)).returning({ companyId: schema.prospectPeople.companyId });
     if (!row) throw new Problem("That person no longer exists.");
     if (d.isPrimary) await onlyPrimary(row.companyId, personId);
@@ -272,7 +273,7 @@ export async function addSignal(companyId: number, input: SignalInput) {
   return attempt(async () => {
     const me = await assertApp("prospecting");
     await mustExist(companyId);
-    const d = signalSchema.parse(input);
+    const d = parseInput(signalSchema, input);
     if (d.observedOn > dubaiToday()) throw new Problem("The date cannot be in the future");
     await db.insert(schema.prospectSignals).values({ ...d, companyId, createdBy: me.id });
     await log(companyId, me.id, "research", `Signal: ${d.detail}`);
@@ -313,7 +314,7 @@ export interface ImportResult {
 export async function commitImport(input: z.input<typeof importSchema>): Promise<Result<ImportResult>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const d = importSchema.parse(input);
+    const d = parseInput(importSchema, input);
     const map = d.mapping as ImportMapping;
     if (map.name === undefined || map.name < 0) throw new Problem("Choose which column has the company name");
     const [src] = await db.select({ id: schema.prospectSources.id }).from(schema.prospectSources).where(eq(schema.prospectSources.key, d.sourceKey || "file_import"));
@@ -398,9 +399,9 @@ export async function commitImport(input: z.input<typeof importSchema>): Promise
 export async function addSuppression(input: { value: string; reason?: string; note?: string }) {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const raw = z.string().trim().toLowerCase().min(3, "Enter an email or a domain").max(254).parse(input.value);
-    const reason = z.enum(SUPPRESSION_REASONS).default("manual").parse(input.reason || undefined);
-    const note = text(300).parse(input.note ?? "");
+    const raw = parseInput(z.string().trim().toLowerCase().min(3, "Enter an email or a domain").max(254), input.value);
+    const reason = parseInput(z.enum(SUPPRESSION_REASONS).default("manual"), input.reason || undefined);
+    const note = parseInput(text(300), input.note ?? "");
     let value: string;
     let kind: "email" | "domain";
     if (raw.includes("@") && !raw.includes("/")) {
@@ -447,7 +448,7 @@ const segmentSchema = z.object({
 export async function updateSegment(key: string, input: z.input<typeof segmentSchema>) {
   return attempt(async () => {
     await assertProspectingAdmin();
-    const d = segmentSchema.parse(input);
+    const d = parseInput(segmentSchema, input);
     await db.update(schema.prospectSegments).set(d).where(eq(schema.prospectSegments.key, z.string().max(40).parse(key)));
     refresh();
   });
@@ -473,7 +474,7 @@ function sourceCols(d: z.output<typeof sourceSchema>) {
 export async function createSource(input: SourceInput) {
   return attempt(async () => {
     await assertProspectingAdmin();
-    const d = sourceSchema.parse(input);
+    const d = parseInput(sourceSchema, input);
     const base =
       d.name
         .toLowerCase()
@@ -489,7 +490,7 @@ export async function createSource(input: SourceInput) {
 export async function updateSource(sourceId: number, input: SourceInput) {
   return attempt(async () => {
     await assertProspectingAdmin();
-    const d = sourceSchema.parse(input);
+    const d = parseInput(sourceSchema, input);
     await db.update(schema.prospectSources).set(sourceCols(d)).where(eq(schema.prospectSources.id, id.parse(sourceId)));
     refresh();
   });
@@ -502,7 +503,7 @@ export async function updateSource(sourceId: number, input: SourceInput) {
 export async function startResearch(ids: number[], mode: "site" | "ai" = "site"): Promise<Result<number>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const list = z.array(id).min(1, "Pick at least one prospect").max(200, "Research up to 200 prospects at a time").parse(ids);
+    const list = parseInput(z.array(id).min(1, "Pick at least one prospect").max(200, "Research up to 200 prospects at a time"), ids);
     const n = await queueResearch(list, me.id, z.enum(["site", "ai"]).parse(mode));
     if (!n) throw new Problem(list.length === 1 ? "Research is already running for this prospect." : "Research is already running for these prospects.");
     refresh();

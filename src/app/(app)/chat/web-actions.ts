@@ -7,12 +7,14 @@ import { db, schema } from "@/db";
 import { assertChat } from "@/lib/chat/access";
 import { setSetting } from "@/lib/settings";
 import { accept, agentSays, chatById, closeChat, markWebRead, messagesOf, notifyAgents } from "@/lib/webchat/chats";
+import { looksLikeEmail } from "@/lib/webchat/qualify";
 import { MAX_WEB_BODY, type WebMessage } from "@/lib/webchat/types";
+import { parseInput, UserError } from "@/lib/user-error";
 
 /** Website chats are answered by people with the CRM app (the sales team). */
 async function assertAgent() {
   const access = await assertChat();
-  if (!access.apps.includes("crm")) throw new Error("Website chats are for the sales team.");
+  if (!access.apps.includes("crm")) throw new UserError("Website chats are for the sales team.");
   return access;
 }
 
@@ -26,7 +28,7 @@ export async function acceptWebChat(chatId: number, takeOver = false): Promise<v
 
 export async function sendWebMessage(chatId: number, text: string): Promise<WebMessage> {
   const { user } = await assertAgent();
-  const body = z.string().trim().min(1, "Write a message first.").max(MAX_WEB_BODY, `Keep a message under ${MAX_WEB_BODY} characters.`).parse(text);
+  const body = parseInput(z.string().trim().min(1, "Write a message first.").max(MAX_WEB_BODY, `Keep a message under ${MAX_WEB_BODY} characters.`), text);
   return agentSays(id.parse(chatId), user.id, body);
 }
 
@@ -47,20 +49,25 @@ export async function markWebChatRead(chatId: number, upTo: number): Promise<voi
 export async function saveWebLead(chatId: number): Promise<{ dealId: number; reusedCompany: string | null }> {
   const { user } = await assertAgent();
   const c = await chatById(id.parse(chatId));
-  if (!c) throw new Error("That chat is gone.");
+  if (!c) throw new UserError("That chat is gone.");
   if (c.dealId) return { dealId: c.dealId, reusedCompany: null };
-  if (!c.leadAt) throw new Error("The visitor has not sent their details yet.");
+  // a partial lead (left before sending the form) can be saved once there is an email or phone to follow up on
+  if (!c.leadAt && !c.phone && !looksLikeEmail(c.email)) throw new UserError("The visitor has not left an email or phone number yet.");
   const lines = await messagesOf(c.id, true);
-  const question = lines.find((m) => m.sender === "visitor")?.body ?? "";
+  // the question they sent, or the one they typed and never sent
+  const question = lines.find((m) => m.sender === "visitor")?.body ?? (c.draft ? `(typed, not sent) ${c.draft}` : "");
   // what they were looking at when a site's "Get B2B pricing" opened the chat
   const asked = c.context ? Object.entries(c.context).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
+  const name = c.name || c.email.split("@")[0] || `Website visitor #${c.id}`;
   const { id: dealId, reusedCompany } = await createDeal({
-    companyName: c.company || c.name,
-    contactName: c.name,
-    contactEmail: c.email,
+    companyName: c.company || name,
+    contactName: name,
+    contactEmail: looksLikeEmail(c.email) ? c.email : "",
     contactPhone: c.phone,
     source: "Website",
-    requirement: [question, asked && `(Asked from ${c.site || "the website"}: ${asked})`].filter(Boolean).join("\n\n"),
+    requirement: [question, asked && `(Asked from ${c.site || "the website"}: ${asked})`, !c.leadAt && "(Left the site before sending the chat form.)"]
+      .filter(Boolean)
+      .join("\n\n"),
   });
   const transcript = lines
     .filter((m) => m.sender !== "system")
@@ -82,6 +89,6 @@ export async function saveWebLead(chatId: number): Promise<{ dealId: number; reu
 /** Admin: ring for every visitor, or only once they send the lead form. */
 export async function setWebRing(mode: "visitors" | "leads"): Promise<void> {
   const { user } = await assertAgent();
-  if (user.role !== "admin") throw new Error("Only an admin can change this.");
+  if (user.role !== "admin") throw new UserError("Only an admin can change this.");
   await setSetting("webchat_ring", z.enum(["visitors", "leads"]).parse(mode));
 }

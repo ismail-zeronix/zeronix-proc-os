@@ -1,4 +1,5 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import Link from "next/link";
 import { Bell, Building2, Clock, FileText, FolderKanban, Receipt, Scale } from "lucide-react";
 import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
@@ -7,7 +8,7 @@ import { getBrand, getBrandRow, getDocBrand } from "@/lib/brand";
 import { getPriceListLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { db, schema } from "@/db";
-import { AdminSettings, DocumentSettings, QuoteSettings, WorkHoursSettings } from "../admin-ui";
+import { AdminSettings, QuoteSettings, WorkHoursSettings } from "../admin-ui";
 import { BrandCard } from "../brand-ui";
 import { DocumentBrandCard } from "../doc-brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
@@ -21,9 +22,8 @@ export const metadata = { title: "Settings · Admin · Zeronix" };
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const me = (await requireApp("admin")).user;
   const [{ tab }, settings, models, engines, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), hostedEngines(), getBrand()]);
-  const [health, [last], types, templates, docBrand, brandRow, mailboxes] = await Promise.all([
+  const [health, types, templates, docBrand, brandRow, mailboxes] = await Promise.all([
     getPriceListLlm().then((llm) => llm.health()),
-    db.select({ number: schema.invoices.number }).from(schema.invoices).orderBy(desc(schema.invoices.createdAt)).limit(1),
     db.select().from(schema.projectTypes).orderBy(asc(schema.projectTypes.position), asc(schema.projectTypes.label)),
     db.select().from(schema.projectTaskTemplates),
     getDocBrand(),
@@ -49,7 +49,13 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
             icon: <Receipt />,
             content: (
               <div className="grid gap-3">
-                <DocumentSettings settings={settings} lastIssued={last?.number ?? null} />
+                <p className="rounded-lg border bg-card px-3 py-2 text-sm">
+                  Our TRN, invoice numbers, credit terms and bank details have moved to{" "}
+                  <Link href="/accounts/settings" className="font-medium underline">
+                    Accounts › Settings
+                  </Link>
+                  .
+                </p>
                 <DocumentBrandCard
                   initial={{
                     docEmail: brandRow?.docEmail ?? "",

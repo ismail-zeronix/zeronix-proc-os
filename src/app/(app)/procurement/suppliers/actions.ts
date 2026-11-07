@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { CURRENCIES } from "@/lib/fx";
 import { SUPPLIER_TYPE_KEYS } from "@/lib/supplier-types";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const supplierSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
@@ -22,13 +23,13 @@ const supplierSchema = z.object({
 
 export async function saveSupplier(input: z.input<typeof supplierSchema>) {
   await assertApp("procurement");
-  const { id, ...data } = supplierSchema.parse(input);
+  const { id, ...data } = parseInput(supplierSchema, input);
   try {
     if (id) await db.update(schema.suppliers).set(data).where(eq(schema.suppliers.id, id));
     else await db.insert(schema.suppliers).values(data);
   } catch (e) {
     if (String((e as { cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code) === "23505") {
-      throw new Error("A supplier with this name already exists.");
+      throw new UserError("A supplier with this name already exists.");
     }
     throw e;
   }

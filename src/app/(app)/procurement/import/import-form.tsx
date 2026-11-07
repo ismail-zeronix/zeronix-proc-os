@@ -20,6 +20,7 @@ import { SUPPLIER_TYPES, supplierType } from "@/lib/supplier-types";
 import { cn } from "@/lib/utils";
 import { usePasteStore } from "@/stores/import-store";
 import { createPriceList } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 const NEW = "__new__";
 const MAX_CHARS = 100_000;
@@ -100,7 +101,7 @@ export function ImportForm({ suppliers }: { suppliers: { id: number; name: strin
         );
         router.push(`/procurement/import/${id}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/copy-button";
 import { SupplierTypeBadge } from "@/components/supplier-type-badge";
 import { Trend } from "@/components/trend";
 import { Badge } from "@/components/ui/badge";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -159,17 +160,9 @@ export function CompareClient() {
         <Toggle on={sp.get("ready") === "1"} onChange={(v) => setParam("ready", v ? "1" : "")} icon={<PackageCheck />} label="In stock" title="Hide offers that are on order or out of stock" />
         <Toggle on={sp.get("history") === "1"} onChange={(v) => setParam("history", v ? "1" : "")} icon={<History />} label="Older" title="Include older offers" />
 
-        <Button
-          variant="outline"
-          size="icon-sm"
-          nativeButton={false}
-          render={<a href={`/api/export?${qs.toString()}`} download />}
-          disabled={!results.data?.total}
-          aria-label="Export CSV"
-          title="Export CSV"
-        >
+        <ExportButton variant="outline" size="icon-sm" url={`/api/export?${qs.toString()}`} label="Price comparison (CSV)" disabled={!results.data?.total} aria-label="Export CSV" title="Export CSV">
           <Download />
-        </Button>
+        </ExportButton>
         <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href="/procurement/import" />} aria-label="Paste a price list" title="Paste a price list">
           <ClipboardPaste />
         </Button>

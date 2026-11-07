@@ -14,7 +14,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { searchPages } from "@/lib/app-nav";
+import { searchPages, type NavPerms } from "@/lib/app-nav";
 import { appByKey, type AppKey } from "@/lib/apps";
 import { money } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/invoicing";
@@ -32,15 +32,17 @@ interface SalesHits {
 }
 
 /** Ctrl/⌘+K (or "/") anywhere: jump to a page, a product (Procurement), or a company, person or deal (Sales). */
-export function GlobalSearch({ apps }: { apps: AppKey[] }) {
+export function GlobalSearch({ apps, perms }: { apps: AppKey[]; perms?: NavPerms }) {
   const router = useRouter();
   const hasProducts = apps.includes("procurement");
   const hasCrm = apps.includes("crm");
+  // customers, quotes and orders open in Sales, or in Accounts for someone without Sales
+  const salesPath = apps.includes("sales") ? "/sales" : "/accounts";
   const hasSales = hasCrm || apps.includes("sales") || apps.includes("accounts");
   const pages = [
     { href: "/", label: "Home", icon: LayoutGrid, group: "Zeronix" },
     { href: "/chat", label: "Chat", icon: MessageCircle, group: "Zeronix" },
-    ...searchPages(apps).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
+    ...searchPages(apps, perms).map((p) => ({ href: p.href, label: p.label, icon: p.icon, group: appByKey(p.app).label })),
   ];
   const groups = [...new Set(pages.map((p) => p.group))];
   const [open, setOpen] = useState(false);
@@ -137,7 +139,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.quotes?.length ? (
                   <CommandGroup heading="Quotes">
                     {sales.data.quotes.map((x) => (
-                      <CommandItem key={`q${x.id}`} value={`q${x.id}`} onSelect={() => go(`/sales/quotes/${x.id}`)}>
+                      <CommandItem key={`q${x.id}`} value={`q${x.id}`} onSelect={() => go(`${salesPath}/quotes/${x.id}`)}>
                         <FileText />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{x.number}</div>
@@ -153,7 +155,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.orders?.length ? (
                   <CommandGroup heading="Sales orders">
                     {sales.data.orders.map((x) => (
-                      <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`/sales/orders/${x.id}`)}>
+                      <CommandItem key={`o${x.id}`} value={`o${x.id}`} onSelect={() => go(`${salesPath}/orders/${x.id}`)}>
                         <FileText />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{x.number}</div>
@@ -186,7 +188,7 @@ export function GlobalSearch({ apps }: { apps: AppKey[] }) {
                 {sales.data?.companies.length ? (
                   <CommandGroup heading="Companies">
                     {sales.data.companies.map((c) => (
-                      <CommandItem key={`c${c.id}`} value={`c${c.id}`} onSelect={() => go(hasCrm ? `/crm/companies/${c.id}` : `/sales/customers/${c.id}`)}>
+                      <CommandItem key={`c${c.id}`} value={`c${c.id}`} onSelect={() => go(hasCrm ? `/crm/companies/${c.id}` : `${salesPath}/customers/${c.id}`)}>
                         <Building2 /> {c.name}
                         <span className="ml-auto text-xs text-muted-foreground">{[c.emirate, c.industry].filter(Boolean).join(" · ")}</span>
                       </CommandItem>

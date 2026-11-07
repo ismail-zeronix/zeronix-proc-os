@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ago, money } from "@/lib/format";
 import { sellPrice } from "@/lib/quotation";
 import { addItemFromOffer } from "../../quote-actions";
+import { errorText } from "@/lib/user-error";
 
 interface Offer {
   id: number;
@@ -80,7 +81,7 @@ export function FindPrice({
           setError("");
         }
       } catch (e) {
-        if (mine === seq.current) setError((e as Error).message);
+        if (mine === seq.current) setError(errorText(e));
       } finally {
         if (mine === seq.current) setLoading(false);
       }
@@ -100,7 +101,7 @@ export function FindPrice({
         else if (dealId) await addItemFromOffer(dealId, o.id, n, m);
         toast.success(`Added ${n} × ${label.slice(0, 40)}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

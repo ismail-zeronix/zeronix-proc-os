@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { chatKeys, isOn, useOpenGroups, type Presence, type Teammate } from "./chat-data";
 import { useChatStore } from "./chat-store";
 import { PanelHeader, PresenceAvatar, STATUS_LABEL } from "./panel-bits";
+import { errorText } from "@/lib/user-error";
 
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -91,7 +92,7 @@ export function NewChat({ teammates, presence, loadingPeople }: { teammates: Tea
         await qc.invalidateQueries({ queryKey: chatKeys.channels });
         show({ kind: "channel", id });
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

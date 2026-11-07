@@ -2,10 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Plus, Save, Trash2, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BackButton } from "@/components/back-button";
+import { NewCustomerDialog } from "@/components/party-pickers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { dubaiToday } from "@/lib/dates";
 import { TERMS_OPTIONS } from "@/lib/invoicing";
 import { marginOf, money, sellPrice, totals } from "@/lib/quotation";
+import { salesBaseOf } from "@/lib/sales-base";
 import { customerChoices, offerLine, saveQuote } from "../quote-actions";
 import { FindPrice } from "./new/find-price";
+import { errorText } from "@/lib/user-error";
 
 type Co = { id: number; name: string };
 type Choices = Awaited<ReturnType<typeof customerChoices>>;
@@ -56,6 +59,7 @@ export function QuoteForm({
   people,
   defaultMargin,
   canFindPrice,
+  canAddCustomer = false,
   backHref,
   subtitle,
 }: {
@@ -67,8 +71,11 @@ export function QuoteForm({
   people: { id: number; name: string }[];
   defaultMargin: number;
   canFindPrice: boolean;
+  /** Accounts adds new customers right here; others add them in CRM. */
+  canAddCustomer?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, start] = useTransition();
   const [company, setCompany] = useState<Co | null>(initial.company);
   const [choices, setChoices] = useState<Choices | null>(initialChoices);
@@ -114,7 +121,7 @@ export function QuoteForm({
         setDealId("");
         setContactId(ch.contacts[0] ? String(ch.contacts[0].id) : "");
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   const pickDeal = (id: string) => {
@@ -165,9 +172,9 @@ export function QuoteForm({
           notes,
         });
         toast.success(initial.id ? `Quote ${r.number} saved` : `Quote ${r.number} made`);
-        router.replace(`/sales/quotes/${r.id}`);
+        router.replace(`${salesBaseOf(pathname)}/quotes/${r.id}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 
@@ -228,13 +235,25 @@ export function QuoteForm({
               </div>
             ) : (
               <div className="grid gap-1">
-                <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type the company name…" aria-label="Customer or lead" />
+                <div className="flex gap-1.5">
+                  <Input autoFocus className="min-w-0 flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type the company name…" aria-label="Customer or lead" />
+                  {canAddCustomer && (
+                    <NewCustomerDialog
+                      onAdded={pickCompany}
+                      trigger={
+                        <Button type="button" variant="outline" size="icon" title="Add a new customer" aria-label="Add a new customer">
+                          <Plus />
+                        </Button>
+                      }
+                    />
+                  )}
+                </div>
                 {(hits.data?.companies ?? []).map((c) => (
                   <button key={c.id} type="button" className="rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted" onClick={() => pickCompany({ id: c.id, name: c.name })}>
                     {c.name}
                   </button>
                 ))}
-                {debounced.length >= 2 && hits.data && !hits.data.companies.length && <p className="px-1 text-xs text-muted-foreground">Not found. Add the company in CRM first.</p>}
+                {debounced.length >= 2 && hits.data && !hits.data.companies.length && <p className="px-1 text-xs text-muted-foreground">{canAddCustomer ? "Not found. Use + to add them." : "Not found. Add the company in CRM first."}</p>}
               </div>
             )}
             {company && choices && (

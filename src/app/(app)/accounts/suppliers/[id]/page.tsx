@@ -1,7 +1,11 @@
 import { eq } from "drizzle-orm";
-import { FilePlus2, Printer } from "lucide-react";
+import { FilePlus2, Printer, Wallet } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ApplyAdvanceDialog, RefundAdvanceDialog, RefundList } from "@/components/allocation-ui";
+import { bankAccountOptions } from "@/lib/ledger/data";
+import { currentOrgId } from "@/lib/org";
+import { listRefunds } from "@/lib/refunds-data";
 import { AppLink } from "@/components/app-link";
 import { BackButton } from "@/components/back-button";
 import { InvoiceStateBadge } from "@/components/order-bits";
@@ -14,7 +18,7 @@ import { requireFinance } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { methodLabel, termsLabel } from "@/lib/invoicing";
 import { categoryLabel } from "@/lib/purchases";
-import { listBills, listSupplierPayments } from "@/lib/purchases-data";
+import { listBills, listSupplierPayments, openBills, supplierAdvances } from "@/lib/purchases-data";
 import { longDay, money, round2 } from "@/lib/quotation";
 
 export const metadata = { title: "Supplier · Zeronix Accounts" };
@@ -24,13 +28,15 @@ export default async function AccountsSupplierPage({ params, searchParams }: Pag
   const { apps } = await requireFinance();
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
-  const [[s], bills, pays] = await Promise.all([db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)), listBills({ supplierId: id }), listSupplierPayments({ supplierId: id })]);
+  const [accounts, refunds] = await Promise.all([currentOrgId().then(bankAccountOptions), listRefunds({ supplierId: id })]);
+  const [[s], bills, pays, advances, open] = await Promise.all([db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)), listBills({ supplierId: id }), listSupplierPayments({ supplierId: id }), supplierAdvances(id), openBills(id)]);
   if (!s) notFound();
   const live = bills.filter((b) => b.status !== "void");
   const owed = round2(live.reduce((n, b) => n + b.state.balance, 0));
   const overdue = round2(live.filter((b) => b.state.key === "overdue").reduce((n, b) => n + b.state.balance, 0));
   const year = Number(dubaiToday().slice(0, 4));
   const boughtThisYear = round2(live.filter((b) => b.billDate.startsWith(String(year))).reduce((n, b) => n + b.subtotal, 0));
+  const advance = round2(advances.reduce((n, a) => n + a.left, 0));
   const paidThisYear = round2(pays.filter((p) => !p.voidedAt && p.paidOn.startsWith(String(year))).reduce((n, p) => n + p.amount, 0));
 
   return (
@@ -52,8 +58,13 @@ export default async function AccountsSupplierPage({ params, searchParams }: Pag
           </span>
         </div>
         <SupplierBillingDialog supplier={{ id: s.id, name: s.name, trn: s.trn, email: s.email, address: s.address, termsDays: s.termsDays, bankName: s.bankName, iban: s.iban }} />
-        <Button size="sm" nativeButton={false} render={<Link href="/accounts/bills/new" />}>
+        {advances.length > 0 && open.length > 0 && <ApplyAdvanceDialog party="supplier" advances={advances} documents={open} />}
+        {advances.length > 0 && <RefundAdvanceDialog party="supplier" advances={advances} accounts={accounts} />}
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/accounts/bills/new?supplier=${s.id}`} />}>
           <FilePlus2 /> New bill
+        </Button>
+        <Button size="sm" nativeButton={false} render={<Link href={`/accounts/payments-made/new?supplier=${s.id}`} />}>
+          <Wallet /> New voucher
         </Button>
       </div>
 
@@ -63,6 +74,7 @@ export default async function AccountsSupplierPage({ params, searchParams }: Pag
           { label: "Overdue", value: money(overdue) },
           { label: `Bought in ${year}`, value: money(boughtThisYear), hint: "before VAT" },
           { label: `Paid in ${year}`, value: money(paidThisYear) },
+          ...(advance > 0 ? [{ label: "Paid in advance", value: money(advance), hint: `${advances.length} voucher${advances.length === 1 ? "" : "s"} not used yet` }] : []),
         ]}
       />
 
@@ -92,6 +104,7 @@ export default async function AccountsSupplierPage({ params, searchParams }: Pag
               </ul>
             ),
           },
+          ...(refunds.length ? [{ key: "refunds", label: `Refunds (${refunds.length})`, content: <RefundList rows={refunds} party="supplier" /> }] : []),
           {
             key: "payments",
             label: `Payments (${pays.length})`,
@@ -102,7 +115,7 @@ export default async function AccountsSupplierPage({ params, searchParams }: Pag
                     <span className={`font-mono font-medium ${p.voidedAt ? "line-through" : ""}`}>{p.number}</span>
                     <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                       {longDay(p.paidOn)} · {methodLabel(p.method)}
-                      {p.reference ? ` · ${p.reference}` : ""} · for {p.billNumber}
+                      {p.reference ? ` · ${p.reference}` : ""} · {p.documents.length ? `for ${p.documents.map((d) => d.number).join(", ")}` : "advance"}
                     </span>
                     <span className="tabular-nums">{money(p.amount)}</span>
                     <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href={`/print/payment-voucher/${p.id}`} target="_blank" />} aria-label="Print the payment voucher" title="Payment voucher">

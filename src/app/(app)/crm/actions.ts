@@ -14,8 +14,10 @@ import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
+import { duplicateCompany } from "@/lib/sales-data";
 import { ACTIVITY_TYPES, CHECKS, customerGaps, isOpen, isStage, normName, stageLabel, type CustomerGap, type StageKey } from "@/lib/sales";
 import { addDays, money } from "@/lib/quotation";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const text = (max: number) => z.string().trim().max(max).default("");
 const id = z.number().int().positive();
@@ -61,15 +63,6 @@ const contactSchema = z.object({
 });
 export type ContactInput = z.input<typeof contactSchema>;
 
-async function duplicateCompany(name: string, exceptId?: number) {
-  const norm = normName(name);
-  if (!norm) return null;
-  const [dup] = await db
-    .select({ id: schema.companies.id, name: schema.companies.name })
-    .from(schema.companies)
-    .where(and(eq(schema.companies.nameNorm, norm), exceptId ? ne(schema.companies.id, exceptId) : undefined));
-  return dup ?? null;
-}
 
 /** For a company that exists but is not yours: say who has it, without showing anything else about it. */
 async function takenMessage(companyId: number, name: string) {
@@ -84,11 +77,11 @@ async function takenMessage(companyId: number, name: string) {
 export async function createCompany(input: CompanyInput) {
   const me = await assertApp("crm");
   const v = await currentViewer();
-  const d = companySchema.parse(input);
+  const d = parseInput(companySchema, input);
   const dup = await duplicateCompany(d.name);
   if (dup) {
-    if (!(await canSeeCompany(v, dup.id))) throw new Error(await takenMessage(dup.id, dup.name));
-    throw new Error(`"${dup.name}" is already in the list. Open it instead of adding it twice.`);
+    if (!(await canSeeCompany(v, dup.id))) throw new UserError(await takenMessage(dup.id, dup.name));
+    throw new UserError(`"${dup.name}" is already in the list. Open it instead of adding it twice.`);
   }
   const [row] = await db
     .insert(schema.companies)
@@ -103,9 +96,9 @@ export async function updateCompany(companyId: number, input: CompanyInput) {
   // billing details (TRN, address) are also kept up from Sales › Customers
   await assertAnyApp("crm", "sales", "accounts");
   const v = await assertCompany(companyId, true);
-  const d = companySchema.parse(input);
+  const d = parseInput(companySchema, input);
   const dup = await duplicateCompany(d.name, companyId);
-  if (dup) throw new Error(`"${dup.name}" already exists. Two companies cannot have the same name.`);
+  if (dup) throw new UserError(`"${dup.name}" already exists. Two companies cannot have the same name.`);
   const handOver = v.seesAll && d.ownerId !== undefined;
   await db.transaction(async (tx) => {
     // only admins and "All data" users hand a company to someone else
@@ -123,9 +116,13 @@ export async function updateCompany(companyId: number, input: CompanyInput) {
 /** Removes a company with all its contacts, deals and history. Admin only. */
 export async function deleteCompany(companyId: number) {
   const me = await assertApp("crm");
-  if (me.role !== "admin") throw new Error("Only an admin can delete a company.");
+  if (me.role !== "admin") throw new UserError("Only an admin can delete a company.");
   const [order] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.companyId, companyId)).limit(1);
-  if (order) throw new Error(`This company has orders (${order.number}) and invoices on record, so it cannot be deleted.`);
+  if (order) throw new UserError(`This company has orders (${order.number}) and invoices on record, so it cannot be deleted.`);
+  const [invoice] = await db.select({ number: schema.invoices.number }).from(schema.invoices).where(eq(schema.invoices.companyId, companyId)).limit(1);
+  if (invoice) throw new UserError(`This company has invoices on record (${invoice.number}), so it cannot be deleted.`);
+  const [payment] = await db.select({ number: schema.payments.number }).from(schema.payments).where(eq(schema.payments.companyId, companyId)).limit(1);
+  if (payment) throw new UserError(`This company has payments on record (${payment.number}), so it cannot be deleted.`);
   await db.delete(schema.companies).where(eq(schema.companies.id, companyId));
   refresh();
 }
@@ -133,7 +130,7 @@ export async function deleteCompany(companyId: number) {
 export async function addCompanyNote(companyId: number, body: string) {
   const me = await assertApp("crm");
   await assertCompany(companyId);
-  const note = z.string().trim().min(1, "Write the note").max(4000).parse(body);
+  const note = parseInput(z.string().trim().min(1, "Write the note").max(4000), body);
   const [row] = await db.insert(schema.activities).values({ type: "note", body: note, companyId, userId: me.id }).returning({ id: schema.activities.id });
   await notifyMentions({ authorId: me.id, body: note, event: "company", record: { type: "company", id: companyId }, source: "activity", sourceId: row.id });
   refresh();
@@ -142,9 +139,9 @@ export async function addCompanyNote(companyId: number, body: string) {
 export async function createContact(companyId: number, input: ContactInput) {
   await assertApp("crm");
   await assertCompany(companyId);
-  const d = contactSchema.parse(input);
+  const d = parseInput(contactSchema, input);
   const [company] = await db.select({ id: schema.companies.id }).from(schema.companies).where(eq(schema.companies.id, companyId));
-  if (!company) throw new Error("That company no longer exists.");
+  if (!company) throw new UserError("That company no longer exists.");
   const [row] = await db.insert(schema.contacts).values({ ...d, companyId }).returning({ id: schema.contacts.id });
   refresh();
   return row.id;
@@ -153,7 +150,7 @@ export async function createContact(companyId: number, input: ContactInput) {
 export async function updateContact(contactId: number, input: ContactInput) {
   await assertApp("crm");
   await assertContact(contactId);
-  const d = contactSchema.parse(input);
+  const d = parseInput(contactSchema, input);
   await db.update(schema.contacts).set(d).where(eq(schema.contacts.id, contactId));
   refresh();
 }
@@ -172,7 +169,7 @@ async function checkedAssignees(ids: number[]): Promise<number[]> {
   const unique = [...new Set(ids)];
   const ok = new Set((await salesUsers()).map((u) => u.id));
   const bad = unique.filter((i) => !ok.has(i));
-  if (bad.length) throw new Error("One of the people you picked cannot work on Sales deals.");
+  if (bad.length) throw new UserError("One of the people you picked cannot work on Sales deals.");
   return unique;
 }
 
@@ -205,9 +202,9 @@ export type DealInput = z.input<typeof dealSchema>;
 /** Creates (or reuses) the company and contact, the deal at "New", its first log entry and a follow-up task for today. */
 export async function createDeal(input: DealInput) {
   const me = await assertApp("crm");
-  const d = dealSchema.parse(input);
-  if (!d.companyId && d.companyName.length < 2) throw new Error("Pick a company or type its name.");
-  if (d.kind === "project" && !d.projectType) throw new Error("Pick the project type.");
+  const d = parseInput(dealSchema, input);
+  if (!d.companyId && d.companyName.length < 2) throw new UserError("Pick a company or type its name.");
+  if (d.kind === "project" && !d.projectType) throw new UserError("Pick the project type.");
   const v = await currentViewer();
   // only admins and "All data" users give a new deal to other people; everyone else gets it themselves
   const ownerIds = v.seesAll ? await checkedAssignees(d.ownerIds?.length ? d.ownerIds : [me.id]) : [me.id];
@@ -221,13 +218,13 @@ export async function createDeal(input: DealInput) {
     let companyName = "";
     if (companyId) {
       const [c] = await tx.select({ name: schema.companies.name }).from(schema.companies).where(eq(schema.companies.id, companyId));
-      if (!c) throw new Error("That company no longer exists.");
+      if (!c) throw new UserError("That company no longer exists.");
       companyName = c.name;
     } else {
       const norm = normName(d.companyName);
       const [dup] = norm ? await tx.select({ id: schema.companies.id, name: schema.companies.name }).from(schema.companies).where(eq(schema.companies.nameNorm, norm)) : [];
       if (dup) {
-        if (!(await canSeeCompany(v, dup.id))) throw new Error(await takenMessage(dup.id, dup.name));
+        if (!(await canSeeCompany(v, dup.id))) throw new UserError(await takenMessage(dup.id, dup.name));
         companyId = dup.id;
         companyName = dup.name;
         reused = dup.name;
@@ -245,7 +242,7 @@ export async function createDeal(input: DealInput) {
     let contactName = "";
     if (contactId) {
       const [c] = await tx.select({ name: schema.contacts.name, companyId: schema.contacts.companyId }).from(schema.contacts).where(eq(schema.contacts.id, contactId));
-      if (!c || c.companyId !== companyId) throw new Error("That contact does not belong to this company.");
+      if (!c || c.companyId !== companyId) throw new UserError("That contact does not belong to this company.");
       contactName = c.name;
     } else if (d.contactName) {
       const [c] = await tx
@@ -310,7 +307,7 @@ export type DealPatch = z.input<typeof dealPatch>;
 export async function updateDeal(dealId: number, patch: DealPatch) {
   await assertApp("crm");
   await assertDeal(dealId);
-  const d = dealPatch.parse(patch);
+  const d = parseInput(dealPatch, patch);
   const set: Partial<typeof schema.deals.$inferInsert> = {};
   if (d.title !== undefined) set.title = d.title;
   if (d.requirement !== undefined) set.requirement = d.requirement;
@@ -331,13 +328,13 @@ export async function updateDeal(dealId: number, patch: DealPatch) {
 export async function setDealKind(dealId: number, kind: "product" | "project", projectType = "") {
   const me = await assertApp("crm");
   await assertDeal(dealId);
-  const k = z.enum(["product", "project"]).parse(kind);
-  const type = z.string().trim().max(40).parse(projectType);
+  const k = parseInput(z.enum(["product", "project"]), kind);
+  const type = parseInput(z.string().trim().max(40), projectType);
   const [deal] = await db.select({ kind: schema.deals.kind, companyId: schema.deals.companyId, ownerId: schema.deals.ownerId }).from(schema.deals).where(eq(schema.deals.id, dealId));
-  if (!deal) throw new Error("That deal no longer exists.");
+  if (!deal) throw new UserError("That deal no longer exists.");
   const result = await db.transaction(async (tx) => {
     if (k === "project") {
-      if (!type) throw new Error("Pick the project type.");
+      if (!type) throw new UserError("Pick the project type.");
       const p = await ensureProject(tx, dealId, type, deal.ownerId, me.id);
       if (deal.kind !== "project") {
         await tx.update(schema.deals).set({ kind: "project" }).where(eq(schema.deals.id, dealId));
@@ -347,7 +344,7 @@ export async function setDealKind(dealId: number, kind: "product" | "project", p
     }
     if (deal.kind === "product") return { projectId: null };
     const [p] = await tx.select({ status: schema.projects.status }).from(schema.projects).where(eq(schema.projects.dealId, dealId));
-    if (p && p.status !== "not_started") throw new Error("The project work has started, so this deal stays a project.");
+    if (p && p.status !== "not_started") throw new UserError("The project work has started, so this deal stays a project.");
     await tx.update(schema.deals).set({ kind: "product" }).where(eq(schema.deals.id, dealId));
     await tx.insert(schema.activities).values({ type: "note", body: "Changed to a product deal.", dealId, companyId: deal.companyId, userId: me.id });
     return { projectId: null };
@@ -360,10 +357,10 @@ export async function setDealKind(dealId: number, kind: "product" | "project", p
 export async function setAssignees(dealId: number, userIds: number[]) {
   const me = await assertApp("crm");
   const v = await currentViewer();
-  if (!v.seesAll) throw new Error("Only an admin can change who works on a deal.");
+  if (!v.seesAll) throw new UserError("Only an admin can change who works on a deal.");
   const ids = await checkedAssignees(z.array(id).max(10).parse(userIds));
   const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
-  if (!deal) throw new Error("That deal no longer exists.");
+  if (!deal) throw new UserError("That deal no longer exists.");
   const names = ids.length
     ? await db.select({ id: schema.users.id, name: schema.users.name }).from(schema.users).where(inArray(schema.users.id, ids))
     : [];
@@ -405,11 +402,11 @@ export async function setChecks(dealId: number, checks: Record<string, boolean>)
 export async function moveDeal(dealId: number, stage: string, lostReason = "") {
   const me = await assertApp("crm");
   await assertDeal(dealId);
-  if (!isStage(stage)) throw new Error("Unknown stage.");
+  if (!isStage(stage)) throw new UserError("Unknown stage.");
   const reason = lostReason.trim().slice(0, 200);
-  if (stage === "lost" && !reason) throw new Error("Pick the reason this deal was lost.");
+  if (stage === "lost" && !reason) throw new UserError("Pick the reason this deal was lost.");
   const [deal] = await db.select({ stage: schema.deals.stage, companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
-  if (!deal) throw new Error("That deal no longer exists.");
+  if (!deal) throw new UserError("That deal no longer exists.");
   if (deal.stage === stage) return;
   // the deal page asks through Mark as won (markDealWon); a plain move to Won still flags missing customer details
   const won = stage === "won" ? await customerOf(dealId) : null;
@@ -445,12 +442,12 @@ const logSchema = z.object({
 export async function logActivity(dealId: number, input: z.input<typeof logSchema>) {
   const me = await assertApp("crm");
   await assertDeal(dealId);
-  const d = logSchema.parse(input);
+  const d = parseInput(logSchema, input);
   const [deal] = await db
     .select({ title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, ownerId: schema.deals.ownerId, followUpAt: schema.deals.followUpAt })
     .from(schema.deals)
     .where(eq(schema.deals.id, dealId));
-  if (!deal) throw new Error("That deal no longer exists.");
+  if (!deal) throw new UserError("That deal no longer exists.");
   const activityId = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(schema.activities)
@@ -497,9 +494,9 @@ export async function deleteDeal(dealId: number) {
     .select({ userId: schema.dealAssignees.userId })
     .from(schema.dealAssignees)
     .where(and(eq(schema.dealAssignees.dealId, dealId), eq(schema.dealAssignees.userId, me.id)));
-  if (me.role !== "admin" && !member) throw new Error("Only the people on the deal or an admin can delete it.");
+  if (me.role !== "admin" && !member) throw new UserError("Only the people on the deal or an admin can delete it.");
   const [order] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.dealId, dealId)).limit(1);
-  if (order) throw new Error(`This deal has order ${order.number}, so it cannot be deleted. Cancel the order instead.`);
+  if (order) throw new UserError(`This deal has order ${order.number}, so it cannot be deleted. Cancel the order instead.`);
   await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), eq(schema.tasks.relatedId, dealId)));
   // the project goes with the deal (cascade); its checklist is linked loosely, so remove it here
   const [project] = await db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.dealId, dealId));
@@ -518,9 +515,9 @@ async function customerOf(dealId: number) {
     .select({ id: schema.deals.id, title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, contactId: schema.deals.contactId, ownerId: schema.deals.ownerId })
     .from(schema.deals)
     .where(eq(schema.deals.id, dealId));
-  if (!d) throw new Error("That deal no longer exists.");
+  if (!d) throw new UserError("That deal no longer exists.");
   const [company] = await db.select().from(schema.companies).where(eq(schema.companies.id, d.companyId));
-  if (!company) throw new Error("This deal has no company. Pick the customer on the deal first.");
+  if (!company) throw new UserError("This deal has no company. Pick the customer on the deal first.");
   const [contact] = d.contactId ? await db.select().from(schema.contacts).where(eq(schema.contacts.id, d.contactId)) : [];
   return { deal: d, company, contact: contact ?? null, gaps: customerGaps(company, contact ?? null) };
 }
@@ -567,15 +564,15 @@ const wonSchema = z.object({
 export async function markDealWon(dealId: number, input: z.input<typeof wonSchema>) {
   const me = await assertApp("crm");
   await assertDeal(dealId);
-  const d = wonSchema.parse(input);
+  const d = parseInput(wonSchema, input);
   const { deal, company, gaps } = await customerOf(dealId);
-  if (deal.stage === "won") throw new Error("This deal is already won.");
+  if (deal.stage === "won") throw new UserError("This deal is already won.");
   const [quote] = d.quoteId
     ? await db.select({ id: schema.quotes.id, number: schema.quotes.number, status: schema.quotes.status, total: schema.quotes.total, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, d.quoteId))
     : [];
-  if (d.quoteId && (!quote || quote.dealId !== dealId)) throw new Error("That quote is not on this deal.");
-  if (quote?.status === "rejected") throw new Error(`${quote.number} was rejected. Pick the quote the customer accepted.`);
-  if (!quote && d.terms.length < 3) throw new Error("Pick the winning quote, or write down what was agreed.");
+  if (d.quoteId && (!quote || quote.dealId !== dealId)) throw new UserError("That quote is not on this deal.");
+  if (quote?.status === "rejected") throw new UserError(`${quote.number} was rejected. Pick the quote the customer accepted.`);
+  if (!quote && d.terms.length < 3) throw new UserError("Pick the winning quote, or write down what was agreed.");
 
   await db.transaction(async (tx) => {
     if (quote && quote.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: new Date() }).where(eq(schema.quotes.id, quote.id));
@@ -655,7 +652,7 @@ export async function bulkAddAssignee(ids: number[], userId: number): Promise<Bu
     await assertDeal(dealId);
     const team = (await db.select({ id: schema.dealAssignees.userId }).from(schema.dealAssignees).where(eq(schema.dealAssignees.dealId, dealId)).orderBy(schema.dealAssignees.position)).map((r) => r.id);
     if (team.includes(person.data)) return;
-    if (team.length >= 10) throw new Error("the team already has 10 people");
+    if (team.length >= 10) throw new UserError("the team already has 10 people");
     await setAssignees(dealId, [...team, person.data]);
   });
 }

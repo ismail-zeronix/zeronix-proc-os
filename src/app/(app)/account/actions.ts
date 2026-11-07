@@ -9,10 +9,11 @@ import { loadAccess } from "@/lib/auth/session";
 import { encryptSecret } from "@/lib/crypto";
 import { fetchLatest } from "@/lib/mail/imap";
 import { syncMailbox } from "@/lib/mail/sync";
+import { parseInput, UserError } from "@/lib/user-error";
 
 async function me() {
   const access = await loadAccess();
-  if (!access) throw new Error("Please sign in again.");
+  if (!access) throw new UserError("Please sign in again.");
   return access.user;
 }
 
@@ -30,7 +31,7 @@ const profileSchema = z.object({
 /** Job title and phone numbers printed in this user's email signature. */
 export async function saveMyProfile(input: z.input<typeof profileSchema>) {
   const user = await me();
-  const d = profileSchema.parse(input);
+  const d = parseInput(profileSchema, input);
   await db.update(schema.users).set(d).where(eq(schema.users.id, user.id));
   revalidatePath("/account");
 }

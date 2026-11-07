@@ -11,6 +11,7 @@ import { MAX_BODY } from "@/lib/chat/text";
 import { addMessage, bumpChannel, chatKeys, fetchMessages, fetchThread, isReading, useOnScreen, useTypingStore, type Member } from "./chat-data";
 import { Composer } from "./composer";
 import { MessageRow, MessageText, timeOf, type Me } from "./message-row";
+import { errorText } from "@/lib/user-error";
 
 interface Pending {
   key: number;
@@ -35,7 +36,7 @@ function useSender(channelId: number, me: number, threadId: number | null) {
       setPending((p) => p.filter((x) => x.key !== key));
     } catch (e) {
       setPending((p) => p.map((x) => (x.key === key ? { ...x, failed: true } : x)));
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
   return { pending, send };
@@ -176,7 +177,7 @@ function MainView({ channel, me, onThread, disabled }: { channel: ChannelSummary
     <div className="flex min-h-0 flex-1 flex-col">
       <div ref={scrollerRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-2">
         {q.isPending && <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>}
-        {q.isError && <p className="py-8 text-center text-xs text-destructive">{(q.error as Error).message}</p>}
+        {q.isError && <p className="py-8 text-center text-xs text-destructive">{errorText(q.error)}</p>}
         {q.isFetchingNextPage && <p className="py-1 text-center text-[11px] text-muted-foreground">Loading older messages…</p>}
         {!q.isPending && !messages.length && !pending.length && (
           <p className="py-8 text-center text-xs text-muted-foreground">
@@ -252,7 +253,7 @@ function ThreadView({ root: start, channel, me, onBack, disabled }: { root: Chat
           <span className="h-px flex-1 bg-border" />
         </div>
         {q.isPending && <p className="py-4 text-center text-xs text-muted-foreground">Loading…</p>}
-        {q.isError && <p className="py-4 text-center text-xs text-destructive">{(q.error as Error).message}</p>}
+        {q.isError && <p className="py-4 text-center text-xs text-destructive">{errorText(q.error)}</p>}
         {replies.map((m, i) => (
           <MessageRow key={m.id} m={m} prev={replies[i - 1]} me={me} names={names} actions={{}} />
         ))}

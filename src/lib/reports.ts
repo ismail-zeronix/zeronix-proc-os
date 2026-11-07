@@ -8,16 +8,12 @@ import { round2 } from "@/lib/quotation";
 export const REPORTS = [
   { key: "pnl", label: "Profit and loss", hint: "Sales, cost of goods, expenses, profit" },
   { key: "vat", label: "VAT summary", hint: "VAT charged minus VAT paid, for the VAT return" },
-  { key: "receivables", label: "Customers owe", hint: "Unpaid invoices by how late" },
-  { key: "payables", label: "We owe suppliers", hint: "Unpaid bills by how late" },
   { key: "sales", label: "Sales", hint: "By customer, salesperson and month" },
-  { key: "profit", label: "Profit per order", hint: "What each order really made" },
+  { key: "profit", label: "Profit per sale", hint: "What each sale really made" },
   { key: "cash", label: "Cash in and out", hint: "Money received and paid, cash and bank" },
 ] as const;
 export type ReportKey = (typeof REPORTS)[number]["key"];
 export const isReport = (k: string): k is ReportKey => REPORTS.some((r) => r.key === k);
-/** Reports about today (what is owed), not about a period. */
-export const AS_OF_TODAY: ReportKey[] = ["receivables", "payables"];
 
 export const PERIODS = [
   { key: "this-month", label: "This month" },
@@ -72,8 +68,8 @@ export const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleD
 export type Cell = string | number | null;
 export interface Column {
   label: string;
-  /** money: AED with 2 decimals; pct: a percentage; int: a count; text otherwise. */
-  kind?: "money" | "pct" | "int" | "text";
+  /** money: AED with 2 decimals; pct: a percentage; int: a count; date: a YYYY-MM-DD day; text otherwise. */
+  kind?: "money" | "pct" | "int" | "date" | "text";
 }
 export interface ReportTable {
   title: string;
@@ -83,6 +79,10 @@ export interface ReportTable {
   total?: Cell[];
   /** Rows to draw bold (sub-totals such as gross profit). */
   strong?: number[];
+  /** Row index → how far to indent its first cell (the tree of a balance sheet). */
+  levels?: Record<number, number>;
+  /** Row index → the page behind it (a total opens its ledger, a ledger line its entry). */
+  links?: Record<number, string>;
   note?: string;
 }
 export interface Report {
@@ -90,6 +90,10 @@ export interface Report {
   period: string;
   kpis: { label: string; value: number; kind: "money" | "pct" | "int"; hint?: string }[];
   tables: ReportTable[];
+  /** Something the reader must know first (the ledger is not switched on yet). */
+  notice?: string;
+  /** Wide reports print sideways. */
+  landscape?: boolean;
 }
 
 export const pct = (part: number, whole: number) => (whole ? round2((part / whole) * 100) : null);
@@ -100,18 +104,18 @@ export interface PnlInput {
   categoryLabel: (k: string) => string;
 }
 
-/** Profit and loss for a period: totals, and the same lines month by month. Cost of goods sold ("cogs") is above gross profit. */
+/** Profit and loss for a period: totals, and the same lines month by month. Goods and services bought for sale are above gross profit. */
 export function buildPnl({ months, categoryLabel }: PnlInput) {
   const sum = (f: (m: PnlInput["months"][number]) => number) => round2(months.reduce((s, m) => s + f(m), 0));
-  const cats = [...new Set(months.flatMap((m) => Object.keys(m.costs)))].filter((k) => k !== "cogs").sort((a, b) => sum((m) => m.costs[b] ?? 0) - sum((m) => m.costs[a] ?? 0));
+  const cats = [...new Set(months.flatMap((m) => Object.keys(m.costs)))].filter((k) => k !== "cogs" && k !== "services").sort((a, b) => sum((m) => m.costs[b] ?? 0) - sum((m) => m.costs[a] ?? 0));
   const line = (m: PnlInput["months"][number]) => {
     const net = round2(m.sales - m.credits);
-    const cogs = round2(m.costs.cogs ?? 0);
+    const cogs = round2((m.costs.cogs ?? 0) + (m.costs.services ?? 0));
     const gross = round2(net - cogs);
     const exp = round2(cats.reduce((s, c) => s + (m.costs[c] ?? 0), 0));
     return { net, cogs, gross, exp, profit: round2(gross - exp) };
   };
-  const all = { month: "all", sales: sum((m) => m.sales), credits: sum((m) => m.credits), costs: Object.fromEntries(["cogs", ...cats].map((c) => [c, sum((m) => m.costs[c] ?? 0)])) };
+  const all = { month: "all", sales: sum((m) => m.sales), credits: sum((m) => m.credits), costs: Object.fromEntries(["cogs", "services", ...cats].map((c) => [c, sum((m) => m.costs[c] ?? 0)])) };
   const t = line(all);
   return { totals: { ...t, sales: all.sales, credits: all.credits }, categories: cats.map((c) => ({ key: c, label: categoryLabel(c), amount: all.costs[c] })), byMonth: months.map((m) => ({ month: m.month, ...line(m) })) };
 }

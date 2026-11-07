@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { RULES } from "@/lib/notifications/rules";
 import { runScan } from "@/lib/notifications/scan";
 import { setSetting } from "@/lib/settings";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const amount = z.number().min(0).max(1000);
 const configSchema = z.object({ enabled: z.boolean(), limit: amount, warn: amount, escalate: amount });
@@ -24,10 +25,10 @@ export async function saveNotifyRules(input: Record<string, z.input<typeof confi
 /** Picks the connected mailbox that sends the morning digests (0 = none). */
 export async function setDigestSender(mailAccountId: number) {
   await requireAdmin();
-  const id = z.number().int().min(0).parse(mailAccountId);
+  const id = parseInput(z.number().int().min(0), mailAccountId);
   if (id) {
     const [acc] = await db.select({ id: schema.mailAccounts.id }).from(schema.mailAccounts).where(eq(schema.mailAccounts.id, id));
-    if (!acc) throw new Error("That mailbox is no longer connected.");
+    if (!acc) throw new UserError("That mailbox is no longer connected.");
   }
   await setSetting("notify_digest_from", id ? String(id) : "");
   revalidatePath("/admin/settings");

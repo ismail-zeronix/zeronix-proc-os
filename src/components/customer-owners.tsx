@@ -6,6 +6,7 @@ import { setCustomerOwners } from "@/app/(app)/sales/customer-actions";
 import { ContextMenuCheckboxItem } from "@/components/ui/context-menu";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AvatarStack, UserAvatar } from "@/components/user-avatar";
+import { errorText } from "@/lib/user-error";
 
 export type Person = { id: number; name: string };
 
@@ -25,7 +26,7 @@ export function useCustomerOwners(companyId: number, initial: Person[], users: P
         await setCustomerOwners(companyId, next);
       } catch (e) {
         setIds(before);
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   };

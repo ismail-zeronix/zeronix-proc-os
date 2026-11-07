@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { dubaiToday } from "@/lib/dates";
 import { TERMS_OPTIONS } from "@/lib/invoicing";
+import { errorText } from "@/lib/user-error";
 
 type Co = { id: number; name: string };
 
@@ -84,7 +85,7 @@ export function OpeningInvoiceDialog({ company }: { company?: Co }) {
                   {c.name}
                 </button>
               ))}
-              {debounced.length >= 2 && hits.data && !hits.data.companies.length && <p className="px-1 text-xs text-muted-foreground">Not found. Add the company in CRM first.</p>}
+              {debounced.length >= 2 && hits.data && !hits.data.companies.length && <p className="px-1 text-xs text-muted-foreground">Not found. Add them first with + New › Customer.</p>}
             </div>
           )}
         </div>
@@ -129,7 +130,7 @@ export function OpeningInvoiceDialog({ company }: { company?: Co }) {
                   setF({ ...blank, termsDays: f.termsDays });
                   router.refresh();
                 } catch (e) {
-                  toast.error((e as Error).message);
+                  toast.error(errorText(e));
                 }
               })
             }

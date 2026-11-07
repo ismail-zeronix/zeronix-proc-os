@@ -92,7 +92,8 @@ describe.skipIf(!live)("reports on real tables (needs the dev database)", () => 
     const { inArray, like, or, eq } = D;
     const bills = (await db.select({ id: schema.bills.id }).from(schema.bills).where(or(eq(schema.bills.supplierId, supplierId), like(schema.bills.paidTo, `${tag}%`)))).map((b) => b.id);
     if (bills.length) {
-      await db.delete(schema.supplierPayments).where(inArray(schema.supplierPayments.billId, bills));
+      const pays = await db.delete(schema.supplierPaymentAllocations).where(inArray(schema.supplierPaymentAllocations.billId, bills)).returning({ id: schema.supplierPaymentAllocations.paymentId });
+      if (pays.length) await db.delete(schema.supplierPayments).where(inArray(schema.supplierPayments.id, pays.map((p) => p.id)));
       await db.delete(schema.bills).where(inArray(schema.bills.id, bills));
     }
     await db.delete(schema.invoices).where(eq(schema.invoices.companyId, companyId));
@@ -115,7 +116,7 @@ describe.skipIf(!live)("reports on real tables (needs the dev database)", () => 
   });
 
   it("counts the opening balance in what customers owe, and money paid out by month", async () => {
-    const owe = await R.runReport("receivables", from, to, "2019");
+    const owe = await (await import("@/lib/report-run")).runCentreReport((await import("@/lib/report-centre")).parseReportParams((k) => (k === "r" ? "aged-ar" : k === "to" ? "2019-12-31" : null), "2019-12-31"));
     expect(owe.tables[1].rows.some((row) => row[0] === `${tag}-OLD`)).toBe(true);
     const cash = await R.runReport("cash", from, to, "2019");
     expect(cash.kpis[1].value).toBe(1050);

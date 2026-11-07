@@ -1,10 +1,8 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { receivables } from "@/lib/accounts-data";
 import { methodLabel } from "@/lib/invoicing";
 import { categoryLabel } from "@/lib/purchases";
-import { payables } from "@/lib/purchases-data";
 import { round2 } from "@/lib/quotation";
 import { buildPnl, monthLabel, monthsBetween, pct, REPORTS, type Report, type ReportKey } from "@/lib/reports";
 
@@ -81,20 +79,21 @@ async function pnlReport(from: string, to: string, period: string): Promise<Repo
 }
 
 async function vatReport(from: string, to: string, period: string): Promise<Report> {
-  const [inv, cn, bills] = await Promise.all([
+  const [inv, cn, bills, dn] = await Promise.all([
     rows<{ number: string; issue_date: string; customer_name: string; customer_trn: string; subtotal: number; vat_amount: number }>(sql`SELECT number, issue_date::text, customer_name, customer_trn, subtotal::float, vat_amount::float FROM invoices
       WHERE kind = 'sale' AND issue_date BETWEEN ${from} AND ${to} ORDER BY issue_date, number`),
     rows<{ number: string; issue_date: string; invoice: string; customer_name: string; subtotal: number; vat_amount: number }>(sql`SELECT c.number, c.issue_date::text, i.number invoice, i.customer_name, c.subtotal::float, c.vat_amount::float FROM credit_notes c
       JOIN invoices i ON i.id = c.invoice_id WHERE i.kind = 'sale' AND c.issue_date BETWEEN ${from} AND ${to} ORDER BY c.issue_date, c.number`),
     rows<{ number: string; bill_date: string; payee: string; trn: string; supplier_ref: string; category: string; subtotal: number; vat_amount: number }>(sql`SELECT b.number, b.bill_date::text, coalesce(s.name, b.paid_to) payee, coalesce(s.trn, '') trn, b.supplier_ref, b.category, b.subtotal::float, b.vat_amount::float
       FROM bills b LEFT JOIN suppliers s ON s.id = b.supplier_id WHERE b.status <> 'void' AND b.kind <> 'opening' AND b.bill_date BETWEEN ${from} AND ${to} ORDER BY b.bill_date, b.number`),
+    rows<{ subtotal: number; vat_amount: number }>(sql`SELECT subtotal::float, vat_amount::float FROM debit_notes WHERE vat_amount > 0 AND issue_date BETWEEN ${from} AND ${to}`),
   ]);
   const sum = (a: { subtotal: number; vat_amount: number }[], k: "subtotal" | "vat_amount") => round2(a.reduce((s, r) => s + n(r[k]), 0));
   const outNet = round2(sum(inv, "subtotal") - sum(cn, "subtotal"));
   const outVat = round2(sum(inv, "vat_amount") - sum(cn, "vat_amount"));
   const taxed = bills.filter((b) => n(b.vat_amount) > 0);
-  const inNet = sum(taxed, "subtotal");
-  const inVat = sum(taxed, "vat_amount");
+  const inNet = round2(sum(taxed, "subtotal") - sum(dn, "subtotal"));
+  const inVat = round2(sum(taxed, "vat_amount") - sum(dn, "vat_amount"));
   const payable = round2(outVat - inVat);
   return {
     title: "VAT summary",
@@ -113,7 +112,7 @@ async function vatReport(from: string, to: string, period: string): Promise<Repo
           ["Purchases and expenses with VAT", inNet, inVat],
         ],
         total: [payable >= 0 ? "Net VAT to pay" : "Net VAT to reclaim", null, Math.abs(payable)],
-        note: "Check with your accountant before filing: zero-rated, exempt and reverse-charge items are not separated here. Opening balances are not included.",
+        note: "A quick look from the documents. The return itself, box by box, is the VAT return report. Opening balances are not included.",
       },
       {
         title: "Sales invoices",
@@ -141,62 +140,16 @@ async function vatReport(from: string, to: string, period: string): Promise<Repo
   };
 }
 
-async function receivablesReport(period: string): Promise<Report> {
-  const r = await receivables();
-  return {
-    title: "Customers owe",
-    period,
-    kpis: [
-      { label: "Customers owe", value: r.owed, kind: "money" },
-      { label: "Overdue", value: r.overdue, kind: "money" },
-      { label: "Due in 7 days", value: r.dueSoon, kind: "money" },
-      { label: "Collected this month", value: r.collectedThisMonth, kind: "money" },
-    ],
-    tables: [
-      { title: "By how late", columns: [{ label: "" }, { label: "Invoices", kind: "int" }, { label: "AED", kind: "money" }], rows: r.buckets.map((b) => [b.label, b.count, b.amount]), total: ["Total", r.open.length, r.owed] },
-      {
-        title: "Unpaid invoices",
-        columns: [{ label: "Invoice" }, { label: "Customer" }, { label: "Date" }, { label: "Due" }, { label: "Days late", kind: "int" }, { label: "Total", kind: "money" }, { label: "Still owed", kind: "money" }],
-        rows: r.open.map((i) => [i.number, i.customerName, i.issueDate, i.dueDate, i.state.daysOverdue || null, i.total, i.state.balance]),
-        total: ["Total", null, null, null, null, null, r.owed],
-      },
-    ],
-  };
-}
-
-async function payablesReport(period: string): Promise<Report> {
-  const p = await payables();
-  return {
-    title: "We owe suppliers",
-    period,
-    kpis: [
-      { label: "We owe", value: p.owed, kind: "money" },
-      { label: "Overdue", value: p.overdue, kind: "money" },
-      { label: "Due in 7 days", value: p.dueSoon, kind: "money" },
-      { label: "Paid this month", value: p.paidThisMonth, kind: "money" },
-    ],
-    tables: [
-      { title: "By how late", columns: [{ label: "" }, { label: "Bills", kind: "int" }, { label: "AED", kind: "money" }], rows: p.buckets.map((b) => [b.label, b.count, b.amount]), total: ["Total", p.open.length, p.owed] },
-      {
-        title: "Unpaid bills",
-        columns: [{ label: "Bill" }, { label: "Supplier" }, { label: "Their no." }, { label: "Due" }, { label: "Days late", kind: "int" }, { label: "Total", kind: "money" }, { label: "Still to pay", kind: "money" }],
-        rows: p.open.map((b) => [b.number, b.payee, b.supplierRef, b.dueDate, b.state.daysOverdue || null, b.total, b.state.balance]),
-        total: ["Total", null, null, null, null, null, p.owed],
-      },
-    ],
-  };
-}
-
 async function salesReport(from: string, to: string, period: string): Promise<Report> {
   // net of credit notes: a cancelled invoice and its credit note cancel out in the same period
   const [byCustomer, byOwner, s] = await Promise.all([
     rows<{ name: string; invoices: number; net: number }>(sql`SELECT i.customer_name name, count(*) FILTER (WHERE i.status <> 'cancelled')::int invoices,
-        (sum(i.subtotal) - coalesce(sum(c.subtotal), 0))::float net
-      FROM invoices i LEFT JOIN credit_notes c ON c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to}
+        (sum(i.subtotal) - coalesce(sum((SELECT sum(c.subtotal) FROM credit_notes c WHERE c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to})), 0))::float net
+      FROM invoices i
       WHERE i.kind = 'sale' AND i.issue_date BETWEEN ${from} AND ${to} GROUP BY i.company_id, i.customer_name ORDER BY net DESC`),
     rows<{ name: string; invoices: number; net: number }>(sql`SELECT coalesce(u.name, 'No salesperson') name, count(*) FILTER (WHERE i.status <> 'cancelled')::int invoices,
-        (sum(i.subtotal) - coalesce(sum(c.subtotal), 0))::float net
-      FROM invoices i LEFT JOIN credit_notes c ON c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to}
+        (sum(i.subtotal) - coalesce(sum((SELECT sum(c.subtotal) FROM credit_notes c WHERE c.invoice_id = i.id AND c.issue_date BETWEEN ${from} AND ${to})), 0))::float net
+      FROM invoices i
       LEFT JOIN deals d ON d.id = i.deal_id LEFT JOIN sales_orders so ON so.id = i.order_id LEFT JOIN quotes sq ON sq.id = so.quote_id
       LEFT JOIN users u ON u.id = coalesce(d.owner_id, sq.owner_id)
       WHERE i.kind = 'sale' AND i.issue_date BETWEEN ${from} AND ${to} GROUP BY 1 ORDER BY net DESC`),
@@ -223,12 +176,12 @@ async function salesReport(from: string, to: string, period: string): Promise<Re
 }
 
 async function profitReport(from: string, to: string, period: string): Promise<Report> {
-  // orders whose (not cancelled) invoice is dated in the period; real cost = supplier bills bought for the order
+  // every sale (not cancelled) invoiced in the period, by order or direct; real cost = supplier bills bought for it
   const list = await rows<{ number: string; customer: string; invoice: string; sale: number; quoted: number | null; billed: number; bills: number }>(sql`
-    SELECT o.number, i.customer_name customer, i.number invoice, i.subtotal::float sale, o.cost_total::float quoted,
-      coalesce((SELECT sum(b.subtotal) FROM bills b WHERE b.order_id = o.id AND b.status <> 'void'), 0)::float billed,
-      (SELECT count(*) FROM bills b WHERE b.order_id = o.id AND b.status <> 'void')::int bills
-    FROM invoices i JOIN sales_orders o ON o.id = i.order_id
+    SELECT coalesce(o.number, 'Direct') AS number, i.customer_name customer, i.number invoice, (i.subtotal - i.credited_net)::float sale, coalesce(o.cost_total, q.cost_total)::float quoted,
+      coalesce((SELECT sum(b.subtotal - b.credited_net) FROM bills b WHERE (b.invoice_id = i.id OR (i.order_id IS NOT NULL AND b.order_id = i.order_id)) AND b.status <> 'void'), 0)::float billed,
+      (SELECT count(*) FROM bills b WHERE (b.invoice_id = i.id OR (i.order_id IS NOT NULL AND b.order_id = i.order_id)) AND b.status <> 'void')::int bills
+    FROM invoices i LEFT JOIN sales_orders o ON o.id = i.order_id LEFT JOIN quotes q ON q.id = i.quote_id
     WHERE i.kind = 'sale' AND i.status <> 'cancelled' AND i.issue_date BETWEEN ${from} AND ${to}`);
   const data = list
     .map((r) => {
@@ -241,7 +194,7 @@ async function profitReport(from: string, to: string, period: string): Promise<R
   const withCost = data.filter((r) => r.profit != null);
   const profit = round2(withCost.reduce((s, r) => s + (r.profit ?? 0), 0));
   return {
-    title: "Profit per order",
+    title: "Profit per sale",
     period,
     kpis: [
       { label: "Orders invoiced", value: data.length, kind: "int" },
@@ -251,11 +204,11 @@ async function profitReport(from: string, to: string, period: string): Promise<R
     ],
     tables: [
       {
-        title: "Orders, lowest margin first",
+        title: "Sales, lowest margin first",
         columns: [{ label: "Order" }, { label: "Customer" }, { label: "Invoice" }, { label: "Sale", kind: "money" }, { label: "Cost", kind: "money" }, { label: "Cost from" }, { label: "Profit", kind: "money" }, { label: "Margin", kind: "pct" }],
         rows: data.map((r) => [r.number, r.customer, r.invoice, n(r.sale), r.cost, r.basis, r.profit, r.margin]),
         total: ["Total", null, null, sale, null, null, profit, null],
-        note: "Cost is the supplier bills linked to the order; without bills, the cost saved on the quote.",
+        note: "Cost is the supplier bills linked to the sale; without bills, the cost saved on the quote.",
       },
     ],
   };
@@ -263,8 +216,14 @@ async function profitReport(from: string, to: string, period: string): Promise<R
 
 async function cashReport(from: string, to: string, period: string): Promise<Report> {
   const [inRows, outRows] = await Promise.all([
-    rows<{ m: string; method: string; s: number }>(sql`SELECT to_char(paid_on, 'YYYY-MM') m, method, sum(amount)::float s FROM payments WHERE voided_at IS NULL AND paid_on BETWEEN ${from} AND ${to} GROUP BY 1, 2`),
-    rows<{ m: string; method: string; s: number }>(sql`SELECT to_char(paid_on, 'YYYY-MM') m, method, sum(amount)::float s FROM supplier_payments WHERE voided_at IS NULL AND paid_on BETWEEN ${from} AND ${to} GROUP BY 1, 2`),
+    rows<{ m: string; method: string; s: number }>(sql`SELECT to_char(paid_on, 'YYYY-MM') m, method, sum(amount)::float s FROM (
+      SELECT paid_on, method, amount FROM payments WHERE voided_at IS NULL
+      UNION ALL SELECT refunded_on, method, amount FROM advance_refunds WHERE party = 'supplier' AND voided_at IS NULL
+    ) x WHERE paid_on BETWEEN ${from} AND ${to} GROUP BY 1, 2`),
+    rows<{ m: string; method: string; s: number }>(sql`SELECT to_char(paid_on, 'YYYY-MM') m, method, sum(amount)::float s FROM (
+      SELECT paid_on, method, amount FROM supplier_payments WHERE voided_at IS NULL
+      UNION ALL SELECT refunded_on, method, amount FROM advance_refunds WHERE party = 'customer' AND voided_at IS NULL
+    ) x WHERE paid_on BETWEEN ${from} AND ${to} GROUP BY 1, 2`),
   ]);
   const get = (list: typeof inRows, m: string, method?: string) => round2(list.filter((r) => r.m === m && (!method || r.method === method)).reduce((s, r) => s + n(r.s), 0));
   const months = monthsBetween(from, to);
@@ -299,16 +258,11 @@ async function cashReport(from: string, to: string, period: string): Promise<Rep
 /** One report for a period (`receivables` and `payables` are as of today). */
 export async function runReport(key: ReportKey, from: string, to: string, periodLabel: string): Promise<Report> {
   const period = `${periodLabel}: ${from} to ${to}`;
-  const today = "As of today";
   switch (key) {
     case "pnl":
       return pnlReport(from, to, period);
     case "vat":
       return vatReport(from, to, period);
-    case "receivables":
-      return receivablesReport(today);
-    case "payables":
-      return payablesReport(today);
     case "sales":
       return salesReport(from, to, period);
     case "profit":

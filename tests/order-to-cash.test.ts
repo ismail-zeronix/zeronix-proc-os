@@ -96,7 +96,8 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
       const invs = await db.select({ id: schema.invoices.id }).from(schema.invoices).where(inArray(schema.invoices.companyId, cids));
       const iids = invs.map((i) => i.id);
       if (iids.length) {
-        await db.delete(schema.payments).where(inArray(schema.payments.invoiceId, iids));
+        await db.delete(schema.paymentAllocations).where(inArray(schema.paymentAllocations.invoiceId, iids));
+        await db.delete(schema.payments).where(inArray(schema.payments.companyId, cids));
         await db.delete(schema.creditNotes).where(inArray(schema.creditNotes.invoiceId, iids));
         await db.delete(schema.invoices).where(inArray(schema.invoices.id, iids));
       }
@@ -206,7 +207,7 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     await as(accountant);
     const inv = await A.issueInvoice(orderId, { issueDate: today, termsDays: 0 });
     const pay = await A.recordPayment(inv.id, { paidOn: today, amount: 100, method: "cash" });
-    await expect(A.cancelInvoice(inv.id, "Wrong customer TRN")).rejects.toThrow(/Void them first/);
+    await expect(A.cancelInvoice(inv.id, "Wrong customer TRN")).rejects.toThrow(/Void them or take them off/);
     await A.voidPayment(pay.id, "Refunded in cash");
     const cn = await A.cancelInvoice(inv.id, "Wrong customer TRN");
     expect(cn.creditNote).toMatch(/^ZCN-\d{4}-\d{4,}$/);

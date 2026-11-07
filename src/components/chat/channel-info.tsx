@@ -12,6 +12,7 @@ import { useChatStore } from "./chat-store";
 import { PanelHeader, PresenceAvatar } from "./panel-bits";
 import type { Me } from "./message-row";
 import { PeopleList } from "./new-chat";
+import { errorText } from "@/lib/user-error";
 
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60 dark:bg-input/30";
@@ -35,7 +36,7 @@ export function ChannelInfo({ channel, me, presence, teammates }: { channel: Cha
         if (ok) toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

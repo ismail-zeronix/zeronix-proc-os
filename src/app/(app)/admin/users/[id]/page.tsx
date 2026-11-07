@@ -29,6 +29,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
       isActive: schema.users.isActive,
       apps: schema.users.apps,
       dataScope: schema.users.dataScope,
+      isAccountant: schema.users.isAccountant,
       jobTitle: schema.users.jobTitle,
       phone: schema.users.phone,
       mobile: schema.users.mobile,
@@ -103,6 +104,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
             <Field label="Phone" value={[u.phone, u.mobile].filter(Boolean).join(" · ") || "-"} />
             <Field label="Status" value={u.isActive ? "Active" : "Disabled"} />
             <Field label="Sales data" value={u.role === "admin" || u.dataScope === "all" ? "All data" : "Own deals only"} />
+            <Field label="Accountant" value={u.role === "admin" || u.isAccountant ? "Yes" : "No"} />
             <Field
               label="Joined"
               value={u.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dubai" })}

@@ -48,7 +48,8 @@ export interface CoverLayout {
  * @param opts.footer  a simple footer with page numbers on every page.  @param opts.cover  the proposal layout (see CoverLayout).
  */
 export function printPageToPdf(path: string, session: string, opts: { footer?: string; cover?: CoverLayout } = {}): Promise<Buffer> {
-  if (!/^\/print\/[a-z]+\/\d+$/.test(path)) throw new Error("Only print pages can be turned into a PDF.");
+  // one of our documents (/print/invoice/12) or a report (/print/report/pl?period=this-month), with plain query values only
+  if (!/^\/print\/(?:[a-z-]+\/\d+|report\/[a-z-]+)(?:\?[\w=&%.-]*)?$/.test(path)) throw new Error("Only print pages can be turned into a PDF.");
   const run = queue.then(() => render(path, session, opts));
   queue = run.catch(() => {});
   return run;
@@ -79,9 +80,9 @@ async function render(path: string, session: string, opts: { footer?: string; co
     const page = await browser.newPage();
     const { hostname } = new URL(base);
     await page.setCookie({ name: SESSION_COOKIE, value: session, domain: hostname, path: "/", httpOnly: true });
-    const res = await page.goto(base + path, { waitUntil: "networkidle0", timeout: 30_000 });
+    const res = await page.goto(base + path, { waitUntil: "networkidle0", timeout: 120_000 });
     // a redirect to /login means the session was not accepted
-    if (!res?.ok() || new URL(page.url()).pathname !== path) throw new Error(`Could not open the document to make the PDF (${res?.status() ?? "no answer"}).`);
+    if (!res?.ok() || new URL(page.url()).pathname !== path.split("?")[0]) throw new Error(`Could not open the document to make the PDF (${res?.status() ?? "no answer"}).`);
     await page.emulateMediaType("print");
     if (cover && (await page.$("[data-pdf-cover]"))) {
       // 1) the cover alone, edge to edge  2) everything after it with margins, header and footer  3) joined
@@ -109,6 +110,7 @@ async function render(path: string, session: string, opts: { footer?: string; co
       return Buffer.from(await out.save());
     }
     const pdf = await page.pdf({
+      timeout: 300_000,
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,

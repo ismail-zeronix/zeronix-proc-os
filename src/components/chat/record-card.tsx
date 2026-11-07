@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AvatarStack } from "@/components/user-avatar";
 import type { CardTone, CardView } from "@/lib/chat/types";
 import { useChatStore } from "./chat-store";
+import { errorText } from "@/lib/user-error";
 
 // cards asked for within a few milliseconds go to the server in one request
 let queue: { ref: string; resolve: (c: CardView | null) => void; reject: (e: unknown) => void }[] = [];
@@ -82,7 +83,7 @@ export function RecordCard({
         qc.setQueryData(cardKey(cardRef), next);
         toast.success(`${label} ✓`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   const q = useQuery({ queryKey: cardKey(cardRef), queryFn: () => loadCard(cardRef), staleTime: 60_000 });

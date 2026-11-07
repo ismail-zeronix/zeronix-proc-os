@@ -15,7 +15,7 @@ const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 export async function GET(req: NextRequest) {
   const access = await loadAccess();
   const crm = !!access?.apps.includes("crm");
-  const docs = !!access?.apps.includes("sales");
+  const docs = !!access?.apps.includes("sales") || !!access?.apps.includes("accounts");
   if (!crm && !docs) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const v = await currentViewer();
   // the accounts team finds every company (customers and opening balances); deals and people stay by deal

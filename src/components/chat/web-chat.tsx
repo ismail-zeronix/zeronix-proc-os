@@ -9,11 +9,13 @@ import { acceptWebChat, closeWebChat, markWebChatRead, saveWebLead, sendWebMessa
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { dubaiToday, TZ } from "@/lib/dates";
-import { MAX_WEB_BODY, pathOf, visitorLabel, type WebChatSummary } from "@/lib/webchat/types";
+import { looksLikeEmail } from "@/lib/webchat/qualify";
+import { MAX_WEB_BODY, pathOf, visitorLabel, type WebChatSummary, type WebHeat } from "@/lib/webchat/types";
 import { useChatStore } from "./chat-store";
 import { timeOf, type Me } from "./message-row";
 import { PanelHeader } from "./panel-bits";
 import { addWebMessage, setReadingWeb, useWebChats, useWebThread, useWebTyping, webKeys } from "./web-data";
+import { errorText } from "@/lib/user-error";
 
 /** Waiting chats, then live ones, then ended: how the Website tab groups them. */
 const GROUPS = [
@@ -24,7 +26,7 @@ const GROUPS = [
 
 /** Badge on the Website tab: visitors waiting, plus unread lines on my chats. */
 export function webBadge(chats: WebChatSummary[]): number {
-  return chats.reduce((n, c) => n + (c.status === "waiting" && (c.online || c.lead) ? 1 : 0) + c.unread, 0);
+  return chats.reduce((n, c) => n + (c.status === "waiting" && (c.online || c.lead || c.partial?.email || c.partial?.phone) ? 1 : 0) + c.unread, 0);
 }
 
 function StatusDot({ c }: { c: WebChatSummary }) {
@@ -48,12 +50,12 @@ export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me
   const chats = (web.data?.chats ?? []).filter(
     (c) =>
       (filter === "all" || c.status === filter) &&
-      (!needle || [c.lead?.name, c.lead?.email, c.lead?.company, c.lead?.phone, c.place, c.pageTitle, c.pageUrl].some((v) => v?.toLowerCase().includes(needle))),
+      (!needle || [(c.lead ?? c.partial)?.name, (c.lead ?? c.partial)?.email, (c.lead ?? c.partial)?.company, (c.lead ?? c.partial)?.phone, c.place, c.pageTitle, c.pageUrl].some((v) => v?.toLowerCase().includes(needle))),
   );
   const open = onOpen ?? ((id: number) => show({ kind: "web", id }));
 
   if (web.isPending) return <p className="py-8 text-center text-xs text-muted-foreground">Loading…</p>;
-  if (web.error) return <p className="py-8 text-center text-xs text-destructive">{(web.error as Error).message}</p>;
+  if (web.error) return <p className="py-8 text-center text-xs text-destructive">{errorText(web.error)}</p>;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -118,8 +120,8 @@ export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me
                     className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none ${selectedId === c.id ? "bg-muted" : ""}`}
                   >
                     <span className="relative shrink-0">
-                      {c.lead ? (
-                        <UserAvatar name={c.lead.name} size={34} />
+                      {c.lead || c.partial?.name ? (
+                        <UserAvatar name={c.lead?.name ?? c.partial?.name ?? ""} size={34} />
                       ) : (
                         <span className="flex size-[34px] items-center justify-center rounded-full bg-muted text-muted-foreground">
                           <Globe className="size-4" />
@@ -135,23 +137,27 @@ export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me
                       <div className="flex items-center gap-2">
                         <span className={`flex-1 truncate text-xs ${c.unread ? "text-foreground" : "text-muted-foreground"}`}>
                           {c.status === "active" && c.agent ? <span className="text-muted-foreground">{c.agent.id === me.id ? "You" : c.agent.name.split(" ")[0]} · </span> : null}
-                          {c.lastPreview || (c.lead ? "Sent the form" : `Browsing ${pathOf(c.pageUrl)}`)}
+                          {c.lastPreview || (c.lead ? "Sent the form" : c.partial ? "Left contact details, did not send the form" : `Browsing ${pathOf(c.pageUrl)}`)}
                         </span>
                         {c.unread > 0 && (
                           <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{c.unread}</span>
                         )}
-                        {c.status === "waiting" && c.online && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Waiting</span>}
-                        {c.site && c.site !== "zeronix.ae" && <span className="rounded-full bg-lime-500/15 px-1.5 text-[10px] font-semibold text-lime-800 dark:text-lime-300">{c.site}</span>}
                         {c.dealId && <Handshake className="size-3.5 shrink-0 text-muted-foreground" aria-label="Saved to leads" />}
                         {c.rating != null && <Stars value={c.rating} small />}
                       </div>
-                      {(c.place || c.visits > 1) && (
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {c.place}
-                          {c.place && c.visits > 1 && " · "}
-                          {c.visits > 1 && <span className="font-medium text-teal-700 dark:text-teal-400">Returning · visit {c.visits}</span>}
-                        </p>
-                      )}
+                      {/* place and tags on their own line, so the tags never squeeze out the line above */}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground empty:hidden">
+                        {c.place && <span>{c.place}</span>}
+                        {c.visits > 1 && <span className="font-medium text-teal-700 dark:text-teal-400">Returning · visit {c.visits}</span>}
+                        {c.status === "waiting" && c.online && <span className="rounded-full bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Waiting</span>}
+                        {c.partial && (c.partial.email || c.partial.phone) && (
+                          <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300" title="Typed contact details but did not send the form">
+                            Partial
+                          </span>
+                        )}
+                        <HeatPill heat={c.heat} hideCold />
+                        {c.site && c.site !== "zeronix.ae" && <span className="rounded-full bg-lime-500/15 px-1.5 text-[10px] font-semibold text-lime-800 dark:text-lime-300">{c.site}</span>}
+                      </div>
                     </div>
                   </button>
                 </li>
@@ -170,7 +176,7 @@ export function WebChatList({ me, onOpen, selectedId, searchable = false }: { me
                 await setWebRing(e.target.value as "visitors" | "leads");
                 await qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
               } catch (err) {
-                toast.error((err as Error).message);
+                toast.error(errorText(err));
               }
             }}
             className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs text-foreground"
@@ -209,6 +215,9 @@ export function WebConversation({
   const [ending, setEnding] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const typingUntil = useWebTyping((s) => s.until[id] ?? 0);
+  // their message box, live as they type (before Enter), else what they left in it
+  const liveText = useWebTyping((s) => s.text[id]);
+  const draft = (liveText ?? thread.data?.info.draft ?? "").trim();
   const [now, setNow] = useState(() => Date.now());
   const back = onBack ?? (() => show({ kind: "list" }));
   const mine = chat?.status === "active" && chat.agent?.id === me.id;
@@ -231,6 +240,12 @@ export function WebConversation({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
+  // keep the live text in view while they type, unless the agent has scrolled up to read
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && draft && el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
+  }, [draft]);
+
   useEffect(() => {
     if (typingUntil <= Date.now()) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -246,13 +261,18 @@ export function WebConversation({
     );
   }
 
+  // the sent form, or what they typed into it before leaving
+  const contact = chat.lead ?? chat.partial;
+  const who = (chat.lead?.name || chat.partial?.name || "Visitor").split(" ")[0];
+  const typingNow = typingUntil > now;
+
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     try {
       await fn();
       await qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -267,7 +287,7 @@ export function WebConversation({
       addWebMessage(qc, await sendWebMessage(id, body));
     } catch (e) {
       setText(body);
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
 
@@ -286,7 +306,7 @@ export function WebConversation({
               : chat.status === "waiting"
                 ? chat.online
                   ? "Waiting for someone to accept"
-                  : "Left the site · waiting for a reply by email"
+                  : `Left the site · waiting for a reply${contact?.email ? " by email" : contact?.phone ? " by phone" : ""}`
                 : `${mine ? "You are" : `${chat.agent?.name ?? "Someone"} is`} on this chat${chat.online ? "" : " · visitor left the site"}`}
           </p>
         </div>
@@ -324,30 +344,36 @@ export function WebConversation({
 
       {/* on the Chat page the visitor panel sits beside the chat on wide screens; the strip covers narrower ones */}
       <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-muted/30 px-3 py-1.5 text-xs ${detailsBeside ? "xl:hidden" : ""}`}>
-        {chat.lead?.email && (
-          <a href={`mailto:${chat.lead.email}`} className="flex min-w-0 items-center gap-1 hover:underline">
-            <Mail className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{chat.lead.email}</span>
-          </a>
-        )}
-        {chat.lead?.phone && (
-          <a href={`tel:${chat.lead.phone}`} className="flex items-center gap-1 hover:underline">
-            <Phone className="size-3.5 text-muted-foreground" />
-            {chat.lead.phone}
-          </a>
-        )}
-        {chat.lead?.company && (
-          <span className="flex items-center gap-1">
-            <Building2 className="size-3.5 text-muted-foreground" />
-            {chat.lead.company}
+        {!chat.lead && chat.partial && (
+          <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300" title="Typed into the form but did not send it">
+            Partial lead
           </span>
         )}
+        {contact?.email && (
+          <a href={`mailto:${contact.email}`} className="flex min-w-0 items-center gap-1 hover:underline">
+            <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{contact.email}</span>
+          </a>
+        )}
+        {contact?.phone && (
+          <a href={`tel:${contact.phone}`} className="flex items-center gap-1 hover:underline">
+            <Phone className="size-3.5 text-muted-foreground" />
+            {contact.phone}
+          </a>
+        )}
+        {contact?.company && (
+          <span className="flex items-center gap-1">
+            <Building2 className="size-3.5 text-muted-foreground" />
+            {contact.company}
+          </span>
+        )}
+        <HeatPill heat={chat.heat} />
         <a href={chat.pageUrl} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-muted-foreground hover:underline" title={chat.pageUrl}>
           <SquareArrowOutUpRight className="size-3.5 shrink-0" />
           <span className="truncate">{chat.pageTitle || pathOf(chat.pageUrl)}</span>
         </a>
-        {!chat.lead && <span className="text-muted-foreground">Has not sent the form yet</span>}
-        {chat.lead && <SaveLeadButton chat={chat} compact />}
+        {!contact && <span className="text-muted-foreground">Has not sent the form yet</span>}
+        {canSaveLead(chat) && <SaveLeadButton chat={chat} compact />}
       </div>
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
@@ -379,9 +405,28 @@ export function WebConversation({
             </div>
           );
         })}
+        {draft && (
+          <div className="mt-2 flex justify-start">
+            <div className="max-w-[80%]">
+              <p className="mb-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                {typingNow ? (
+                  <>
+                    <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                    {who} is typing (not sent yet)
+                  </>
+                ) : (
+                  `Typed but not sent${thread.data?.info.draftAt && liveText === undefined ? ` · ${timeOf(thread.data.info.draftAt)}` : ""}`
+                )}
+              </p>
+              <div className="rounded-2xl rounded-bl-md border border-dashed border-muted-foreground/40 bg-muted/40 px-3 py-1.5 text-sm wrap-break-word whitespace-pre-wrap text-muted-foreground italic">
+                {draft}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <p className="h-4 shrink-0 truncate px-3 text-[11px] text-muted-foreground" aria-live="polite">
-        {typingUntil > now ? `${chat.lead?.name.split(" ")[0] ?? "Visitor"} is typing…` : ""}
+        {typingNow && !draft ? `${who} is typing…` : ""}
       </p>
 
       {mine ? (
@@ -445,6 +490,28 @@ export function Stars({ value, small = false }: { value: number; small?: boolean
   );
 }
 
+const HEAT_STYLE: Record<WebHeat["level"], string> = {
+  hot: "bg-red-500/15 text-red-700 dark:text-red-400",
+  warm: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  cold: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+};
+
+/** "Hot 72": how warm the visitor is; hover for why. `hideCold` keeps busy lists quiet. */
+export function HeatPill({ heat, hideCold = false }: { heat: WebHeat; hideCold?: boolean }) {
+  if (hideCold && heat.level === "cold") return null;
+  return (
+    <span
+      className={`shrink-0 rounded-full px-1.5 text-[10px] font-semibold capitalize tabular-nums ${HEAT_STYLE[heat.level]}`}
+      title={heat.reasons.length ? heat.reasons.join("\n") : "Nothing yet"}
+    >
+      {heat.level} {heat.score}
+    </span>
+  );
+}
+
+/** The form was sent, or they typed an email or phone before leaving: enough to follow up as a CRM lead. */
+export const canSaveLead = (c: WebChatSummary) => !!c.lead || !!c.partial?.phone || looksLikeEmail(c.partial?.email ?? "");
+
 /** "Save to leads" (a CRM lead at New, source Website), or a link to the lead once saved. */
 export function SaveLeadButton({ chat, compact = false }: { chat: WebChatSummary; compact?: boolean }) {
   const qc = useQueryClient();
@@ -468,7 +535,7 @@ export function SaveLeadButton({ chat, compact = false }: { chat: WebChatSummary
           await qc.invalidateQueries({ queryKey: webKeys.thread(chat.id) });
           toast.success(r.reusedCompany ? `Saved to leads, under the existing company ${r.reusedCompany}.` : "Saved to leads.");
         } catch (e) {
-          toast.error((e as Error).message);
+          toast.error(errorText(e));
         } finally {
           setBusy(false);
         }

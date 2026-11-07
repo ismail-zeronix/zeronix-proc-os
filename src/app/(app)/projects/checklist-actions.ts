@@ -11,6 +11,7 @@ import { taskAssigned } from "@/lib/notifications/events";
 import { isChecklistGroup } from "@/lib/projects";
 import { seedChecklist } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
+import { parseInput, UserError } from "@/lib/user-error";
 
 /**
  * The project checklist: tasks with related_type "project". Unlike personal tasks, everyone on the project team may tick,
@@ -39,7 +40,7 @@ async function projectFor(projectId: number) {
     .from(schema.projects)
     .innerJoin(schema.deals, eq(schema.deals.id, schema.projects.dealId))
     .where(and(eq(schema.projects.id, z.number().int().positive().parse(projectId)), eq(schema.deals.kind, "project")));
-  if (!p) throw new Error("That project does not exist or is not assigned to you.");
+  if (!p) throw new UserError("That project does not exist or is not assigned to you.");
   const v = await assertDeal(p.dealId);
   return { me, v, p };
 }
@@ -49,7 +50,7 @@ async function taskFor(taskId: number) {
     .select({ id: schema.tasks.id, projectId: schema.tasks.relatedId, group: schema.tasks.checklistGroup, title: schema.tasks.title, assignedTo: schema.tasks.assignedTo })
     .from(schema.tasks)
     .where(and(eq(schema.tasks.id, z.number().int().positive().parse(taskId)), eq(schema.tasks.relatedType, "project")));
-  if (!t || t.projectId == null) throw new Error("That task no longer exists.");
+  if (!t || t.projectId == null) throw new UserError("That task no longer exists.");
   const ctx = await projectFor(t.projectId);
   return { ...ctx, t };
 }
@@ -57,14 +58,14 @@ async function taskFor(taskId: number) {
 /** People a project task may be given to: the deal team, or anyone in Sales for admins and "All data" users. */
 async function checkAssignee(v: Viewer, dealId: number, userId: number) {
   if (v.seesAll) {
-    if (!(await salesUsers()).some((u) => u.id === userId)) throw new Error("That person cannot work on projects.");
+    if (!(await salesUsers()).some((u) => u.id === userId)) throw new UserError("That person cannot work on projects.");
     return;
   }
   const [member] = await db
     .select({ userId: schema.dealAssignees.userId })
     .from(schema.dealAssignees)
     .where(and(eq(schema.dealAssignees.dealId, dealId), eq(schema.dealAssignees.userId, userId)));
-  if (!member) throw new Error("Give project tasks to someone on the project team.");
+  if (!member) throw new UserError("Give project tasks to someone on the project team.");
 }
 
 const addSchema = z.object({
@@ -77,7 +78,7 @@ const addSchema = z.object({
 
 export async function addChecklistTask(projectId: number, input: z.input<typeof addSchema>) {
   const { me, v, p } = await projectFor(projectId);
-  const d = addSchema.parse(input);
+  const d = parseInput(addSchema, input);
   const assignee = d.assignedTo ?? p.managerId ?? me.id;
   if (assignee !== me.id) await checkAssignee(v, p.dealId, assignee);
   const [last] = await db
@@ -111,7 +112,7 @@ const patchSchema = z.object({
 
 export async function updateChecklistTask(taskId: number, patch: z.input<typeof patchSchema>) {
   const { me, v, p, t } = await taskFor(taskId);
-  const d = patchSchema.parse(patch);
+  const d = parseInput(patchSchema, patch);
   const set: Partial<typeof schema.tasks.$inferInsert> = {};
   if (d.title !== undefined) set.title = d.title;
   if (d.required !== undefined) set.required = d.required;

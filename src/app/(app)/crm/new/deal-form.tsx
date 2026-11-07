@@ -13,6 +13,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { EMIRATES, INDUSTRIES, SOURCES, stageLabel } from "@/lib/sales";
 import { createDeal } from "../actions";
+import { errorText } from "@/lib/user-error";
 
 interface Co {
   id: number;
@@ -138,7 +139,7 @@ export function DealForm({
         if (afterHref) router.replace(afterHref(res.id));
         else if (!onCreated) router.replace(`/crm/deals/${res.id}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

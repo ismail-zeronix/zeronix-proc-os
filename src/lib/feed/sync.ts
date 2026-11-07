@@ -5,6 +5,7 @@ import type { OfferDraft } from "@/lib/llm/schema";
 import { parseStockSheet } from "@/lib/parse/stocksheet";
 import { searchNormFor, upsertProductFor } from "@/lib/products";
 import { readFeed } from "./fetch";
+import { UserError } from "@/lib/user-error";
 
 /** Marks an offer written because the product vanished from the supplier's sheet (sold out). */
 export const REMOVED_NOTE = "Out of stock · removed from feed";
@@ -47,7 +48,7 @@ async function record(feedId: number, patch: Partial<typeof schema.supplierFeeds
  */
 export async function syncFeed(supplierId: number, opts: { force?: boolean } = {}): Promise<SyncResult> {
   const [feed] = await db.select().from(schema.supplierFeeds).where(eq(schema.supplierFeeds.supplierId, supplierId));
-  if (!feed) throw new Error("This supplier has no live feed.");
+  if (!feed) throw new UserError("This supplier has no live feed.");
   const checkedAt = new Date();
 
   try {
@@ -65,7 +66,7 @@ export async function syncFeed(supplierId: number, opts: { force?: boolean } = {
     }
 
     const parsed = parseStockSheet(text, { currency: feed.currency });
-    if (!parsed.drafts.length) throw new Error("The sheet has no products I can read, so nothing was changed.");
+    if (!parsed.drafts.length) throw new UserError("The sheet has no products I can read, so nothing was changed.");
 
     const previous = feed.lastPriceListId
       ? await db.select().from(schema.offers).where(eq(schema.offers.priceListId, feed.lastPriceListId))
@@ -73,7 +74,7 @@ export async function syncFeed(supplierId: number, opts: { force?: boolean } = {
     const previousLive = previous.filter((o) => o.stockNote !== REMOVED_NOTE);
     // a sheet that suddenly shrinks to a sliver was most likely cleared or half-edited: keep the old data
     if (previousLive.length >= 10 && parsed.drafts.length < previousLive.length * 0.3 && !opts.force) {
-      throw new Error(
+      throw new UserError(
         `The sheet now has ${parsed.drafts.length} products, down from ${previousLive.length}. Not applied; use "Sync now" if that is right.`,
       );
     }

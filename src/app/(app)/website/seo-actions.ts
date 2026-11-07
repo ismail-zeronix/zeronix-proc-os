@@ -5,6 +5,7 @@ import { z } from "zod";
 import { assertApp } from "@/lib/auth/session";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { deleteKeyword, importKeywords, setKeywordStatus } from "@/lib/website/keywords";
+import { parseInput } from "@/lib/user-error";
 
 /** Website › SEO: import the keyword plan, move a keyword along, or drop it. Anyone with the Website app. */
 
@@ -30,7 +31,7 @@ const statusSchema = z.object({
 export async function setKeywordStatusAction(input: z.infer<typeof statusSchema>): Promise<Result<null>> {
   return attempt(async () => {
     await assertApp("website");
-    const v = statusSchema.parse(input);
+    const v = parseInput(statusSchema, input);
     await setKeywordStatus(v.id, v.status, v.plannedFor);
     revalidatePath("/website/seo");
     return null;

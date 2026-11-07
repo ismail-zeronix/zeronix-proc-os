@@ -30,6 +30,7 @@ import {
   renameBoqSection,
   updateBoqLine,
 } from "../../boq-actions";
+import { errorText } from "@/lib/user-error";
 
 // item | kind | qty | unit | cost | margin | price | total | actions
 const COLS = "grid-cols-4 lg:grid-cols-[minmax(0,1fr)_6.5rem_3.5rem_4.75rem_5.5rem_4.25rem_6rem_6.5rem_5.25rem]";
@@ -60,7 +61,7 @@ function useRun() {
         if (ok) toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;
@@ -183,7 +184,7 @@ function Line({
           }
         }
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     })();
     chain.current = job;

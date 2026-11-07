@@ -14,6 +14,7 @@ import type { OfferDraft } from "@/lib/llm/schema";
 import { useReviewStore } from "@/stores/import-store";
 import { deletePriceList, reparsePriceList, savePriceList } from "../actions";
 import { ReviewGrid } from "./review-grid";
+import { errorText } from "@/lib/user-error";
 
 export interface PriceListDto {
   id: number;
@@ -93,7 +94,7 @@ export function ReviewClient({ id }: { id: number }) {
         removeLocal(id);
         router.push("/procurement/price-lists");
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 
@@ -188,7 +189,7 @@ export function ReviewClient({ id }: { id: number }) {
         await qc.invalidateQueries({ queryKey: ["price-list", id] });
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

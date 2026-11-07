@@ -13,6 +13,7 @@ import { AiUnavailable, openRouterAllowance, refreshFreeModels, webSearch, type 
 import { testAi, testMailbox, type Check } from "@/lib/prospecting/connect";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { DAYS, HARD_MAX_PER_DAY, isTime } from "@/lib/prospecting/sending";
+import { parseInput } from "@/lib/user-error";
 
 async function assertAdmin() {
   const me = await assertApp("prospecting");
@@ -56,7 +57,7 @@ export type MailboxInput = z.input<typeof mailboxSchema>;
 export async function saveMailbox(mailboxId: number | null, input: MailboxInput): Promise<Result<number>> {
   return attempt(async () => {
     await assertAdmin();
-    const d = mailboxSchema.parse(input);
+    const d = parseInput(mailboxSchema, input);
     if (/@zeronix\.ae$/i.test(d.email)) throw new Problem("Use a mailbox on the separate sending domain. Cold email from zeronix.ae puts quotes and invoices at risk of the spam folder.");
     if (d.warmupStartedOn && d.warmupStartedOn > dubaiToday()) throw new Problem("The warm-up start cannot be in the future");
     const { password, ...rest } = d;
@@ -166,7 +167,7 @@ export type AiProviderInput = z.input<typeof aiSchema>;
 export async function saveAiProvider(providerId: number | null, input: AiProviderInput): Promise<Result<number>> {
   return attempt(async () => {
     await assertAdmin();
-    const d = aiSchema.parse(input);
+    const d = parseInput(aiSchema, input);
     const def = aiProvider(d.provider)!;
     if (d.provider === "openai_compatible" && !d.baseUrl) throw new Problem("Enter the service's base URL");
     if (d.provider !== "openrouter") Object.assign(d, { autoFree: false, paidSearch: false });

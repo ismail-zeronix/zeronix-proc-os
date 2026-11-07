@@ -3,6 +3,7 @@
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { canGoBack, useGoBack } from "@/components/back-button";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 
 /** Back and Print buttons above the document; hidden when printing. */
@@ -28,9 +29,9 @@ export function PrintBar({ dealHref, number, pdfHref }: { dealHref: string; numb
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer /> Print
           </Button>
-          <Button size="sm" nativeButton={false} render={<a href={pdfHref} />}>
+          <ExportButton size="sm" url={pdfHref} label={`${number} (PDF)`}>
             <Download /> Download PDF
-          </Button>
+          </ExportButton>
         </>
       ) : (
         <>

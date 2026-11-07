@@ -1,12 +1,17 @@
 "use client";
 
-import { AlertTriangle, Building2, Copy, ExternalLink, FilePlus2, Mail, Phone, Repeat, ScrollText, Sparkles, Star, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, Building2, Copy, ExternalLink, FilePlus2, Mail, Phone, Repeat, ScrollText, Sparkles, Star, UserRound, UsersRound, X } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerContextItems, OwnersDropdown, useCustomerOwners, type Person } from "@/components/customer-owners";
+import { SelectionContext, type Selection } from "@/components/data-table";
+import { ExportActions } from "@/components/list-actions";
 import { Empty } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AvatarStack } from "@/components/user-avatar";
 import type { CustomerRow } from "@/lib/accounts-data";
 import { dayLabel } from "@/lib/dates";
+import { salesBaseOf } from "@/lib/sales-base";
 import { longDay, money } from "@/lib/quotation";
 import { aedShort } from "@/lib/sales";
 
@@ -58,38 +64,79 @@ interface Props {
   crm: boolean;
   today: string;
   empty: string;
+  /** Tick boxes and their actions (Accounts can take rows to Excel). */
+  selectable?: boolean;
+  /** Sortable column headings. */
+  heads?: { name: ReactNode; sales: ReactNode; owed: ReactNode; paid: ReactNode };
+  pager?: ReactNode;
 }
 
 /**
  * Customers as a dense list. Right-click a row (or long-press on a phone) for its actions and owners; owners can also be
  * changed from the avatars.
  */
-export function CustomersTable({ rows, users, canEdit, crm, today, empty }: Props) {
+export function CustomersTable({ rows, users, canEdit, crm, today, empty, selectable = false, heads, pager }: Props) {
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const rowIds = rows.map((r) => r.id);
+  const ids = rowIds.filter((id) => picked.has(id));
+  const selection: Selection = { ids, allMatching: false, count: ids.length, clear: () => setPicked(new Set()) };
+  const pageAll = rows.length > 0 && ids.length === rows.length;
+  const tick = (id: number) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const bar = (
+    <div className="sticky bottom-(--mobile-nav-h) z-20 -mx-1 mt-auto flex min-h-12 flex-wrap items-center gap-2 border-t bg-background/95 py-2 pr-1 pl-1 backdrop-blur md:pr-20">
+      {ids.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium">
+            {ids.length} customer{ids.length === 1 ? "" : "s"} selected
+          </span>
+          <ExportActions list="customers" />
+          <Button variant="ghost" size="icon-sm" aria-label="Clear selection" onClick={selection.clear}>
+            <X />
+          </Button>
+        </div>
+      )}
+      <div className="ml-auto">{pager}</div>
+    </div>
+  );
   if (!rows.length) {
     return (
-      <div className="rounded-lg border bg-card">
-        <Empty>{empty}</Empty>
-      </div>
+      <>
+        <div className="rounded-lg border bg-card">
+          <Empty>{empty}</Empty>
+        </div>
+        {bar}
+      </>
     );
   }
   return (
-    <>
+    <SelectionContext.Provider value={selection}>
       <div className="hidden overflow-x-auto rounded-lg border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow className="text-xs">
-              <TableHead>Customer</TableHead>
+              {selectable && (
+                <TableHead className="w-9">
+                  <Checkbox aria-label="Select all on this page" checked={pageAll} indeterminate={ids.length > 0 && !pageAll} onCheckedChange={(on) => setPicked(on ? new Set(rowIds) : new Set())} />
+                </TableHead>
+              )}
+              <TableHead>{heads?.name ?? "Customer"}</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Owners</TableHead>
               <TableHead>In progress</TableHead>
-              <TableHead className="text-right">Sales</TableHead>
-              <TableHead className="text-right">Owes</TableHead>
-              <TableHead className="hidden xl:table-cell">Last paid</TableHead>
+              <TableHead className="text-right">{heads?.sales ?? "Sales"}</TableHead>
+              <TableHead className="text-right">{heads?.owed ?? "Owes"}</TableHead>
+              <TableHead className="hidden xl:table-cell">{heads?.paid ?? "Last paid"}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((c) => (
-              <CustomerTableRow key={c.id} c={c} users={users} canEdit={canEdit} crm={crm} today={today} />
+              <CustomerTableRow key={c.id} c={c} users={users} canEdit={canEdit} crm={crm} today={today} picked={selectable ? picked.has(c.id) : undefined} onTick={() => tick(c.id)} />
             ))}
           </TableBody>
         </Table>
@@ -99,11 +146,12 @@ export function CustomersTable({ rows, users, canEdit, crm, today, empty }: Prop
           <CustomerCard key={c.id} c={c} users={users} canEdit={canEdit} crm={crm} today={today} />
         ))}
       </ul>
-    </>
+      {bar}
+    </SelectionContext.Provider>
   );
 }
 
-type RowProps = { c: CustomerListRow; users: Person[]; canEdit: boolean; crm: boolean; today: string };
+type RowProps = { c: CustomerListRow; users: Person[]; canEdit: boolean; crm: boolean; today: string; /** Undefined: no tick box. */ picked?: boolean; onTick?: () => void };
 
 /** "Yesterday" or "Mon 19 Oct" for the last week, else the full date. */
 function when(day: string, today: string) {
@@ -114,14 +162,20 @@ function details(c: CustomerRow) {
   return [c.industry, c.emirate, c.trn ? `TRN ${c.trn}` : ""].filter(Boolean).join(" · ") || "No details yet";
 }
 
-function CustomerTableRow({ c, users, canEdit, crm, today }: RowProps) {
+function CustomerTableRow({ c, users, canEdit, crm, today, picked, onTick }: RowProps) {
+  const base = salesBaseOf(usePathname());
   const state = useCustomerOwners(c.id, c.owners, users);
   return (
     <ContextMenu>
-      <ContextMenuTrigger render={<TableRow />} className="select-auto data-popup-open:bg-muted/60">
+      <ContextMenuTrigger render={<TableRow data-state={picked ? "selected" : undefined} />} className="select-auto data-popup-open:bg-muted/60">
+        {picked !== undefined && (
+          <TableCell className="w-9 py-1.5">
+            <Checkbox aria-label={`Select ${c.name}`} checked={picked} onCheckedChange={onTick} />
+          </TableCell>
+        )}
         <TableCell className="max-w-80 py-1.5">
           <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <Link href={`/sales/customers/${c.id}`} className="truncate font-medium hover:underline">
+            <Link href={`${base}/customers/${c.id}`} className="truncate font-medium hover:underline">
               {c.name}
             </Link>
             <Flags flags={c.flags} />
@@ -157,12 +211,13 @@ function CustomerTableRow({ c, users, canEdit, crm, today }: RowProps) {
               </div>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground">No sales orders yet</span>
+            <span className="text-xs text-muted-foreground">{c.invoices ? `${c.invoices} invoice${c.invoices === 1 ? "" : "s"}` : "No sales yet"}</span>
           )}
         </TableCell>
         <TableCell className="py-1.5 text-right">
           <div className="font-medium tabular-nums">{c.owed ? money(c.owed) : "-"}</div>
           {c.overdue > 0 && <div className="text-xs font-medium text-red-700 tabular-nums dark:text-red-400">{money(c.overdue)} overdue</div>}
+          {c.advance > 0 && <div className="text-xs text-muted-foreground tabular-nums">{money(c.advance)} in advance</div>}
         </TableCell>
         <TableCell className="hidden py-1.5 text-xs xl:table-cell">{c.lastPaid ? when(c.lastPaid, today) : "-"}</TableCell>
       </ContextMenuTrigger>
@@ -199,18 +254,19 @@ function copy(text: string, what: string) {
 
 function RowMenu({ c, users, canEdit, crm, state }: Omit<RowProps, "today"> & { state: ReturnType<typeof useCustomerOwners> }) {
   const router = useRouter();
+  const base = salesBaseOf(usePathname());
   return (
     <ContextMenuContent className="w-56">
       <ContextMenuGroup>
         <ContextMenuLabel className="truncate">{c.name}</ContextMenuLabel>
-        <ContextMenuItem onClick={() => router.push(`/sales/customers/${c.id}`)}>
+        <ContextMenuItem onClick={() => router.push(`${base}/customers/${c.id}`)}>
           <Building2 /> Open customer
         </ContextMenuItem>
       </ContextMenuGroup>
-      <ContextMenuItem onClick={() => router.push(`/sales/quotes/new?company=${c.id}`)}>
+      <ContextMenuItem onClick={() => router.push(`${base}/quotes/new?company=${c.id}`)}>
         <FilePlus2 /> New quote
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => router.push(`/sales/customers/${c.id}?tab=statement`)}>
+      <ContextMenuItem onClick={() => router.push(`${base}/customers/${c.id}?tab=statement`)}>
         <ScrollText /> Statement
       </ContextMenuItem>
       {crm && (
@@ -264,13 +320,14 @@ function RowMenu({ c, users, canEdit, crm, state }: Omit<RowProps, "today"> & { 
 
 /** Phone layout: one card per customer; long-press opens the same menu. */
 function CustomerCard({ c, users, canEdit, crm }: RowProps) {
+  const base = salesBaseOf(usePathname());
   const state = useCustomerOwners(c.id, c.owners, users);
   return (
     <ContextMenu>
       <ContextMenuTrigger render={<li />} className="select-auto rounded-lg border bg-card p-2.5">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <Link href={`/sales/customers/${c.id}`} className="block truncate text-sm font-medium">
+            <Link href={`${base}/customers/${c.id}`} className="block truncate text-sm font-medium">
               {c.name}
             </Link>
             <div className="truncate text-xs text-muted-foreground">{details(c)}</div>
@@ -295,7 +352,7 @@ function CustomerCard({ c, users, canEdit, crm }: RowProps) {
                 </div>
               </>
             ) : (
-              <span className="text-muted-foreground">No sales orders yet</span>
+              <span className="text-muted-foreground">{c.invoices ? `${c.invoices} invoice${c.invoices === 1 ? "" : "s"}` : "No sales yet"}</span>
             )}
           </div>
         </div>

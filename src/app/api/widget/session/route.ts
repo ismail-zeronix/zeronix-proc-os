@@ -1,6 +1,7 @@
 import { arrive, visitorState } from "@/lib/webchat/chats";
 import { cleanClient } from "@/lib/webchat/client-info";
 import { allow, cleanString, clientIp, originOf, preflight, readJson, reply, siteOf } from "@/lib/webchat/public";
+import { isBot } from "@/lib/webchat/qualify";
 
 /**
  * The widget loaded on a page of the website: picks up the visitor's chat (from the token their browser kept) or starts
@@ -11,6 +12,8 @@ export async function POST(req: Request) {
   if (origin === null) return new Response(null, { status: 403 });
   const body = await readJson(req, 16_000);
   if (!body) return reply(origin, { error: "Bad request" }, 400);
+  // search engines and SEO tools run the widget too: no chat, no ringing (the widget stays hidden)
+  if (isBot(req.headers.get("user-agent"))) return reply(origin, { skip: true });
   const ip = clientIp(req);
   const token = cleanString(body.token, 64);
   // page views of a known visitor are cheap; new chats are limited per IP

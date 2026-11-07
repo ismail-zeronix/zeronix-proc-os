@@ -11,6 +11,7 @@ import { saveBrand } from "@/lib/website/settings";
 import { saveStore } from "@/lib/website/store";
 import { PAYMENT_METHODS, type StoreSettings } from "@/lib/website/store-core";
 import { dubaiDay } from "@/lib/website/traffic";
+import { parseInput } from "@/lib/user-error";
 
 const text = (max: number) => z.string().trim().max(max);
 
@@ -48,7 +49,7 @@ export async function saveGscAction(input: z.infer<typeof gscSchema>): Promise<R
   return attempt(async () => {
     const me = await assertApp("website");
     if (me.role !== "admin") throw new Problem("Only an admin can connect Search Console.");
-    const v = gscSchema.parse(input);
+    const v = parseInput(gscSchema, input);
     const saved = await saveGsc(v.property, v.key, me.id).catch((e: Error) => {
       throw new Problem(e.message);
     });
@@ -97,7 +98,7 @@ export async function saveStoreAction(input: StoreSettings): Promise<Result<null
   return attempt(async () => {
     const me = await assertApp("website");
     if (me.role !== "admin") throw new Problem("Only an admin can change the store settings.");
-    const v = storeSchema.parse(input);
+    const v = parseInput(storeSchema, input);
     if (v.payments.includes("bank") && !v.bankDetails.trim()) throw new Problem("Add the bank details, or switch Bank transfer off.");
     await saveStore(v, me.id);
     revalidatePath("/website/settings");

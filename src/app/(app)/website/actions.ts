@@ -8,6 +8,7 @@ import { SITE_ICONS, type SiteHome } from "@/lib/website/contract";
 import { revalidateSite } from "@/lib/website/revalidate";
 import { saveHome } from "@/lib/website/settings";
 import { addStarterCatalog, fillEmptyCategoryPages, fillEmptyIndustryPages } from "@/lib/website/starter";
+import { parseInput } from "@/lib/user-error";
 
 async function assertAdmin() {
   const me = await assertApp("website");
@@ -40,7 +41,7 @@ const homeSchema = z.object({
 export async function updateHome(input: SiteHome): Promise<Result<{ siteRefreshed: boolean }>> {
   return attempt(async () => {
     const me = await assertAdmin();
-    const home = homeSchema.parse(input);
+    const home = parseInput(homeSchema, input);
     home.topLinks = home.topLinks.filter((l) => l.label && l.href);
     home.hero.checks = home.hero.checks.filter(Boolean);
     home.benefits = home.benefits.filter((b) => b.title);

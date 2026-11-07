@@ -14,6 +14,7 @@ import type { ChatMessage, ChatUser } from "@/lib/chat/types";
 import { dayLabel, dubaiToday, TZ } from "@/lib/dates";
 import { replaceMessage, setReactions } from "./chat-data";
 import { RecordCard } from "./record-card";
+import { errorText } from "@/lib/user-error";
 
 /** Messages from the same person within this long sit together under one name. */
 const GROUP_MS = 5 * 60_000;
@@ -71,7 +72,7 @@ export function MessageRow({
     try {
       setReactions(qc, m.channelId, m.threadId, m.id, await toggleReaction(m.id, emoji));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
 
@@ -131,7 +132,7 @@ export function MessageRow({
                       await deleteMessage(m.id);
                       replaceMessage(qc, { ...m, deletedAt: new Date().toISOString(), body: "", reactions: [] });
                     } catch (e) {
-                      toast.error((e as Error).message);
+                      toast.error(errorText(e));
                     }
                   }}
                   actions={actions}
@@ -277,7 +278,7 @@ function EditBox({ m, onDone }: { m: ChatMessage; onDone: () => void }) {
       replaceMessage(qc, await editMessage(m.id, t));
       onDone();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
       setSaving(false);
     }
   };

@@ -6,6 +6,7 @@ import { publish, setMessageLoader } from "./bus";
 import { memberIds } from "./channels";
 import { MAX_BODY, parseMentions } from "./text";
 import type { ChatCard, ChatMessage, MessageKind, Reaction } from "./types";
+import { UserError } from "@/lib/user-error";
 
 const quoted = alias(schema.chatMessages, "quoted");
 const quotedUser = alias(schema.users, "quoted_user");
@@ -131,8 +132,8 @@ export interface NewMessage {
 /** Saves a message, moves the conversation to the top and sends it live to everyone in it. */
 export async function postMessage(input: NewMessage): Promise<ChatMessage> {
   const body = input.body.trim();
-  if (!body && !input.card) throw new Error("Write a message first.");
-  if (body.length > MAX_BODY) throw new Error(`Keep a message under ${MAX_BODY} characters.`);
+  if (!body && !input.card) throw new UserError("Write a message first.");
+  if (body.length > MAX_BODY) throw new UserError(`Keep a message under ${MAX_BODY} characters.`);
   // a quote or a thread reply must point at a message in the same conversation; threads are one level deep
   for (const ref of [input.replyToId, input.threadId]) {
     if (!ref) continue;
@@ -140,8 +141,8 @@ export async function postMessage(input: NewMessage): Promise<ChatMessage> {
       .select({ channelId: schema.chatMessages.channelId, threadId: schema.chatMessages.threadId })
       .from(schema.chatMessages)
       .where(eq(schema.chatMessages.id, ref));
-    if (!m || m.channelId !== input.channelId) throw new Error("The message you are answering is gone.");
-    if (ref === input.threadId && m.threadId) throw new Error("Reply in the thread of the first message.");
+    if (!m || m.channelId !== input.channelId) throw new UserError("The message you are answering is gone.");
+    if (ref === input.threadId && m.threadId) throw new UserError("Reply in the thread of the first message.");
   }
   const id = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -191,15 +192,15 @@ async function ownMessage(id: number, userId: number, isAdmin: boolean) {
     .select({ channelId: schema.chatMessages.channelId, userId: schema.chatMessages.userId, deletedAt: schema.chatMessages.deletedAt })
     .from(schema.chatMessages)
     .where(eq(schema.chatMessages.id, id));
-  if (!m || m.deletedAt) throw new Error("That message is gone.");
-  if (m.userId !== userId && !isAdmin) throw new Error("You can only change your own messages.");
+  if (!m || m.deletedAt) throw new UserError("That message is gone.");
+  if (m.userId !== userId && !isAdmin) throw new UserError("You can only change your own messages.");
   return m;
 }
 
 export async function editMessage(id: number, userId: number, body: string): Promise<ChatMessage> {
   const text = body.trim();
-  if (!text) throw new Error("Write something, or delete the message.");
-  if (text.length > MAX_BODY) throw new Error(`Keep a message under ${MAX_BODY} characters.`);
+  if (!text) throw new UserError("Write something, or delete the message.");
+  if (text.length > MAX_BODY) throw new UserError(`Keep a message under ${MAX_BODY} characters.`);
   const m = await ownMessage(id, userId, false);
   await db.update(schema.chatMessages).set({ body: text, editedAt: new Date() }).where(eq(schema.chatMessages.id, id));
   const message = (await getMessage(id))!;
@@ -222,7 +223,7 @@ export async function toggleReaction(messageId: number, userId: number, emoji: s
     .select({ channelId: schema.chatMessages.channelId, threadId: schema.chatMessages.threadId, deletedAt: schema.chatMessages.deletedAt })
     .from(schema.chatMessages)
     .where(eq(schema.chatMessages.id, messageId));
-  if (!m || m.deletedAt) throw new Error("That message is gone.");
+  if (!m || m.deletedAt) throw new UserError("That message is gone.");
   const removed = await db
     .delete(schema.chatReactions)
     .where(and(eq(schema.chatReactions.messageId, messageId), eq(schema.chatReactions.userId, userId), eq(schema.chatReactions.emoji, emoji)))

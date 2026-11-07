@@ -29,6 +29,7 @@ import { MAX_BODY } from "@/lib/chat/text";
 import type { CardView, ChannelSummary, ChatMessage, ChatPrefsView, Reaction } from "@/lib/chat/types";
 import { dubaiToday } from "@/lib/dates";
 import { quoteStatusLabel } from "@/lib/quotation";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const id = z.number().int().positive();
 const body = z.string().trim().min(1, "Write a message first.").max(MAX_BODY, `Keep a message under ${MAX_BODY} characters.`);
@@ -41,7 +42,7 @@ export async function startDm(peerId: number): Promise<number> {
     .select({ id: schema.users.id })
     .from(schema.users)
     .where(and(eq(schema.users.id, peerId), eq(schema.users.isActive, true)));
-  if (!peer) throw new Error("That person is not in the portal any more.");
+  if (!peer) throw new UserError("That person is not in the portal any more.");
   return getOrCreateDm(user.id, peerId);
 }
 
@@ -53,7 +54,7 @@ export async function openDealThread(dealId: number): Promise<ChannelSummary> {
   const channelId = await getOrCreateDealThread(dealId);
   await openChannel(channelId, access); // joins admins / "All data" users who are not on the deal
   const summary = await channelSummary(channelId, access.user.id);
-  if (!summary) throw new Error("Could not open the deal's chat.");
+  if (!summary) throw new UserError("Could not open the deal's chat.");
   return summary;
 }
 
@@ -66,10 +67,10 @@ const sendSchema = z.object({
 
 export async function sendMessage(input: z.input<typeof sendSchema>): Promise<ChatMessage> {
   const access = await assertChat();
-  const { channelId, body, replyToId, threadId } = sendSchema.parse(input);
+  const { channelId, body, replyToId, threadId } = parseInput(sendSchema, input);
   const ch = await openChannel(channelId, access);
-  if (ch.archived) throw new Error("This channel is archived.");
-  if (ch.kind === "system") throw new Error("Reply where you were mentioned: open the card.");
+  if (ch.archived) throw new UserError("This channel is archived.");
+  if (ch.kind === "system") throw new UserError("Reply where you were mentioned: open the card.");
   const message = await postMessage({ channelId, userId: access.user.id, body, replyToId, threadId });
   // in a DM the message itself is the notice; in a channel or deal thread the people mentioned also get a card
   if (ch.kind !== "dm")
@@ -104,7 +105,7 @@ const emoji = z
 export async function toggleReaction(messageId: number, e: string): Promise<Reaction[]> {
   const access = await assertChat();
   const channelId = await channelOf(id.parse(messageId));
-  if (!channelId) throw new Error("That message is gone.");
+  if (!channelId) throw new UserError("That message is gone.");
   await openChannel(channelId, access);
   return toggle(messageId, access.user.id, emoji.parse(e));
 }
@@ -141,7 +142,7 @@ export async function joinGroup(channelId: number): Promise<void> {
 async function managed(channelId: number) {
   const access = await assertChat();
   const ch = await openChannel(id.parse(channelId), access);
-  if (!ch.canManage) throw new Error("Only the channel owner or an admin can change this.");
+  if (!ch.canManage) throw new UserError("Only the channel owner or an admin can change this.");
   return { access, ch };
 }
 
@@ -156,8 +157,8 @@ export async function updateGroup(channelId: number, patch: z.input<typeof patch
 export async function addMembers(channelId: number, userIds: number[]): Promise<void> {
   const access = await assertChat();
   const ch = await openChannel(id.parse(channelId), access);
-  if (ch.kind !== "group") throw new Error("People can only be added to a channel.");
-  if (ch.isPrivate && !ch.canManage) throw new Error("Only the owner or an admin can add people to a private channel.");
+  if (ch.kind !== "group") throw new UserError("People can only be added to a channel.");
+  if (ch.isPrivate && !ch.canManage) throw new UserError("Only the owner or an admin can add people to a private channel.");
   await addToChannel(channelId, z.array(id).max(100).parse(userIds));
 }
 
@@ -169,7 +170,7 @@ export async function removeFromGroup(channelId: number, userId: number): Promis
 export async function leaveGroup(channelId: number): Promise<void> {
   const access = await assertChat();
   const ch = await openChannel(id.parse(channelId), access);
-  if (ch.kind !== "group") throw new Error("You can only leave a channel.");
+  if (ch.kind !== "group") throw new UserError("You can only leave a channel.");
   await removeMember(channelId, access.user.id);
 }
 
@@ -186,7 +187,7 @@ const prefsSchema = z.object({
 /** My status (online, away, do not disturb for a while) and alert settings. */
 export async function setChatPrefs(input: z.input<typeof prefsSchema>): Promise<ChatPrefsView> {
   const { user } = await assertChat();
-  const { dndMinutes, ...p } = prefsSchema.parse(input);
+  const { dndMinutes, ...p } = parseInput(prefsSchema, input);
   const patch: Parameters<typeof savePrefs>[1] = { ...p };
   if (p.status) patch.dndUntil = p.status === "dnd" && dndMinutes ? new Date(Date.now() + dndMinutes * 60_000) : null;
   return savePrefs(user.id, patch);
@@ -211,7 +212,7 @@ export async function setChannelMute(channelId: number, minutes: number | null):
 export async function runCardAction(ref: string, action: string, channelId?: number | null): Promise<CardView | null> {
   const access = await assertChat();
   const r = parseRef(ref);
-  if (!r) throw new Error("Unknown card.");
+  if (!r) throw new UserError("Unknown card.");
   let line = "";
   if (r.type === "task" && (action === "done" || action === "reopen")) {
     await setTaskDone(r.id, action === "done");
@@ -227,12 +228,12 @@ export async function runCardAction(ref: string, action: string, channelId?: num
     line = `${access.user.name} marked order ${o?.number ?? ""} as delivered`;
   } else if (r.type === "deal" && action === "followup") {
     const [d] = await db.select({ title: schema.deals.title }).from(schema.deals).where(eq(schema.deals.id, r.id));
-    if (!d) throw new Error("That deal no longer exists.");
+    if (!d) throw new UserError("That deal no longer exists.");
     const tomorrow = dubaiToday(new Date(Date.now() + 86_400_000));
     await createTask({ title: `Follow up: ${d.title}`.slice(0, 200), dueDate: tomorrow, related: { type: "deal", id: r.id } });
     line = `${access.user.name} booked a follow-up for tomorrow`;
   } else {
-    throw new Error("That button does not work on this card.");
+    throw new UserError("That button does not work on this card.");
   }
   // the line goes where the card was (not into an Activity feed, which is only its owner's)
   if (channelId) {

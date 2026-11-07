@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CHECKLIST_GROUPS } from "@/lib/projects";
 import { addProjectType, addTemplate, deleteTemplate, moveTemplate, saveProjectType, updateTemplate } from "./project-type-actions";
+import { errorText } from "@/lib/user-error";
 
 interface TypeRow {
   key: string;
@@ -36,7 +37,7 @@ function useRun() {
         if (ok) toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

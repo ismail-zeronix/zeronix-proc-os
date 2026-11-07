@@ -337,6 +337,90 @@
       "when": 1793752910225,
       "tag": "0047_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793837578616,
+      "tag": "0048_webchat_qualify",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793837593088,
+      "tag": "0049_org_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793839784613,
+      "tag": "0050_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793841622355,
+      "tag": "0051_ledger_posting",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794006356932,
+      "tag": "0052_credit_goods_back",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794015268509,
+      "tag": "0053_allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794018428665,
+      "tag": "0054_account_map",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794021030382,
+      "tag": "0055_dashboard_layouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794021384938,
+      "tag": "0056_export_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794052296579,
+      "tag": "0057_vat_lines_and_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794053319120,
+      "tag": "0058_vat_returns",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794068757451,
+      "tag": "0059_credit_event_refunds",
+      "breakpoints": true
     }
   ]
 }

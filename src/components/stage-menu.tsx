@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { LOST_REASONS, STAGES } from "@/lib/sales";
+import { errorText } from "@/lib/user-error";
 
 /**
  * Change a deal's stage. `variant="select"` is a drop-down showing the stage (lists, deal page);
@@ -44,7 +45,7 @@ export function StageMenu({
         toast.success(to === "won" ? "Marked as won" : to === "lost" ? "Marked as lost" : "Stage updated");
         setAsking(false);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   const [winning, setWinning] = useState(false);
@@ -141,7 +142,7 @@ function WonDialog({ dealId, onClose }: { dealId: number; onClose: () => void })
         setQuoteId(pick ? String(pick.id) : "");
       })
       .catch((e) => {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
         close.current();
       });
   }, [dealId]);
@@ -210,7 +211,7 @@ function WonDialog({ dealId, onClose }: { dealId: number; onClose: () => void })
                       toast.success(r.gaps.length ? "Won. A task to complete the customer details was added." : "Marked as won");
                       onClose();
                     } catch (e) {
-                      toast.error((e as Error).message);
+                      toast.error(errorText(e));
                     }
                   })
                 }
@@ -243,7 +244,7 @@ export function QualifyButton({ dealId }: { dealId: number }) {
             await moveDeal(dealId, "requirement");
             toast.success("Qualified: it is now a deal");
           } catch (e) {
-            toast.error((e as Error).message);
+            toast.error(errorText(e));
           }
         })
       }

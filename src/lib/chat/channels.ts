@@ -6,6 +6,7 @@ import { canSeeDeal, viewerOf } from "@/lib/auth/visibility";
 import { publish } from "./bus";
 import { dmKey, previewOf } from "./text";
 import type { ChannelKind, ChannelSummary, ChatUser, OpenGroup } from "./types";
+import { UserError } from "@/lib/user-error";
 
 const GONE = "That conversation does not exist or you are not in it.";
 
@@ -58,11 +59,11 @@ export async function openChannel(channelId: number, access: Access): Promise<Ch
     .from(schema.chatChannels)
     .leftJoin(schema.chatMembers, and(eq(schema.chatMembers.channelId, schema.chatChannels.id), eq(schema.chatMembers.userId, userId)))
     .where(eq(schema.chatChannels.id, channelId));
-  if (!row) throw new Error(GONE);
+  if (!row) throw new UserError(GONE);
   let role = row.role;
   if (!role) {
     const dealThread = row.kind === "record" && row.recordType === "deal" && row.recordId != null;
-    if (!dealThread || !(await canSeeDeal(viewerOf(access), row.recordId!))) throw new Error(GONE);
+    if (!dealThread || !(await canSeeDeal(viewerOf(access), row.recordId!))) throw new UserError(GONE);
     await db.insert(schema.chatMembers).values({ channelId, userId }).onConflictDoNothing();
     role = "member";
   }
@@ -136,7 +137,7 @@ export async function joinGroup(channelId: number, userId: number): Promise<void
     .select({ id: schema.chatChannels.id })
     .from(schema.chatChannels)
     .where(and(eq(schema.chatChannels.id, channelId), eq(schema.chatChannels.kind, "group"), eq(schema.chatChannels.isPrivate, false), isNull(schema.chatChannels.archivedAt)));
-  if (!ch) throw new Error("That channel is private or no longer exists.");
+  if (!ch) throw new UserError("That channel is private or no longer exists.");
   await db.insert(schema.chatMembers).values({ channelId, userId }).onConflictDoNothing();
   await publish(await memberIds(channelId), { t: "channel.update", channelId });
 }

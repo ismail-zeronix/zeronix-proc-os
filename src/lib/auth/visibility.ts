@@ -2,6 +2,7 @@ import "server-only";
 import { sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import { loadAccess, type Access } from "./session";
+import { UserError } from "@/lib/user-error";
 
 /**
  * Who can see which sales records (the "Own / All" data scope used by most CRMs).
@@ -26,7 +27,7 @@ export const financeViewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll:
 /** The signed-in person as a Viewer (for server actions and route handlers). `finance`: Accounts at the finance level sees every record. */
 export async function currentViewer(finance = false): Promise<Viewer> {
   const access = await loadAccess();
-  if (!access) throw new Error("You are not signed in");
+  if (!access) throw new UserError("You are not signed in");
   return finance ? financeViewerOf(access) : viewerOf(access);
 }
 
@@ -111,13 +112,13 @@ const GONE = "That record does not exist or is not assigned to you.";
 /** For server actions: throws unless the signed-in person may see (and so work on) this deal. */
 export async function assertDeal(dealId: number, finance = false): Promise<Viewer> {
   const v = await currentViewer(finance);
-  if (!(await canSeeDeal(v, dealId))) throw new Error(GONE);
+  if (!(await canSeeDeal(v, dealId))) throw new UserError(GONE);
   return v;
 }
 
 export async function assertCompany(companyId: number, finance = false): Promise<Viewer> {
   const v = await currentViewer(finance);
-  if (!(await canSeeCompany(v, companyId))) throw new Error(GONE);
+  if (!(await canSeeCompany(v, companyId))) throw new UserError(GONE);
   return v;
 }
 
@@ -133,7 +134,7 @@ export async function dealOf(table: "quotes" | "sales_orders" | "deal_items", id
  */
 export async function assertDealOf(table: "quotes" | "sales_orders" | "deal_items", id: number, finance = false): Promise<Viewer> {
   const exists = await db.execute(sql`SELECT 1 FROM ${sql.identifier(table)} WHERE id = ${id}`);
-  if (!exists.rows.length) throw new Error(GONE);
+  if (!exists.rows.length) throw new UserError(GONE);
   const dealId = await dealOf(table, id);
   if (dealId != null) return assertDeal(dealId, finance);
   const v = await currentViewer(finance);
@@ -142,13 +143,13 @@ export async function assertDealOf(table: "quotes" | "sales_orders" | "deal_item
     table === "quotes"
       ? sql`SELECT 1 FROM quotes q WHERE q.id = ${id} AND (q.owner_id = ${v.id} OR q.created_by = ${v.id})`
       : sql`SELECT 1 FROM sales_orders o JOIN quotes q ON q.id = o.quote_id WHERE o.id = ${id} AND (q.owner_id = ${v.id} OR q.created_by = ${v.id})`;
-  if (table === "deal_items" || !(await db.execute(cond)).rows.length) throw new Error(GONE);
+  if (table === "deal_items" || !(await db.execute(cond)).rows.length) throw new UserError(GONE);
   return v;
 }
 
 export async function assertContact(contactId: number): Promise<Viewer> {
   const r = await db.execute<{ company_id: number }>(sql`SELECT company_id FROM contacts WHERE id = ${contactId}`);
   const companyId = r.rows[0]?.company_id;
-  if (companyId == null) throw new Error(GONE);
+  if (companyId == null) throw new UserError(GONE);
   return assertCompany(companyId);
 }

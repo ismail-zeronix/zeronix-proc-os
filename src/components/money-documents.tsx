@@ -35,6 +35,41 @@ function Head({ brand, title, number, meta }: { brand: QuoteBrand; title: string
   );
 }
 
+/** What a receipt or voucher paid when it is more than one document, or part of it is an advance. */
+function PaidTable({ first, rows, advance }: { first: string; rows: { label: string; total: number; amount: number; balanceAfter: number }[]; advance: number }) {
+  return (
+    <table className="w-full border-collapse text-xs">
+      <thead>
+        <tr className="border-b text-left text-neutral-500">
+          <th className="py-1 pr-2 font-medium">{first}</th>
+          <th className="py-1 pr-2 text-right font-medium">Total</th>
+          <th className="py-1 pr-2 text-right font-medium">Paid now</th>
+          <th className="py-1 text-right font-medium">Still open</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.label} className="border-b border-neutral-200">
+            <td className="py-1 pr-2">{r.label}</td>
+            <td className="py-1 pr-2 text-right tabular-nums">{money(r.total)}</td>
+            <td className="py-1 pr-2 text-right tabular-nums">{money(r.amount)}</td>
+            <td className="py-1 text-right tabular-nums">{r.balanceAfter > 0 ? money(r.balanceAfter) : "Fully paid"}</td>
+          </tr>
+        ))}
+        {advance > 0 && (
+          <tr>
+            <td className="py-1 pr-2" colSpan={2}>
+              Kept as an advance
+            </td>
+            <td className="py-1 pr-2 text-right tabular-nums">{money(advance)}</td>
+            <td />
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
 export interface ReceiptData {
   number: string;
   paidOn: string;
@@ -43,10 +78,10 @@ export interface ReceiptData {
   reference: string;
   notes: string;
   customerName: string;
-  invoiceNumber: string;
-  invoiceTotal: number;
-  /** Still owed on the invoice after this and earlier payments. */
-  balanceAfter: number;
+  /** The invoices it paid, with what was still owed on each right after. */
+  documents: { number: string; total: number; amount: number; balanceAfter: number }[];
+  /** What is left of it, kept for a later invoice. */
+  advance: number;
   byName: string | null;
   voided: string | null;
 }
@@ -74,12 +109,23 @@ export function ReceiptDocument({ r, brand }: { r: ReceiptData; brand: QuoteBran
           {methodLabel(r.method)}
           {r.reference ? ` · Ref. ${r.reference}` : ""}
         </dd>
-        <dt className="text-neutral-500">Against invoice</dt>
-        <dd>
-          {r.invoiceNumber} ({money(r.invoiceTotal)})
-        </dd>
-        <dt className="text-neutral-500">Balance on the invoice</dt>
-        <dd className="font-medium">{r.balanceAfter > 0 ? money(r.balanceAfter) : "Fully paid"}</dd>
+        {r.documents.length === 1 && r.advance <= 0 ? (
+          <>
+            <dt className="text-neutral-500">Against invoice</dt>
+            <dd>
+              {r.documents[0].number} ({money(r.documents[0].total)})
+            </dd>
+            <dt className="text-neutral-500">Balance on the invoice</dt>
+            <dd className="font-medium">{r.documents[0].balanceAfter > 0 ? money(r.documents[0].balanceAfter) : "Fully paid"}</dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-neutral-500">Against</dt>
+            <dd>
+              <PaidTable first="Invoice" rows={r.documents.map((d) => ({ label: d.number, total: d.total, amount: d.amount, balanceAfter: d.balanceAfter }))} advance={r.advance} />
+            </dd>
+          </>
+        )}
         {r.notes && (
           <>
             <dt className="text-neutral-500">Note</dt>
@@ -116,12 +162,10 @@ export interface VoucherData {
   notes: string;
   payee: string;
   payeeTrn: string | null;
-  billNumber: string;
-  billTotal: number;
-  supplierRef: string;
-  category: string;
-  /** Still to pay on the bill after this and earlier payments. */
-  balanceAfter: number;
+  /** The bills or expense it paid, with what was still to pay on each right after. */
+  documents: { number: string; total: number; amount: number; balanceAfter: number; category: string; supplierRef: string }[];
+  /** What is left of it, kept for a later bill. */
+  advance: number;
   byName: string | null;
   voided: string | null;
 }
@@ -152,13 +196,24 @@ export function VoucherDocument({ v, brand }: { v: VoucherData; brand: QuoteBran
           {methodLabel(v.method)}
           {v.reference ? ` · Ref. ${v.reference}` : ""}
         </dd>
-        <dt className="text-neutral-500">For</dt>
-        <dd>
-          {v.category} · {v.billNumber}
-          {v.supplierRef ? ` (their invoice ${v.supplierRef})` : ""} · {money(v.billTotal)}
-        </dd>
-        <dt className="text-neutral-500">Still to pay</dt>
-        <dd className="font-medium">{v.balanceAfter > 0 ? money(v.balanceAfter) : "Fully paid"}</dd>
+        {v.documents.length === 1 && v.advance <= 0 ? (
+          <>
+            <dt className="text-neutral-500">For</dt>
+            <dd>
+              {v.documents[0].category} · {v.documents[0].number}
+              {v.documents[0].supplierRef ? ` (their invoice ${v.documents[0].supplierRef})` : ""} · {money(v.documents[0].total)}
+            </dd>
+            <dt className="text-neutral-500">Still to pay</dt>
+            <dd className="font-medium">{v.documents[0].balanceAfter > 0 ? money(v.documents[0].balanceAfter) : "Fully paid"}</dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-neutral-500">For</dt>
+            <dd>
+              <PaidTable first="Bill" rows={v.documents.map((d) => ({ label: d.supplierRef ? `${d.number} (their invoice ${d.supplierRef})` : d.number, total: d.total, amount: d.amount, balanceAfter: d.balanceAfter }))} advance={v.advance} />
+            </dd>
+          </>
+        )}
         {v.notes && (
           <>
             <dt className="text-neutral-500">Note</dt>
@@ -243,7 +298,7 @@ export function StatementDocument({ s, brand }: { s: StatementData; brand: Quote
               <td className="px-2 py-1.5 whitespace-nowrap">{longDay(l.date)}</td>
               <td className="px-2 py-1.5 font-mono text-xs whitespace-nowrap">{l.number}</td>
               <td className="px-2 py-1.5 text-xs text-neutral-600">
-                {l.kind === "invoice" ? "Invoice" : l.kind === "payment" ? "Payment" : "Credit note"}
+                {l.kind === "invoice" ? "Invoice" : l.kind === "payment" ? "Payment" : l.kind === "refund" ? "Refund" : "Credit note"}
                 {l.note ? ` · ${l.note}` : ""}
               </td>
               <td className="px-2 py-1.5 text-right tabular-nums">{l.debit ? money(l.debit) : ""}</td>

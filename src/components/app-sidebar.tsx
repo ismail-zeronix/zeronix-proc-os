@@ -15,16 +15,16 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { BADGE_LABELS, navFor, type NavItem } from "@/lib/app-nav";
+import { BADGE_LABELS, navFor, type NavItem, type NavPerms } from "@/lib/app-nav";
 import { appByKey, type AppKey } from "@/lib/apps";
 
 /** The left menu of one app. Pages come from lib/app-nav.ts; `badges` maps a badge name to its number. */
-export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<string, number> }) {
+export function AppSidebar({ app, badges = {}, perms }: { app: AppKey; badges?: Record<string, number>; perms?: NavPerms }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const def = appByKey(app);
 
-  const groups = navFor(app);
+  const groups = navFor(app, perms);
   const close = () => isMobile && setOpenMobile(false);
   const under = (base: string) => pathname.startsWith(base + "/");
   const active = (n: NavItem) =>
@@ -53,7 +53,7 @@ export function AppSidebar({ app, badges = {} }: { app: AppKey; badges?: Record<
       <SidebarContent>
         {groups.map((g) => (
           <SidebarGroup key={g.label}>
-            <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+            {!g.hideLabel && <SidebarGroupLabel>{g.label}</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 {g.items.map((n) => {

@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { isFreeMail } from "./constants";
 import { firstName, greetingFor, offerLine, pickRecipients, render, shortCompany, whyNot, type MergeVars } from "./outreach-rules";
+import { UserError } from "@/lib/user-error";
 
 /** Enrollment statuses that are still going (one at a time per company). */
 export const OPEN = ["writing", "draft", "active", "paused"];
@@ -202,12 +203,12 @@ export interface EnrollResult {
  */
 export async function enroll(campaignId: number, companyIds: number[], userId: number): Promise<EnrollResult> {
   const [campaign] = await db.select().from(schema.outreachCampaigns).where(eq(schema.outreachCampaigns.id, campaignId));
-  if (!campaign) throw new Error("That campaign no longer exists");
+  if (!campaign) throw new UserError("That campaign no longer exists");
   const [step1] = await db
     .select()
     .from(schema.outreachSequenceSteps)
     .where(and(eq(schema.outreachSequenceSteps.sequenceId, campaign.sequenceId), eq(schema.outreachSequenceSteps.position, 1)));
-  if (!step1) throw new Error("The campaign's sequence has no first email");
+  if (!step1) throw new UserError("The campaign's sequence has no first email");
   const res: EnrollResult = { added: 0, skipped: [] };
   if (!companyIds.length) return res;
 

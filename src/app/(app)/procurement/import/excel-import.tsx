@@ -18,6 +18,7 @@ import type { WorkbookResult } from "@/lib/parse/excel";
 import { SUPPLIER_TYPES, supplierType } from "@/lib/supplier-types";
 import { cn } from "@/lib/utils";
 import { createExcelPriceList } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 const NEW = "__new__";
 
@@ -77,7 +78,7 @@ export function ExcelImport({ suppliers, fxUsd }: { suppliers: SupplierOption[];
       setSheets(p.sheets.map((s) => ({ include: s.drafts.length > 0, category: s.category })));
       setOpen(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setLoading(false);
     }
@@ -119,7 +120,7 @@ export function ExcelImport({ suppliers, fxUsd }: { suppliers: SupplierOption[];
         toast.success(`${res.rows} rows read. Check them, then save.`);
         router.push(`/procurement/import/${res.id}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   };

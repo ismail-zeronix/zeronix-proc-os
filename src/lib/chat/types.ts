@@ -127,7 +127,8 @@ export type ChatEvent =
   /** Website chat: a visitor arrived, left, sent the lead form, or a chat was accepted or closed. Re-read the list. */
   | { t: "web.update"; chatId: number }
   | { t: "web.message"; message: WebMessage }
-  | { t: "web.typing"; chatId: number }
+  /** The visitor is typing; `text` is their message box right now (old widgets send none). */
+  | { t: "web.typing"; chatId: number; text?: string }
   /** A new (or reopened) line in the bell. */
   | { t: "notification"; n: NotificationView }
   /** Lines were read, resolved or snoozed elsewhere: re-read the bell. */

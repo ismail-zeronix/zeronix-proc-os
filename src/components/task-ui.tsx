@@ -18,6 +18,7 @@ import { MentionTextarea, useMentionPeople, useMentions } from "@/components/men
 import { tokensToText } from "@/lib/chat/text";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import type { TaskRow } from "@/lib/tasks";
+import { errorText } from "@/lib/user-error";
 
 type Person = { id: number; name: string };
 
@@ -54,7 +55,7 @@ export function TaskDialog({
         setOpen(false);
         if (!task) setF(blank);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 
@@ -177,7 +178,7 @@ export function TaskItem({
         await fn();
         if (ok) toast.success(ok);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

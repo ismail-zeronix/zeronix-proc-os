@@ -11,6 +11,7 @@ import { pathOf, visitorLabel, type WebChatSummary } from "@/lib/webchat/types";
 import { useMyPrefs } from "./alerts";
 import { useChatStore } from "./chat-store";
 import { useWebChats, webKeys } from "./web-data";
+import { errorText } from "@/lib/user-error";
 
 let audio: AudioContext | null = null;
 
@@ -155,7 +156,7 @@ export function WebRinger({ me }: { me: number }) {
       await qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
       openChat(c.id);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     } finally {
       setBusy(null);
     }

@@ -161,6 +161,9 @@
   }
   html {
     @apply font-sans;
+    /* the scrollbar's room is always kept, so going from a short page to a long one (Windows draws a real bar) never
+       pushes the header buttons and the page sideways */
+    scrollbar-gutter: stable;
   }
 }
 
@@ -242,6 +245,17 @@ body {
       text-align: right;
       white-space: normal !important;
       overflow-wrap: anywhere;
+    }
+    /* totals rows: the label on the left, the amount on the right, one line */
+    [data-cards] tfoot td[data-card-total] {
+      flex: 1 1 auto;
+    }
+    [data-cards] tfoot td[data-card-total]:first-child {
+      justify-content: flex-start;
+      text-align: left;
+    }
+    [data-cards] tfoot td[data-card-total]:empty {
+      display: none;
     }
     [data-cards] td::before {
       content: attr(data-label);

@@ -1,4 +1,5 @@
 /** Sales rules and lists in one place: stages, sources, the genuine-lead checklist and its Hot / Warm / Cold label. */
+import { aeVat } from "@/lib/tax/ae-vat";
 
 export const STAGES = [
   { key: "new", label: "New", hint: "Just arrived, not yet contacted" },
@@ -145,10 +146,7 @@ export function daysSince(d: Date | string, now = new Date()): number {
 }
 
 /** A UAE TRN is 15 digits (spaces and dashes allowed when typed). Empty = the customer is not VAT-registered. */
-export const trnProblem = (trn: string): string | null => {
-  const t = trn.replace(/[\s-]/g, "");
-  return !t || /^\d{15}$/.test(t) ? null : `TRN "${trn}" is not 15 digits.`;
-};
+export const trnProblem = (trn: string): string | null => aeVat.validateTaxId(trn);
 
 export interface CustomerGap {
   key: "address" | "trn" | "trnFormat" | "contact" | "contactReach";

@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,7 +26,7 @@ export interface Selection {
   clear: () => void;
 }
 
-const SelectionContext = createContext<Selection>({ ids: [], allMatching: false, count: 0, clear: () => {} });
+export const SelectionContext = createContext<Selection>({ ids: [], allMatching: false, count: 0, clear: () => {} });
 export const useSelection = () => useContext(SelectionContext);
 
 export interface Column {
@@ -46,7 +47,7 @@ export function DataTable({
 }: {
   columns: Column[];
   /** `card`: the row as a small card for phones. When rows have one, phones get cards instead of a sideways table. */
-  rows: { id: number; cells: ReactNode[]; card?: ReactNode }[];
+  rows: { id: number; cells: ReactNode[]; card?: ReactNode; /** Where a click on the row (not on a link, button or tick box in it) goes. */ href?: string }[];
   /** Rows matching the filter on every page. */
   total: number;
   /** "product" → "3 products selected". */
@@ -61,7 +62,15 @@ export function DataTable({
   /** Tick boxes and the selection bar; off for people who may not use any of the actions (the pages still show). */
   selectable?: boolean;
 }) {
+  const router = useRouter();
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  /** A click on the row's empty space opens it; links, buttons and tick boxes in it keep their own job. Ctrl or ⌘ opens a new tab. */
+  const openRow = (href: string | undefined, e: React.MouseEvent) => {
+    if (!href || (e.target as HTMLElement).closest("a, button, input, label, select, textarea, [role=checkbox], [role=menuitem]")) return;
+    if (window.getSelection()?.toString()) return; // selecting text to copy is not a click
+    if (e.ctrlKey || e.metaKey) window.open(href, "_blank", "noopener");
+    else router.push(href);
+  };
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
   // "all matching" belongs to the page it was chosen on; a new page or filter starts without it (and picks of rows
   // no longer shown drop out below)
@@ -153,7 +162,7 @@ export function DataTable({
                 </TableRow>
               )}
               {rows.map((r) => (
-                <TableRow key={r.id} data-state={picked.has(r.id) || allMatching ? "selected" : undefined}>
+                <TableRow key={r.id} data-state={picked.has(r.id) || allMatching ? "selected" : undefined} className={r.href ? "cursor-pointer" : undefined} onClick={(e) => openRow(r.href, e)}>
                   {selectable && (
                     <TableCell className="w-9">
                       <Checkbox aria-label="Select row" checked={picked.has(r.id) || allMatching} onCheckedChange={() => toggle(r.id)} />

@@ -11,6 +11,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { IMPORT_FIELDS, rowToProspect, type ImportField, type ImportMapping } from "@/lib/prospecting/import";
 import { commitImport, type ImportResult } from "../actions";
+import { errorText } from "@/lib/user-error";
 
 interface Parsed {
   fileName: string;
@@ -48,7 +49,7 @@ export function ImportFlow({ segments, sources }: { segments: { key: string; lab
       setMap(data.mapping);
       setLabel(f.name.replace(/\.(csv|xlsx|txt)$/i, ""));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     } finally {
       setReading(false);
       if (input.current) input.current.value = "";
@@ -79,7 +80,7 @@ export function ImportFlow({ segments, sources }: { segments: { key: string; lab
     } catch (e) {
       // what was saved before the error stays saved; say so
       setResult(total);
-      toast.error(`${(e as Error).message}${total.added ? ` (${total.added} were added before this)` : ""}`);
+      toast.error(`${errorText(e)}${total.added ? ` (${total.added} were added before this)` : ""}`);
     } finally {
       setProgress(null);
     }

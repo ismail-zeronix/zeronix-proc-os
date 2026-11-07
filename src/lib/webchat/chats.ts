@@ -5,8 +5,21 @@ import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
 import { publish, publishToVisitor } from "@/lib/chat/bus";
 import { presenceMap } from "@/lib/chat/presence";
+import { isFreeMail } from "@/lib/prospecting/constants";
 import { locateIp, placeAt } from "./geo";
-import { FEEDBACK_TAGS, webPreview, type VisitorState, type WebChatSummary, type WebClientInfo, type WebMessage, type WebVisitorInfo } from "./types";
+import { contactsFromDraft, contactsIn, isDomain, networkKind, visitorHeat } from "./qualify";
+import {
+  FEEDBACK_TAGS,
+  webPreview,
+  type VisitorState,
+  type WebChatSummary,
+  type WebClientInfo,
+  type WebMessage,
+  type WebPartialLead,
+  type WebSiteEvent,
+  type WebVisitorInfo,
+} from "./types";
+import { UserError } from "@/lib/user-error";
 
 /**
  * The website chat (the widget on www.zeronix.ae). A visitor's chat is created the moment they land, so the sales team
@@ -112,6 +125,17 @@ export async function visitorInfo(c: Chat): Promise<WebVisitorInfo> {
         .orderBy(desc(schema.webChats.createdAt))
         .limit(10)
     : [];
+  // the same browser sent its details in an earlier chat
+  const [known] =
+    !c.leadAt && c.visitorKey
+      ? await db
+          .select({ id: schema.webChats.id, name: schema.webChats.name, email: schema.webChats.email, phone: schema.webChats.phone, company: schema.webChats.company, leadAt: schema.webChats.leadAt })
+          .from(schema.webChats)
+          .where(and(eq(schema.webChats.visitorKey, c.visitorKey), ne(schema.webChats.id, c.id), isNotNull(schema.webChats.leadAt)))
+          .orderBy(desc(schema.webChats.leadAt))
+          .limit(1)
+      : [];
+  const network = networkKind(c.geo?.ip?.org, c.geo?.ip?.isp);
   return {
     userAgent: c.userAgent,
     ip: c.ip,
@@ -130,7 +154,95 @@ export async function visitorInfo(c: Chat): Promise<WebVisitorInfo> {
     dealId: c.dealId,
     site: c.site,
     context: c.context,
+    draft: c.draft,
+    draftAt: c.draftAt?.toISOString() ?? null,
+    events: c.events,
+    network,
+    known: known ? { chatId: known.id, name: known.name, email: known.email, phone: known.phone, company: known.company, at: known.leadAt!.toISOString() } : null,
+    crm: await crmMatch([c.email, known?.email ?? ""], network === "business" ? (c.geo?.ip?.domain ?? "") : ""),
   };
+}
+
+/** Bare host of a website or domain: "https://www.acme.ae/about" → "acme.ae". */
+function domainOf(v: string): string {
+  return (
+    v
+      .trim()
+      .toLowerCase()
+      .replace(/^[a-z]+:\/\//, "")
+      .replace(/^www\./, "")
+      .split(/[/?#:]/)[0] ?? ""
+  );
+}
+
+/**
+ * A CRM company the visitor belongs to: a contact with their email, else a contact or company website on their email's
+ * domain (not gmail and the like), else the domain of the company network they browse from.
+ */
+async function crmMatch(emails: string[], networkDomain: string): Promise<WebVisitorInfo["crm"]> {
+  const list = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter((e) => e.includes("@")))];
+  const co = schema.companies;
+  const ct = schema.contacts;
+  type Hit = Omit<NonNullable<WebVisitorInfo["crm"]>, "deals" | "orders">;
+  let hit: Hit | null = null;
+  if (list.length) {
+    const [row] = await db
+      .select({ companyId: co.id, companyName: co.name, contactName: ct.name })
+      .from(ct)
+      .innerJoin(co, eq(co.id, ct.companyId))
+      .where(inArray(sql`lower(${ct.email})`, list))
+      .limit(1);
+    if (row) hit = { ...row, how: "email" };
+  }
+  const tries: [string, Hit["how"]][] = [
+    ...list.map((e): [string, Hit["how"]] => [domainOf(e.split("@")[1] ?? ""), "email domain"]).filter(([d]) => !isFreeMail(d)),
+    ...(networkDomain ? [[domainOf(networkDomain), "network"] as [string, Hit["how"]]] : []),
+  ];
+  for (const [domain, how] of tries) {
+    if (hit) break;
+    // an email still being typed may hold anything ("a@%.com"); only real domains go into the searches below
+    if (!isDomain(domain)) continue;
+    const [byContact] = await db
+      .select({ companyId: co.id, companyName: co.name })
+      .from(ct)
+      .innerJoin(co, eq(co.id, ct.companyId))
+      .where(sql`lower(${ct.email}) LIKE ${`%@${domain}`}`)
+      .limit(1);
+    const [found] = byContact
+      ? [byContact]
+      : await db
+          .select({ companyId: co.id, companyName: co.name })
+          .from(co)
+          .where(sql`lower(${co.website}) ~ ${`(^|[/.@])${domain.replace(/\./g, "\\.")}($|[/:?#])`}`)
+          .limit(1);
+    if (found) hit = { ...found, contactName: null, how };
+  }
+  if (!hit) return null;
+  const [deals] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.deals).where(eq(schema.deals.companyId, hit.companyId));
+  const [orders] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.salesOrders).where(eq(schema.salesOrders.companyId, hit.companyId));
+  return { ...hit, deals: deals?.n ?? 0, orders: orders?.n ?? 0 };
+}
+
+/** Before the lead form: whatever contact details they typed (null when none). */
+function partialOf(c: Chat): WebPartialLead | null {
+  if (c.leadAt || !(c.name || c.email || c.phone || c.company)) return null;
+  return { name: c.name, email: c.email, phone: c.phone, company: c.company };
+}
+
+/** A visitor without the lead form who still left something to follow up on (an email or a phone number). */
+const hasPartialContact = sql`(${schema.webChats.email} <> '' OR ${schema.webChats.phone} <> '')`;
+
+function heatOf(c: Chat) {
+  return visitorHeat({
+    lead: !!c.leadAt,
+    partial: !c.leadAt && !!(c.email || c.phone),
+    client: c.client,
+    pages: c.pages,
+    asked: !!c.context && Object.keys(c.context).length > 0,
+    network: networkKind(c.geo?.ip?.org, c.geo?.ip?.isp),
+    countryCode: c.geo?.ip?.countryCode,
+    events: c.events,
+  });
 }
 
 /** Adds a page to the visitor's trail (a reload of the same page counts once). Keeps the last 300. */
@@ -224,10 +336,10 @@ export async function arrive(a: Arrival): Promise<Chat> {
     if (!wasOnline || known.pageUrl !== page.pageUrl) await notifyAgents(known.id);
     return row;
   }
-  // tidy up: visitors who left without sending the lead form are of no use after a week
+  // tidy up: visitors who left a week ago with no way to reach them are of no use
   await db
     .delete(schema.webChats)
-    .where(and(sql`${schema.webChats.leadAt} IS NULL`, lt(schema.webChats.visitorSeenAt, new Date(Date.now() - 7 * 86400_000))));
+    .where(and(sql`${schema.webChats.leadAt} IS NULL`, sql`NOT ${hasPartialContact}`, lt(schema.webChats.visitorSeenAt, new Date(Date.now() - 7 * 86400_000))));
   const lead = known?.leadAt ? { name: known.name, email: known.email, phone: known.phone, company: known.company, leadAt: new Date() } : {};
   const [row] = await db
     .insert(schema.webChats)
@@ -287,27 +399,66 @@ export interface LeadInput {
 
 /** The visitor sent the lead form; their first question becomes the first line of the chat. */
 export async function saveLead(c: Chat, lead: LeadInput): Promise<void> {
-  if (c.status === "closed") throw new Error("This chat has ended.");
+  if (c.status === "closed") throw new UserError("This chat has ended.");
   await db
     .update(schema.webChats)
-    .set({ name: lead.name, email: lead.email, phone: lead.phone, company: lead.company, leadAt: new Date(), visitorSeenAt: new Date() })
+    .set({ name: lead.name, email: lead.email, phone: lead.phone, company: lead.company, leadAt: new Date(), visitorSeenAt: new Date(), draft: "", draftAt: null })
     .where(eq(schema.webChats.id, c.id));
   if (lead.message) await addLine(c.id, "visitor", lead.message);
   await notifyAgents(c.id);
 }
 
 export async function visitorSays(c: Chat, body: string): Promise<WebMessage> {
-  if (c.status === "closed") throw new Error("This chat has ended.");
-  if (!c.leadAt) throw new Error("Please fill in your details first.");
-  await touch(c.id);
+  if (c.status === "closed") throw new UserError("This chat has ended.");
+  if (!c.leadAt) throw new UserError("Please fill in your details first.");
+  // "call me on 050 123 4567": a phone number written in the chat fills in the one the form left empty
+  const found = contactsIn(body);
+  await db
+    .update(schema.webChats)
+    .set({ visitorSeenAt: new Date(), draft: "", draftAt: null, ...(!c.phone && found.phone ? { phone: found.phone } : {}) })
+    .where(eq(schema.webChats.id, c.id));
+  if (!c.phone && found.phone) await notifyAgents(c.id);
   return addLine(c.id, "visitor", body);
+}
+
+/**
+ * The visitor's message box as they type, before they press Enter: every agent's portal shows it live, and the last
+ * text stays on the chat in case they leave without sending. An email or phone number in it is kept as a partial lead.
+ */
+export async function saveDraft(c: Chat, text: string): Promise<void> {
+  if (c.status === "closed") return;
+  // once the form is sent its details stand (a phone written in a sent line still fills an empty one: visitorSays)
+  const fill = c.leadAt ? {} : contactsFromDraft(c.draft, text, c);
+  await db
+    .update(schema.webChats)
+    .set({ draft: text, draftAt: text ? new Date() : null, visitorSeenAt: new Date(), ...fill })
+    .where(eq(schema.webChats.id, c.id));
+  await publish(await agentIds(), { t: "web.typing", chatId: c.id, text });
+  if (Object.keys(fill).length) await notifyAgents(c.id);
+}
+
+/** The lead form as they fill it in, before they press Start chat: kept so a visitor who leaves can still be reached. */
+export async function savePartial(c: Chat, p: WebPartialLead): Promise<void> {
+  if (c.leadAt || c.status === "closed") return;
+  // a field they have not reached yet keeps what was found in their messages
+  const changed = Object.fromEntries(Object.entries(p).filter(([k, v]) => v && c[k as keyof WebPartialLead] !== v)) as Partial<WebPartialLead>;
+  if (!Object.keys(changed).length) return;
+  await db.update(schema.webChats).set(changed).where(eq(schema.webChats.id, c.id));
+  await notifyAgents(c.id);
+}
+
+/** A phone, WhatsApp or email link click, a download or a copy on the site. Keeps the last 100. */
+export async function addSiteEvent(c: Chat, e: Omit<WebSiteEvent, "at">): Promise<void> {
+  const events = [...c.events, { ...e, at: new Date().toISOString() }].slice(-100);
+  await db.update(schema.webChats).set({ events }).where(eq(schema.webChats.id, c.id));
+  await notifyAgents(c.id);
 }
 
 export async function agentSays(chatId: number, userId: number, body: string): Promise<WebMessage> {
   const c = await chatById(chatId);
-  if (!c) throw new Error("That chat is gone.");
-  if (c.status === "closed") throw new Error("This chat has ended.");
-  if (c.agentId !== userId) throw new Error(c.agentId ? "Another agent is on this chat. Take it over to reply." : "Accept the chat first.");
+  if (!c) throw new UserError("That chat is gone.");
+  if (c.status === "closed") throw new UserError("This chat has ended.");
+  if (c.agentId !== userId) throw new UserError(c.agentId ? "Another agent is on this chat. Take it over to reply." : "Accept the chat first.");
   const m = await addLine(chatId, "agent", body, userId);
   await markWebRead(chatId, userId, m.id);
   return m;
@@ -325,10 +476,10 @@ export async function accept(chatId: number, user: { id: number; name: string },
     .returning();
   if (!row) {
     const c = await chatById(chatId);
-    if (!c) throw new Error("That chat is gone.");
+    if (!c) throw new UserError("That chat is gone.");
     if (c.agentId === user.id) return;
-    if (c.status === "closed") throw new Error("This chat has ended.");
-    throw new Error("Someone else has just accepted this chat.");
+    if (c.status === "closed") throw new UserError("This chat has ended.");
+    throw new UserError("Someone else has just accepted this chat.");
   }
   const [me] = await db.select({ title: schema.users.jobTitle }).from(schema.users).where(eq(schema.users.id, user.id));
   await addLine(chatId, "system", `${firstName(user.name)} ${takeOver ? "took over" : "joined"} the chat`);
@@ -360,7 +511,8 @@ export async function saveSnapshot(chatId: number): Promise<void> {
   const snapshot = {
     chatId: c.id,
     visitor: { name: c.name, email: c.email, phone: c.phone, company: c.company, leadAt: c.leadAt?.toISOString() ?? null },
-    site: { landing: c.pages[0]?.url ?? c.pageUrl, lastPage: c.pageUrl, referrer: c.referrer, pages: c.pages },
+    site: { landing: c.pages[0]?.url ?? c.pageUrl, lastPage: c.pageUrl, referrer: c.referrer, pages: c.pages, actions: c.events },
+    unsent: c.draft,
     device: { userAgent: c.userAgent, ip: c.ip },
     agent: agent && { id: agent.id, name: agent.name },
     startedAt: c.createdAt.toISOString(),
@@ -375,8 +527,8 @@ export async function saveSnapshot(chatId: number): Promise<void> {
 
 /** The visitor's stars and feedback after the chat has ended. */
 export async function saveFeedback(c: Chat, rating: number, tags: string[], comment: string): Promise<void> {
-  if (c.status !== "closed") throw new Error("Please end the chat first.");
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error("Pick from 1 to 5 stars.");
+  if (c.status !== "closed") throw new UserError("Please end the chat first.");
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new UserError("Pick from 1 to 5 stars.");
   const feedbackTags = [...new Set(tags.filter((t) => FEEDBACK_TAGS.includes(t)))];
   await db.update(schema.webChats).set({ rating, feedbackTags, feedback: comment.slice(0, 1000) }).where(eq(schema.webChats.id, c.id));
   await saveSnapshot(c.id);
@@ -396,7 +548,7 @@ export async function waitingCount(): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(c)
-    .where(and(eq(c.status, "waiting"), or(isNotNull(c.leadAt), gt(c.visitorSeenAt, new Date(Date.now() - ONLINE_MS)))));
+    .where(and(eq(c.status, "waiting"), or(isNotNull(c.leadAt), hasPartialContact, gt(c.visitorSeenAt, new Date(Date.now() - ONLINE_MS)))));
   return row?.n ?? 0;
 }
 
@@ -415,8 +567,8 @@ export async function listChats(userId: number): Promise<WebChatSummary[]> {
     .where(
       or(
         eq(c.status, "active"),
-        and(eq(c.status, "waiting"), or(isNotNull(c.leadAt), gt(c.visitorSeenAt, onlineSince))),
-        and(eq(c.status, "closed"), isNotNull(c.leadAt), gt(c.closedAt, since)),
+        and(eq(c.status, "waiting"), or(isNotNull(c.leadAt), hasPartialContact, gt(c.visitorSeenAt, onlineSince))),
+        and(eq(c.status, "closed"), or(isNotNull(c.leadAt), hasPartialContact), gt(c.closedAt, since)),
       ),
     )
     .orderBy(desc(sql`COALESCE(${c.lastMessageAt}, ${c.createdAt})`))
@@ -457,6 +609,8 @@ export async function listChats(userId: number): Promise<WebChatSummary[]> {
       place: placeOf(row),
       visits: row.client?.visits ?? 1,
       site: row.site,
+      partial: partialOf(row),
+      heat: heatOf(row),
     };
   });
 }

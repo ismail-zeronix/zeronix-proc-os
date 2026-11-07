@@ -1,9 +1,10 @@
 "use client";
 
 import { Bell, CheckSquare, Home, Menu, MessageCircle, type LucideIcon } from "lucide-react";
+import type { NavPerms } from "@/lib/app-nav";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useChannels } from "@/components/chat/chat-data";
 import { useChatStore } from "@/components/chat/chat-store";
 import { webBadge } from "@/components/chat/web-chat";
@@ -22,6 +23,7 @@ export function MobileNav({
   apps,
   visible,
   punchedIn,
+  perms,
 }: {
   user: { name: string; email: string; role: Role };
   /** Every app the user may open. */
@@ -29,6 +31,8 @@ export function MobileNav({
   /** Apps for the switcher grid, in order. */
   visible: string[];
   punchedIn: boolean;
+  /** Extra permissions that show hidden menu groups (Accounts › Accountant). */
+  perms?: NavPerms;
 }) {
   const pathname = usePathname();
   const [menu, setMenu] = useState(false);
@@ -102,7 +106,7 @@ export function MobileNav({
           </li>
         </ul>
       </nav>
-      <MobileMenu open={menu} onOpenChange={setMenu} user={user} visible={visible} punchedIn={punchedIn} />
+      <MobileMenu open={menu} onOpenChange={setMenu} user={user} visible={visible} punchedIn={punchedIn} perms={perms} />
     </>
   );
 }
@@ -187,8 +191,13 @@ function TabButton({
   );
 }
 
+const noop = () => () => {};
+
 function Count({ n, urgent }: { n: number; urgent?: boolean }) {
-  if (n <= 0) return null;
+  // The header's bell fills the shared query from the server's data. In the browser it renders before this bar; on the
+  // server it can render after. Wait until hydration is over, so both draw the same thing first.
+  const ready = useSyncExternalStore(noop, () => true, () => false);
+  if (!ready || n <= 0) return null;
   return (
     <span
       className={`absolute -top-1.5 left-3 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-background ${urgent ? "bg-destructive text-white" : "bg-primary text-primary-foreground"}`}

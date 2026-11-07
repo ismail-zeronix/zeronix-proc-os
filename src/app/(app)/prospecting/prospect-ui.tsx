@@ -30,6 +30,7 @@ import {
   type PersonInput,
   type ProspectInput,
 } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 /** Runs an action: shows its returned `{ error }` (or a thrown one), otherwise the success message. */
 export function useRun() {
@@ -42,7 +43,7 @@ export function useRun() {
         toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

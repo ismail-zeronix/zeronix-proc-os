@@ -12,6 +12,7 @@ import { addWorkingDays } from "@/lib/prospecting/outreach-rules";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { writeEmail, writeInputFor } from "@/lib/prospecting/writer";
 import { FALLBACK_FIRST, FOLLOW_UPS } from "@/lib/prospecting/writer-rules";
+import { parseInput } from "@/lib/user-error";
 
 const pickSchema = z.object({
   industry: z.string().trim().min(1).max(80),
@@ -54,7 +55,7 @@ export interface Sample {
 export async function sampleEmail(input: SampleInput): Promise<Result<Sample>> {
   return attempt(async () => {
     await assertApp("prospecting");
-    const d = sampleSchema.parse(input);
+    const d = parseInput(sampleSchema, input);
     const ids = await pickedIds(d, d.index + 1);
     const id = ids[Math.min(d.index, ids.length - 1)];
     if (!id) throw new Problem("No prospect matches this choice any more.");
@@ -82,7 +83,7 @@ export type LaunchInput = z.input<typeof launchSchema>;
 export async function launchCampaign(input: LaunchInput): Promise<Result<{ campaignId: number; added: number; skipped: { name: string; reason: string }[] }>> {
   return attempt(async () => {
     const me = await assertApp("prospecting");
-    const d = launchSchema.parse(input);
+    const d = parseInput(launchSchema, input);
     const ids = await pickedIds(d);
     if (!ids.length) throw new Problem("No prospect matches this choice any more.");
     const cap = await sendingCapacity();

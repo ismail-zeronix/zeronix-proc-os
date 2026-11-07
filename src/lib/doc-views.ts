@@ -3,12 +3,13 @@ import type { SalesDocData } from "@/components/sales-document";
 import { documentDetails, getInvoice } from "@/lib/accounts-data";
 import { termsLabel } from "@/lib/invoicing";
 import { getOrder } from "@/lib/orders-data";
-import { longDay } from "@/lib/quotation";
+import { getBill } from "@/lib/purchases-data";
+import { longDay, money, round2 } from "@/lib/quotation";
 
 type Order = NonNullable<Awaited<ReturnType<typeof getOrder>>>;
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
 
-const items = (rows: { id: number; description: string; qty: number; unitPrice: number }[]) => rows.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice }));
+const items = (rows: { id: number; description: string; qty: number; unitPrice: number; taxCode?: string }[]) => rows.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice, taxCode: i.taxCode }));
 
 function customerLines(o: Order): string[] {
   return [
@@ -100,26 +101,63 @@ export async function invoiceDoc(inv: Invoice): Promise<SalesDocData> {
   };
 }
 
-/** The credit note that cancelled an invoice: same lines and amounts, refers to the invoice. */
-export function creditDoc(inv: Invoice): SalesDocData | null {
-  if (!inv.credit) return null;
+/**
+ * A tax credit note: refers to the invoice it adjusts, says why, and shows what the invoice is worth afterwards.
+ * `creditId` picks one when an invoice has several; left out, the latest.
+ */
+export function creditDoc(inv: Invoice, creditId?: number): SalesDocData | null {
+  const c = inv.credits.find((x) => x.id === creditId) ?? inv.credits.at(-1);
+  if (!c) return null;
+  const upToThis = inv.credits.filter((x) => x.id <= c.id);
+  const after = round2(inv.total - upToThis.reduce((s, x) => s + x.total, 0));
   return {
     title: "TAX CREDIT NOTE",
-    number: inv.credit.number,
+    number: c.number,
     meta: [
-      ["Date", longDay(inv.credit.issueDate)],
+      ["Date", longDay(c.issueDate)],
       ["Invoice", inv.number],
       ["Invoice date", longDay(inv.issueDate)],
+      ["Invoice value", money(inv.total)],
+      ["Value after this note", money(after)],
     ],
     to: { name: inv.customerName, lines: [inv.customerAddress], trn: inv.customerTrn },
-    items: items(inv.items),
+    items: items(c.items),
     showPrices: true,
     vatPerLine: true,
     vatPct: inv.vatPct,
-    subtotal: inv.credit.subtotal,
-    vatAmount: inv.credit.vatAmount,
-    total: inv.credit.total,
+    subtotal: c.subtotal,
+    vatAmount: c.vatAmount,
+    total: c.total,
     amountInWords: true,
-    notes: [`Reason: ${inv.credit.reason}`, `This credit note cancels invoice ${inv.number} in full.`],
+    notes: [`Reason: ${c.reason}`, ...(c.eventDate ? [`Goods returned or price agreed on ${longDay(c.eventDate)}.`] : []), after <= 0 ? `This credit note cancels invoice ${inv.number} in full.` : `This credit note adjusts invoice ${inv.number}.`],
+  };
+}
+
+/** A debit note to a supplier: what we take back off their bill, and why. */
+export function debitDoc(b: NonNullable<Awaited<ReturnType<typeof getBill>>>, debitId: number): SalesDocData | null {
+  const d = b.debitNotes.find((x) => x.id === debitId);
+  if (!d) return null;
+  const after = round2(b.total - b.debitNotes.filter((x) => x.id <= d.id).reduce((s, x) => s + x.total, 0));
+  return {
+    title: "DEBIT NOTE",
+    partyLabel: "Supplier",
+    number: d.number,
+    meta: [
+      ["Date", longDay(d.issueDate)],
+      ["Your invoice", b.supplierRef || b.number],
+      ["Invoice date", longDay(b.billDate)],
+      ...(d.supplierRef ? ([["Your credit note", d.supplierRef]] as [string, string][]) : []),
+      ["Value after this note", money(after)],
+    ],
+    to: { name: b.payee, lines: [b.supplier?.address ?? ""], trn: b.supplier?.trn ?? "" },
+    items: d.items.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitCost, taxCode: i.taxCode })),
+    showPrices: true,
+    vatPerLine: true,
+    vatPct: b.vatPct,
+    subtotal: d.subtotal,
+    vatAmount: d.vatAmount,
+    total: d.total,
+    amountInWords: true,
+    notes: [`Reason: ${d.reason}`],
   };
 }

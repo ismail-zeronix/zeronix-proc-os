@@ -22,6 +22,7 @@ import { prefsKey, useMyPrefs } from "./alerts";
 import { chatKeys } from "./chat-data";
 import type { Me } from "./message-row";
 import { STATUS_DOT, STATUS_LABEL } from "./panel-bits";
+import { errorText } from "@/lib/user-error";
 
 /** Minutes until 8:00 tomorrow, UAE time. */
 function untilTomorrowMorning(): number {
@@ -44,7 +45,7 @@ export function StatusMenu({ me }: { me: Me }) {
       qc.setQueryData<ChatPrefsView>(prefsKey, await setChatPrefs(patch));
       if (ok) toast.success(ok);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
 
@@ -119,7 +120,7 @@ export function MuteMenu({ channel }: { channel: ChannelSummary }) {
       await qc.invalidateQueries({ queryKey: chatKeys.channels });
       toast.success(ok);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
   return (

@@ -40,6 +40,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BackButton } from "@/components/back-button";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { CommandDialog, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,6 +51,7 @@ import { type Block, blockLabel, BLOCK_TYPES, type BlockType, cloneBlock, headin
 import { createQuote, reviseQuote } from "../../../../sales/quote-actions";
 import { applyTemplate, deleteProposalTemplate, saveAsTemplate, saveProposal } from "../../../proposal-actions";
 import { BlockBody, type ProposalContext } from "./blocks";
+import { errorText } from "@/lib/user-error";
 
 const ICON: Record<BlockType, typeof Type> = {
   cover: PanelTop,
@@ -297,7 +299,7 @@ export function ProposalEditor({
         } catch (e) {
           dirty.current = true;
           setStatus("error");
-          toast.error(`Not saved: ${(e as Error).message}`);
+          toast.error(`Not saved: ${errorText(e)}`);
           return;
         }
       } while (again.current);
@@ -398,7 +400,7 @@ export function ProposalEditor({
       setStatus("saved");
       toast.success(`Started again from "${name}"`);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     }
   };
 
@@ -417,7 +419,7 @@ export function ProposalEditor({
       // the button now updates this quote instead of making a new one
       router.refresh();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(errorText(e));
     } finally {
       setQuoting(false);
     }
@@ -466,9 +468,9 @@ export function ProposalEditor({
           <Button variant="outline" size="icon-sm" nativeButton={false} render={<a href={`/print/proposal/${proposal.id}`} target="_blank" rel="noreferrer" />} aria-label="Print preview" title="Print preview (working draft)">
             <Printer />
           </Button>
-          <Button variant="outline" size="icon-sm" nativeButton={false} render={<a href={`/api/projects/proposals/${proposal.id}/pdf`} />} aria-label="Download the draft as PDF" title="Download the draft as PDF">
+          <ExportButton variant="outline" size="icon-sm" url={`/api/projects/proposals/${proposal.id}/pdf`} label="Proposal draft (PDF)" aria-label="Download the draft as PDF" title="Download the draft as PDF">
             <Download />
-          </Button>
+          </ExportButton>
           {quote?.status === "accepted" ? (
             <span className="text-xs whitespace-nowrap text-muted-foreground" title="The customer accepted this quote; its proposal is final">
               {quote.number} accepted
@@ -509,7 +511,7 @@ export function ProposalEditor({
                         className="text-muted-foreground hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Remove the template "${t.name}"?`)) deleteProposalTemplate(t.id).then(() => toast.success("Template removed"), (err: Error) => toast.error(err.message));
+                          if (confirm(`Remove the template "${t.name}"?`)) deleteProposalTemplate(t.id).then(() => toast.success("Template removed"), (err: Error) => toast.error(errorText(err)));
                         }}
                       >
                         <Trash2 className="size-3.5" />
@@ -616,7 +618,7 @@ function SaveTemplateDialog({ open, onOpenChange, typeLabel, onSave }: { open: b
               setName("");
               onOpenChange(false);
             } catch (err) {
-              toast.error((err as Error).message);
+              toast.error(errorText(err));
             } finally {
               setBusy(false);
             }

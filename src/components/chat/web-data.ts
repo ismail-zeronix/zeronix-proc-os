@@ -51,10 +51,18 @@ export function setReadingWeb(id: number | null) {
   reading = id;
 }
 
-/** "Visitor is typing…", per chat. */
-export const useWebTyping = create<{ until: Record<number, number>; ping: (id: number) => void }>()((set) => ({
+/**
+ * "Visitor is typing…", per chat, and what is in their message box right now (`text`, live as they type, before they
+ * press Enter; undefined until the stream has sent any, when the chat's saved draft shows instead).
+ */
+export const useWebTyping = create<{ until: Record<number, number>; text: Record<number, string>; ping: (id: number, text?: string) => void }>()((set) => ({
   until: {},
-  ping: (id) => set((s) => ({ until: { ...s.until, [id]: Date.now() + 5000 } })),
+  text: {},
+  ping: (id, text) =>
+    set((s) => ({
+      until: { ...s.until, [id]: text === "" ? 0 : Date.now() + 5000 },
+      text: text === undefined ? s.text : { ...s.text, [id]: text },
+    })),
 }));
 
 export function addWebMessage(qc: QueryClient, m: WebMessage) {
@@ -66,13 +74,15 @@ export function handleWebEvent(qc: QueryClient, evt: Extract<ChatEvent, { t: `we
   switch (evt.t) {
     case "web.update":
       void qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
+      // the visitor panel (location found, a click on the site, a partial lead): re-read if it is open
+      void qc.invalidateQueries({ queryKey: webKeys.thread(evt.chatId), exact: true });
       break;
     case "web.message": {
       const m = evt.message;
       addWebMessage(qc, m);
       void qc.invalidateQueries({ queryKey: webKeys.list, exact: true });
       if (m.sender !== "visitor") break;
-      useWebTyping.setState((s) => ({ until: { ...s.until, [m.chatId]: 0 } }));
+      useWebTyping.setState((s) => ({ until: { ...s.until, [m.chatId]: 0 }, text: { ...s.text, [m.chatId]: "" } }));
       // a line on my chat that I am not looking at
       const mine = qc.getQueryData<WebList>(webKeys.list)?.chats.find((c) => c.id === m.chatId)?.agent?.id === me;
       const prefs = qc.getQueryData<ChatPrefsView>(prefsKey);
@@ -81,7 +91,7 @@ export function handleWebEvent(qc: QueryClient, evt: Extract<ChatEvent, { t: `we
       break;
     }
     case "web.typing":
-      useWebTyping.getState().ping(evt.chatId);
+      useWebTyping.getState().ping(evt.chatId, evt.text);
       break;
   }
 }

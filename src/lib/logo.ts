@@ -1,3 +1,4 @@
+import { UserError } from "@/lib/user-error";
 export const LOGO_MAX_BYTES = 400 * 1024;
 
 const MAGIC: Record<string, number[]> = {
@@ -13,11 +14,11 @@ const MAGIC: Record<string, number[]> = {
 export function parseLogoDataUrl(dataUrl: string, what = "logo"): { mime: string; b64: string } {
   const What = what[0].toUpperCase() + what.slice(1);
   const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
-  if (!m) throw new Error(`The ${what} must be a PNG, JPG or WebP image.`);
+  if (!m) throw new UserError(`The ${what} must be a PNG, JPG or WebP image.`);
   const bytes = Buffer.from(m[2], "base64");
-  if (bytes.length > LOGO_MAX_BYTES) throw new Error(`${What} is over 400 KB. Use a smaller image (about 400 px wide is enough).`);
+  if (bytes.length > LOGO_MAX_BYTES) throw new UserError(`${What} is over 400 KB. Use a smaller image (about 400 px wide is enough).`);
   if (!MAGIC[m[1]].every((b, i) => bytes[i] === b)) {
-    throw new Error("That file is not really a " + m[1].replace("image/", "").toUpperCase() + " image.");
+    throw new UserError("That file is not really a " + m[1].replace("image/", "").toUpperCase() + " image.");
   }
   return { mime: m[1], b64: m[2] };
 }

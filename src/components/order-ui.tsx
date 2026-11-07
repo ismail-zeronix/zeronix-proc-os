@@ -6,7 +6,9 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { cancelInvoice, issueInvoice, recordPayment, voidPayment } from "@/app/(app)/accounts/actions";
 import { cancelOrder, convertQuoteToOrder, markDelivered, updateOrder } from "@/app/(app)/sales/order-actions";
+import { AccountPicker, pickedAccount, type BankOption } from "@/components/account-picker";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { dubaiToday } from "@/lib/dates";
 import { dueDateFor, PAYMENT_METHODS, termsLabel, TERMS_OPTIONS } from "@/lib/invoicing";
 import { longDay, money } from "@/lib/quotation";
+import { salesBaseOf } from "@/lib/sales-base";
+import { errorText } from "@/lib/user-error";
 
 function useRun() {
   const router = useRouter();
@@ -27,7 +31,7 @@ function useRun() {
         after?.(r);
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run, router] as const;
@@ -50,9 +54,19 @@ function TermsSelect({ id, value, onChange }: { id: string; value: number; onCha
 export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accepted }: { quoteId: number; quoteNumber: string; defaultTerms: number; accepted: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, run, router] = useRun();
+  const pathname = usePathname();
   const [f, setF] = useState({ customerRef: "", customerRefDate: "", termsDays: defaultTerms, deliveryAddress: "", notes: "" });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ customerRef: "", customerRefDate: "", termsDays: defaultTerms, deliveryAddress: "", notes: "" });
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger render={<Button size="sm" title="The customer confirmed: make a sales order" />}>
         <ClipboardCheck /> Convert to sales order
       </DialogTrigger>
@@ -72,7 +86,7 @@ export function ConvertToOrderDialog({ quoteId, quoteNumber, defaultTerms, accep
               "Sales order created",
               (r) => {
                 setOpen(false);
-                router.push(`/sales/orders/${(r as { id: number }).id}`);
+                router.push(`${salesBaseOf(pathname)}/orders/${(r as { id: number }).id}`);
               },
             );
           }}
@@ -116,7 +130,16 @@ export function EditOrderDialog({ order }: { order: { id: number; customerRef: s
   const [pending, run] = useRun();
   const [f, setF] = useState({ ...order, customerRefDate: order.customerRefDate ?? "" });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ ...order, customerRefDate: order.customerRefDate ?? "" });
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger render={<Button variant="outline" size="icon-sm" aria-label="Edit the sales order details" title="Edit PO, terms, address" />}>
         <Pencil />
       </DialogTrigger>
@@ -179,7 +202,16 @@ export function MarkDeliveredDialog({ orderId, deliveryAddress }: { orderId: num
   const [pending, run] = useRun();
   const [f, setF] = useState({ deliveredOn: dubaiToday(), receivedBy: "", deliveryAddress });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ deliveredOn: dubaiToday(), receivedBy: "", deliveryAddress });
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger render={<Button size="sm" />}>
         <Truck /> Mark delivered
       </DialogTrigger>
@@ -213,7 +245,7 @@ export function MarkDeliveredDialog({ orderId, deliveryAddress }: { orderId: num
 }
 
 /** Asks for a reason, then cancels (only before an invoice). */
-export function CancelOrderButton({ orderId, number }: { orderId: number; number: string }) {
+export function CancelOrderButton({ orderId, number, bills = 0 }: { orderId: number; number: string; /** Supplier bills linked to the order (when the user may see them). */ bills?: number }) {
   const [pending, run] = useRun();
   return (
     <Button
@@ -223,7 +255,8 @@ export function CancelOrderButton({ orderId, number }: { orderId: number; number
       title="Cancel the sales order"
       pending={pending}
       onClick={() => {
-        const why = prompt(`Cancel ${number}? Why is it cancelled?`);
+        const kept = bills ? `\n\n${bills} supplier bill${bills === 1 ? " is" : "s are"} linked to it. They stay as stock: void them in Accounts if the goods go back to the supplier.` : "";
+        const why = prompt(`Cancel ${number}?${kept}\n\nWhy is it cancelled?`);
         if (why) run(() => cancelOrder(orderId, why), "Sales order cancelled");
       }}
     >
@@ -262,7 +295,16 @@ export function IssueInvoiceDialog({
   const [f, setF] = useState({ issueDate: dubaiToday(), termsDays, customerAddress: address });
   const due = dueDateFor(f.issueDate || dubaiToday(), f.termsDays);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ issueDate: dubaiToday(), termsDays, customerAddress: address });
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger render={<Button size="sm" />}>
         <FileCheck2 /> Make invoice
       </DialogTrigger>
@@ -292,7 +334,7 @@ export function IssueInvoiceDialog({
         </div>
         {!ourTrn && (
           <p className="rounded-md bg-red-500/10 px-2 py-1.5 text-xs text-red-700 dark:text-red-400">
-            Our TRN is not set. An admin adds it in Admin → Settings → Documents; a tax invoice must show it.
+            Our TRN is not set. An accountant adds it in Accounts › Settings › VAT registration; a tax invoice must show it.
           </p>
         )}
         {!customerTrn && <p className="text-xs text-amber-700 dark:text-amber-400">The customer has no TRN saved. Fine if they are not VAT registered; otherwise add it on the company first.</p>}
@@ -319,13 +361,24 @@ export function IssueInvoiceDialog({
 }
 
 /** Accounts: money received, full or part, cash or bank transfer. */
-export function RecordPaymentDialog({ invoiceId, invoiceNumber, balance, issueDate, trigger }: { invoiceId: number; invoiceNumber: string; balance: number; issueDate: string; trigger?: React.ReactElement }) {
+export function RecordPaymentDialog({ invoiceId, invoiceNumber, balance, issueDate, trigger, accounts = [] }: { invoiceId: number; invoiceNumber: string; balance: number; issueDate: string; trigger?: React.ReactElement; accounts?: BankOption[] }) {
   const [open, setOpen] = useState(false);
   const [pending, run] = useRun();
   const [f, setF] = useState({ paidOn: dubaiToday(), amount: String(balance), method: "bank" as "cash" | "bank", reference: "", notes: "" });
+  const [bankAccountId, setBankAccountId] = useState<number | null>(null);
   const amount = Number(f.amount);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ paidOn: dubaiToday(), amount: String(balance), method: "bank", reference: "", notes: "" });
+          setBankAccountId(null);
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger
         render={
           trigger ?? (
@@ -375,6 +428,7 @@ export function RecordPaymentDialog({ invoiceId, invoiceNumber, balance, issueDa
             ))}
           </div>
         </div>
+        <AccountPicker id="rp-acc" accounts={accounts} method={f.method} value={bankAccountId} onChange={setBankAccountId} />
         <div className="grid gap-1.5">
           <Label htmlFor="rp-ref">{f.method === "bank" ? "Bank reference (required)" : "Reference"}</Label>
           <Input id="rp-ref" value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} placeholder={f.method === "bank" ? "transfer / FT number" : "optional"} maxLength={120} />
@@ -386,7 +440,7 @@ export function RecordPaymentDialog({ invoiceId, invoiceNumber, balance, issueDa
         <DialogFooter>
           <Button
             pending={pending} disabled={!(amount > 0) || amount > balance + 0.001 || (f.method === "bank" && !f.reference.trim())}
-            onClick={() => run(() => recordPayment(invoiceId, { ...f, amount }), "Payment recorded", () => setOpen(false))}
+            onClick={() => run(() => recordPayment(invoiceId, { ...f, amount, bankAccountId: pickedAccount(accounts, f.method, bankAccountId) }), "Payment recorded", () => setOpen(false))}
           >
             <Receipt /> Save payment
           </Button>
@@ -417,22 +471,60 @@ export function VoidPaymentButton({ paymentId, number }: { paymentId: number; nu
 
 export function CancelInvoiceButton({ invoiceId, number, opening = false }: { invoiceId: number; number: string; opening?: boolean }) {
   const [pending, run] = useRun();
+  const [open, setOpen] = useState(false);
+  const [why, setWhy] = useState("");
+  const [goodsBack, setGoodsBack] = useState(true);
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      pending={pending}
-      title={opening ? "Remove this opening balance (entered by mistake)" : "Cancel with a credit note"}
-      onClick={() => {
-        const why = prompt(
-          opening
-            ? `Remove opening invoice ${number}? It stays on record, crossed out.\n\nWhy?`
-            : `Cancel ${number} with a credit note for the full amount? The order goes back to Delivered so a corrected invoice can be issued.\n\nWhy is it cancelled?`,
-        );
-        if (why) run(() => cancelInvoice(invoiceId, why), opening ? "Opening invoice removed" : "Invoice cancelled, credit note made");
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) {
+          setWhy("");
+          setGoodsBack(true);
+        }
       }}
     >
-      <Ban /> {opening ? "Remove" : "Cancel invoice"}
-    </Button>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm" pending={pending} title={opening ? "Remove this opening balance (entered by mistake)" : "Cancel with a credit note"}>
+            <Ban /> {opening ? "Remove" : "Cancel invoice"}
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{opening ? `Remove opening invoice ${number}` : `Cancel ${number}`}</DialogTitle>
+          <DialogDescription>
+            {opening ? "It stays on record, crossed out." : "Makes a credit note for the full amount. The order goes back to Delivered so a corrected invoice can be issued."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="ci-why">Why</Label>
+          <Input id="ci-why" value={why} onChange={(e) => setWhy(e.target.value)} maxLength={300} />
+        </div>
+        {!opening && (
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox className="mt-0.5" checked={goodsBack} onCheckedChange={(v) => setGoodsBack(!!v)} />
+            <span className="grid leading-tight">
+              The goods are coming back
+              <span className="text-xs text-muted-foreground">Their cost returns to stock. Untick when the customer keeps them, or for services: the cost then stays a cost.</span>
+            </span>
+          </label>
+        )}
+        <DialogFooter>
+          <Button
+            pending={pending}
+            disabled={why.trim().length < 3}
+            onClick={() => {
+              run(() => cancelInvoice(invoiceId, why, { goodsBack }), opening ? "Opening invoice removed" : "Invoice cancelled, credit note made");
+              setOpen(false);
+            }}
+          >
+            <Ban /> {opening ? "Remove" : "Cancel invoice"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

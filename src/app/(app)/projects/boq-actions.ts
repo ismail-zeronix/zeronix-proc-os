@@ -9,6 +9,7 @@ import { assertDeal } from "@/lib/auth/visibility";
 import { boqMargin, boqPrice, cleanSection, isLineType, UNITS } from "@/lib/boq";
 import { getFx, toAed } from "@/lib/fx";
 import { quoteDefaults } from "@/lib/quotes-data";
+import { UserError } from "@/lib/user-error";
 
 /**
  * The project BOQ (bill of quantities). Its lines are the deal's lines (deal_items) with a section, unit and kind, so the
@@ -33,7 +34,7 @@ const lineSchema = z.object({
 /** Zod errors as one plain sentence for the toast, not a JSON dump. */
 function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
   const r = schema.safeParse(input);
-  if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the line.");
+  if (!r.success) throw new UserError(r.error.issues[0]?.message ?? "Check the line.");
   return r.data;
 }
 
@@ -56,7 +57,7 @@ async function projectFor(projectId: number) {
     .from(schema.projects)
     .innerJoin(schema.deals, eq(schema.deals.id, schema.projects.dealId))
     .where(and(eq(schema.projects.id, z.number().int().positive().parse(projectId)), eq(schema.deals.kind, "project")));
-  if (!p) throw new Error("That project does not exist or is not assigned to you.");
+  if (!p) throw new UserError("That project does not exist or is not assigned to you.");
   await assertDeal(p.dealId);
   return p;
 }
@@ -68,7 +69,7 @@ async function lineFor(lineId: number) {
     .from(schema.dealItems)
     .innerJoin(schema.projects, eq(schema.projects.dealId, schema.dealItems.dealId))
     .where(eq(schema.dealItems.id, z.number().int().positive().parse(lineId)));
-  if (!l) throw new Error("That line no longer exists.");
+  if (!l) throw new UserError("That line no longer exists.");
   await projectFor(l.projectId);
   return l;
 }
@@ -170,10 +171,10 @@ export async function addBoqLineFromOffer(projectId: number, section: string, of
     .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.offers.supplierId))
     .innerJoin(schema.products, eq(schema.products.id, schema.offers.productId))
     .where(eq(schema.offers.id, offerId));
-  if (!o) throw new Error("That offer no longer exists.");
-  if (o.price == null) throw new Error("This offer has no price (price on request). Add the line by hand with the price you are given.");
+  if (!o) throw new UserError("That offer no longer exists.");
+  if (o.price == null) throw new UserError("This offer has no price (price on request). Add the line by hand with the price you are given.");
   const cost = toAed(o.price, o.currency, await getFx());
-  if (cost == null) throw new Error(`There is no AED rate for ${o.currency}. Add the line by hand with the cost in AED.`);
+  if (cost == null) throw new UserError(`There is no AED rate for ${o.currency}. Add the line by hand with the cost in AED.`);
   const margin = marginPct == null ? (await quoteDefaults()).marginPct : parse(marginBox, marginPct);
   const unit = boqPrice(cost, margin);
   const label = [o.brand, o.modelName, o.partNumber].filter(Boolean).join(" ");
@@ -204,9 +205,9 @@ async function saveSections(projectId: number, sections: string[]) {
 export async function addBoqSection(projectId: number, name: string) {
   const p = await projectFor(projectId);
   const s = cleanSection(name);
-  if (!s) throw new Error("Give the section a name.");
-  if (p.sections.some((x) => x.toLowerCase() === s.toLowerCase())) throw new Error(`There is already a section "${s}".`);
-  if (p.sections.length >= 40) throw new Error("A BOQ can have up to 40 sections.");
+  if (!s) throw new UserError("Give the section a name.");
+  if (p.sections.some((x) => x.toLowerCase() === s.toLowerCase())) throw new UserError(`There is already a section "${s}".`);
+  if (p.sections.length >= 40) throw new UserError("A BOQ can have up to 40 sections.");
   await saveSections(p.id, [...p.sections, s]);
   refresh(p.id);
 }
@@ -215,7 +216,7 @@ export async function addBoqSection(projectId: number, name: string) {
 export async function renameBoqSection(projectId: number, from: string, to: string) {
   const p = await projectFor(projectId);
   const s = cleanSection(to);
-  if (!s) throw new Error("Give the section a name.");
+  if (!s) throw new UserError("Give the section a name.");
   if (s === from) return;
   const existing = p.sections.find((x) => x.toLowerCase() === s.toLowerCase() && x !== from);
   const target = existing ?? s;
@@ -246,7 +247,7 @@ export async function deleteBoqSection(projectId: number, name: string) {
     .from(schema.dealItems)
     .where(and(eq(schema.dealItems.dealId, p.dealId), eq(schema.dealItems.section, name)))
     .limit(1);
-  if (line) throw new Error("This section still has lines. Delete them or move them to another section first.");
+  if (line) throw new UserError("This section still has lines. Delete them or move them to another section first.");
   await saveSections(p.id, p.sections.filter((x) => x !== name));
   refresh(p.id);
 }
@@ -260,7 +261,7 @@ export async function applySectionMargin(projectId: number, section: string, mar
     .from(schema.dealItems)
     .where(and(eq(schema.dealItems.dealId, p.dealId), eq(schema.dealItems.section, section)));
   const priced = lines.filter((l) => l.cost != null);
-  if (!priced.length) throw new Error("No line in this section has a cost yet, so there is nothing to put a margin on.");
+  if (!priced.length) throw new UserError("No line in this section has a cost yet, so there is nothing to put a margin on.");
   await db.transaction(async (tx) => {
     for (const l of priced) {
       await tx.update(schema.dealItems).set({ unitPriceAed: boqPrice(l.cost as number, m), marginPct: m }).where(eq(schema.dealItems.id, l.id));

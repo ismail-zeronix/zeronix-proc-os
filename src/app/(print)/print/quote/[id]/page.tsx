@@ -20,13 +20,13 @@ export async function generateMetadata({ params }: PageProps<"/print/quote/[id]"
  */
 export default async function PrintQuote({ params }: PageProps<"/print/quote/[id]">) {
   // project quotes are made and sent from the Projects app too
-  const access = await requireAnyApp("sales", "projects");
+  const access = await requireAnyApp("sales", "accounts", "projects");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const q = await getQuote(id, financeViewerOf(access));
   if (!q) notFound();
   const [brand, snapshot] = await Promise.all([quoteBrand(), snapshotOfQuote(q.id)]);
-  const back = access.apps.includes("sales") ? `/sales/quotes/${q.id}` : `/projects/list`;
+  const back = access.apps.includes("sales") ? `/sales/quotes/${q.id}` : access.apps.includes("accounts") ? `/accounts/quotes/${q.id}` : `/projects/list`;
   if (snapshot) {
     return (
       <ProposalPrintFrame back={back} label={`Proposal ${q.number}`} pdfHref={`/api/quotes/${q.id}/pdf`}>

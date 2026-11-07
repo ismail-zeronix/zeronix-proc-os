@@ -60,8 +60,18 @@ Shown on **Chat › Website chats**, in the panel beside the chat:
 - **Device:** phone, tablet or desktop. The model, system and version come from Chrome/Edge/Android client hints; iPhones only say "iPhone". Also the browser, screen and window size, CPU cores, memory, touch, connection type and speed, languages, and dark or light mode.
 - **Visit:** where they came from, the landing page, campaign tags (`utm_*`, `gclid`, `fbclid`, `msclkid`), how many visits this browser has made and since when, and earlier chats from the same browser.
 - **Pages visited:** every page with time, how long they stayed (time in front, sent when they leave the page) and how far they scrolled.
+- **Lead score:** hot (60+), warm (30+) or cold, with the reasons: details sent or typed, clicks to call / WhatsApp / email, downloads, asked about a product, return visits, pages read, time on the site, came from an ad, company network, in the UAE. A data-centre network (VPN or bot) counts against. Rules in `src/lib/webchat/qualify.ts`.
+- **Live typing:** agents see the visitor's message box as they type, before Enter (sent about twice a second). Text typed but never sent stays on the chat (`web_chats.draft`) as "Typed but not sent".
+- **Partial lead:** the form's fields are kept as they are filled in, even if the visitor never presses Start chat; an email or phone number written in the message box counts too. Such chats stay on the list, are marked *Partial*, and can be saved to leads.
+- **On the site:** clicks on `tel:`, WhatsApp and `mailto:` links, downloads (PDF, Office, zip) and copying a phone number or email address (`web_chats.events`).
+- **Network:** a company's own network shows as the *likely company*; home/mobile internet and data centres are labelled.
+- **In the CRM / Known visitor:** a CRM company matched by their email, their email's company domain or their company network (with its deals and orders), and the details this browser sent in an earlier chat.
 
-All of it is stored on the chat (`web_chats.client`, `geo`, `pages`, and the `snapshot` JSON when the chat ends). The website's privacy policy should mention the chat and this information.
+All of it is stored on the chat (`web_chats.client`, `geo`, `pages`, `draft`, `events`, and the `snapshot` JSON when the chat ends). The website's privacy policy should mention the chat and this information, including that what is typed in the chat is seen as it is typed.
+
+## Bots
+
+Search engines, SEO tools, link previews and scripted browsers run the widget's JavaScript too. Three checks keep them out: the widget stays off for known bot user agents and `navigator.webdriver`; the chat only starts once a person moves the mouse, touches the screen or presses a key (a returning visitor with a chat starts at once); and `/api/widget/session` turns away bot user agents (`isBot`). The portal's `robots.txt` also blocks crawling it, so well-behaved crawlers do not even load the widget.
 
 ## Portal settings
 
@@ -71,13 +81,13 @@ All of it is stored on the chat (`web_chats.client`, `geo`, `pages`, and the `sn
 
 ## How it works
 
-1. The page loads → `POST /api/widget/session` starts (or resumes) the visitor's chat. The token is kept in the visitor's `localStorage`, so moving between pages keeps the same chat. Every agent's portal rings.
+1. The page loads and the visitor moves, touches or types → `POST /api/widget/session` starts (or resumes) the visitor's chat. The token is kept in the visitor's `localStorage`, so moving between pages keeps the same chat. Every agent's portal rings.
 2. `GET /api/widget/stream?token=…` (Server-Sent Events) carries agent replies, "typing", accepted/ended and who is online. While it is open the visitor counts as on the site; about 15 s after it closes for good, the ringing stops.
 3. The visitor sees the greeting first. As soon as they start typing (or tap a quick reply), a short form appears in the chat (name, email, phone, company); their question is sent with it (`/api/widget/lead`). Then they chat (`/api/widget/send`).
 4. An agent presses **Accept**. The ringing stops everywhere, and the chat opens on the visitor's screen with the agent's first name and job title.
 5. "End" asks inside the chat (no browser pop-up) and offers a call back instead. After the chat ends (either side), the visitor can rate it: 1-5 stars, ready-made feedback chips and a comment (`/api/widget/feedback`). The whole chat, the visitor's details, the pages they visited and the rating are kept as JSON on the chat (`web_chats.snapshot`).
 
-Requests are sent as `text/plain` JSON, so browsers send no CORS preflight. Limits per IP: 20 new chats an hour, 10 lead forms an hour, 30 messages a minute. A hidden honeypot field drops bot form fills. Visitors who left without sending the form are deleted after 7 days.
+Requests are sent as `text/plain` JSON, so browsers send no CORS preflight. Limits per IP: 20 new chats an hour, 10 lead forms an hour, 30 messages a minute. A hidden honeypot field drops bot form fills. Visitors who left a week ago without sending the form, and without typing an email or phone, are deleted.
 
 ## Testing
 

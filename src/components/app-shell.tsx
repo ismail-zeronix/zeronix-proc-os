@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PortalHeader } from "@/components/portal-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import type { NavPerms } from "@/lib/app-nav";
 import type { AppKey } from "@/lib/apps";
 
 /**
@@ -11,11 +12,14 @@ import type { AppKey } from "@/lib/apps";
 export async function AppShell({
   app,
   badges,
+  perms,
   fill = false,
   children,
 }: {
   app: AppKey;
   badges?: Record<string, number>;
+  /** Extra permissions that show hidden sidebar groups (Accounts › Accountant). */
+  perms?: NavPerms;
   /** The page fills the screen below the header and scrolls inside itself (Chat), instead of the page scrolling. */
   fill?: boolean;
   children: React.ReactNode;
@@ -23,7 +27,7 @@ export async function AppShell({
   const open = (await cookies()).get("sidebar_state")?.value === "true";
   return (
     <SidebarProvider defaultOpen={open}>
-      <AppSidebar app={app} badges={badges} />
+      <AppSidebar app={app} badges={badges} perms={perms} />
       <SidebarInset className={fill ? "h-svh overflow-hidden pb-(--mobile-nav-h)" : undefined}>
         <PortalHeader withSidebar />
         {fill ? (

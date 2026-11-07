@@ -1,3 +1,4 @@
+import { UserError } from "@/lib/user-error";
 /** Reads a supplier's feed link. Pure network helpers, no database. */
 
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -9,9 +10,9 @@ export function assertSafeUrl(raw: string): URL {
   try {
     u = new URL(raw.trim());
   } catch {
-    throw new Error("That is not a valid link. Paste the full address, starting with https://");
+    throw new UserError("That is not a valid link. Paste the full address, starting with https://");
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("Only http and https links are allowed.");
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw new UserError("Only http and https links are allowed.");
   const h = u.hostname.toLowerCase();
   if (
     h === "localhost" ||
@@ -23,7 +24,7 @@ export function assertSafeUrl(raw: string): URL {
     /^169\.254\./.test(h) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(h)
   ) {
-    throw new Error("Links to this computer or a private network are not allowed.");
+    throw new UserError("Links to this computer or a private network are not allowed.");
   }
   return u;
 }
@@ -53,11 +54,11 @@ async function getText(url: string): Promise<{ text: string; contentType: string
     headers: { "user-agent": "zeronix-procurement-feed/1.0", accept: "text/csv,text/html;q=0.8,*/*;q=0.5" },
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`The link answered ${res.status} ${res.statusText}.`);
+  if (!res.ok) throw new UserError(`The link answered ${res.status} ${res.statusText}.`);
   const len = Number(res.headers.get("content-length") ?? 0);
-  if (len > MAX_BYTES) throw new Error("The file behind the link is too large.");
+  if (len > MAX_BYTES) throw new UserError("The file behind the link is too large.");
   const text = await res.text();
-  if (text.length > MAX_BYTES) throw new Error("The file behind the link is too large.");
+  if (text.length > MAX_BYTES) throw new UserError("The file behind the link is too large.");
   return { text, contentType: res.headers.get("content-type") ?? "" };
 }
 
@@ -73,7 +74,7 @@ export async function resolveFeed(url: string): Promise<{ csvUrl: string; text: 
   if (direct) {
     const { text } = await getText(direct);
     if (looksLikeHtml(text)) {
-      throw new Error("Google did not return the sheet. Publish it to the web (File > Share > Publish to web > CSV).");
+      throw new UserError("Google did not return the sheet. Publish it to the web (File > Share > Publish to web > CSV).");
     }
     return { csvUrl: direct, text };
   }
@@ -84,9 +85,9 @@ export async function resolveFeed(url: string): Promise<{ csvUrl: string; text: 
   const found = first.text.match(/https:\/\/docs\.google\.com\/spreadsheets\/[^"'\s<>\\]+/g)?.map((s) => s.replace(/&amp;/g, "&"));
   const sheetUrl = found?.find((s) => /output=csv/.test(s)) ?? found?.[0];
   const csvUrl = sheetUrl ? googleSheetCsvUrl(sheetUrl) : null;
-  if (!csvUrl) throw new Error("That page does not contain a published sheet or CSV link that I can read.");
+  if (!csvUrl) throw new UserError("That page does not contain a published sheet or CSV link that I can read.");
   const { text } = await getText(csvUrl);
-  if (looksLikeHtml(text)) throw new Error("The sheet behind that page is not published as CSV.");
+  if (looksLikeHtml(text)) throw new UserError("The sheet behind that page is not published as CSV.");
   return { csvUrl, text };
 }
 

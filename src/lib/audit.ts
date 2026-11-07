@@ -1,0 +1,45 @@
+import "server-only";
+import { headers } from "next/headers";
+import { db, schema } from "@/db";
+import { DEFAULT_ORG_ID } from "@/lib/org";
+import type { Tx } from "@/lib/tx";
+
+export interface AuditEntry {
+  userId: number | null;
+  /** "invoice.issue", "payment.void", "bill.create" ... */
+  action: string;
+  entity: string;
+  entityId?: number | null;
+  /** One line for people reading the trail. */
+  summary?: string;
+  before?: unknown;
+  after?: unknown;
+  orgId?: number;
+}
+
+async function clientIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "";
+  } catch {
+    return ""; // scripts and tests have no request
+  }
+}
+
+/**
+ * Writes one row of the audit trail. Call it inside the transaction that makes the change, so the trail and the change
+ * are saved (or rolled back) together.
+ */
+export async function audit(tx: Tx | typeof db, e: AuditEntry): Promise<void> {
+  await tx.insert(schema.auditLog).values({
+    organizationId: e.orgId ?? DEFAULT_ORG_ID,
+    userId: e.userId,
+    action: e.action,
+    entity: e.entity,
+    entityId: e.entityId ?? null,
+    summary: e.summary ?? "",
+    before: e.before ?? null,
+    after: e.after ?? null,
+    ip: await clientIp(),
+  });
+}

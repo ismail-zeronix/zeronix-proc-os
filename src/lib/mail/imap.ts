@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { mailServer } from "./config";
+import { UserError } from "@/lib/user-error";
 
 export interface FetchedMessage {
   uid: number;
@@ -95,12 +96,12 @@ export async function fetchSource(user: string, pass: string, uid: number): Prom
   return using(user, pass, async (client) => {
     await client.mailboxOpen("INBOX", { readOnly: true });
     const meta = await client.fetchOne(String(uid), { size: true, flags: true }, { uid: true });
-    if (!meta) throw new Error("That email no longer exists. It may have been moved or deleted.");
+    if (!meta) throw new UserError("That email no longer exists. It may have been moved or deleted.");
     if ((meta.size ?? 0) > MAX_MESSAGE_BYTES) {
       throw new MailTooBigError("This email is over 25 MB, too big to open here. Open it in webmail.");
     }
     const full = await client.fetchOne(String(uid), { source: true }, { uid: true });
-    if (!full || !full.source) throw new Error("Could not read that email.");
+    if (!full || !full.source) throw new UserError("Could not read that email.");
     return { source: full.source, seen: meta.flags?.has("\\Seen") ?? false };
   });
 }

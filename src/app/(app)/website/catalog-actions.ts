@@ -29,6 +29,7 @@ import { SITE_ICONS } from "@/lib/website/contract";
 import type { ListingItem } from "@/lib/website/listing-import";
 import { revalidateSite } from "@/lib/website/revalidate";
 import type { SiteImage } from "@/lib/website/types";
+import { parseInput } from "@/lib/user-error";
 
 /** Catalog edits from the Website app. Anyone with the app may edit and publish (WEBSITE-PLAN.md section 8). */
 
@@ -210,7 +211,7 @@ const listingItem = z.object({
 export async function importListingAction(items: ListingItem[]): Promise<Result<ListingImportResult>> {
   return attempt(async () => {
     const me = await assertApp("website");
-    const list = z.array(listingItem).min(1).max(100).parse(items);
+    const list = parseInput(z.array(listingItem).min(1).max(100), items);
     const res = await importListing(list, me.id).catch((e: Error) => {
       throw new Problem(e.message);
     });
@@ -257,8 +258,8 @@ const productChange = z.union([
 export async function bulkProductsAction(target: z.infer<typeof productTarget>, change: ProductBulkOp): Promise<Result<{ changed: number; skipped: string[] }>> {
   return attempt(async () => {
     const me = await assertApp("website");
-    const t = productTarget.parse(target);
-    const c = productChange.parse(change);
+    const t = parseInput(productTarget, target);
+    const c = parseInput(productChange, change);
     if (c.op === "delete" && me.role !== "admin") throw new Problem("Only an admin can delete products.");
     const ids = "ids" in t ? t.ids : await productIdsMatching(t.filter);
     const res = await bulkProducts(ids, c);

@@ -16,6 +16,7 @@ import { quoteDecided } from "@/lib/notifications/events";
 import { snapshotForQuote } from "@/lib/proposals-data";
 import { quoteDefaults } from "@/lib/quotes-data";
 import { stageLabel } from "@/lib/sales";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const price = z.number().min(0).max(1e9);
 
@@ -38,7 +39,7 @@ export type ItemInput = z.input<typeof itemSchema>;
 /** A line's values checked, with the first problem as one plain sentence for the toast (not a JSON dump). */
 function parseItem(input: ItemInput) {
   const r = itemSchema.safeParse(input);
-  if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the line.");
+  if (!r.success) throw new UserError(r.error.issues[0]?.message ?? "Check the line.");
   return r.data;
 }
 
@@ -49,7 +50,7 @@ async function nextPosition(dealId: number): Promise<number> {
 
 async function dealExists(dealId: number) {
   const [d] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, dealId));
-  if (!d) throw new Error("That deal no longer exists.");
+  if (!d) throw new UserError("That deal no longer exists.");
 }
 
 /** Adds a line typed by hand (price in AED before VAT; cost is optional). */
@@ -78,7 +79,7 @@ export async function addItemFromOffer(dealId: number, offerId: number, qty = 1,
   await assertApp("sales");
   await assertApp("procurement");
   await assertDeal(dealId, true);
-  const q = z.number().int().min(1).max(100000).parse(qty);
+  const q = parseInput(z.number().int().min(1).max(100000), qty);
   await dealExists(dealId);
   const [o] = await db
     .select({
@@ -96,12 +97,12 @@ export async function addItemFromOffer(dealId: number, offerId: number, qty = 1,
     .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.offers.supplierId))
     .innerJoin(schema.products, eq(schema.products.id, schema.offers.productId))
     .where(eq(schema.offers.id, offerId));
-  if (!o) throw new Error("That offer no longer exists.");
-  if (o.price == null) throw new Error("This offer has no price (price on request). Add the line by hand with the price you are given.");
+  if (!o) throw new UserError("That offer no longer exists.");
+  if (o.price == null) throw new UserError("This offer has no price (price on request). Add the line by hand with the price you are given.");
   const cost = toAed(o.price, o.currency, await getFx());
-  if (cost == null) throw new Error(`There is no AED rate for ${o.currency}. Add the line by hand with the cost in AED.`);
+  if (cost == null) throw new UserError(`There is no AED rate for ${o.currency}. Add the line by hand with the cost in AED.`);
   const defaults = await quoteDefaults();
-  const margin = marginPct == null ? defaults.marginPct : z.number().min(0).max(300).parse(marginPct);
+  const margin = marginPct == null ? defaults.marginPct : parseInput(z.number().min(0).max(300), marginPct);
   const unit = sellPrice(cost, margin);
   const label = [o.brand, o.modelName, o.partNumber].filter(Boolean).join(" ");
   await db.insert(schema.dealItems).values({
@@ -147,6 +148,15 @@ const quoteInput = z.object({
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** A quote that became a sales order or an invoice stays as it is: cancel that instead. */
+async function assertNotConverted(tx: Tx | typeof db, quoteId: number, number?: string) {
+  const name = number ? `Quote ${number}` : "This quote";
+  const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
+  if (order) throw new UserError(`${name} became sales order ${order.number} and cannot be changed. Cancel the order instead.`);
+  const [inv] = await tx.select({ number: schema.invoices.number }).from(schema.invoices).where(and(eq(schema.invoices.quoteId, quoteId), ne(schema.invoices.status, "cancelled")));
+  if (inv) throw new UserError(`${name} became invoice ${inv.number} and cannot be changed. Cancel the invoice instead.`);
+}
+
 /**
  * The deal's lines, checked: at least one, and every line has a selling price. For a project the lines come in BOQ
  * section order, and optional extras are left out (they are offered on the proposal, not part of the quoted total).
@@ -159,9 +169,9 @@ async function pricedLines(tx: Tx, dealId: number) {
     .innerJoin(schema.deals, eq(schema.deals.id, schema.projects.dealId))
     .where(and(eq(schema.projects.dealId, dealId), eq(schema.deals.kind, "project")));
   const items = project ? orderedBoq(all, project.sections).filter((i) => !i.optional) : all;
-  if (!items.length) throw new Error("Add at least one item before making a quote.");
+  if (!items.length) throw new UserError("Add at least one item before making a quote.");
   const unpriced = items.find((i) => !(i.unitPriceAed > 0));
-  if (unpriced) throw new Error(`"${unpriced.description.slice(0, 40)}" has no selling price yet.`);
+  if (unpriced) throw new UserError(`"${unpriced.description.slice(0, 40)}" has no selling price yet.`);
   return items;
 }
 
@@ -184,7 +194,7 @@ export async function createQuote(dealId: number, input: z.input<typeof quoteInp
   // project quotes are made from the BOQ in the Projects app
   const me = await assertAnyApp("sales", "projects");
   await assertDeal(dealId, true);
-  const d = quoteInput.parse(input);
+  const d = parseInput(quoteInput, input);
   const defaults = await quoteDefaults();
   const today = dubaiToday();
   const year = Number(today.slice(0, 4));
@@ -195,12 +205,12 @@ export async function createQuote(dealId: number, input: z.input<typeof quoteInp
       .select({ title: schema.deals.title, companyId: schema.deals.companyId, contactId: schema.deals.contactId, ownerId: schema.deals.ownerId, kind: schema.deals.kind })
       .from(schema.deals)
       .where(eq(schema.deals.id, dealId));
-    if (!deal) throw new Error("That deal no longer exists.");
+    if (!deal) throw new UserError("That deal no longer exists.");
     // one quote at a time per deal (the lock stops two clicks at once from both getting through)
     await tx.execute(sql`SELECT pg_advisory_xact_lock(7012, ${dealId})`);
     const { accepted, open } = await quotesInPlay(tx, dealId);
-    if (accepted) throw new Error(`Quote ${accepted.number} was already accepted for this deal, so no new quote is needed.`);
-    if (open) throw new Error(`Quote ${open.number} is still open. Update it instead, or mark it rejected to start a new one.`);
+    if (accepted) throw new UserError(`Quote ${accepted.number} was already accepted for this deal, so no new quote is needed.`);
+    if (open) throw new UserError(`Quote ${open.number} is still open. Update it instead, or mark it rejected to start a new one.`);
     const items = await pricedLines(tx, dealId);
 
     await tx.execute(sql`SELECT pg_advisory_xact_lock(7011)`);
@@ -264,12 +274,11 @@ export async function reviseQuote(quoteId: number) {
       .from(schema.quotes)
       .where(eq(schema.quotes.id, quoteId))
       .for("update");
-    if (!q) throw new Error("That quote no longer exists.");
-    if (q.dealId == null) throw new Error(`Quote ${q.number} has no deal: change it on the quote page (Edit).`);
+    if (!q) throw new UserError("That quote no longer exists.");
+    if (q.dealId == null) throw new UserError(`Quote ${q.number} has no deal: change it on the quote page (Edit).`);
     const dealId = q.dealId;
-    if (q.status !== "draft" && q.status !== "sent") throw new Error(`Quote ${q.number} was ${quoteStatusLabel(q.status).toLowerCase()} and cannot be changed.`);
-    const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
-    if (order) throw new Error(`Quote ${q.number} became order ${order.number} and cannot be changed.`);
+    if (q.status !== "draft" && q.status !== "sent") throw new UserError(`Quote ${q.number} was ${quoteStatusLabel(q.status).toLowerCase()} and cannot be changed.`);
+    await assertNotConverted(tx, quoteId, q.number);
     const [deal] = await tx.select({ companyId: schema.deals.companyId, kind: schema.deals.kind }).from(schema.deals).where(eq(schema.deals.id, dealId));
     const items = await pricedLines(tx, dealId);
     const t = totals(items.map((i) => ({ qty: i.qty, unitPrice: i.unitPriceAed, cost: i.costAed })), q.vatPct);
@@ -304,12 +313,12 @@ const quotePatch = z.object({
 
 /** Change the valid-until date or the terms of a quote that is still a draft or waiting for an answer. */
 export async function updateQuote(quoteId: number, patch: z.input<typeof quotePatch>) {
-  await assertApp("sales");
+  await assertAnyApp("sales", "accounts");
   await assertDealOf("quotes", quoteId, true);
-  const d = quotePatch.parse(patch);
+  const d = parseInput(quotePatch, patch);
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
-  if (!q) throw new Error("That quote no longer exists.");
-  if (q.status === "accepted" || q.status === "rejected") throw new Error("A quote the customer has answered cannot be changed.");
+  if (!q) throw new UserError("That quote no longer exists.");
+  if (q.status === "accepted" || q.status === "rejected") throw new UserError("A quote the customer has answered cannot be changed.");
   const set: Partial<typeof schema.quotes.$inferInsert> = {};
   if (d.validUntil) set.validUntil = d.validUntil;
   if (d.terms !== undefined) set.terms = d.terms;
@@ -326,19 +335,18 @@ const BEFORE_QUOTED = new Set(["new", "contacted", "requirement", "sourcing"]);
  * Every change is written to the deal's timeline. ("Expired" is never stored: a sent quote past its date just shows as expired.)
  */
 export async function setQuoteStatus(quoteId: number, status: string) {
-  const me = await assertApp("sales");
+  const me = await assertAnyApp("sales", "accounts");
   await assertDealOf("quotes", quoteId, true);
-  if (!isQuoteStatus(status) || status === "expired") throw new Error("Pick Draft, Sent, Accepted or Rejected.");
+  if (!isQuoteStatus(status) || status === "expired") throw new UserError("Pick Draft, Sent, Accepted or Rejected.");
   const next: QuoteStatus = status;
   const result = await db.transaction(async (tx) => {
     const [q] = await tx
       .select({ number: schema.quotes.number, status: schema.quotes.status, dealId: schema.quotes.dealId, companyId: schema.quotes.companyId, subtotal: schema.quotes.subtotal, total: schema.quotes.total })
       .from(schema.quotes)
       .where(eq(schema.quotes.id, quoteId));
-    if (!q) throw new Error("That quote no longer exists.");
+    if (!q) throw new UserError("That quote no longer exists.");
     if (q.status === next) return { dealId: q.dealId, stage: null as string | null, changed: false };
-    const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
-    if (order) throw new Error(`This quote became sales order ${order.number}, so it stays Accepted. Cancel the order instead.`);
+    await assertNotConverted(tx, quoteId);
     // an instant quote has no deal: no stage to move, no other quotes to keep in line
     const [deal] = q.dealId ? await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, q.dealId)) : [];
     const now = new Date();
@@ -350,10 +358,10 @@ export async function setQuoteStatus(quoteId: number, status: string) {
           .where(and(eq(schema.quotes.dealId, q.dealId), ne(schema.quotes.id, quoteId)))
       : [];
     const otherAccepted = others.find((o) => o.status === "accepted");
-    if (otherAccepted && next !== "rejected") throw new Error(`Quote ${otherAccepted.number} is already accepted for this deal.`);
+    if (otherAccepted && next !== "rejected") throw new UserError(`Quote ${otherAccepted.number} is already accepted for this deal.`);
     const otherOpen = others.filter((o) => o.status === "draft" || o.status === "sent");
     if (otherOpen.length && (next === "draft" || next === "sent"))
-      throw new Error(`Quote ${otherOpen[0].number} is already open for this deal. Update that one, or mark it rejected first.`);
+      throw new UserError(`Quote ${otherOpen[0].number} is already open for this deal. Update that one, or mark it rejected first.`);
     if (next === "accepted" && otherOpen.length) {
       // the customer took this one, so the older open quotes are answered too
       await tx.update(schema.quotes).set({ status: "rejected", decidedAt: now }).where(inArray(schema.quotes.id, otherOpen.map((o) => o.id)));
@@ -410,15 +418,14 @@ export async function setQuoteStatus(quoteId: number, status: string) {
   return { dealId: result.dealId, stage: result.stage };
 }
 
-/** A draft can be removed by anyone in Sales; a quote that was sent can only be removed by an admin. */
+/** A draft can be removed by anyone in Sales or Accounts; a quote that was sent can only be removed by an admin. */
 export async function deleteQuote(quoteId: number) {
-  const me = await assertApp("sales");
+  const me = await assertAnyApp("sales", "accounts");
   await assertDealOf("quotes", quoteId, true);
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
   if (!q) return;
-  const [order] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
-  if (order) throw new Error(`This quote became sales order ${order.number} and cannot be deleted.`);
-  if (q.status !== "draft" && me.role !== "admin") throw new Error("Only an admin can delete a quote that was sent. Mark it rejected instead.");
+  await assertNotConverted(db, quoteId);
+  if (q.status !== "draft" && me.role !== "admin") throw new UserError("Only an admin can delete a quote that was sent. Mark it rejected instead.");
   await db.delete(schema.quotes).where(and(eq(schema.quotes.id, quoteId)));
   refresh(q.dealId);
 }
@@ -455,29 +462,29 @@ export type SaveQuoteInput = z.input<typeof saveSchema>;
  * one quote in play. The salesperson may be someone other than who types it. Lines are kept with their cost, never printed.
  */
 export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
-  const me = await assertApp("sales");
+  const me = await assertAnyApp("sales", "accounts");
   if (quoteId) await assertDealOf("quotes", quoteId, true);
   const r = saveSchema.safeParse(input);
-  if (!r.success) throw new Error(r.error.issues[0]?.message ?? "Check the quote.");
+  if (!r.success) throw new UserError(r.error.issues[0]?.message ?? "Check the quote.");
   const d = r.data;
   const v = await currentViewer(true);
   // editing a quote you may see keeps its customer, even one you could not pick yourself (a quote in your name)
   const [current] = quoteId ? await db.select({ companyId: schema.quotes.companyId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId)) : [];
-  if (current?.companyId !== d.companyId && !(await canSeeCompany(v, d.companyId))) throw new Error("That customer does not exist or is not yours.");
-  if (d.validUntil < dubaiToday()) throw new Error("The valid-until date is in the past.");
+  if (current?.companyId !== d.companyId && !(await canSeeCompany(v, d.companyId))) throw new UserError("That customer does not exist or is not yours.");
+  if (d.validUntil < dubaiToday()) throw new UserError("The valid-until date is in the past.");
   const [owner] = await db.select({ id: schema.users.id, role: schema.users.role, apps: schema.users.apps, isActive: schema.users.isActive }).from(schema.users).where(eq(schema.users.id, d.ownerId));
-  if (!owner?.isActive || !allowedApps(owner).includes("sales")) throw new Error("Pick a salesperson who uses Sales.");
+  if (!owner?.isActive || !(allowedApps(owner).includes("sales") || allowedApps(owner).includes("accounts"))) throw new UserError("Pick a salesperson who uses Sales or Accounts.");
   if (d.contactId) {
     const [c] = await db.select({ companyId: schema.contacts.companyId }).from(schema.contacts).where(eq(schema.contacts.id, d.contactId));
-    if (c?.companyId !== d.companyId) throw new Error("That contact is not at this customer.");
+    if (c?.companyId !== d.companyId) throw new UserError("That contact is not at this customer.");
   }
   const dealId = d.dealId ?? null;
   if (dealId) {
     await assertDeal(dealId, true);
     const [deal] = await db.select({ companyId: schema.deals.companyId, kind: schema.deals.kind }).from(schema.deals).where(eq(schema.deals.id, dealId));
-    if (!deal) throw new Error("That deal no longer exists.");
-    if (deal.companyId !== d.companyId) throw new Error("That deal belongs to another customer.");
-    if (deal.kind === "project") throw new Error("A project is quoted from its BOQ in Projects.");
+    if (!deal) throw new UserError("That deal no longer exists.");
+    if (deal.companyId !== d.companyId) throw new UserError("That deal belongs to another customer.");
+    if (deal.kind === "project") throw new UserError("A project is quoted from its BOQ in Projects.");
   }
   const t = totals(d.lines.map((l) => ({ qty: l.qty, unitPrice: l.unitPriceAed, cost: l.costAed ?? null })), d.vatPct);
   const today = dubaiToday();
@@ -491,14 +498,13 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(7012, ${dealId})`);
       const { accepted, open } = await quotesInPlay(tx, dealId);
       const other = [accepted, open].find((x) => x && x.id !== quoteId);
-      if (other) throw new Error(`Quote ${other.number} is already ${other.status === "accepted" ? "accepted" : "open"} for this deal. Edit that one instead.`);
+      if (other) throw new UserError(`Quote ${other.number} is already ${other.status === "accepted" ? "accepted" : "open"} for this deal. Edit that one instead.`);
     }
     if (id) {
       const [q] = await tx.select().from(schema.quotes).where(eq(schema.quotes.id, id)).for("update");
-      if (!q) throw new Error("That quote no longer exists.");
-      if (q.status !== "draft" && q.status !== "sent") throw new Error(`Quote ${q.number} was ${quoteStatusLabel(q.status).toLowerCase()} and cannot be changed.`);
-      const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, id));
-      if (order) throw new Error(`Quote ${q.number} became order ${order.number} and cannot be changed.`);
+      if (!q) throw new UserError("That quote no longer exists.");
+      if (q.status !== "draft" && q.status !== "sent") throw new UserError(`Quote ${q.number} was ${quoteStatusLabel(q.status).toLowerCase()} and cannot be changed.`);
+      await assertNotConverted(tx, id, q.number);
       before = { total: q.total, status: q.status, dealId: q.dealId };
       number = q.number;
       await tx
@@ -534,6 +540,7 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
   refresh(dealId);
   if (result.oldDealId && result.oldDealId !== dealId) refresh(result.oldDealId);
   revalidatePath("/sales", "layout");
+  revalidatePath("/accounts", "layout");
   return { id: result.id, number: result.number };
 }
 
@@ -542,9 +549,9 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
  * page to add to its lines. Nothing is saved until the quote is.
  */
 export async function offerLine(offerId: number, qty = 1, marginPct?: number) {
-  await assertApp("sales");
+  await assertAnyApp("sales", "accounts");
   await assertApp("procurement");
-  const n = z.number().int().min(1).max(100000).parse(qty);
+  const n = parseInput(z.number().int().min(1).max(100000), qty);
   const [o] = await db
     .select({
       price: schema.offers.price,
@@ -559,10 +566,10 @@ export async function offerLine(offerId: number, qty = 1, marginPct?: number) {
     .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.offers.supplierId))
     .innerJoin(schema.products, eq(schema.products.id, schema.offers.productId))
     .where(eq(schema.offers.id, offerId));
-  if (!o) throw new Error("That offer no longer exists.");
-  if (o.price == null) throw new Error("This offer has no price (price on request). Type the line by hand with the price you are given.");
+  if (!o) throw new UserError("That offer no longer exists.");
+  if (o.price == null) throw new UserError("This offer has no price (price on request). Type the line by hand with the price you are given.");
   const cost = toAed(o.price, o.currency, await getFx());
-  if (cost == null) throw new Error(`There is no AED rate for ${o.currency}. Type the line by hand with the cost in AED.`);
+  if (cost == null) throw new UserError(`There is no AED rate for ${o.currency}. Type the line by hand with the cost in AED.`);
   const margin = marginPct == null ? (await quoteDefaults()).marginPct : z.number().min(0).max(300).parse(marginPct);
   const label = [o.brand, o.modelName, o.partNumber].filter(Boolean).join(" ");
   return { description: (o.specSummary ? `${label}, ${o.specSummary}` : label).slice(0, 400), qty: n, costAed: cost, unitPriceAed: sellPrice(cost, margin), supplierName: o.supplierName };
@@ -573,7 +580,7 @@ export async function offerLine(offerId: number, qty = 1, marginPct?: number) {
  * projects). `quoteId`: opening a quote you may see, whose customer you might not be able to pick yourself.
  */
 export async function customerChoices(companyId: number, quoteId?: number) {
-  await assertApp("sales");
+  await assertAnyApp("sales", "accounts");
   const v = await currentViewer(true);
   let viaQuote = false;
   if (quoteId) {
@@ -581,7 +588,7 @@ export async function customerChoices(companyId: number, quoteId?: number) {
     const [q] = await db.select({ companyId: schema.quotes.companyId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
     viaQuote = q?.companyId === companyId;
   }
-  if (!viaQuote && !(await canSeeCompany(v, companyId))) throw new Error("That customer does not exist or is not yours.");
+  if (!viaQuote && !(await canSeeCompany(v, companyId))) throw new UserError("That customer does not exist or is not yours.");
   const [contacts, deals] = await Promise.all([
     db
       .select({ id: schema.contacts.id, name: schema.contacts.name, jobTitle: schema.contacts.jobTitle })

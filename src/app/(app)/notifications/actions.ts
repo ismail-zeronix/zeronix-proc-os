@@ -3,10 +3,11 @@
 import { z } from "zod";
 import { loadAccess } from "@/lib/auth/session";
 import { markRead, snooze } from "@/lib/notifications";
+import { parseInput, UserError } from "@/lib/user-error";
 
 async function me(): Promise<number> {
   const access = await loadAccess();
-  if (!access) throw new Error("Sign in again.");
+  if (!access) throw new UserError("Sign in again.");
   return access.user.id;
 }
 
@@ -19,8 +20,8 @@ export async function readNotifications(ids?: number[]) {
 /** Hides one of my lines for an hour, or until the next morning (08:00 UAE). */
 export async function snoozeNotification(id: number, until: "hour" | "tomorrow") {
   const userId = await me();
-  const nid = z.number().int().positive().parse(id);
-  const when = z.enum(["hour", "tomorrow"]).parse(until);
+  const nid = parseInput(z.number().int().positive(), id);
+  const when = parseInput(z.enum(["hour", "tomorrow"]), until);
   let at: Date;
   if (when === "hour") at = new Date(Date.now() + 3600_000);
   else {

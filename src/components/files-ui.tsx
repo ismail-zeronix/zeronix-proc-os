@@ -14,6 +14,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UserAvatar } from "@/components/user-avatar";
 import { ALLOWED_TYPES, extOf, FOLDERS, folderLabel, MAX_FILE_BYTES, sizeLabel, type FolderKey, type RelatedType } from "@/lib/file-folders";
+import { errorText } from "@/lib/user-error";
 
 const ACCEPT = Object.keys(ALLOWED_TYPES)
   .map((e) => `.${e}`)
@@ -195,7 +196,7 @@ function FileLine({ f, canDelete, showFolder }: { f: FileItem; canDelete: boolea
         toast.success(ok);
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   const when = new Date(f.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dubai" });

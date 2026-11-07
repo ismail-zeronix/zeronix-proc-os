@@ -18,6 +18,7 @@ import { CURRENCIES } from "@/lib/currency";
 import { ago } from "@/lib/format";
 import { SUPPLIER_TYPES, supplierType } from "@/lib/supplier-types";
 import { saveSupplier } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 interface SupplierRow {
   id: number;
@@ -59,7 +60,7 @@ export function SupplierDialog({ supplier }: { supplier?: SupplierRow }) {
         toast.success("Supplier saved");
         setOpen(false);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

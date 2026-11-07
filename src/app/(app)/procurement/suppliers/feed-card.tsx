@@ -13,6 +13,7 @@ import { CURRENCIES } from "@/lib/currency";
 import { FEED_INTERVALS } from "@/lib/feed/intervals";
 import { ago } from "@/lib/format";
 import { removeFeed, saveFeed, syncFeedNow } from "./feed-actions";
+import { errorText } from "@/lib/user-error";
 
 export interface FeedInfo {
   url: string;
@@ -43,7 +44,7 @@ export function FeedCard({ supplierId, feed, canEdit }: { supplierId: number; fe
         if (res.status === "error") toast.error(res.message);
         else toast.success(res.status === "unchanged" ? "Checked: no change" : `${done}: ${res.message}`);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

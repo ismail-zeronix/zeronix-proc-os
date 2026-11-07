@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveDocumentBrand } from "./doc-brand-actions";
+import { errorText } from "@/lib/user-error";
 
 type Kind = "logoDark" | "signature" | "stamp";
 
@@ -87,7 +88,7 @@ export function DocumentBrandCard({
             setImg({});
             toast.success("Document details saved");
           } catch (err) {
-            toast.error((err as Error).message);
+            toast.error(errorText(err));
           }
         });
       }}

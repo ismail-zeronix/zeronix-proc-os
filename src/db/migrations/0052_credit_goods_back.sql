@@ -1,0 +1,1 @@
+ALTER TABLE "credit_notes" ADD COLUMN "goods_back" boolean DEFAULT true NOT NULL;

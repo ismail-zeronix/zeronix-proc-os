@@ -11,6 +11,7 @@ import { attachMatches } from "@/lib/products";
 import { SUPPLIER_TYPE_KEYS, supplierType } from "@/lib/supplier-types";
 import { searchNormFor, upsertProductFor } from "@/lib/products";
 import { getSetting } from "@/lib/settings";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const createSchema = z.object({
   supplierId: z.coerce.number().int().positive().optional(),
@@ -22,12 +23,12 @@ const createSchema = z.object({
 
 export async function createPriceList(input: z.input<typeof createSchema>) {
   const user = await assertApp("procurement");
-  const data = createSchema.parse(input);
+  const data = parseInput(createSchema, input);
 
   let supplierId = data.supplierId;
   if (!supplierId) {
     const name = data.newSupplierName?.trim();
-    if (!name) throw new Error("Choose a supplier or type a new supplier name.");
+    if (!name) throw new UserError("Choose a supplier or type a new supplier name.");
     const [existing] = await db
       .select({ id: schema.suppliers.id })
       .from(schema.suppliers)
@@ -76,7 +77,7 @@ export async function deletePriceList(id: number) {
   const user = await assertApp("procurement");
   const [pl] = await db.select().from(schema.priceLists).where(eq(schema.priceLists.id, id));
   if (!pl) return;
-  if (pl.status === "saved" && user.role !== "admin") throw new Error("Only an admin can delete a saved price list.");
+  if (pl.status === "saved" && user.role !== "admin") throw new UserError("Only an admin can delete a saved price list.");
   await db.delete(schema.priceLists).where(eq(schema.priceLists.id, id));
   revalidatePath("/procurement/price-lists");
   revalidatePath("/procurement/compare");
@@ -114,14 +115,14 @@ function corrections(original: OfferDraft[], edited: OfferDraft[]) {
 
 export async function savePriceList(id: number, draftsInput: OfferDraft[]) {
   await assertApp("procurement");
-  const drafts = z.array(offerDraftSchema).parse(draftsInput);
+  const drafts = parseInput(z.array(offerDraftSchema), draftsInput);
   const [pl] = await db
     .select({ pl: schema.priceLists, supplierName: schema.suppliers.name })
     .from(schema.priceLists)
     .innerJoin(schema.suppliers, eq(schema.suppliers.id, schema.priceLists.supplierId))
     .where(eq(schema.priceLists.id, id));
-  if (!pl) throw new Error("Price list not found");
-  if (pl.pl.status === "saved") throw new Error("This price list is already saved.");
+  if (!pl) throw new UserError("Price list not found");
+  if (pl.pl.status === "saved") throw new UserError("This price list is already saved.");
 
   const included = drafts.filter((d) => d.include);
   const fewShots = corrections(pl.pl.drafts ?? [], drafts);
@@ -198,7 +199,7 @@ const excelSchema = z.object({
  */
 export async function createExcelPriceList(input: z.input<typeof excelSchema>) {
   const user = await assertApp("procurement");
-  const data = excelSchema.parse(input);
+  const data = parseInput(excelSchema, input);
   const started = Date.now();
 
   const drafts: OfferDraft[] = data.sheets.flatMap((s) =>
@@ -211,20 +212,20 @@ export async function createExcelPriceList(input: z.input<typeof excelSchema>) {
       include: true,
     })),
   );
-  if (!drafts.length) throw new Error("There are no rows to import in the chosen sheets.");
-  if (drafts.length > MAX_EXCEL_ROWS) throw new Error(`That is more than ${MAX_EXCEL_ROWS} rows. Split the file.`);
+  if (!drafts.length) throw new UserError("There are no rows to import in the chosen sheets.");
+  if (drafts.length > MAX_EXCEL_ROWS) throw new UserError(`That is more than ${MAX_EXCEL_ROWS} rows. Split the file.`);
 
   let supplierId = data.supplierId;
   if (supplierId) {
     const [sup] = await db.select().from(schema.suppliers).where(eq(schema.suppliers.id, supplierId));
-    if (!sup) throw new Error("Supplier not found.");
+    if (!sup) throw new UserError("Supplier not found.");
     // remember the currency this supplier quotes in, so it is pre-selected next time
     if (sup.defaultCurrency !== data.currency) {
       await db.update(schema.suppliers).set({ defaultCurrency: data.currency }).where(eq(schema.suppliers.id, supplierId));
     }
   } else {
     const name = data.newSupplierName?.trim();
-    if (!name) throw new Error("Choose a supplier or type a new supplier name.");
+    if (!name) throw new UserError("Choose a supplier or type a new supplier name.");
     const [existing] = await db
       .select({ id: schema.suppliers.id })
       .from(schema.suppliers)

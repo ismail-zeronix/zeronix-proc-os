@@ -1,30 +1,23 @@
 import { notFound } from "next/navigation";
 import { ReceiptDocument } from "@/components/money-documents";
 import { PrintPage } from "@/components/print-page";
-import { getInvoice, getPayment } from "@/lib/accounts-data";
+import { getPayment } from "@/lib/accounts-data";
 import { requireFinance } from "@/lib/auth/session";
-import { round2 } from "@/lib/quotation";
 import { quoteBrand } from "@/lib/quote-view";
 
 export const metadata = { title: "Receipt" };
 
-/** Receipt voucher for one payment. The balance shown is what was still owed right after this payment. */
+/** Receipt voucher: what came in, each invoice it paid with what was still owed right after, and any advance. */
 export default async function PrintReceipt({ params }: PageProps<"/print/receipt/[id]">) {
   await requireFinance();
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const p = await getPayment(id);
   if (!p) notFound();
-  const [inv, brand] = await Promise.all([getInvoice(p.invoiceId), quoteBrand()]);
-  // payments up to and including this one, in the order they were recorded
-  const upTo = (inv?.payments ?? []).filter((x) => !x.voidedAt && (x.paidOn < p.paidOn || (x.paidOn === p.paidOn && x.id <= p.id)));
-  const balanceAfter = round2(Math.max(0, p.invoiceTotal - upTo.reduce((s, x) => s + x.amount, 0)));
+  const brand = await quoteBrand();
   return (
-    <PrintPage back={`/accounts/invoices/${p.invoiceId}`} number={p.number}>
-      <ReceiptDocument
-        brand={brand}
-        r={{ ...p, balanceAfter, voided: p.voidedAt ? p.voidReason || "Voided" : null }}
-      />
+    <PrintPage back={p.documents.length === 1 ? `/accounts/invoices/${p.documents[0].id}` : "/accounts/payments"} number={p.number} pdfHref={`/api/documents/receipt/${p.id}/pdf`}>
+      <ReceiptDocument brand={brand} r={{ ...p, voided: p.voidedAt ? p.voidReason || "Voided" : null }} />
     </PrintPage>
   );
 }

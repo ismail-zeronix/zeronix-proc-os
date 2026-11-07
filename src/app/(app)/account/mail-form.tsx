@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkMailNow, connectMailbox, disconnectMailbox } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 /** Connect, re-check or disconnect the signed-in user's mailbox. */
 export function MailForm({ connected, imapUser, defaultEmail }: { connected: boolean; imapUser: string; defaultEmail: string }) {
@@ -23,7 +24,7 @@ export function MailForm({ connected, imapUser, defaultEmail }: { connected: boo
         toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

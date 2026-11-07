@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "@/components/ui/textarea";
 import { parseJsonValues, readListing, type ListingRead } from "@/lib/website/listing-import";
 import { importListingAction } from "../catalog-actions";
+import { errorText } from "@/lib/user-error";
 
 const BATCH = 40;
 
@@ -28,7 +29,7 @@ export function ListingImport({ markup }: { markup: number }) {
     try {
       return readListing(parseJsonValues(text));
     } catch (e) {
-      return { error: (e as Error).message };
+      return { error: errorText(e) };
     }
   }, [text]);
 

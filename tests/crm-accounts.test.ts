@@ -41,9 +41,10 @@ describe("Sales became CRM, money moved to Accounts", () => {
     expect(redirected("/sales/orders/9")).toBeNull();
     expect(redirected("/sales")).toBeNull();
     // the day they spent under Accounts
-    expect(redirected("/accounts/quotes/7")).toBe("/sales/quotes/7");
-    expect(redirected("/accounts/orders")).toBe("/sales/orders");
-    expect(redirected("/accounts/customers/5")).toBe("/sales/customers/5");
+    // since 2026-11-07 Accounts has these pages itself, over the same records
+    expect(redirected("/accounts/quotes/7")).toBeNull();
+    expect(redirected("/accounts/orders")).toBeNull();
+    expect(redirected("/accounts/customers/5")).toBeNull();
     expect(redirected("/accounts/to-invoice")).toBeNull();
     expect(redirected("/salesforce")).toBeNull();
   });

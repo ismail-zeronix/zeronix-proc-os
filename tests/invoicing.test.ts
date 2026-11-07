@@ -25,7 +25,7 @@ describe("credit terms and due dates", () => {
 });
 
 describe("invoice state", () => {
-  const inv = { status: "issued", total: 1050, dueDate: "2026-10-31" };
+  const inv = { status: "issued", total: 1050, creditedTotal: 0, dueDate: "2026-10-31" };
   it("is due, part paid, paid", () => {
     expect(invoiceState(inv, 0, "2026-10-21")).toMatchObject({ key: "unpaid", balance: 1050, label: "Due in 10 days" });
     expect(invoiceState(inv, 0, "2026-10-31").label).toBe("Due today");

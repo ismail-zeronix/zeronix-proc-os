@@ -7,12 +7,13 @@ import { toast } from "sonner";
 import {
   createBill,
   createExpense,
-  createSupplierFromAccounts,
   recordSupplierPayment,
   updateSupplierBilling,
   voidBill,
   voidSupplierPayment,
 } from "@/app/(app)/accounts/purchase-actions";
+import { AccountPicker, pickedAccount, type BankOption } from "@/components/account-picker";
+import { NewSupplierDialog } from "@/components/party-pickers";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,8 +22,10 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { dubaiToday } from "@/lib/dates";
 import { dueDateFor, PAYMENT_METHODS, termsLabel, TERMS_OPTIONS } from "@/lib/invoicing";
-import { billTotals, CATEGORIES, lineCost } from "@/lib/purchases";
+import { billTax, CATEGORIES, lineCost } from "@/lib/purchases";
+import { PURCHASE_TAX_CODES, taxCodeOptions } from "@/lib/tax/doc-tax";
 import { longDay, money } from "@/lib/quotation";
+import { errorText } from "@/lib/user-error";
 
 function useRun() {
   const router = useRouter();
@@ -35,7 +38,7 @@ function useRun() {
         after?.(r);
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run, router] as const;
@@ -56,6 +59,9 @@ export interface OrderOption {
   number: string;
   companyName: string;
 }
+
+/** "o12" for a customer order, "i34" for a direct invoice with no order. */
+const saleOf = (value: string) => ({ orderId: value.startsWith("o") ? Number(value.slice(1)) : null, invoiceId: value.startsWith("i") ? Number(value.slice(1)) : null });
 
 function MethodToggle({ value, onChange }: { value: "cash" | "bank"; onChange: (v: "cash" | "bank") => void }) {
   return (
@@ -101,13 +107,18 @@ function CategorySelect({ id, value, onChange }: { id: string; value: string; on
   );
 }
 
-function OrderSelect({ id, value, onChange, orders }: { id: string; value: string; onChange: (v: string) => void; orders: OrderOption[] }) {
+function SaleSelect({ id, value, onChange, orders, invoices }: { id: string; value: string; onChange: (v: string) => void; orders: OrderOption[]; invoices: OrderOption[] }) {
   return (
     <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <NativeSelectOption value="">Not for a customer order</NativeSelectOption>
+      <NativeSelectOption value="">Not for a particular sale</NativeSelectOption>
       {orders.map((o) => (
-        <NativeSelectOption key={o.id} value={String(o.id)}>
+        <NativeSelectOption key={`o${o.id}`} value={`o${o.id}`}>
           {o.number} · {o.companyName}
+        </NativeSelectOption>
+      ))}
+      {invoices.map((i) => (
+        <NativeSelectOption key={`i${i.id}`} value={`i${i.id}`}>
+          {i.number} · {i.companyName}
         </NativeSelectOption>
       ))}
     </NativeSelect>
@@ -117,7 +128,6 @@ function OrderSelect({ id, value, onChange, orders }: { id: string; value: strin
 /** Supplier picker with "add a new one" (a bill from someone Procurement never had). */
 function SupplierSelect({ id, value, onChange, suppliers, allowNone }: { id: string; value: string; onChange: (v: string, s?: SupplierOption) => void; suppliers: SupplierOption[]; allowNone?: string }) {
   const [list, setList] = useState(suppliers);
-  const [pending, start] = useTransition();
   return (
     <div className="flex gap-1.5">
       <NativeSelect id={id} className="min-w-0 flex-1" value={value} onChange={(e) => onChange(e.target.value, list.find((s) => String(s.id) === e.target.value))}>
@@ -128,55 +138,55 @@ function SupplierSelect({ id, value, onChange, suppliers, allowNone }: { id: str
           </NativeSelectOption>
         ))}
       </NativeSelect>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        title="Add a supplier that is not in the list"
-        aria-label="Add a supplier"
-        pending={pending}
-        onClick={() => {
-          const name = prompt("New supplier name (as on their invoice):")?.trim();
-          if (!name) return;
-          start(async () => {
-            try {
-              const newId = await createSupplierFromAccounts({ name });
-              const s = { id: newId, name, termsDays: 30 };
-              setList([...list, s].sort((a, b) => a.name.localeCompare(b.name)));
-              onChange(String(newId), s);
-              toast.success("Supplier added");
-            } catch (e) {
-              toast.error((e as Error).message);
-            }
-          });
+      <NewSupplierDialog
+        onAdded={(s) => {
+          setList([...list, s].sort((a, b) => a.name.localeCompare(b.name)));
+          onChange(String(s.id), s);
         }}
-      >
-        <Plus />
-      </Button>
+        trigger={
+          <Button type="button" variant="outline" size="icon" title="Add a supplier that is not in the list" aria-label="Add a supplier">
+            <Plus />
+          </Button>
+        }
+      />
     </div>
   );
 }
 
-type Line = { description: string; qty: string; unitCost: string };
+type Line = { description: string; qty: string; unitCost: string; taxCode: string };
+type PurchaseCode = (typeof PURCHASE_TAX_CODES)[number];
+const TAX_OPTIONS = taxCodeOptions(PURCHASE_TAX_CODES);
 
-/** The new-bill page: who, their invoice number, dates, the lines, VAT, and the customer order it was bought for. */
-export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOption[]; orders: OrderOption[]; preset: { orderId?: number; kind?: "bill" | "opening" } }) {
+function TaxCodeSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
+  return (
+    <NativeSelect id={id} aria-label="VAT code" title={TAX_OPTIONS.find((o) => o.code === value)?.hint} value={value} onChange={(e) => onChange(e.target.value)}>
+      {TAX_OPTIONS.map((o) => (
+        <NativeSelectOption key={o.code} value={o.code}>
+          {o.label}
+        </NativeSelectOption>
+      ))}
+    </NativeSelect>
+  );
+}
+
+/** The new-bill page: who, their invoice number, dates, the lines, VAT, and the sale it was bought for. */
+export function BillForm({ suppliers, orders, invoices, preset }: { suppliers: SupplierOption[]; orders: OrderOption[]; invoices: OrderOption[]; preset: { orderId?: number; invoiceId?: number; supplierId?: number; kind?: "bill" | "opening" } }) {
   const [pending, run, router] = useRun();
   const today = dubaiToday();
   const [kind, setKind] = useState<"bill" | "opening">(preset.kind ?? "bill");
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(preset.supplierId ? String(preset.supplierId) : "");
   const [supplierRef, setSupplierRef] = useState("");
   const [billDate, setBillDate] = useState(today);
-  const [termsDays, setTermsDays] = useState(30);
-  const [orderId, setOrderId] = useState(preset.orderId ? String(preset.orderId) : "");
-  const [category, setCategory] = useState(preset.orderId ? "cogs" : "cogs");
-  const [vatPct, setVatPct] = useState(5);
+  const [termsDays, setTermsDays] = useState(suppliers.find((s) => s.id === preset.supplierId)?.termsDays ?? 30);
+  const [sale, setSale] = useState(preset.orderId ? `o${preset.orderId}` : preset.invoiceId ? `i${preset.invoiceId}` : "");
+  const [category, setCategory] = useState("cogs");
   const [vatOverride, setVatOverride] = useState("");
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ description: "", qty: "1", unitCost: "" }]);
+  const [lines, setLines] = useState<Line[]>([{ description: "", qty: "1", unitCost: "", taxCode: "SR" }]);
   const opening = kind === "opening";
-  const parsed = lines.map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitCost: num(l.unitCost) })).filter((l) => l.description && l.qty > 0);
-  const t = opening ? billTotals(parsed, 0, 0) : billTotals(parsed, vatPct, vatOverride.trim() ? num(vatOverride) : null);
+  const parsed = lines.map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitCost: num(l.unitCost), taxCode: (opening ? "OS" : l.taxCode) as PurchaseCode })).filter((l) => l.description && l.qty > 0);
+  const t = billTax(parsed, !opening && vatOverride.trim() ? num(vatOverride) : null);
+  const charged = parsed.some((l) => l.taxCode === "SR");
   const set = (i: number, k: keyof Line, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
   const can = !!supplierId && parsed.length > 0 && t.total > 0 && (opening || !!supplierRef.trim());
 
@@ -194,10 +204,10 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
               billDate,
               termsDays,
               category,
-              orderId: orderId ? Number(orderId) : null,
+              ...saleOf(sale),
               lines: parsed,
-              vatPct,
-              vatAmount: !opening && vatOverride.trim() ? num(vatOverride) : null,
+              vatPct: t.vatPct,
+              vatAmount: !opening && charged && vatOverride.trim() ? num(vatOverride) : null,
               notes,
             }),
           "Bill saved",
@@ -249,13 +259,14 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
           <CategorySelect id="b-cat" value={category} onChange={setCategory} />
         </div>
         <div className="grid gap-1.5 sm:col-span-2">
-          <Label htmlFor="b-order">Bought for customer order</Label>
-          <OrderSelect
+          <Label htmlFor="b-order">Bought for this sale</Label>
+          <SaleSelect
             id="b-order"
-            value={orderId}
+            value={sale}
             orders={orders}
+            invoices={invoices}
             onChange={(v) => {
-              setOrderId(v);
+              setSale(v);
               if (v) setCategory("cogs");
             }}
           />
@@ -263,16 +274,22 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
       </div>
 
       <div className="grid gap-1.5">
-        <div className="hidden grid-cols-[minmax(0,1fr)_5rem_8rem_8rem_2rem] gap-2 text-xs text-muted-foreground sm:grid">
+        <div className={`hidden gap-2 text-xs text-muted-foreground sm:grid ${opening ? "grid-cols-[minmax(0,1fr)_5rem_8rem_8rem_2rem]" : "grid-cols-[minmax(0,1fr)_12rem_5rem_8rem_8rem_2rem]"}`}>
           <span>{opening ? "What is still owed (one line is enough)" : "Item"}</span>
+          {!opening && <span>VAT</span>}
           <span className="text-right">Qty</span>
           <span className="text-right">Unit cost</span>
           <span className="text-right">Total</span>
           <span />
         </div>
         {lines.map((l, i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_4rem_6rem_2rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_8rem_8rem_2rem]">
+          <div key={i} className={`grid items-center gap-2 ${opening ? "grid-cols-[minmax(0,1fr)_4rem_6rem_2rem] sm:grid-cols-[minmax(0,1fr)_5rem_8rem_8rem_2rem]" : "grid-cols-[minmax(0,1fr)_4rem_6rem_2rem] sm:grid-cols-[minmax(0,1fr)_12rem_5rem_8rem_8rem_2rem]"}`}>
             <Input aria-label="Description" value={l.description} onChange={(e) => set(i, "description", e.target.value)} placeholder={opening ? `Opening balance ${supplierRef}`.trim() : "e.g. Lenovo E14 laptops"} />
+            {!opening && (
+              <span className="col-span-4 row-start-2 sm:col-span-1 sm:row-start-auto">
+                <TaxCodeSelect value={l.taxCode} onChange={(v) => set(i, "taxCode", v)} />
+              </span>
+            )}
             <Input aria-label="Quantity" inputMode="decimal" className="text-right" value={l.qty} onChange={(e) => set(i, "qty", e.target.value)} />
             <Input aria-label="Unit cost before VAT" inputMode="decimal" className="text-right" value={l.unitCost} onChange={(e) => set(i, "unitCost", e.target.value)} placeholder="AED" />
             <span className="hidden text-right text-sm tabular-nums sm:block">{money(lineCost({ qty: num(l.qty), unitCost: num(l.unitCost) }))}</span>
@@ -281,7 +298,7 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
             </Button>
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setLines([...lines, { description: "", qty: "1", unitCost: "" }])}>
+        <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setLines([...lines, { description: "", qty: "1", unitCost: "", taxCode: lines.at(-1)?.taxCode ?? "SR" }])}>
           <Plus /> Line
         </Button>
       </div>
@@ -298,14 +315,14 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
           </div>
           {!opening && (
             <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                VAT
-                <NativeSelect size="sm" aria-label="VAT rate" value={String(vatPct)} onChange={(e) => setVatPct(Number(e.target.value))}>
-                  <NativeSelectOption value="5">5%</NativeSelectOption>
-                  <NativeSelectOption value="0">0% / no VAT</NativeSelectOption>
-                </NativeSelect>
-              </span>
-              <Input aria-label="VAT amount on their invoice" title="Type the VAT amount only when their invoice shows a different figure" inputMode="decimal" className="h-7 w-28 text-right" value={vatOverride} onChange={(e) => setVatOverride(e.target.value)} placeholder={String(t.vatAmount)} />
+              <span className="text-muted-foreground">VAT</span>
+              {charged ? <Input aria-label="VAT amount on their invoice" title="Type the VAT amount only when their invoice shows a different figure" inputMode="decimal" className="h-7 w-28 text-right" value={vatOverride} onChange={(e) => setVatOverride(e.target.value)} placeholder={String(t.vat)} /> : <span className="tabular-nums">{money(0)}</span>}
+            </div>
+          )}
+          {t.selfAssessed > 0 && (
+            <div className="flex justify-between text-xs text-muted-foreground" title="Not paid to the supplier: we report it and reclaim it on the VAT return">
+              <span>Reverse charge VAT, ours to report</span>
+              <span className="tabular-nums">{money(t.selfAssessed)}</span>
             </div>
           )}
           <div className="flex justify-between border-t pt-1 font-semibold">
@@ -322,12 +339,13 @@ export function BillForm({ suppliers, orders, preset }: { suppliers: SupplierOpt
 }
 
 /** Money spent on the spot: the expense and its payment in one step. */
-export function ExpenseDialog({ suppliers, orders }: { suppliers: SupplierOption[]; orders: OrderOption[] }) {
-  const [open, setOpen] = useState(false);
+export function ExpenseDialog({ suppliers, orders, invoices, defaultOpen = false, accounts = [] }: { suppliers: SupplierOption[]; orders: OrderOption[]; invoices: OrderOption[]; defaultOpen?: boolean; accounts?: BankOption[] }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [pending, run] = useRun();
-  const blank = { paidOn: dubaiToday(), category: "transport", supplierId: "", paidTo: "", description: "", amount: "", vatPct: 0, method: "cash" as "cash" | "bank", reference: "", orderId: "", notes: "" };
+  const blank = { paidOn: dubaiToday(), category: "transport", supplierId: "", paidTo: "", description: "", amount: "", taxCode: "OS", method: "cash" as "cash" | "bank", reference: "", orderId: "", notes: "" };
   const [f, setF] = useState(blank);
-  const t = billTotals([{ qty: 1, unitCost: num(f.amount) }], f.vatPct);
+  const [bankAccountId, setBankAccountId] = useState<number | null>(null);
+  const t = billTax([{ qty: 1, unitCost: num(f.amount), taxCode: f.taxCode }]);
   const can = num(f.amount) > 0 && f.description.trim().length >= 2 && (!!f.supplierId || !!f.paidTo.trim()) && (f.method === "cash" || !!f.reference.trim());
   return (
     <Dialog
@@ -375,16 +393,14 @@ export function ExpenseDialog({ suppliers, orders }: { suppliers: SupplierOption
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="ex-vat">VAT on the receipt</Label>
-            <NativeSelect id="ex-vat" value={String(f.vatPct)} onChange={(e) => setF({ ...f, vatPct: Number(e.target.value) })}>
-              <NativeSelectOption value="0">No VAT</NativeSelectOption>
-              <NativeSelectOption value="5">5% (tax invoice with TRN)</NativeSelectOption>
-            </NativeSelect>
+            <TaxCodeSelect id="ex-vat" value={f.taxCode} onChange={(v) => setF({ ...f, taxCode: v })} />
           </div>
         </div>
         <div className="grid gap-1.5">
           <span className="text-sm font-medium">Paid by · total {money(t.total)}</span>
           <MethodToggle value={f.method} onChange={(m) => setF({ ...f, method: m })} />
         </div>
+        <AccountPicker id="ex-acc" accounts={accounts} method={f.method} value={bankAccountId} onChange={setBankAccountId} />
         {f.method === "bank" && (
           <div className="grid gap-1.5">
             <Label htmlFor="ex-ref">Bank reference (required)</Label>
@@ -392,8 +408,8 @@ export function ExpenseDialog({ suppliers, orders }: { suppliers: SupplierOption
           </div>
         )}
         <div className="grid gap-1.5">
-          <Label htmlFor="ex-order">For customer order (optional)</Label>
-          <OrderSelect id="ex-order" value={f.orderId} orders={orders} onChange={(v) => setF({ ...f, orderId: v })} />
+          <Label htmlFor="ex-order">For this sale (optional)</Label>
+          <SaleSelect id="ex-order" value={f.orderId} orders={orders} invoices={invoices} onChange={(v) => setF({ ...f, orderId: v })} />
         </div>
         <DialogFooter>
           <Button
@@ -409,10 +425,11 @@ export function ExpenseDialog({ suppliers, orders }: { suppliers: SupplierOption
                     paidTo: f.paidTo,
                     description: f.description,
                     amount: num(f.amount),
-                    vatPct: f.vatPct,
+                    taxCode: f.taxCode as PurchaseCode,
                     method: f.method,
                     reference: f.reference,
-                    orderId: f.orderId ? Number(f.orderId) : null,
+                    bankAccountId: pickedAccount(accounts, f.method, bankAccountId),
+                    ...saleOf(f.orderId),
                     notes: f.notes,
                   }),
                 "Expense saved",
@@ -428,13 +445,24 @@ export function ExpenseDialog({ suppliers, orders }: { suppliers: SupplierOption
   );
 }
 
-export function PayBillDialog({ billId, number, balance, billDate }: { billId: number; number: string; balance: number; billDate: string }) {
+export function PayBillDialog({ billId, number, balance, billDate, accounts = [] }: { billId: number; number: string; balance: number; billDate: string; accounts?: BankOption[] }) {
   const [open, setOpen] = useState(false);
   const [pending, run] = useRun();
   const [f, setF] = useState({ paidOn: dubaiToday(), amount: String(balance), method: "bank" as "cash" | "bank", reference: "", notes: "" });
+  const [bankAccountId, setBankAccountId] = useState<number | null>(null);
   const amount = num(f.amount);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
+        if (o) {
+          setF({ paidOn: dubaiToday(), amount: String(balance), method: "bank", reference: "", notes: "" });
+          setBankAccountId(null);
+        }
+        setOpen(o);
+      }}
+    >
       <DialogTrigger
         render={
           <Button size="sm">
@@ -461,6 +489,7 @@ export function PayBillDialog({ billId, number, balance, billDate }: { billId: n
           <span className="text-sm font-medium">Paid by</span>
           <MethodToggle value={f.method} onChange={(m) => setF({ ...f, method: m })} />
         </div>
+        <AccountPicker id="pb-acc" accounts={accounts} method={f.method} value={bankAccountId} onChange={setBankAccountId} />
         <div className="grid gap-1.5">
           <Label htmlFor="pb-ref">{f.method === "bank" ? "Bank reference (required)" : "Reference"}</Label>
           <Input id="pb-ref" value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} placeholder={f.method === "bank" ? "transfer / FT number" : "optional"} maxLength={120} />
@@ -473,7 +502,7 @@ export function PayBillDialog({ billId, number, balance, billDate }: { billId: n
           <Button
             pending={pending}
             disabled={!(amount > 0) || amount > balance + 0.001 || (f.method === "bank" && !f.reference.trim())}
-            onClick={() => run(() => recordSupplierPayment(billId, { ...f, amount }), "Payment saved", () => setOpen(false))}
+            onClick={() => run(() => recordSupplierPayment(billId, { ...f, amount, bankAccountId: pickedAccount(accounts, f.method, bankAccountId) }), "Payment saved", () => setOpen(false))}
           >
             <Receipt /> Save payment
           </Button>

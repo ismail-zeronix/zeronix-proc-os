@@ -1,14 +1,15 @@
 "use client";
 
-import { Globe, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { Building2, Copy, Download, Flame, Globe, Mail, MapPin, MessageCircle, Phone, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { dubaiToday, TZ } from "@/lib/dates";
 import { describeDevice } from "@/lib/webchat/device";
-import { pathOf, type WebPageVisit } from "@/lib/webchat/types";
+import { looksLikeEmail } from "@/lib/webchat/qualify";
+import { pathOf, type WebNetworkKind, type WebPageVisit, type WebSiteEvent } from "@/lib/webchat/types";
 import { timeOf } from "./message-row";
-import { SaveLeadButton, Stars } from "./web-chat";
+import { canSaveLead, HeatPill, SaveLeadButton, Stars } from "./web-chat";
 import { useWebChats, useWebThread } from "./web-data";
 
 function when(iso: string | null | undefined): string {
@@ -103,6 +104,58 @@ function PagesVisited({ pages }: { pages: WebPageVisit[] }) {
   );
 }
 
+const NETWORK_LABEL: Record<WebNetworkKind, string> = {
+  business: "A company's own network",
+  isp: "Home or mobile internet",
+  hosting: "Data centre: a VPN, or a bot",
+};
+
+/**
+ * A number WhatsApp can open: digits with the country code. A local UAE number (050 123 4567) gets 971 in front when
+ * the visitor is in the UAE or nothing says otherwise.
+ */
+function whatsappNumber(phone: string, countryCode: string | undefined): string {
+  const digits = phone.replace(/\D/g, "");
+  if (phone.trim().startsWith("+")) return digits;
+  if (digits.startsWith("00")) return digits.slice(2);
+  if (/^05\d{8}$/.test(digits) && (!countryCode || countryCode === "AE")) return `971${digits.slice(1)}`;
+  return digits;
+}
+
+const EVENT_VIEW: Record<WebSiteEvent["kind"], { icon: React.ReactNode; text: string }> = {
+  call: { icon: <Phone className="size-3.5" />, text: "Clicked to call" },
+  whatsapp: { icon: <MessageCircle className="size-3.5" />, text: "Clicked WhatsApp" },
+  email: { icon: <Mail className="size-3.5" />, text: "Clicked to email" },
+  download: { icon: <Download className="size-3.5" />, text: "Downloaded" },
+  copy: { icon: <Copy className="size-3.5" />, text: "Copied" },
+};
+
+/** Phone, WhatsApp and email clicks, downloads and copies on the site: the strongest signs they want to talk. */
+function SiteActions({ events }: { events: WebSiteEvent[] }) {
+  return (
+    <Section title={`On the site · ${events.length}`}>
+      <ol className="grid gap-1.5">
+        {[...events].reverse().map((e, i) => (
+          <li key={`${e.at}-${i}`} className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-2 text-xs">
+            <span className="pt-px text-muted-foreground tabular-nums">{timeOf(e.at)}</span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1 font-medium">
+                {EVENT_VIEW[e.kind].icon}
+                {EVENT_VIEW[e.kind].text}
+              </span>
+              {e.label && (
+                <span className="block truncate text-muted-foreground" title={e.label}>
+                  {e.label}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </Section>
+  );
+}
+
 /**
  * Everything known about a website visitor, beside their chat: what they filled in, where they are (from their IP, or
  * exactly if they allowed it), their device, how they found the site, every page they opened, and their earlier chats.
@@ -122,7 +175,13 @@ export function WebVisitorPanel({ id }: { id: number }) {
   const lon = precise?.lon ?? ip?.lon;
   const zoom = precise ? 0.004 : 0.08;
   const campaign = client?.campaign ?? {};
-  const phone = chat.lead?.phone;
+  // the sent form, or what they typed into it (or wrote in the chat box) before leaving
+  const contact = chat.lead ?? chat.partial;
+  const email = contact?.email && looksLikeEmail(contact.email) ? contact.email : "";
+  const phone = contact?.phone;
+  const wa = phone ? whatsappNumber(phone, ip?.countryCode) : "";
+  const draft = info?.draft.trim();
+  const network = info?.network;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -130,17 +189,17 @@ export function WebVisitorPanel({ id }: { id: number }) {
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-4">
         <div className="grid gap-3 p-3">
           <div className="flex items-center gap-3">
-            {chat.lead ? (
-              <UserAvatar name={chat.lead.name} size={44} />
+            {contact?.name ? (
+              <UserAvatar name={contact.name} size={44} />
             ) : (
               <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Globe className="size-5" />
               </span>
             )}
             <div className="min-w-0">
-              <p className="truncate font-semibold">{chat.lead?.name ?? `Visitor #${chat.id}`}</p>
+              <p className="truncate font-semibold">{contact?.name || contact?.email || `Visitor #${chat.id}`}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {[chat.lead?.company, chat.place].filter(Boolean).join(" · ") || "Has not filled in the form yet"}
+                {[contact?.company || (network === "business" ? ip?.org : ""), chat.place].filter(Boolean).join(" · ") || (contact ? "" : "Has not filled in the form yet")}
               </p>
               <p className="text-xs">
                 <span className={`mr-1 inline-block size-2 rounded-full ${chat.online ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
@@ -149,21 +208,83 @@ export function WebVisitorPanel({ id }: { id: number }) {
               </p>
             </div>
           </div>
-          {chat.lead && (
+          {(email || phone) && (
             <div className="grid grid-cols-3 gap-1.5">
-              <Button size="sm" variant="outline" nativeButton={false} render={<a href={`mailto:${chat.lead.email}`} />}>
+              <Button size="sm" variant="outline" disabled={!email} nativeButton={false} render={<a href={email ? `mailto:${email}` : undefined} />}>
                 <Mail /> Email
               </Button>
               <Button size="sm" variant="outline" disabled={!phone} nativeButton={false} render={<a href={phone ? `tel:${phone}` : undefined} />}>
                 <Phone /> Call
               </Button>
-              <Button size="sm" variant="outline" disabled={!phone} nativeButton={false} render={<a href={phone ? `https://wa.me/${phone.replace(/\D/g, "")}` : undefined} target="_blank" rel="noreferrer" />}>
+              <Button size="sm" variant="outline" disabled={!wa} nativeButton={false} render={<a href={wa ? `https://wa.me/${wa}` : undefined} target="_blank" rel="noreferrer" />}>
                 <MessageCircle /> WhatsApp
               </Button>
             </div>
           )}
-          {chat.lead && <SaveLeadButton chat={chat} />}
+          {canSaveLead(chat) && <SaveLeadButton chat={chat} />}
         </div>
+
+        <Section title="Lead score" icon={<Flame className="size-3.5" />}>
+          <div className="flex items-center gap-2">
+            <HeatPill heat={chat.heat} />
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" role="meter" aria-valuenow={chat.heat.score} aria-valuemin={0} aria-valuemax={100} aria-label="Lead score">
+              <div
+                className={`h-full rounded-full ${chat.heat.level === "hot" ? "bg-red-500" : chat.heat.level === "warm" ? "bg-amber-500" : "bg-sky-500"}`}
+                style={{ width: `${Math.max(chat.heat.score, 3)}%` }}
+              />
+            </div>
+          </div>
+          {chat.heat.reasons.length > 0 ? (
+            <ul className="flex flex-wrap gap-1">
+              {chat.heat.reasons.map((r) => (
+                <li key={r} className={`rounded-md px-1.5 py-0.5 text-[11px] ${r.startsWith("Data-centre") ? "bg-red-500/10 text-red-700 dark:text-red-400" : "bg-muted"}`}>
+                  {r}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground">Nothing yet: rises as they read pages, come back, click to call or leave their details.</p>
+          )}
+        </Section>
+
+        {info?.crm && (
+          <Section title="In the CRM" icon={<Building2 className="size-3.5" />}>
+            <Facts
+              rows={[
+                [
+                  "Company",
+                  <Link key="co" href={`/crm/companies/${info.crm.companyId}`} className="font-medium text-primary hover:underline">
+                    {info.crm.companyName}
+                  </Link>,
+                ],
+                ["Contact", info.crm.contactName],
+                ["Matched by", info.crm.how === "email" ? "Their email address" : info.crm.how === "email domain" ? "Their email's company domain" : "The company network they browse from"],
+                ["History", `${info.crm.deals} deal${info.crm.deals === 1 ? "" : "s"} · ${info.crm.orders} order${info.crm.orders === 1 ? "" : "s"}`],
+              ]}
+            />
+            {info.crm.orders > 0 && <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">An existing customer.</p>}
+          </Section>
+        )}
+
+        {info?.known && (
+          <Section title="Known visitor" icon={<UserCheck className="size-3.5" />}>
+            <p className="text-xs text-muted-foreground">
+              This browser sent its details in an earlier chat,{" "}
+              <Link href={`/chat/website?c=${info.known.chatId}`} className="text-primary hover:underline">
+                {when(info.known.at)}
+              </Link>
+              .
+            </p>
+            <Facts
+              rows={[
+                ["Name", info.known.name],
+                ["Email", info.known.email && <a href={`mailto:${info.known.email}`} className="text-primary hover:underline">{info.known.email}</a>],
+                ["Phone", info.known.phone],
+                ["Company", info.known.company],
+              ]}
+            />
+          </Section>
+        )}
 
         {(info?.site || info?.context) && (
           <Section title="Asked from">
@@ -182,15 +303,37 @@ export function WebVisitorPanel({ id }: { id: number }) {
           </Section>
         )}
 
-        <Section title="Contact">
+        <Section title={chat.lead || !contact ? "Contact" : "Contact · typed, not sent"}>
           <Facts
             rows={[
-              ["Email", chat.lead?.email && <a href={`mailto:${chat.lead.email}`} className="text-primary hover:underline">{chat.lead.email}</a>],
+              ["Name", !chat.lead && contact?.name],
+              [
+                "Email",
+                contact?.email &&
+                  (email ? (
+                    <a href={`mailto:${email}`} className="text-primary hover:underline">
+                      {email}
+                    </a>
+                  ) : (
+                    <span>
+                      {contact.email} <span className="text-xs text-muted-foreground">(not finished)</span>
+                    </span>
+                  )),
+              ],
               ["Phone", phone],
-              ["Company", chat.lead?.company],
+              ["Company", contact?.company],
               ["Question", question && <span className="whitespace-pre-wrap">{question}</span>],
+              [
+                "Not sent",
+                draft && (
+                  <span className="whitespace-pre-wrap text-muted-foreground italic">
+                    “{draft}”{info?.draftAt && <span className="not-italic"> · {when(info.draftAt)}</span>}
+                  </span>
+                ),
+              ],
             ]}
           />
+          {!chat.lead && contact && <p className="text-[11px] text-muted-foreground">They typed this into the chat but left before sending the form.</p>}
         </Section>
 
         <Section title="Location" icon={<MapPin className="size-3.5" />}>
@@ -209,7 +352,17 @@ export function WebVisitorPanel({ id }: { id: number }) {
               ["Country", ip?.country && `${ip.flag ? `${ip.flag} ` : ""}${ip.country}`],
               ["Postal code", ip?.postal],
               ["Their time", localTime(ip?.timeZone ?? client?.timeZone) && `${localTime(ip?.timeZone ?? client?.timeZone)} (${ip?.timeZone ?? client?.timeZone})`],
-              ["Network", ip?.org && <span>{ip.org}{ip.domain ? <span className="text-muted-foreground"> · {ip.domain}</span> : null}</span>],
+              ["Likely company", network === "business" && ip?.org && <span className="font-medium">{ip.org}</span>],
+              [
+                "Network",
+                ip?.org && (
+                  <span>
+                    {ip.org}
+                    {ip.domain ? <span className="text-muted-foreground"> · {ip.domain}</span> : null}
+                    {network && <span className={`block text-xs ${network === "hosting" ? "text-red-700 dark:text-red-400" : "text-muted-foreground"}`}>{NETWORK_LABEL[network]}</span>}
+                  </span>
+                ),
+              ],
               // the provider often repeats the network's name; show it only when it says something new
               ["Provider", ip?.isp && !ip.org?.startsWith(ip.isp) ? ip.isp : undefined],
               ["IP address", info?.ip],
@@ -249,6 +402,8 @@ export function WebVisitorPanel({ id }: { id: number }) {
             ]}
           />
         </Section>
+
+        {!!info?.events.length && <SiteActions events={info.events} />}
 
         {!!info?.pages.length && <PagesVisited pages={info.pages} />}
 

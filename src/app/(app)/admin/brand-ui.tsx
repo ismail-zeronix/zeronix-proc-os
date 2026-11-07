@@ -28,6 +28,7 @@ import {
   ZERONIX_SAMPLE,
 } from "@/lib/signature";
 import { saveBrand } from "./actions";
+import { errorText } from "@/lib/user-error";
 
 type Form = Omit<Brand, "hasLogo">;
 
@@ -138,7 +139,7 @@ export function BrandCard({ brand, version, sample }: { brand: Brand; version: n
         toast.success("Branding saved");
         setLogo(undefined);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

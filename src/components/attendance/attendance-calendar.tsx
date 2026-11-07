@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration, STATUS_META, weekdayOf, type DayStatus } from "@/lib/attendance";
 import type { DayCell, MonthAttendance } from "@/lib/attendance-data";
+import { errorText } from "@/lib/user-error";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -268,7 +269,7 @@ function AbsenceForm({ cell, userId, onDone }: { cell: DayCell; userId: number; 
         onDone();
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
 

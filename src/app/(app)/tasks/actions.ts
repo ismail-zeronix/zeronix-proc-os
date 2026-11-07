@@ -9,6 +9,7 @@ import { assertDeal } from "@/lib/auth/visibility";
 import { notifyMentions } from "@/lib/chat/mentions";
 import { parseMentions } from "@/lib/chat/text";
 import { taskAssigned } from "@/lib/notifications/events";
+import { parseInput, UserError } from "@/lib/user-error";
 
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Write what needs doing").max(200),
@@ -37,15 +38,15 @@ function refresh() {
 
 export async function createTask(input: TaskInput) {
   const me = await assertApp("tasks");
-  const d = taskSchema.parse(input);
+  const d = parseInput(taskSchema, input);
   if (d.assignedTo && d.assignedTo !== me.id && me.role !== "admin") {
-    throw new Error("Only an admin can give a task to someone else.");
+    throw new UserError("Only an admin can give a task to someone else.");
   }
   if (d.related) {
     await assertApp("crm");
     await assertDeal(d.related.id);
     const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, d.related.id));
-    if (!deal) throw new Error("That deal no longer exists.");
+    if (!deal) throw new UserError("That deal no longer exists.");
   }
   const [row] = await db
     .insert(schema.tasks)
@@ -70,16 +71,16 @@ export async function createTask(input: TaskInput) {
 async function ownTask(id: number) {
   const me = await assertApp("tasks");
   const [task] = await db.select().from(schema.tasks).where(eq(schema.tasks.id, id));
-  if (!task) throw new Error("That task no longer exists.");
+  if (!task) throw new UserError("That task no longer exists.");
   if (me.role !== "admin" && task.assignedTo !== me.id && task.createdBy !== me.id) {
-    throw new Error("This task belongs to someone else.");
+    throw new UserError("This task belongs to someone else.");
   }
   return { me, task };
 }
 
 export async function updateTask(id: number, input: TaskInput) {
   const { me, task } = await ownTask(id);
-  const d = taskSchema.parse(input);
+  const d = parseInput(taskSchema, input);
   const set: Partial<typeof schema.tasks.$inferInsert> = {
     title: d.title,
     notes: d.notes,
@@ -87,7 +88,7 @@ export async function updateTask(id: number, input: TaskInput) {
     priority: d.priority,
   };
   if (d.assignedTo) {
-    if (me.role !== "admin" && d.assignedTo !== me.id) throw new Error("Only an admin can give a task to someone else.");
+    if (me.role !== "admin" && d.assignedTo !== me.id) throw new UserError("Only an admin can give a task to someone else.");
     set.assignedTo = d.assignedTo;
   }
   await db.update(schema.tasks).set(set).where(eq(schema.tasks.id, id));

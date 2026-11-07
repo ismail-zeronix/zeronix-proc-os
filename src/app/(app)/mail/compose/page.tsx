@@ -7,6 +7,7 @@ import { formatRecipient, parseRecipients, replyRecipients, subjectFor } from "@
 import { loadMessage } from "@/lib/mail/message";
 import { quoteForForward, quoteForReply } from "@/lib/mail/parse";
 import { ComposeForm } from "./compose-form";
+import { errorText } from "@/lib/user-error";
 
 export const metadata = { title: "Write · Zeronix Mail" };
 
@@ -52,7 +53,7 @@ export default async function ComposePage({ searchParams }: PageProps<"/mail/com
         initial.quote = quoteForReply(original);
       }
     } catch (e) {
-      loadError = `Could not load the original email: ${(e as Error).message}`;
+      loadError = `Could not load the original email: ${errorText(e)}`;
     }
   }
 

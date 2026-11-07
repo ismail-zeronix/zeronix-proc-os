@@ -4,8 +4,8 @@ import type { NextConfig } from "next";
 const MOVED_TO_PROCUREMENT = ["compare", "import", "alerts", "price-lists", "suppliers", "products"];
 
 /**
- * October 2026: deals, companies and contacts moved from Sales to CRM; Sales keeps customers, quotes and orders (which
- * spent a day under Accounts). Old links in chat messages, emails and bookmarks still land on the right page.
+ * October 2026: deals, companies and contacts moved from Sales to CRM; Sales keeps customers, quotes and orders.
+ * Old links in chat messages, emails and bookmarks still land on the right page.
  */
 export const MOVED_FROM_SALES = [
   { source: "/sales/pipeline", destination: "/crm/deals" },
@@ -14,12 +14,12 @@ export const MOVED_FROM_SALES = [
   { source: "/sales/companies/:path*", destination: "/crm/companies/:path*" },
   { source: "/sales/contacts", destination: "/crm/contacts" },
   { source: "/sales/new", destination: "/crm/new" },
-  { source: "/accounts/quotes", destination: "/sales/quotes" },
-  { source: "/accounts/quotes/:path*", destination: "/sales/quotes/:path*" },
-  { source: "/accounts/orders", destination: "/sales/orders" },
-  { source: "/accounts/orders/:path*", destination: "/sales/orders/:path*" },
-  { source: "/accounts/customers", destination: "/sales/customers" },
-  { source: "/accounts/customers/:path*", destination: "/sales/customers/:path*" },
+];
+
+/** November 2026: accounting settings moved under Accounts › Settings. */
+const MOVED_IN_ACCOUNTS = [
+  { source: "/accounts/tax-codes", destination: "/accounts/settings/tax-codes" },
+  { source: "/accounts/opening", destination: "/accounts/settings/opening" },
 ];
 
 const nextConfig: NextConfig = {
@@ -42,6 +42,7 @@ const nextConfig: NextConfig = {
         { source: `/${p}/:path*`, destination: `/procurement/${p}/:path*`, permanent: false },
       ]),
       ...MOVED_FROM_SALES.map((r) => ({ ...r, permanent: false })),
+      ...MOVED_IN_ACCOUNTS.map((r) => ({ ...r, permanent: false })),
     ];
   },
   turbopack: {

@@ -21,7 +21,15 @@ export function usePhoneCards(ref: RefObject<HTMLElement | null>, on = true) {
       const head = table.tHead?.rows[table.tHead.rows.length - 1];
       const names: string[] = [];
       if (head) for (const th of Array.from(head.cells)) for (let i = 0; i < th.colSpan; i++) names.push(i ? "" : th.innerText.trim());
-      for (const body of [...Array.from(table.tBodies), ...(table.tFoot ? [table.tFoot] : [])]) {
+      // totals under the table read as "Subtotal  AED 100" on one line: their own label cell says what they are
+      if (table.tFoot)
+        for (const tr of Array.from(table.tFoot.rows))
+          for (const td of Array.from(tr.cells)) {
+            td.dataset.label = "";
+            delete td.dataset.cardTitle;
+            td.dataset.cardTotal = "";
+          }
+      for (const body of Array.from(table.tBodies)) {
         for (const tr of Array.from(body.rows)) {
           let col = 0;
           let titled = false;

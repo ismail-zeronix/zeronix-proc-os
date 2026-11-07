@@ -7,6 +7,7 @@ import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { cleanSection } from "@/lib/boq";
 import { isChecklistGroup } from "@/lib/projects";
+import { parseInput, UserError } from "@/lib/user-error";
 
 /**
  * Admin settings for the Projects app: project types, the BOQ sections a new project of each type starts with, and its
@@ -24,7 +25,7 @@ const label = z.string().trim().min(2, "Give the type a name").max(60);
 /** A new project type; its key is made from the name (it never changes, so renaming is safe). */
 export async function addProjectType(name: string) {
   await requireAdmin();
-  const l = label.parse(name);
+  const l = parseInput(label, name);
   const base = l.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 30) || "type";
   const taken = new Set((await db.select({ key: schema.projectTypes.key }).from(schema.projectTypes)).map((t) => t.key));
   let key = base;
@@ -44,7 +45,7 @@ const typeSchema = z.object({
 
 export async function saveProjectType(key: string, input: z.input<typeof typeSchema>) {
   await requireAdmin();
-  const d = typeSchema.parse(input);
+  const d = parseInput(typeSchema, input);
   const seen = new Set<string>();
   const sections = d.defaultSections.map(cleanSection).filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
   const [row] = await db
@@ -52,7 +53,7 @@ export async function saveProjectType(key: string, input: z.input<typeof typeSch
     .set({ label: d.label, isActive: d.isActive, defaultSections: sections })
     .where(eq(schema.projectTypes.key, key))
     .returning({ key: schema.projectTypes.key });
-  if (!row) throw new Error("That project type no longer exists.");
+  if (!row) throw new UserError("That project type no longer exists.");
   refresh();
 }
 
@@ -67,10 +68,10 @@ const templateSchema = z.object({
 
 export async function addTemplate(typeKey: string, group: string, title: string) {
   await requireAdmin();
-  if (!isChecklistGroup(group)) throw new Error("Unknown group.");
-  const t = templateSchema.shape.title.parse(title);
+  if (!isChecklistGroup(group)) throw new UserError("Unknown group.");
+  const t = parseInput(templateSchema.shape.title, title);
   const [type] = await db.select({ key: schema.projectTypes.key }).from(schema.projectTypes).where(eq(schema.projectTypes.key, typeKey));
-  if (!type) throw new Error("That project type no longer exists.");
+  if (!type) throw new UserError("That project type no longer exists.");
   const [last] = await db
     .select({ n: sql<number>`coalesce(max(${schema.projectTaskTemplates.position}), -1)::int` })
     .from(schema.projectTaskTemplates)
@@ -81,7 +82,7 @@ export async function addTemplate(typeKey: string, group: string, title: string)
 
 export async function updateTemplate(id: number, input: z.input<typeof templateSchema>) {
   await requireAdmin();
-  const d = templateSchema.parse(input);
+  const d = parseInput(templateSchema, input);
   await db.update(schema.projectTaskTemplates).set(d).where(eq(schema.projectTaskTemplates.id, id));
   refresh();
 }

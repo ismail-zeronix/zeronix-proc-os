@@ -104,7 +104,7 @@ export const PORTAL: Article[] = [
           "Customer statement of account: Sales → Customers → the customer → Statement → Print.",
         ],
       },
-      { tip: "Before the first invoice, an admin fills in Admin → Settings → Documents: our TRN, bank details and the next invoice number (continuing from Zoho)." },
+      { tip: "Before the first invoice, an accountant fills in Accounts › Settings: our TRN (VAT registration), bank details (Terms and bank details) and the next invoice number (Document numbers, continuing from Zoho)." },
     ],
   },
   {

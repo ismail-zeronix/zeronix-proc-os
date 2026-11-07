@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { assertApp } from "@/lib/auth/session";
+import { assertAnyApp } from "@/lib/auth/session";
 import { currentViewer } from "@/lib/auth/visibility";
 import { SESSION_COOKIE } from "@/lib/auth/token";
 import { mailCreds } from "@/lib/mail/account";
@@ -17,6 +17,7 @@ import { quotePdfName } from "@/lib/quote-email";
 import { getQuote } from "@/lib/quotes-data";
 import { logEmailOnDeal } from "@/lib/sales-log";
 import { setQuoteStatus } from "./quote-actions";
+import { parseInput } from "@/lib/user-error";
 
 const input = z.object({
   to: z.string().max(4000),
@@ -35,8 +36,8 @@ export type EmailQuoteResult = { ok: true; savedToSent: boolean; markedSent: boo
  */
 export async function emailQuote(quoteId: number, raw: z.input<typeof input>): Promise<EmailQuoteResult> {
   try {
-    const me = await assertApp("sales");
-    const d = input.parse(raw);
+    const me = await assertAnyApp("sales", "accounts");
+    const d = parseInput(input, raw);
     const to = parseRecipients(d.to);
     const cc = parseRecipients(d.cc);
     const wrong = [...to.bad, ...cc.bad];

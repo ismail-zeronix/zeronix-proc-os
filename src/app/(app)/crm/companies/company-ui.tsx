@@ -14,6 +14,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { EMIRATES, INDUSTRIES, SOURCES } from "@/lib/sales";
 import { addCompanyNote, createCompany, createContact, deleteCompany, deleteContact, updateCompany, updateContact } from "../actions";
+import { errorText } from "@/lib/user-error";
 
 function useRun() {
   const [pending, start] = useTransition();
@@ -24,7 +25,7 @@ function useRun() {
         toast.success(ok);
         after?.();
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   return [pending, run] as const;

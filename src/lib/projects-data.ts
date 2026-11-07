@@ -9,6 +9,7 @@ import { dubaiToday } from "@/lib/dates";
 import { nextSeq } from "@/lib/doc-numbers";
 import { checklistDue, projectNumber, projectPhase, type Phase } from "@/lib/projects";
 import type { StageKey } from "@/lib/sales";
+import { UserError } from "@/lib/user-error";
 
 type Tx = Parameters<Parameters<typeof Db.transaction>[0]>[0];
 
@@ -75,7 +76,7 @@ export async function ensureProject(tx: Tx, dealId: number, typeKey: string, man
     .select({ key: schema.projectTypes.key, sections: schema.projectTypes.defaultSections })
     .from(schema.projectTypes)
     .where(eq(schema.projectTypes.key, typeKey));
-  if (!type) throw new Error("Pick a project type.");
+  if (!type) throw new UserError("Pick a project type.");
   const [existing] = await tx.select({ id: schema.projects.id, number: schema.projects.number, typeKey: schema.projects.typeKey }).from(schema.projects).where(eq(schema.projects.dealId, dealId));
   if (existing) {
     if (existing.typeKey !== typeKey) {

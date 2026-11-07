@@ -1,12 +1,15 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
+  check,
   date,
   index,
   integer,
   jsonb,
   numeric,
   primaryKey,
+  pgPolicy,
   pgTable,
   real,
   serial,
@@ -15,11 +18,51 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ChatCard } from "@/lib/chat/types";
-import type { WebClientInfo, WebGeo, WebPageVisit } from "@/lib/webchat/types";
+import type { WebClientInfo, WebGeo, WebPageVisit, WebSiteEvent } from "@/lib/webchat/types";
 import type { OfferDraft } from "@/lib/llm/schema";
+
+/**
+ * Organisations (tenants). Row 1 is Zeronix. Every new table carries organization_id, and the accounting tables also get
+ * the org_isolation row-level-security policy (see lib/org.ts). The policies only bite once the app connects as a
+ * non-owner database role (Phase T in the accounts plan); today it connects as the owner, so they change nothing.
+ * Our TRN stays in settings (quote_trn) and the trade licence in brand_profile: read them through orgProfile().
+ */
+export const organizations = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  legalName: text("legal_name").notNull().default(""),
+  /** ISO country code: decides the tax regime and chart-of-accounts template. */
+  country: text("country").notNull().default("AE"),
+  baseCurrency: text("base_currency").notNull().default("AED"),
+  taxRegime: text("tax_regime", { enum: ["AE_VAT", "IN_GST"] }).notNull().default("AE_VAT"),
+  /** UAE: emirate of the fixed establishment, where standard-rated sales are reported (VAT 201 box 1). */
+  emirate: text("emirate").notNull().default("dubai"),
+  /** 1 = January (UAE); India runs April to March (4). */
+  fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(1),
+  timezone: text("timezone").notNull().default("Asia/Dubai"),
+  status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The organisation a row belongs to. Default 1 (Zeronix) until there is more than one. */
+const orgId = () =>
+  integer("organization_id")
+    .notNull()
+    .default(1)
+    .references(() => organizations.id);
+
+/** Row-level security for a tenant table: rows of the organisation set by withOrg() (app.org_id) only. */
+const orgPolicy = () =>
+  pgPolicy("org_isolation", {
+    for: "all",
+    using: sql`organization_id = nullif(current_setting('app.org_id', true), '')::int`,
+    withCheck: sql`organization_id = nullif(current_setting('app.org_id', true), '')::int`,
+  });
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  organizationId: orgId(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
@@ -29,6 +72,8 @@ export const users = pgTable("users", {
   apps: text("apps").array(),
   /** Which sales records they see: "own" = deals they are assigned to (and what hangs off them), "all" = everyone's. Admins always see all. */
   dataScope: text("data_scope", { enum: ["own", "all"] }).notNull().default("own"),
+  /** Accountant work in the Accounts app: journals, chart of accounts, reconciliation, VAT filing, lock date. Admins always. */
+  isAccountant: boolean("is_accountant").notNull().default(false),
   /** Shown in the email signature. */
   jobTitle: text("job_title").notNull().default(""),
   phone: text("phone").notNull().default(""),
@@ -38,6 +83,7 @@ export const users = pgTable("users", {
 
 export const suppliers = pgTable("suppliers", {
   id: serial("id").primaryKey(),
+  organizationId: orgId(),
   name: text("name").notNull().unique(),
   contactName: text("contact_name").notNull().default(""),
   phone: text("phone").notNull().default(""),
@@ -344,6 +390,7 @@ export const companies = pgTable(
   "companies",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     name: text("name").notNull(),
     /** Lower-case name without spaces/punctuation, to spot duplicates ("ABC Trading LLC" = "abc trading llc"). */
     nameNorm: text("name_norm").notNull(),
@@ -358,6 +405,8 @@ export const companies = pgTable(
     /** Where we first found them (see lib/sales.ts SOURCES). */
     source: text("source").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    /** Added as a customer in Accounts, before any deal or order. Others become customers by winning a deal or getting an order. */
+    isCustomer: boolean("is_customer").notNull().default(false),
     ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -506,6 +555,7 @@ export const quotes = pgTable(
   "quotes",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     /** ZQ-2026-0001: the year and a running number that restarts every year. */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
@@ -626,6 +676,7 @@ export const salesOrders = pgTable(
   "sales_orders",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     /** ZSO-2026-0001 */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
@@ -697,14 +748,18 @@ export const invoices = pgTable(
   "invoices",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     number: text("number").notNull().unique(),
     /**
-     * "sale": issued here from an order. "opening": a customer invoice still unpaid when the portal took over from Zoho,
-     * kept with Zoho's number and total, no lines, no order; it counts in what customers owe but not in sales or VAT.
+     * "sale": issued here, from an order, from a quote or typed directly. "opening": a customer invoice still unpaid when
+     * the portal took over from Zoho, kept with Zoho's number and total, no lines, no order; it counts in what customers
+     * owe but not in sales or VAT.
      */
     kind: text("kind", { enum: ["sale", "opening"] }).notNull().default("sale"),
-    /** One active (not cancelled) invoice per order; a cancelled one is followed by a new one. Empty for opening invoices. */
+    /** One active (not cancelled) invoice per order; a cancelled one is followed by a new one. Empty for direct and opening invoices. */
     orderId: integer("order_id").references(() => salesOrders.id),
+    /** The quote a direct invoice was made from (an order keeps its own link to its quote). */
+    quoteId: integer("quote_id").references(() => quotes.id, { onDelete: "set null" }),
     dealId: integer("deal_id").references(() => deals.id),
     companyId: integer("company_id")
       .notNull()
@@ -721,6 +776,9 @@ export const invoices = pgTable(
     subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** What its credit notes have given back so far, before VAT and with VAT. What the customer owes is total less this and less what they paid. */
+    creditedNet: numeric("credited_net", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    creditedTotal: numeric("credited_total", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
     /** issued, cancelled */
     status: text("status").notNull().default("issued"),
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -733,54 +791,86 @@ export const invoiceItems = pgTable(
   "invoice_items",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     invoiceId: integer("invoice_id")
       .notNull()
       .references(() => invoices.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
     description: text("description").notNull(),
-    qty: integer("qty").notNull(),
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** Decides the sales account: Sales, products or Sales, services. */
+    lineKind: text("line_kind", { enum: ["product", "service"] }).notNull().default("product"),
+    /** VAT code of this line (lib/tax/ae-vat.ts): decides its rate and the VAT 201 box. */
+    taxCode: text("tax_code").notNull().default("SR"),
   },
   (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position)],
 );
 
-/** Cancels a whole invoice (ZCN-2026-0001). Partial credit notes can come later. */
+/** Gives back all or part of an invoice (ZCN-2026-0001). An invoice can have several; when they reach its whole value it is cancelled. */
 export const creditNotes = pgTable(
   "credit_notes",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
     invoiceId: integer("invoice_id")
       .notNull()
-      .unique()
       .references(() => invoices.id),
     issueDate: date("issue_date").notNull(),
     reason: text("reason").notNull(),
+    /** The goods are coming back: their cost returns to stock. False: the customer keeps them, or it was a service. */
+    goodsBack: boolean("goods_back").notNull().default(true),
+    /** What the goods coming back cost, returned to stock. Empty on a note cancelling a whole invoice: every cost it moved goes back. */
+    goodsCost: numeric("goods_cost", { precision: 14, scale: 2, mode: "number" }),
+    /** The day the goods came back or the price was agreed: the note is due within 14 days of it. Empty on older notes. */
+    eventDate: date("event_date"),
     subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("credit_notes_year_seq_idx").on(t.year, t.seq)],
+  (t) => [uniqueIndex("credit_notes_year_seq_idx").on(t.year, t.seq), index("credit_notes_invoice_idx").on(t.invoiceId)],
+);
+
+/** What a credit note gives back, line by line: all or part of an invoice line, at its price or at a lower one. */
+export const creditNoteItems = pgTable(
+  "credit_note_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    creditNoteId: integer("credit_note_id")
+      .notNull()
+      .references(() => creditNotes.id, { onDelete: "cascade" }),
+    invoiceItemId: integer("invoice_item_id").references(() => invoiceItems.id, { onDelete: "set null" }),
+    position: integer("position").notNull().default(0),
+    description: text("description").notNull(),
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
+    unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    lineKind: text("line_kind", { enum: ["product", "service"] }).notNull().default("product"),
+    taxCode: text("tax_code").notNull().default("SR"),
+  },
+  (t) => [index("credit_note_items_note_idx").on(t.creditNoteId, t.position), index("credit_note_items_item_idx").on(t.invoiceItemId), orgPolicy()],
 );
 
 /**
- * Money received against an invoice (ZRV-2026-0001 receipt). Full or part, cash or bank transfer. A wrong entry is voided
- * with a reason, never deleted, so the receipt numbers stay complete.
+ * Money received from a customer (ZRV-2026-0001 receipt), cash or bank transfer. What it paid is in payment_allocations:
+ * one invoice, several, or none yet (the rest is an advance). A wrong entry is voided with a reason, never deleted, so
+ * the receipt numbers stay complete.
  */
 export const payments = pgTable(
   "payments",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
-    invoiceId: integer("invoice_id")
-      .notNull()
-      .references(() => invoices.id),
+    /** Only on receipts from before allocations existed. Read payment_allocations instead. */
+    invoiceId: integer("invoice_id").references(() => invoices.id),
     companyId: integer("company_id")
       .notNull()
       .references(() => companies.id),
@@ -788,6 +878,8 @@ export const payments = pgTable(
     amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     /** cash, bank */
     method: text("method").notNull(),
+    /** The cash box or bank account the money went into / came out of (the ledger posts there). Null = the default of its method. */
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
     reference: text("reference").notNull().default(""),
     notes: text("notes").notNull().default(""),
     voidedAt: timestamp("voided_at", { withTimezone: true }),
@@ -796,6 +888,27 @@ export const payments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("payments_year_seq_idx").on(t.year, t.seq), index("payments_invoice_idx").on(t.invoiceId), index("payments_company_idx").on(t.companyId)],
+);
+
+/** How much of a receipt went to which invoice. Applying an advance later adds a row with its own date; taking one off voids the row. */
+export const paymentAllocations = pgTable(
+  "payment_allocations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    paymentId: integer("payment_id")
+      .notNull()
+      .references(() => payments.id),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => invoices.id),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    appliedOn: date("applied_on").notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("payment_allocations_payment_idx").on(t.paymentId), index("payment_allocations_invoice_idx").on(t.invoiceId), orgPolicy()],
 );
 
 /**
@@ -809,6 +922,7 @@ export const bills = pgTable(
   "bills",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
@@ -824,11 +938,16 @@ export const bills = pgTable(
     /** Key from lib/purchases.ts CATEGORIES. */
     category: text("category").notNull(),
     orderId: integer("order_id").references(() => salesOrders.id),
+    /** Bought for a direct invoice, which has no order. */
+    invoiceId: integer("invoice_id").references(() => invoices.id),
     dealId: integer("deal_id").references(() => deals.id),
     vatPct: numeric("vat_pct", { precision: 5, scale: 2, mode: "number" }).notNull().default(0),
     subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** What its debit notes have taken off so far, before VAT and with VAT. */
+    creditedNet: numeric("credited_net", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    creditedTotal: numeric("credited_total", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
     /** open, void */
     status: text("status").notNull().default("open"),
     voidReason: text("void_reason").notNull().default(""),
@@ -844,6 +963,7 @@ export const bills = pgTable(
     index("bills_supplier_idx").on(t.supplierId),
     index("bills_due_idx").on(t.status, t.dueDate),
     index("bills_order_idx").on(t.orderId),
+    index("bills_invoice_idx").on(t.invoiceId),
     index("bills_date_idx").on(t.billDate),
   ],
 );
@@ -852,6 +972,7 @@ export const billItems = pgTable(
   "bill_items",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
     billId: integer("bill_id")
       .notNull()
       .references(() => bills.id, { onDelete: "cascade" }),
@@ -859,26 +980,137 @@ export const billItems = pgTable(
     description: text("description").notNull(),
     qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull().default(1),
     unitCost: numeric("unit_cost", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** VAT code of this line (lib/tax/ae-vat.ts). */
+    taxCode: text("tax_code").notNull().default("SR"),
   },
   (t) => [index("bill_items_bill_idx").on(t.billId, t.position)],
 );
 
-/** Money paid out against a bill or expense (payment voucher ZPV-2026-0001). Voided with a reason, never deleted. */
-export const supplierPayments = pgTable(
-  "supplier_payments",
+/**
+ * A filed VAT return: the boxes as they were filed, so later changes cannot alter it. A period not filed yet has no row:
+ * its return is worked out live from the ledger. Undone, it stays here with the reason.
+ */
+export const vatReturns = pgTable(
+  "vat_returns",
   {
     id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    /** The return as filed (lib/tax/vat201.ts). */
+    boxes: jsonb("boxes").notNull(),
+    payable: numeric("payable", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** The FTA's reference for the filing. */
+    reference: text("reference").notNull().default(""),
+    /** The lock date before filing: undoing the filing puts it back. */
+    previousLockDate: date("previous_lock_date"),
+    filedBy: integer("filed_by").references(() => users.id, { onDelete: "set null" }),
+    filedAt: timestamp("filed_at", { withTimezone: true }).notNull().defaultNow(),
+    paidOn: date("paid_on"),
+    paymentReference: text("payment_reference").notNull().default(""),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoReason: text("undo_reason").notNull().default(""),
+  },
+  (t) => [uniqueIndex("vat_returns_period_uq").on(t.organizationId, t.periodEnd).where(sql`undone_at IS NULL`), orgPolicy()],
+);
+
+/** Goods sent back to a supplier, or a price they reduced (ZDB-2026-0001): takes the cost and the VAT we reclaim off a bill. */
+export const debitNotes = pgTable(
+  "debit_notes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
     billId: integer("bill_id")
       .notNull()
       .references(() => bills.id),
+    issueDate: date("issue_date").notNull(),
+    reason: text("reason").notNull(),
+    /** The credit note number on the supplier's own document, if they sent one. */
+    supplierRef: text("supplier_ref").notNull().default(""),
+    subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("debit_notes_year_seq_idx").on(t.year, t.seq), index("debit_notes_bill_idx").on(t.billId), orgPolicy()],
+);
+
+export const debitNoteItems = pgTable(
+  "debit_note_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    debitNoteId: integer("debit_note_id")
+      .notNull()
+      .references(() => debitNotes.id, { onDelete: "cascade" }),
+    billItemId: integer("bill_item_id").references(() => billItems.id, { onDelete: "set null" }),
+    position: integer("position").notNull().default(0),
+    description: text("description").notNull(),
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    taxCode: text("tax_code").notNull().default("SR"),
+  },
+  (t) => [index("debit_note_items_note_idx").on(t.debitNoteId, t.position), index("debit_note_items_item_idx").on(t.billItemId), orgPolicy()],
+);
+
+/**
+ * An advance handed back (ZRF-2026-0001): to a customer, or by a supplier to us. It comes out of one receipt or voucher,
+ * which then has that much less left to apply. Voided with a reason, never deleted.
+ */
+export const advanceRefunds = pgTable(
+  "advance_refunds",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    number: text("number").notNull().unique(),
+    party: text("party", { enum: ["customer", "supplier"] }).notNull(),
+    paymentId: integer("payment_id").references(() => payments.id),
+    supplierPaymentId: integer("supplier_payment_id").references((): AnyPgColumn => supplierPayments.id),
+    refundedOn: date("refunded_on").notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    /** cash, bank */
+    method: text("method").notNull(),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    reference: text("reference").notNull().default(""),
+    reason: text("reason").notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("advance_refunds_year_seq_idx").on(t.year, t.seq), index("advance_refunds_payment_idx").on(t.paymentId), index("advance_refunds_supplier_payment_idx").on(t.supplierPaymentId), orgPolicy()],
+);
+
+/**
+ * Money paid out (payment voucher ZPV-2026-0001). What it paid is in supplier_payment_allocations: one bill or expense,
+ * several, or none yet (the rest is an advance to the supplier). Voided with a reason, never deleted.
+ */
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    number: text("number").notNull().unique(),
+    /** Only on vouchers from before allocations existed. Read supplier_payment_allocations instead. */
+    billId: integer("bill_id").references(() => bills.id),
     supplierId: integer("supplier_id").references(() => suppliers.id),
+    /** Who was paid when there is no supplier record (an expense to a landlord, DEWA, a staff member). */
+    paidTo: text("paid_to").notNull().default(""),
     paidOn: date("paid_on").notNull(),
     amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     /** cash, bank */
     method: text("method").notNull(),
+    /** The cash box or bank account the money went into / came out of (the ledger posts there). Null = the default of its method. */
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
     reference: text("reference").notNull().default(""),
     notes: text("notes").notNull().default(""),
     voidedAt: timestamp("voided_at", { withTimezone: true }),
@@ -887,6 +1119,27 @@ export const supplierPayments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("supplier_payments_year_seq_idx").on(t.year, t.seq), index("supplier_payments_bill_idx").on(t.billId), index("supplier_payments_supplier_idx").on(t.supplierId)],
+);
+
+/** How much of a voucher went to which bill. Works like payment_allocations. */
+export const supplierPaymentAllocations = pgTable(
+  "supplier_payment_allocations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    paymentId: integer("payment_id")
+      .notNull()
+      .references(() => supplierPayments.id),
+    billId: integer("bill_id")
+      .notNull()
+      .references(() => bills.id),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    appliedOn: date("applied_on").notNull(),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("supplier_payment_allocations_payment_idx").on(t.paymentId), index("supplier_payment_allocations_bill_idx").on(t.billId), orgPolicy()],
 );
 
 /**
@@ -1255,6 +1508,11 @@ export const webChats = pgTable(
     site: text("site").notNull().default(""),
     /** What the visitor was looking at when they pressed "Get B2B pricing" (industry, product, guide). */
     context: jsonb("context").$type<Record<string, string>>(),
+    /** The chat box as the visitor left it (typed, never sent); agents see it live while they type. */
+    draft: text("draft").notNull().default(""),
+    draftAt: timestamp("draft_at", { withTimezone: true }),
+    /** Phone, WhatsApp and email link clicks, downloads and copies on the site (last 100). */
+    events: jsonb("events").$type<WebSiteEvent[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId), index("web_chats_visitor_idx").on(t.visitorKey)],
@@ -1724,3 +1982,284 @@ export const outreachEnrollments = pgTable(
   ],
 );
 
+
+/** Who changed what in the money side (and later everywhere): one row per action, with the record before and after. */
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** e.g. "invoice.issue", "payment.void", "bill.create". */
+    action: text("action").notNull(),
+    /** Table-ish name of the record ("invoice", "payment", "bill"...) and its id. */
+    entity: text("entity").notNull(),
+    entityId: integer("entity_id"),
+    /** One line for people: "INV-00123 issued to Acme, AED 5,250.00". */
+    summary: text("summary").notNull().default(""),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    ip: text("ip").notNull().default(""),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("audit_log_entity_idx").on(t.entity, t.entityId), index("audit_log_org_at_idx").on(t.organizationId, t.at), orgPolicy()],
+);
+
+/**
+ * Number series per organisation (and per fiscal year when the series restarts each year). New series (journals...)
+ * use this through takeSeriesNumber() in lib/doc-numbers.ts; the older ones move here when multi-tenancy is switched on.
+ */
+export const docSeries = pgTable(
+  "doc_series",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    key: text("key").notNull(),
+    /** 0 = one running series that never restarts. */
+    fiscalYear: integer("fiscal_year").notNull().default(0),
+    prefix: text("prefix").notNull(),
+    nextNumber: integer("next_number").notNull().default(1),
+    digits: integer("digits").notNull().default(4),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("doc_series_key_uq").on(t.organizationId, t.key, t.fiscalYear), orgPolicy()],
+);
+
+// ---------- Ledger (accounts plan A1): chart of accounts, journals, tax codes, bank accounts ----------
+
+/**
+ * Chart of accounts. Group accounts only add up their children; postings go to leaf accounts. Accounts with a
+ * system_key (AR, AP, VAT, inventory, the expense categories...) are the ones the portal posts to by itself: they can be
+ * renamed and renumbered but not retyped or switched off. Seeded from a template by ensureLedger() (lib/ledger/setup.ts).
+ */
+export const ledgerAccounts = pgTable(
+  "accounts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    type: text("type", { enum: ["asset", "liability", "equity", "income", "expense"] }).notNull(),
+    /** Finer kind used by reports and pickers: bank, cash, receivable, payable, inventory, tax, cogs, fixed_asset, other. */
+    subtype: text("subtype").notNull().default("other"),
+    parentId: integer("parent_id").references((): AnyPgColumn => ledgerAccounts.id),
+    isGroup: boolean("is_group").notNull().default(false),
+    systemKey: text("system_key"),
+    currency: text("currency").notNull().default("AED"),
+    isActive: boolean("is_active").notNull().default(true),
+    description: text("description").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("accounts_code_uq").on(t.organizationId, t.code),
+    uniqueIndex("accounts_system_key_uq").on(t.organizationId, t.systemKey).where(sql`system_key IS NOT NULL`),
+    index("accounts_parent_idx").on(t.parentId),
+    orgPolicy(),
+  ],
+);
+
+/** Tax codes of the organisation's regime (UAE: SR, ZR, EX, RC, IM, OS), copied from lib/tax so accounts can be set per code. */
+export const taxCodes = pgTable(
+  "tax_codes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    ratePct: numeric("rate_pct", { precision: 6, scale: 3, mode: "number" }).notNull(),
+    selfAssessed: boolean("self_assessed").notNull().default(false),
+    /** Return boxes it feeds on sales and on purchases (VAT 201 box numbers). */
+    saleBoxes: text("sale_boxes").array().notNull().default(sql`'{}'::text[]`),
+    purchaseBoxes: text("purchase_boxes").array().notNull().default(sql`'{}'::text[]`),
+    isActive: boolean("is_active").notNull().default(true),
+  },
+  (t) => [uniqueIndex("tax_codes_code_uq").on(t.organizationId, t.code), orgPolicy()],
+);
+
+/** The parts of a tax code (UAE VAT: one; GST: CGST + SGST or IGST) and the accounts each part posts to. */
+export const taxCodeComponents = pgTable(
+  "tax_code_components",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    taxCodeId: integer("tax_code_id")
+      .notNull()
+      .references(() => taxCodes.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    share: numeric("share", { precision: 6, scale: 4, mode: "number" }).notNull().default(1),
+    /** Tax charged on sales (output) and tax paid on purchases (input). Self-assessed codes use both. */
+    salesAccountId: integer("sales_account_id").references(() => ledgerAccounts.id),
+    purchaseAccountId: integer("purchase_account_id").references(() => ledgerAccounts.id),
+  },
+  (t) => [uniqueIndex("tax_code_components_uq").on(t.taxCodeId, t.key), orgPolicy()],
+);
+
+/** Where money is kept: each bank account, cash box or card is one ledger account plus these details. */
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => ledgerAccounts.id),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["bank", "cash", "card", "petty"] }).notNull(),
+    bankName: text("bank_name").notNull().default(""),
+    accountNumber: text("account_number").notNull().default(""),
+    iban: text("iban").notNull().default(""),
+    currency: text("currency").notNull().default("AED"),
+    /** The one picked by default for its kind (cash or bank payments). */
+    isDefault: boolean("is_default").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bank_accounts_account_uq").on(t.accountId), orgPolicy()],
+);
+
+/**
+ * A download being made in the background (lib/export-jobs.ts): the address that makes the file, where it stands, and the
+ * finished file on disk until it is removed after a day. Lower priority number goes first.
+ */
+export const exportJobs = pgTable(
+  "export_jobs",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    label: text("label").notNull(),
+    /** queued, running, done, failed */
+    status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull().default("queued"),
+    priority: integer("priority").notNull().default(5),
+    fileName: text("file_name"),
+    contentType: text("content_type"),
+    storedName: text("stored_name"),
+    sizeBytes: integer("size_bytes"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** When a browser tab picked it up. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  },
+  (t) => [index("export_jobs_queue_idx").on(t.status, t.priority, t.id), index("export_jobs_user_idx").on(t.userId, t.status), orgPolicy()],
+);
+
+/** One person's arrangement of a dashboard: which ready-made widgets, in what order, how wide (lib/dashboard-widgets.ts). */
+export const dashboardLayouts = pgTable(
+  "dashboard_layouts",
+  {
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    dashboard: text("dashboard").notNull(),
+    layout: jsonb("layout").$type<{ id: string; w: number }[]>().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.dashboard] }), orgPolicy()],
+);
+
+/** One row per organisation: the settings of its books. */
+export const accountingSettings = pgTable(
+  "accounting_settings",
+  {
+    organizationId: orgId().primaryKey(),
+    /** Nothing can be posted on or before this day (closed periods, filed VAT returns). */
+    lockDate: date("lock_date"),
+    /** The day the ledger starts (opening balances from Zoho are dated the day before). */
+    cutoverDate: date("cutover_date"),
+    /** VAT return length in months (UAE: 3, or 1 above AED 150M) and the month the first quarter of the year starts in. */
+    vatPeriodMonths: integer("vat_period_months").notNull().default(3),
+    vatPeriodStartMonth: integer("vat_period_start_month").notNull().default(1),
+    /** Chart-of-accounts template and version it was seeded from (lets later versions add missing accounts). */
+    coaTemplate: text("coa_template").notNull().default("ae-trading"),
+    coaVersion: integer("coa_version").notNull().default(0),
+    /** Opening balances: Zoho account name → our account id, remembered for the next import. */
+    openingMap: jsonb("opening_map").$type<Record<string, number>>().notNull().default({}),
+    /** Settings › Posting accounts: a system key → the account that posts instead of its usual one. */
+    accountMap: jsonb("account_map").$type<Record<string, number>>().notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  () => [orgPolicy()],
+);
+
+/**
+ * A journal entry: posted and never changed. A mistake is undone by a reversal (reversal_of_id), never by an UPDATE or
+ * DELETE: triggers in migration 0050 refuse both, refuse an entry whose lines do not balance, and refuse a date on or
+ * before the lock date. source_type/source_id/purpose say which document posted it (unique, so posting is idempotent).
+ */
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    number: text("number").notNull(),
+    date: date("date").notNull(),
+    /** manual, opening, invoice, credit_note, receipt, bill, expense, supplier_payment, bank_transfer, vat_settlement ... */
+    sourceType: text("source_type").notNull(),
+    sourceId: integer("source_id"),
+    /** What the document posted ("post", "cogs"...); a reversal adds ":rev". */
+    purpose: text("purpose").notNull().default("post"),
+    memo: text("memo").notNull().default(""),
+    reversalOfId: integer("reversal_of_id").references((): AnyPgColumn => journalEntries.id),
+    /** Sum of the debits (= sum of the credits), for lists. */
+    total: numeric("total", { precision: 18, scale: 2, mode: "number" }).notNull(),
+    currency: text("currency").notNull().default("AED"),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("journal_entries_number_uq").on(t.organizationId, t.number),
+    uniqueIndex("journal_entries_source_uq").on(t.organizationId, t.sourceType, t.sourceId, t.purpose).where(sql`source_id IS NOT NULL`),
+    uniqueIndex("journal_entries_reversal_uq").on(t.reversalOfId),
+    index("journal_entries_date_idx").on(t.organizationId, t.date),
+    orgPolicy(),
+  ],
+);
+
+export const journalLines = pgTable(
+  "journal_lines",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    entryId: integer("entry_id")
+      .notNull()
+      .references(() => journalEntries.id),
+    lineNo: integer("line_no").notNull(),
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => ledgerAccounts.id),
+    debit: numeric("debit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+    credit: numeric("credit", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+    /** Foreign currency of the line (base currency when the same) and its amounts in that currency. */
+    currency: text("currency").notNull().default("AED"),
+    fxRate: numeric("fx_rate", { precision: 18, scale: 6, mode: "number" }).notNull().default(1),
+    debitFc: numeric("debit_fc", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+    creditFc: numeric("credit_fc", { precision: 18, scale: 2, mode: "number" }).notNull().default(0),
+    description: text("description").notNull().default(""),
+    /** Customer (companies.id) or supplier (suppliers.id) the line is about: AR/AP per party. */
+    partyType: text("party_type", { enum: ["customer", "supplier"] }),
+    partyId: integer("party_id"),
+    /** Tax code and the taxable amount, so the VAT return can be built from the ledger. */
+    taxCodeId: integer("tax_code_id").references(() => taxCodes.id),
+    taxBase: numeric("tax_base", { precision: 18, scale: 2, mode: "number" }),
+    /** Dimensions for profit per order, deal and project. No foreign keys: lines are never updated. */
+    orderId: integer("order_id"),
+    dealId: integer("deal_id"),
+    projectId: integer("project_id"),
+  },
+  (t) => [
+    index("journal_lines_entry_idx").on(t.entryId),
+    index("journal_lines_account_idx").on(t.organizationId, t.accountId),
+    index("journal_lines_party_idx").on(t.partyType, t.partyId),
+    check("journal_lines_one_side", sql`debit >= 0 AND credit >= 0 AND (debit = 0) <> (credit = 0)`),
+    orgPolicy(),
+  ],
+);

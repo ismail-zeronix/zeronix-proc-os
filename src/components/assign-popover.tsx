@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { setAssignees } from "@/app/(app)/crm/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AvatarStack, UserAvatar } from "@/components/user-avatar";
+import { errorText } from "@/lib/user-error";
 
 type Person = { id: number; name: string };
 
@@ -41,7 +42,7 @@ export function AssignPopover({
         await setAssignees(dealId, next);
       } catch (e) {
         setIds(before);
-        toast.error((e as Error).message);
+        toast.error(errorText(e));
       }
     });
   };
