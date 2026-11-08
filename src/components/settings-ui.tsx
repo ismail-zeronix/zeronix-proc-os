@@ -38,7 +38,15 @@ const FOLDERS: TreeFolder[] = [
   { label: "Bank and cash", items: [{ key: "/accounts/settings/bank", label: "Bank and cash accounts", hint: "Add accounts, pick the default for each method", href: "/accounts/settings/bank" }] },
   { label: "Default accounts", items: [{ key: "/accounts/settings/default-accounts", label: "Posting accounts", hint: "Where each sales type and expense category posts", href: "/accounts/settings/default-accounts" }] },
   { label: "Numbering", items: [{ key: "/accounts/settings/numbering", label: "Document numbers", hint: "Invoice series and other documents", href: "/accounts/settings/numbering" }] },
-  { label: "Documents", items: [{ key: "/accounts/settings/documents", label: "Terms and bank details", hint: "What invoices print about paying", href: "/accounts/settings/documents" }] },
+  {
+    label: "Documents",
+    items: [
+      { key: "/accounts/settings/templates", label: "Templates", hint: "Look of quotes, invoices and notes", href: "/accounts/settings/templates" },
+      { key: "/accounts/settings/letterhead", label: "Letterhead", hint: "Contact lines, signature and stamp", href: "/accounts/settings/letterhead" },
+      { key: "/accounts/settings/quotes", label: "Quote defaults", hint: "Margin, validity, terms and the quote email", href: "/accounts/settings/quotes" },
+      { key: "/accounts/settings/documents", label: "Invoice defaults", hint: "Credit terms a new sale starts with", href: "/accounts/settings/documents" },
+    ],
+  },
 ];
 
 /** The settings tree, on the same component as the reports tree. */
@@ -184,6 +192,8 @@ export interface BankRow {
   bankName: string;
   accountNumber: string;
   iban: string;
+  swift: string;
+  holderName: string;
   isDefault: boolean;
   isActive: boolean;
   accountCode: string;
@@ -191,8 +201,8 @@ export interface BankRow {
 }
 
 function BankDialog({ row }: { row?: BankRow }) {
-  const blank: BankAccountInput = { name: "", kind: "bank", bankName: "", accountNumber: "", iban: "", isDefault: false, isActive: true };
-  const start = row ? { name: row.name, kind: row.kind, bankName: row.bankName, accountNumber: row.accountNumber, iban: row.iban, isDefault: row.isDefault, isActive: row.isActive } : blank;
+  const blank: BankAccountInput = { name: "", kind: "bank", bankName: "", accountNumber: "", iban: "", swift: "", holderName: "", isDefault: false, isActive: true };
+  const start = row ? { name: row.name, kind: row.kind, bankName: row.bankName, accountNumber: row.accountNumber, iban: row.iban, swift: row.swift, holderName: row.holderName, isDefault: row.isDefault, isActive: row.isActive } : blank;
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<BankAccountInput>(start);
   const [pending, run] = useSave();
@@ -251,6 +261,15 @@ function BankDialog({ row }: { row?: BankRow }) {
                 <Label htmlFor="ba-iban">IBAN</Label>
                 <Input id="ba-iban" value={f.iban} onChange={(e) => setF({ ...f, iban: e.target.value })} maxLength={40} />
               </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ba-swift">SWIFT / BIC</Label>
+                <Input id="ba-swift" value={f.swift ?? ""} onChange={(e) => setF({ ...f, swift: e.target.value })} maxLength={20} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ba-holder">Account holder</Label>
+                <Input id="ba-holder" value={f.holderName ?? ""} onChange={(e) => setF({ ...f, holderName: e.target.value })} maxLength={120} placeholder="Our company name" />
+              </div>
+              <p className="col-span-2 text-xs text-muted-foreground">The default bank account prints on invoices and statements so customers know where to pay.</p>
             </>
           )}
           <label className="col-span-2 flex items-center gap-2 text-sm">
@@ -420,19 +439,14 @@ export function NumberingForm({ initial, lastIssued, others }: { initial: { pref
   );
 }
 
-export function DocumentDetailsForm({ initial }: { initial: { default_terms_days: string; bank_name: string; bank_account_name: string; bank_account_number: string; bank_iban: string; bank_swift: string } }) {
+/** Invoice defaults: the credit terms a new sale starts with. Bank details print from the default bank account. */
+export function DocumentDetailsForm({ initial }: { initial: { default_terms_days: string } }) {
   const [f, setF] = useState(initial);
   const [pending, run] = useSave();
-  const field = (k: keyof typeof initial, label: string, placeholder?: string) => (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`d-${k}`}>{label}</Label>
-      <Input id={`d-${k}`} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} placeholder={placeholder} />
-    </div>
-  );
   return (
-    <Section title="Terms and bank details" hint="Printed on tax invoices and statements, so customers know how to pay. Logo, signature and stamp are in Admin › Settings.">
-      <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5 sm:col-span-2">
+    <Section title="Invoice defaults" hint="What a new sale starts with. The bank details invoices print come from the default account in Bank and cash accounts.">
+      <div className="grid max-w-md gap-3">
+        <div className="grid gap-1.5">
           <Label htmlFor="d-terms">Default credit terms for new sales</Label>
           <NativeSelect id="d-terms" value={f.default_terms_days} onChange={(e) => setF({ ...f, default_terms_days: e.target.value })}>
             {TERMS_OPTIONS.map((t) => (
@@ -442,13 +456,8 @@ export function DocumentDetailsForm({ initial }: { initial: { default_terms_days
             ))}
           </NativeSelect>
         </div>
-        {field("bank_account_name", "Account name", "Zeronix Technology LLC")}
-        {field("bank_name", "Bank", "e.g. Emirates NBD")}
-        {field("bank_account_number", "Account number")}
-        {field("bank_iban", "IBAN", "AE07 0331 2345 6789 0123 456")}
-        {field("bank_swift", "SWIFT / BIC")}
       </div>
-      <Button className="w-fit" size="sm" pending={pending} onClick={() => run(() => saveDocumentDetails({ ...f, default_terms_days: Number(f.default_terms_days) }), "Saved")}>
+      <Button className="w-fit" size="sm" pending={pending} onClick={() => run(() => saveDocumentDetails({ default_terms_days: Number(f.default_terms_days) }), "Saved")}>
         <Save /> Save
       </Button>
     </Section>

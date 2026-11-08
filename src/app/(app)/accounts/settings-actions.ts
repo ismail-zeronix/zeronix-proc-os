@@ -13,6 +13,7 @@ import { MAPPABLE_KEYS, paymentMethodOf } from "@/lib/ledger/settings-rules";
 import { ensureLedger } from "@/lib/ledger/setup";
 import { currentOrgId, withOrg } from "@/lib/org";
 import { longDay } from "@/lib/quotation";
+import { type DocStyles, normalizeDocStyle } from "@/lib/doc-style";
 import { trnProblem } from "@/lib/sales";
 import { getSettings, setSetting } from "@/lib/settings";
 import { parseInput, UserError } from "@/lib/user-error";
@@ -119,7 +120,16 @@ const bankSchema = z.object({
   kind: z.enum(["bank", "cash", "card", "petty"]),
   bankName: z.string().trim().max(120).default(""),
   accountNumber: z.string().trim().max(60).default(""),
-  iban: z.string().trim().max(40).default(""),
+  iban: z
+    .string()
+    .trim()
+    .max(40)
+    .transform((v) => v.replace(/\s+/g, "").toUpperCase())
+    .refine((v) => v === "" || /^AE\d{21}$/.test(v) || /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v), "That IBAN does not look right (UAE IBANs are AE + 21 digits)")
+    .default(""),
+  swift: z.string().trim().max(20).default(""),
+  /** Printed on invoices as the account name; empty = our company name. */
+  holderName: z.string().trim().max(120).default(""),
   isDefault: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
@@ -148,10 +158,10 @@ export async function saveBankAccount(id: number | null, input: BankAccountInput
         if (Math.abs(bal) >= 0.005) throw new UserError(`${row.name} still holds money. Move it first, then switch the account off.`);
         if (row.isDefault) throw new UserError(`${row.name} is the default. Make another account the default first.`);
       }
-      await tx.update(b).set({ name: d.name, kind: d.kind, bankName: d.bankName, accountNumber: d.accountNumber, iban: d.iban, isActive: d.isActive }).where(eq(b.id, id));
+      await tx.update(b).set({ name: d.name, kind: d.kind, bankName: d.bankName, accountNumber: d.accountNumber, iban: d.iban, swift: d.swift, holderName: d.holderName, isActive: d.isActive }).where(eq(b.id, id));
       // the ledger account shows the same name in the reports
       await tx.update(a).set({ name: d.name, isActive: d.isActive }).where(eq(a.id, row.accountId));
-      await audit(tx, { userId: me.id, action: "bank_account.update", entity: "bank_account", entityId: id, summary: `Account ${d.name} changed`, before: { name: row.name, bankName: row.bankName, accountNumber: row.accountNumber, iban: row.iban, isActive: row.isActive }, after: d });
+      await audit(tx, { userId: me.id, action: "bank_account.update", entity: "bank_account", entityId: id, summary: `Account ${d.name} changed`, before: { name: row.name, bankName: row.bankName, accountNumber: row.accountNumber, iban: row.iban, swift: row.swift, holderName: row.holderName, isActive: row.isActive }, after: d });
     } else {
       const [group] = await tx.select({ id: a.id, code: a.code }).from(a).where(and(eq(a.organizationId, orgId), eq(a.code, "1100"), eq(a.isGroup, true)));
       const [any] = group ? [group] : await tx.select({ id: a.parentId, code: sql<string>`''` }).from(a).where(and(eq(a.organizationId, orgId), eq(a.systemKey, method === "cash" ? "cash" : "bank")));
@@ -164,7 +174,7 @@ export async function saveBankAccount(id: number | null, input: BankAccountInput
         .insert(a)
         .values({ organizationId: orgId, code: String(n), name: d.name, type: "asset", subtype: method === "cash" ? "cash" : "bank", parentId: any.id })
         .returning({ id: a.id });
-      const [row] = await tx.insert(b).values({ organizationId: orgId, accountId: acc.id, name: d.name, kind: d.kind, bankName: d.bankName, accountNumber: d.accountNumber, iban: d.iban }).returning({ id: b.id });
+      const [row] = await tx.insert(b).values({ organizationId: orgId, accountId: acc.id, name: d.name, kind: d.kind, bankName: d.bankName, accountNumber: d.accountNumber, iban: d.iban, swift: d.swift, holderName: d.holderName }).returning({ id: b.id });
       rowId = row.id;
       await audit(tx, { userId: me.id, action: "bank_account.create", entity: "bank_account", entityId: row.id, summary: `Account ${d.name} added as ledger account ${n}`, after: d });
     }
@@ -228,26 +238,16 @@ export async function saveNumbering(input: z.input<typeof numberingSchema>) {
 
 const documentSchema = z.object({
   default_terms_days: z.number().refine((n) => (TERMS_OPTIONS as readonly number[]).includes(n), "Pick the credit terms"),
-  bank_name: z.string().trim().max(120),
-  bank_account_name: z.string().trim().max(120),
-  bank_account_number: z.string().trim().max(60),
-  bank_iban: z
-    .string()
-    .trim()
-    .max(40)
-    .transform((v) => v.replace(/\s+/g, "").toUpperCase())
-    .refine((v) => v === "" || /^AE\d{21}$/.test(v) || /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v), "That IBAN does not look right (UAE IBANs are AE + 21 digits)"),
-  bank_swift: z.string().trim().max(11),
 });
 
-/** What invoices print about paying: the credit terms and our bank details. Bank details are what auditors look at first. */
+/** Invoice defaults: the credit terms a new sale starts with. (Bank details print from the default bank account.) */
 export async function saveDocumentDetails(input: z.input<typeof documentSchema>) {
   const me = await assertAccountant();
   const d = parseOr(documentSchema, input, "Check the details.");
   const before = await getSettings();
   const changed = Object.entries(d).filter(([k, v]) => before[k as keyof typeof before] !== String(v));
   if (!changed.length) return;
-  for (const [k, v] of changed) await setSetting(k as "bank_name", String(v));
+  for (const [k, v] of changed) await setSetting(k as "default_terms_days", String(v));
   await audit(db, {
     userId: me.id,
     action: "settings.documents",
@@ -257,4 +257,28 @@ export async function saveDocumentDetails(input: z.input<typeof documentSchema>)
     after: Object.fromEntries(changed),
   });
   refresh();
+}
+
+/**
+ * The look of the customer documents (Templates page): one style for all, and a separate one for quotations when
+ * `quote` is given. Cleaned through normalizeDocStyle, so whatever is saved always prints.
+ */
+export async function saveDocStyles(input: { all: unknown; quote: unknown | null }) {
+  const me = await assertAccountant();
+  if (!input || typeof input !== "object" || !input.all) throw new UserError("Pick a template first.");
+  const next: DocStyles = { all: normalizeDocStyle(input.all), quote: input.quote ? normalizeDocStyle(input.quote) : null };
+  const before = await getSettings();
+  const json = JSON.stringify(next.quote ? next : { all: next.all });
+  if (before.doc_style === json) return;
+  await setSetting("doc_style", json);
+  await audit(db, {
+    userId: me.id,
+    action: "settings.doc_style",
+    entity: "settings",
+    summary: `Document style changed: ${next.all.preset}${next.quote ? `, quotes ${next.quote.preset}` : ""}`,
+    before: { doc_style: before.doc_style },
+    after: { doc_style: json },
+  });
+  refresh();
+  revalidatePath("/sales", "layout");
 }

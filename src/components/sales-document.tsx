@@ -1,4 +1,4 @@
-import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, safeColor, TotalsBlock, zebra } from "@/components/doc-parts";
+import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, SignOff, styleOf, TotalsBlock, withNumbers, zebra } from "@/components/doc-parts";
 import { lineTotal, round2 } from "@/lib/quotation";
 import { chargedRate, taxCodeLabel } from "@/lib/tax/doc-tax";
 import { aedInWords } from "@/lib/words";
@@ -49,15 +49,15 @@ export interface SalesDocData {
  * Same parts and layout as the quotation (see doc-parts).
  */
 export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand }) {
-  const accent = safeColor(brand.color);
+  const s = styleOf(brand);
   const bank = d.bank && (d.bank.iban || d.bank.accountNumber) ? d.bank : null;
-  const head = [
+  const head = withNumbers(s, [
     { label: "#", className: "w-9" },
     { label: "Item & description" },
     { label: "Qty", className: d.showPrices ? "w-12 text-right" : "w-20 text-right" },
     ...(d.showPrices ? [{ label: "Rate (AED)", className: "w-22 text-right" }, { label: d.vatPerLine ? "Taxable (AED)" : "Amount (AED)", className: "w-26 text-right" }] : []),
     ...(d.showPrices && d.vatPerLine ? [{ label: "VAT %", className: "w-14 text-right" }, { label: "VAT (AED)", className: "w-22 text-right" }] : []),
-  ];
+  ]);
   // documents saved before line codes, and order documents, carry one rate
   const rateOf = (i: SalesDocData["items"][number]) => (i.taxCode ? chargedRate(i.taxCode) : d.vatPct);
   const codes = [...new Set(d.items.map((i) => i.taxCode).filter((c): c is string => !!c))];
@@ -66,9 +66,9 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
     codes.length > 1 ? codes.map((c) => [`${taxCodeLabel(c)} on ${amt(round2(d.items.filter((i) => i.taxCode === c).reduce((s, i) => s + lineTotal(i), 0)))}`, amt(c === "SR" ? d.vatAmount : 0)]) : [];
   const single = codes.length === 1 ? codes[0] : null;
   const vatLabel = single === "EX" ? "Exempt from VAT" : single === "OS" ? "Outside the scope of VAT" : d.vatPct > 0 ? `VAT (${d.vatPct}%)` : "VAT 0% (zero-rated)";
-  const notes = d.notes && d.notes.length > 0 ? <NumberedList label="Notes" items={d.notes} accent={accent} /> : null;
+  const notes = d.notes && d.notes.length > 0 ? <NumberedList label="Notes" items={d.notes} s={s} /> : null;
   const bankBox = bank && (
-    <div className="rounded-lg border border-neutral-200 px-3.5 py-2.5 break-inside-avoid">
+    <div className="zx-outline rounded-lg px-3.5 py-2.5 break-inside-avoid">
       <Label>Payment by bank transfer</Label>
       <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] text-neutral-600">
         {(
@@ -91,22 +91,22 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
     </div>
   );
   return (
-    <DocSheet label={`${d.title} ${d.number}`} stamp={d.stamp}>
+    <DocSheet label={`${d.title} ${d.number}`} stamp={d.stamp} brand={brand}>
       <DocHeader brand={brand} title={d.title} number={d.number} />
 
       <MetaStrip items={d.meta} />
 
       <Parties count={d.shipTo ? 2 : 1}>
-        <Party primary accent={accent} label={d.partyLabel ?? (d.title.includes("DELIVERY") ? "Customer" : "Bill to")} name={d.to.name} lines={[...d.to.lines, d.to.trn ? `TRN: ${d.to.trn}` : ""]} />
-        {d.shipTo && <Party accent={accent} label={d.shipTo.label} lines={d.shipTo.lines} />}
+        <Party primary s={s} label={d.partyLabel ?? (d.title.includes("DELIVERY") ? "Customer" : "Bill to")} name={d.to.name} lines={[...d.to.lines, d.to.trn ? `TRN: ${d.to.trn}` : ""]} />
+        {d.shipTo && <Party s={s} label={d.shipTo.label} lines={d.shipTo.lines} />}
       </Parties>
 
-      <LinesTable accent={accent} head={head}>
+      <LinesTable head={head}>
         {d.items.map((i, n) => {
           const amount = lineTotal(i);
           return (
             <tr key={i.id} className={rowClass} style={zebra(n)}>
-              <td className={`${cell} text-neutral-400 tabular-nums`}>{String(n + 1).padStart(2, "0")}</td>
+              {s.showNumbers && <td className={`${cell} text-neutral-400 tabular-nums`}>{String(n + 1).padStart(2, "0")}</td>}
               <td className={`${cell} whitespace-pre-line text-neutral-900`}>{i.description}</td>
               <td className={`${cell} text-right whitespace-nowrap tabular-nums`}>{i.qty}</td>
               {d.showPrices && <td className={`${cell} text-right tabular-nums`}>{amt(i.unitPrice)}</td>}
@@ -127,7 +127,7 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
 
       {d.showPrices && (
         <TotalsBlock
-          accent={accent}
+          s={s}
           words={d.amountInWords ? aedInWords(d.total) : undefined}
           total={amt(d.total)}
           rows={[
@@ -156,11 +156,13 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
         </section>
       )}
 
+      <SignOff brand={brand} />
+
       <DocFooter
         brand={brand}
         left={
           <>
-            {d.preparedBy && (
+            {d.preparedBy && s.showPreparedBy && (
               <>
                 Prepared by <strong className="text-neutral-700">{d.preparedBy}</strong> ·{" "}
               </>

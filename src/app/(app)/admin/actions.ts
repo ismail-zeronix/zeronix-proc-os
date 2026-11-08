@@ -8,7 +8,7 @@ import { db, schema } from "@/db";
 import { GRANTABLE_APPS } from "@/lib/apps";
 import { audit } from "@/lib/audit";
 import { clearFailures } from "@/lib/auth/lockout";
-import { requireAdmin } from "@/lib/auth/session";
+import { assertAccountant, requireAdmin } from "@/lib/auth/session";
 import { parseLogoDataUrl } from "@/lib/logo";
 import { type BrandStyle, normalizeStyle, safeColor } from "@/lib/signature";
 import { getSettings, setSetting } from "@/lib/settings";
@@ -129,20 +129,18 @@ const quoteSettingsSchema = z.object({
   quote_valid_days: z.coerce.number().int().min(1).max(180),
   quote_vat_pct: z.coerce.number().min(0).max(30),
   quote_terms: z.string().trim().max(2000),
-  /** Kept for older callers; our TRN is now saved from the Documents tab. */
-  quote_trn: z.string().trim().max(30).optional(),
   quote_email_subject: z.string().trim().min(1, "Enter an email subject").max(300).optional(),
   quote_email_body: z.string().trim().min(1, "Enter an email message").max(5000).optional(),
 });
 
-/** Defaults a new quote starts with. Quotes already made keep their own values. */
+/**
+ * Defaults a new quote starts with (Accounts › Settings › Documents › Quote defaults). Quotes already made keep their
+ * own values. Our TRN is not here: it is saved, and checked, under VAT registration.
+ */
 export async function saveQuoteSettings(input: z.input<typeof quoteSettingsSchema>) {
-  const me = await requireAdmin();
+  const me = await assertAccountant();
   const d = parseInput(quoteSettingsSchema, input);
   const before = await getSettings();
-  if (d.quote_trn !== undefined && d.quote_trn !== before.quote_trn) {
-    await audit(db, { userId: me.id, action: "settings.trn", entity: "settings", summary: "Our TRN changed", before: { quote_trn: before.quote_trn }, after: { quote_trn: d.quote_trn } });
-  }
   if (Number(before.quote_vat_pct) !== d.quote_vat_pct) {
     await audit(db, { userId: me.id, action: "settings.vat", entity: "settings", summary: `Default VAT changed to ${d.quote_vat_pct}%`, before: { quote_vat_pct: before.quote_vat_pct }, after: { quote_vat_pct: d.quote_vat_pct } });
   }
@@ -150,10 +148,11 @@ export async function saveQuoteSettings(input: z.input<typeof quoteSettingsSchem
   await setSetting("quote_valid_days", String(d.quote_valid_days));
   await setSetting("quote_vat_pct", String(d.quote_vat_pct));
   await setSetting("quote_terms", d.quote_terms);
-  if (d.quote_trn !== undefined) await setSetting("quote_trn", d.quote_trn);
   if (d.quote_email_subject !== undefined) await setSetting("quote_email_subject", d.quote_email_subject);
   if (d.quote_email_body !== undefined) await setSetting("quote_email_body", d.quote_email_body);
   revalidatePath("/admin", "layout");
+  revalidatePath("/accounts", "layout");
+  revalidatePath("/sales", "layout");
   revalidatePath("/crm", "layout");
 }
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
-import { requireAdmin } from "@/lib/auth/session";
+import { assertAccountant } from "@/lib/auth/session";
 import { parseLogoDataUrl } from "@/lib/logo";
 
 const docSchema = z.object({
@@ -17,7 +17,7 @@ type Image = string | undefined;
 
 /** Contact lines and images printed on proposals and other customer documents. */
 export async function saveDocumentBrand(input: z.input<typeof docSchema> & { logoDark?: Image; signature?: Image; stamp?: Image }) {
-  await requireAdmin();
+  await assertAccountant();
   const { logoDark, signature, stamp, ...rest } = input;
   const set: Partial<typeof schema.brandProfile.$inferInsert> = { ...docSchema.parse(rest), updatedAt: new Date() };
   const image = (v: Image, what: string, b64: "logoDarkB64" | "signatureB64" | "stampB64", mime: "logoDarkMime" | "signatureMime" | "stampMime") => {
@@ -38,5 +38,6 @@ export async function saveDocumentBrand(input: z.input<typeof docSchema> & { log
     .values({ id: 1, ...set })
     .onConflictDoUpdate({ target: schema.brandProfile.id, set });
   revalidatePath("/admin", "layout");
+  revalidatePath("/accounts", "layout");
   revalidatePath("/projects", "layout");
 }

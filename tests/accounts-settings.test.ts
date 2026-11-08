@@ -191,10 +191,16 @@ describe.skipIf(!live)("Accounts settings (throwaway organisation)", () => {
     await St.saveNumbering({ invoice_prefix: `${tag}-`, invoice_next_number: 5, invoice_digits: 3 });
     await A.createInvoice({ companyId: c.id, issueDate: day(2), termsDays: 0, vatPct: 0, lines: [{ description: "x", qty: 1, unitPrice: 10 }] });
     await expect(St.saveNumbering({ invoice_prefix: `${tag}-`, invoice_next_number: 5, invoice_digits: 3 })).rejects.toThrow(/already exists/);
-    await expect(St.saveDocumentDetails({ default_terms_days: 30, bank_name: "", bank_account_name: "", bank_account_number: "", bank_iban: "not an iban", bank_swift: "" })).rejects.toThrow(/IBAN/);
-    await St.saveDocumentDetails({ default_terms_days: 30, bank_name: "ENBD", bank_account_name: tag, bank_account_number: "1", bank_iban: "AE07 0331 2345 6789 0123 456", bank_swift: "EBILAEAD" });
-    const [iban] = await db.select({ v: schema.settings.value }).from(schema.settings).where(D.eq(schema.settings.key, "bank_iban"));
-    expect(iban.v).toBe("AE070331234567890123456");
+    // the IBAN printed on invoices is the bank account's, checked and tidied when the account is saved
+    await expect(St.saveBankAccount(null, { name: `${tag} Bad IBAN`, kind: "bank", iban: "not an iban" })).rejects.toThrow(/IBAN/);
+    await St.saveBankAccount(null, { name: `${tag} Spaced IBAN`, kind: "bank", iban: "AE07 0331 2345 6789 0123 456", swift: "EBILAEAD", holderName: tag });
+    const [acc] = await db.select({ iban: schema.bankAccounts.iban, swift: schema.bankAccounts.swift, holder: schema.bankAccounts.holderName }).from(schema.bankAccounts).where(D.eq(schema.bankAccounts.name, `${tag} Spaced IBAN`));
+    expect(acc).toEqual({ iban: "AE070331234567890123456", swift: "EBILAEAD", holder: tag });
+    // invoice defaults are only the credit terms now
+    const { getSetting } = await import("@/lib/settings");
+    const terms = await getSetting("default_terms_days");
+    await St.saveDocumentDetails({ default_terms_days: terms === "45" ? 60 : 45 });
     expect((await auditOf("settings.documents")).length).toBe(1);
+    await St.saveDocumentDetails({ default_terms_days: Number(terms) });
   });
 });

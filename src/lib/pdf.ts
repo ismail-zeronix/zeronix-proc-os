@@ -84,6 +84,8 @@ async function render(path: string, session: string, opts: { footer?: string; co
     // a redirect to /login means the session was not accepted
     if (!res?.ok() || new URL(page.url()).pathname !== path.split("?")[0]) throw new Error(`Could not open the document to make the PDF (${res?.status() ?? "no answer"}).`);
     await page.emulateMediaType("print");
+    // the document typeface (Accounts › Settings › Documents › Templates) must be in before the page is printed
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     if (cover && (await page.$("[data-pdf-cover]"))) {
       // 1) the cover alone, edge to edge  2) everything after it with margins, header and footer  3) joined
       await page.evaluate(() => {

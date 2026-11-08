@@ -280,17 +280,21 @@ describe.skipIf(!live)("goods, services and the opening balances through the rea
     expect(s?.lines.map((l) => l.number)).toEqual([`${tag}-STAYS`]);
   });
 
-  it("writes changes to our TRN and document settings in the audit trail", async () => {
+  it("writes a change to the default quote VAT in the audit trail, and quote defaults never touch our TRN", async () => {
     const Adm = await import("@/app/(app)/admin/actions");
     const { getSettings } = await import("@/lib/settings");
     const admin = (await db.insert(schema.users).values({ name: `${tag}-admin`, email: `${tag}-admin@example.test`, passwordHash: "x", role: "admin" }).returning({ id: schema.users.id }))[0].id;
     await db.insert(schema.attendancePunches).values({ userId: admin, day: today });
     await as(admin);
     const s = await getSettings();
-    await Adm.saveQuoteSettings({ quote_margin_pct: Number(s.quote_margin_pct), quote_valid_days: Number(s.quote_valid_days), quote_vat_pct: Number(s.quote_vat_pct), quote_terms: s.quote_terms, quote_trn: "100000000000003" });
-    const trn = await db.select().from(schema.auditLog).where(D.and(D.eq(schema.auditLog.action, "settings.trn"), D.eq(schema.auditLog.userId, admin)));
-    expect(trn[0]?.after).toEqual({ quote_trn: "100000000000003" });
-    await Adm.saveQuoteSettings({ quote_margin_pct: Number(s.quote_margin_pct), quote_valid_days: Number(s.quote_valid_days), quote_vat_pct: Number(s.quote_vat_pct), quote_terms: s.quote_terms, quote_trn: s.quote_trn });
+    const base = { quote_margin_pct: Number(s.quote_margin_pct), quote_valid_days: Number(s.quote_valid_days), quote_terms: s.quote_terms };
+    const other = Number(s.quote_vat_pct) === 5 ? 0 : 5;
+    // an old caller still sending a TRN: dropped, the TRN is saved (and checked) under VAT registration only
+    await Adm.saveQuoteSettings({ ...base, quote_vat_pct: other, ...({ quote_trn: "100000000000003" } as object) });
+    const vat = await db.select().from(schema.auditLog).where(D.and(D.eq(schema.auditLog.action, "settings.vat"), D.eq(schema.auditLog.userId, admin)));
+    expect(vat[0]?.after).toEqual({ quote_vat_pct: other });
+    expect((await getSettings()).quote_trn).toBe(s.quote_trn);
+    await Adm.saveQuoteSettings({ ...base, quote_vat_pct: Number(s.quote_vat_pct) });
     await as(accountant);
   });
 

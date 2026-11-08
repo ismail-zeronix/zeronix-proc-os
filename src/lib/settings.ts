@@ -46,6 +46,8 @@ export const SETTING_DEFAULTS = {
   bank_account_number: "",
   bank_iban: "",
   bank_swift: "",
+  /** Look of the customer documents (lib/doc-style.ts): JSON {all, quote?}; "" = Classic in the brand colour. */
+  doc_style: "",
   /** Website chat: ring the sales team for every visitor who lands on the site ("visitors"), or only once they send the lead form ("leads"). */
   webchat_ring: "visitors",
   /** Notification rules (lib/notifications/rules.ts): JSON {ruleKey: {enabled, limit, warn, escalate}}; "{}" = the defaults. */

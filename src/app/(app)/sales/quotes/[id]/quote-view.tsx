@@ -31,7 +31,7 @@ export async function QuoteView({ access, base, id }: { access: Access; base: Sa
   if (!Number.isInteger(id) || id < 1) notFound();
   const q = await getQuote(id, financeViewerOf(access));
   if (!q) notFound();
-  const [brand, order, invoice, settings, snapshot, project] = await Promise.all([quoteBrand(), orderOfQuote(q.id), invoiceOfQuote(q.id), getSettings(), snapshotOfQuote(q.id), q.dealId ? projectOfDeal(q.dealId) : Promise.resolve(null)]);
+  const [brand, order, invoice, settings, snapshot, project] = await Promise.all([quoteBrand("quote"), orderOfQuote(q.id), invoiceOfQuote(q.id), getSettings(), snapshotOfQuote(q.id), q.dealId ? projectOfDeal(q.dealId) : Promise.resolve(null)]);
   const pBrand = snapshot ? await proposalBrand() : null;
   // the payment terms offered on the quote; older quotes fall back to the default
   const defaultTerms = q.termsDays ?? Math.max(0, Math.floor(Number(settings.default_terms_days)) || 0);

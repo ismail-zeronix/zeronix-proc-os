@@ -3,7 +3,9 @@ import type { QuoteBrand, QuoteDocData } from "@/components/quote-document";
 import type { BankDetails, ProposalBrand } from "@/components/proposal/proposal-document";
 import { getBrand, getDocBrand } from "@/lib/brand";
 import { displayCompany } from "@/lib/proposal";
-import { getSettings } from "@/lib/settings";
+import { parseDocStyles, styleFor, withAccent } from "@/lib/doc-style";
+import { printedBank } from "@/lib/printed-bank";
+import { getSetting } from "@/lib/settings";
 import { getQuote, quoteDefaults } from "@/lib/quotes-data";
 
 type Loaded = NonNullable<Awaited<ReturnType<typeof getQuote>>>;
@@ -28,7 +30,7 @@ export function toDoc(q: Loaded): QuoteDocData {
 
 /** Our details for proposals: the quote brand plus the document lines and images (white logo, signature, stamp). */
 export async function proposalBrand(): Promise<ProposalBrand> {
-  const [q, d] = await Promise.all([quoteBrand(), getDocBrand()]);
+  const [q, d] = await Promise.all([quoteBrand("quote"), getDocBrand()]);
   return {
     ...q,
     company: displayCompany(q.company),
@@ -41,23 +43,32 @@ export async function proposalBrand(): Promise<ProposalBrand> {
   };
 }
 
-/** Our bank account for customer payments (Admin > Settings > Documents), or null when not filled in. */
+/** Our bank account for customer payments (the default bank account, see printedBank), or null when not filled in. */
 export async function bankDetails(): Promise<BankDetails | null> {
-  const s = await getSettings();
-  const b = { bank: s.bank_name, accountName: s.bank_account_name, accountNumber: s.bank_account_number, iban: s.bank_iban, swift: s.bank_swift };
-  return Object.values(b).some((v) => v.trim()) ? b : null;
+  const b = await printedBank();
+  return b ? { bank: b.name, accountName: b.accountName, accountNumber: b.accountNumber, iban: b.iban, swift: b.swift } : null;
 }
 
-export async function quoteBrand(): Promise<QuoteBrand> {
-  const [b, d] = await Promise.all([getBrand(), quoteDefaults()]);
+/**
+ * Our details and the document template for one kind of document: "quote" for the quotation, "invoice" for every
+ * other customer document (proforma, delivery note, invoices, notes, receipts, statements, reports).
+ */
+export async function quoteBrand(kind: "quote" | "invoice" = "invoice"): Promise<QuoteBrand> {
+  const [b, d, doc, saved] = await Promise.all([getBrand(), quoteDefaults(), getDocBrand(), getSetting("doc_style")]);
+  const style = withAccent(styleFor(parseDocStyles(saved), kind), b.color);
   return {
     company: b.company,
     tagline: b.tagline,
     address: b.address,
     website: b.website,
     mainPhone: b.mainPhone,
-    color: b.color,
+    // everything that reads the brand colour (receipts, statements, reports) follows the template's accent
+    color: style.accent,
     trn: d.trn,
     logoSrc: b.hasLogo ? `/api/brand/logo?v=${b.version}` : null,
+    style,
+    logoDarkSrc: doc.logoDarkSrc,
+    signatureSrc: doc.signatureSrc,
+    stampSrc: doc.stampSrc,
   };
 }

@@ -25,7 +25,7 @@ export default async function PrintQuote({ params }: PageProps<"/print/quote/[id
   if (!Number.isInteger(id) || id < 1) notFound();
   const q = await getQuote(id, financeViewerOf(access));
   if (!q) notFound();
-  const [brand, snapshot] = await Promise.all([quoteBrand(), snapshotOfQuote(q.id)]);
+  const [brand, snapshot] = await Promise.all([quoteBrand("quote"), snapshotOfQuote(q.id)]);
   const back = access.apps.includes("sales") ? `/sales/quotes/${q.id}` : access.apps.includes("accounts") ? `/accounts/quotes/${q.id}` : `/projects/list`;
   if (snapshot) {
     return (

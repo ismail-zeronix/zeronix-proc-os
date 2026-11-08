@@ -21,6 +21,8 @@ export default async function BankSettingsPage() {
         bankName: b.bankName,
         accountNumber: b.accountNumber,
         iban: b.iban,
+        swift: b.swift,
+        holderName: b.holderName,
         isDefault: b.isDefault,
         isActive: b.isActive,
         accountCode: schema.ledgerAccounts.code,

@@ -1,16 +1,15 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { Bell, Building2, Clock, FileText, FolderKanban, Receipt, Scale } from "lucide-react";
+import { Bell, Building2, Clock, FolderKanban, Receipt, Scale } from "lucide-react";
 import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
-import { getBrand, getBrandRow, getDocBrand } from "@/lib/brand";
+import { getBrand } from "@/lib/brand";
 import { getPriceListLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { db, schema } from "@/db";
-import { AdminSettings, QuoteSettings, WorkHoursSettings } from "../admin-ui";
+import { AdminSettings, WorkHoursSettings } from "../admin-ui";
 import { BrandCard } from "../brand-ui";
-import { DocumentBrandCard } from "../doc-brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
 import { hostedEngines, ollamaModels } from "../data";
 import { NotifySettings } from "../notify-ui";
@@ -22,12 +21,10 @@ export const metadata = { title: "Settings · Admin · Zeronix" };
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const me = (await requireApp("admin")).user;
   const [{ tab }, settings, models, engines, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), hostedEngines(), getBrand()]);
-  const [health, types, templates, docBrand, brandRow, mailboxes] = await Promise.all([
+  const [health, types, templates, mailboxes] = await Promise.all([
     getPriceListLlm().then((llm) => llm.health()),
     db.select().from(schema.projectTypes).orderBy(asc(schema.projectTypes.position), asc(schema.projectTypes.label)),
     db.select().from(schema.projectTaskTemplates),
-    getDocBrand(),
-    getBrandRow(),
     db
       .select({ id: schema.mailAccounts.id, address: schema.mailAccounts.imapUser, owner: schema.users.name, enabled: schema.mailAccounts.enabled })
       .from(schema.mailAccounts)
@@ -42,30 +39,28 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
         initial={tab}
         tabs={[
           { key: "hours", label: "Work hours", icon: <Clock />, content: <WorkHoursSettings settings={settings} /> },
-          { key: "quotes", label: "Quotes", icon: <FileText />, content: <QuoteSettings settings={settings} /> },
           {
             key: "documents",
             label: "Documents",
             icon: <Receipt />,
             content: (
-              <div className="grid gap-3">
-                <p className="rounded-lg border bg-card px-3 py-2 text-sm">
-                  Our TRN, invoice numbers, credit terms and bank details have moved to{" "}
-                  <Link href="/accounts/settings" className="font-medium underline">
-                    Accounts › Settings
-                  </Link>
-                  .
-                </p>
-                <DocumentBrandCard
-                  initial={{
-                    docEmail: brandRow?.docEmail ?? "",
-                    docPhones: brandRow?.docPhones ?? "",
-                    tradeLicense: brandRow?.tradeLicense ?? "",
-                    logoDarkSrc: docBrand.logoDarkSrc,
-                    signatureSrc: docBrand.signatureSrc,
-                    stampSrc: docBrand.stampSrc,
-                  }}
-                />
+              <div className="grid gap-2 rounded-lg border bg-card px-3 py-3 text-sm">
+                <p>Everything printed for customers is set up in Accounts settings:</p>
+                <ul className="grid gap-1">
+                  {[
+                    ["/accounts/settings/templates", "Templates", "how quotes, invoices and notes look"],
+                    ["/accounts/settings/letterhead", "Letterhead", "contact lines, white logo, signature and stamp"],
+                    ["/accounts/settings/quotes", "Quote defaults", "margin, validity, VAT, terms and the quote email"],
+                    ["/accounts/settings/documents", "Invoice defaults", "credit terms; bank details come from Bank and cash accounts"],
+                  ].map(([href, label, hint]) => (
+                    <li key={href}>
+                      <Link href={href} className="font-medium underline">
+                        {label}
+                      </Link>{" "}
+                      <span className="text-muted-foreground">· {hint}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ),
           },
@@ -89,7 +84,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
           },
           {
             key: "branding",
-            label: "Email branding",
+            label: "Company & branding",
             icon: <Building2 />,
             content: <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} />,
           },

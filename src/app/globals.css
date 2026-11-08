@@ -376,3 +376,34 @@ body {
 .proposal-rich li > p { margin: 0 0 0.2em; }
 .proposal-rich a { color: #1d5fb8; text-decoration: underline; }
 .proposal-rich p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #a3a3a3; float: left; height: 0; pointer-events: none; }
+
+/*
+ * Customer documents (components/doc-parts.tsx): the template's colours and lines, read from the variables
+ * docStyleVars (lib/doc-style.ts) puts on the sheet. Unlayered on purpose, so they win over the utility classes.
+ */
+.zx-doc .text-neutral-900 { color: var(--doc-text); }
+.zx-doc .zx-th { background: var(--doc-th-bg); color: var(--doc-th-fg); }
+.zx-doc .zx-th:first-child { border-top-left-radius: var(--doc-radius); border-bottom-left-radius: var(--doc-radius); }
+.zx-doc .zx-th:last-child { border-top-right-radius: var(--doc-radius); border-bottom-right-radius: var(--doc-radius); }
+.zx-doc[data-head="none"] .zx-th { border-bottom: 1.5px solid var(--doc-text); border-radius: 0; }
+.zx-doc .zx-cell { padding: var(--doc-py) 0.625rem; border-bottom: var(--doc-lw) var(--doc-ls) var(--doc-line); }
+.zx-doc[data-lines="none"] .zx-cell { border-bottom-color: transparent; }
+.zx-doc[data-lines="grid"] .zx-cell + .zx-cell,
+.zx-doc[data-lines="grid"] .zx-th + .zx-th { border-left: var(--doc-lw) var(--doc-ls) var(--doc-line); }
+.zx-doc[data-border="true"] .zx-table { border: var(--doc-lw) solid var(--doc-line); border-radius: var(--doc-radius); }
+.zx-doc .zx-meta { border: var(--doc-lw) solid var(--doc-line); background: var(--doc-line); border-radius: calc(var(--doc-radius) + 2px); }
+.zx-doc .zx-outline { border: var(--doc-lw) solid var(--doc-line); }
+.zx-doc .zx-rule { border-top: var(--doc-lw) solid var(--doc-line); }
+
+/*
+ * The document typefaces (DocStyle.font), as static files in public/fonts: plain @font-face in this sheet, which every
+ * page loads, so the all-server print pages and the PDFs always have them.
+ */
+@font-face { font-family: "ZX Doc Jakarta"; src: url("/fonts/PlusJakartaSans-latin-wght.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "ZX Doc Geist"; src: url("/fonts/Geist-latin-wght.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "ZX Doc Inter"; src: url("/fonts/Inter-latin-wght.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "ZX Doc Serif"; src: url("/fonts/SourceSerif4-latin-wght.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
+.zx-font-jakarta { font-family: "ZX Doc Jakarta", ui-sans-serif, system-ui, sans-serif; }
+.zx-font-geist { font-family: "ZX Doc Geist", ui-sans-serif, system-ui, sans-serif; }
+.zx-font-inter { font-family: "ZX Doc Inter", ui-sans-serif, system-ui, sans-serif; }
+.zx-font-serif { font-family: "ZX Doc Serif", ui-serif, Georgia, serif; }

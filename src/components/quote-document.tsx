@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, safeColor, tint, TotalsBlock, zebra } from "@/components/doc-parts";
+import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, safeColor, SignOff, styleOf, tint, TotalsBlock, withNumbers, zebra } from "@/components/doc-parts";
 import { dubaiToday } from "@/lib/dates";
 import { lineTotal, longDay } from "@/lib/quotation";
 import { aedInWords } from "@/lib/words";
@@ -24,14 +24,23 @@ export interface QuoteDocData {
 
 /**
  * The quotation as the customer sees it: one document, no cost or margin anywhere. Used on the quote page and the
- * print page, in the same layout as the invoices (see doc-parts).
+ * print page, in the same layout as the invoices (see doc-parts), styled by the document template.
  */
 export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand }) {
-  const accent = safeColor(brand.color);
+  const s = styleOf(brand);
+  const accent = s.accent;
   const terms = q.terms.split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
-  const authorPhone = q.author ? q.author.mobile || q.author.phone : "";
+  const author = s.showPreparedBy ? q.author : null;
+  const authorPhone = author ? author.mobile || author.phone : "";
+  const head = withNumbers(s, [
+    { label: "#", className: "w-9" },
+    { label: "Item & description" },
+    { label: "Qty", className: "w-16 text-right" },
+    { label: "Rate (AED)", className: "w-28 text-right" },
+    { label: "Amount (AED)", className: "w-28 text-right" },
+  ]);
   return (
-    <DocSheet label={`Quotation ${q.number}`}>
+    <DocSheet label={`Quotation ${q.number}`} brand={brand}>
       <DocHeader brand={brand} title="QUOTATION" number={q.number} />
 
       <MetaStrip
@@ -46,7 +55,7 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
       <Parties count={q.contact ? 2 : 1}>
         <Party
           primary
-          accent={accent}
+          s={s}
           label="Quotation for"
           name={q.company.name}
           lines={[
@@ -55,19 +64,10 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
             q.company.trn && `TRN: ${q.company.trn}`,
           ]}
         />
-        {q.contact && <Party accent={accent} label="Attention" name={q.contact.name} lines={[q.contact.jobTitle, q.contact.email, q.contact.phone]} />}
+        {q.contact && <Party s={s} label="Attention" name={q.contact.name} lines={[q.contact.jobTitle, q.contact.email, q.contact.phone]} />}
       </Parties>
 
-      <LinesTable
-        accent={accent}
-        head={[
-          { label: "#", className: "w-9" },
-          { label: "Item & description" },
-          { label: "Qty", className: "w-16 text-right" },
-          { label: "Rate (AED)", className: "w-28 text-right" },
-          { label: "Amount (AED)", className: "w-28 text-right" },
-        ]}
-      >
+      <LinesTable head={head}>
         {q.items.map((i, n) => {
           const section = i.section ?? "";
           // a project quote is grouped: a heading row each time the section changes, with that section's subtotal
@@ -78,7 +78,7 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
               {heading && (
                 // a section heading never ends a page on its own
                 <tr className="break-inside-avoid break-after-avoid">
-                  <td colSpan={4} className="border-b px-2.5 pt-3 pb-1.5 text-[11.5px] font-bold" style={{ color: accent, borderColor: tint(accent, 35) }}>
+                  <td colSpan={head.length - 1} className="border-b px-2.5 pt-3 pb-1.5 text-[11.5px] font-bold" style={{ color: accent, borderColor: tint(accent, 35) }}>
                     {section}
                   </td>
                   <td className="border-b px-2.5 pt-3 pb-1.5 text-right font-bold tabular-nums" style={{ borderColor: tint(accent, 35) }}>
@@ -87,7 +87,7 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
                 </tr>
               )}
               <tr className={rowClass} style={zebra(n)}>
-                <td className={`${cell} text-neutral-400 tabular-nums`}>{String(n + 1).padStart(2, "0")}</td>
+                {s.showNumbers && <td className={`${cell} text-neutral-400 tabular-nums`}>{String(n + 1).padStart(2, "0")}</td>}
                 <td className={`${cell} whitespace-pre-line text-neutral-900`}>{i.description}</td>
                 <td className={`${cell} text-right whitespace-nowrap tabular-nums`}>
                   {i.qty}
@@ -102,7 +102,7 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
       </LinesTable>
 
       <TotalsBlock
-        accent={accent}
+        s={s}
         words={aedInWords(q.total)}
         total={amt(q.total)}
         rows={[
@@ -112,20 +112,22 @@ export function QuoteDocument({ q, brand }: { q: QuoteDocData; brand: QuoteBrand
         ]}
       />
 
-      {(terms.length > 0 || q.author) && (
-        <section className={`mt-6 grid gap-6 ${q.author ? "grid-cols-[1fr_13rem]" : "grid-cols-1"}`}>
-          {terms.length > 0 ? <NumberedList label="Terms & conditions" items={terms} accent={accent} /> : <div />}
-          {q.author && (
+      {(terms.length > 0 || author) && (
+        <section className={`mt-6 grid gap-6 ${author ? "grid-cols-[1fr_13rem]" : "grid-cols-1"}`}>
+          {terms.length > 0 ? <NumberedList label="Terms & conditions" items={terms} s={s} /> : <div />}
+          {author && (
             <div className="text-[10.5px] leading-relaxed text-neutral-600">
               <Label>Prepared by</Label>
-              <div className="mt-1.5 text-[12px] font-bold text-neutral-900">{q.author.name}</div>
-              {q.author.jobTitle && <div>{q.author.jobTitle}</div>}
-              {q.author.email && <div>{q.author.email}</div>}
+              <div className="mt-1.5 text-[12px] font-bold text-neutral-900">{author.name}</div>
+              {author.jobTitle && <div>{author.jobTitle}</div>}
+              {author.email && <div>{author.email}</div>}
               {authorPhone && <div>{authorPhone}</div>}
             </div>
           )}
         </section>
       )}
+
+      <SignOff brand={brand} />
 
       <DocFooter brand={brand} left="Thank you for your business." />
     </DocSheet>

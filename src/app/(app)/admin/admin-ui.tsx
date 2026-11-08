@@ -141,7 +141,6 @@ export function QuoteSettings({
     quote_valid_days: string;
     quote_vat_pct: string;
     quote_terms: string;
-    quote_trn: string;
     quote_email_subject: string;
     quote_email_body: string;
   };
@@ -193,7 +192,7 @@ export function QuoteSettings({
           </p>
         </div>
         <div className="sm:col-span-2 lg:col-span-4">
-          <Button pending={pending} onClick={() => run(() => saveQuoteSettings({ ...f, quote_trn: undefined }), "Quote settings saved")}>
+          <Button pending={pending} onClick={() => run(() => saveQuoteSettings(f), "Quote settings saved")}>
             Save
           </Button>
         </div>

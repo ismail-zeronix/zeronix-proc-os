@@ -421,6 +421,13 @@
       "when": 1794068757451,
       "tag": "0059_credit_event_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794098915798,
+      "tag": "0060_bank_swift_holder",
+      "breakpoints": true
     }
   ]
 }

@@ -2110,6 +2110,9 @@ export const bankAccounts = pgTable(
     bankName: text("bank_name").notNull().default(""),
     accountNumber: text("account_number").notNull().default(""),
     iban: text("iban").notNull().default(""),
+    swift: text("swift").notNull().default(""),
+    /** The account holder as the bank knows it, printed on invoices; empty = our company name. */
+    holderName: text("holder_name").notNull().default(""),
     currency: text("currency").notNull().default("AED"),
     /** The one picked by default for its kind (cash or bank payments). */
     isDefault: boolean("is_default").notNull().default(false),

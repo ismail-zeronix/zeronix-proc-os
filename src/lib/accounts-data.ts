@@ -7,6 +7,7 @@ import { ageBucket, AGE_BUCKETS, buildStatement, invoiceState, type AgeBucket, t
 import { paidByInvoice } from "@/lib/orders-data";
 import { likeOf, type ListState } from "@/lib/list-params";
 import { lineTotal, longDay, round2 } from "@/lib/quotation";
+import { printedBank } from "@/lib/printed-bank";
 import { getSettings } from "@/lib/settings";
 import { companyVisible, dealVisible, quoteVisible, type Viewer } from "@/lib/auth/visibility";
 
@@ -342,13 +343,10 @@ export async function statement(companyId: number, from: string, to: string) {
   return { company, from, to, opening: before.closing, lines: within.lines, closing: within.closing };
 }
 
-/** Bank details and our TRN, printed on invoices and statements. */
+/** Bank details (the default bank account) and our TRN, printed on invoices and statements. */
 export async function documentDetails() {
-  const s = await getSettings();
-  return {
-    trn: s.quote_trn,
-    bank: { name: s.bank_name, accountName: s.bank_account_name, accountNumber: s.bank_account_number, iban: s.bank_iban, swift: s.bank_swift },
-  };
+  const [s, bank] = await Promise.all([getSettings(), printedBank()]);
+  return { trn: s.quote_trn, bank };
 }
 
 /** Customers with something owed, for a company page badge: balance and overdue amount. */
