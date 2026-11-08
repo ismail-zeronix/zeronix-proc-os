@@ -44,7 +44,7 @@ export function StartProposal({ projectId, typeLabel, templates }: { projectId: 
         A proposal is the document the customer receives: cover, your understanding of the job, scope, the price from the BOQ, payment schedule, timeline and terms. Pick a starting point; everything can be changed.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
-        {card("standard", null, "Standard proposal", `Cover, about Zeronix, the requirement, scope, price, payment, timeline, warranty, exclusions, terms and signatures, set up for ${typeLabel}.`)}
+        {card("standard", null, "Standard proposal", `Cover, about us, the requirement, scope, price, payment, timeline, warranty, exclusions, terms and signatures, set up for ${typeLabel}.`)}
         {templates.map((t) => card(`t${t.id}`, t.id, t.name, `${t.blocks} blocks · ${t.forType ? `${typeLabel} template` : "for every project type"}`))}
       </div>
     </div>

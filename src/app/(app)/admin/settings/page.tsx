@@ -86,7 +86,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
             key: "branding",
             label: "Company & branding",
             icon: <Building2 />,
-            content: <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} />,
+            content: <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} zeronixPreset={process.env.MULTI_TENANT !== "true"} />,
           },
         ]}
       />

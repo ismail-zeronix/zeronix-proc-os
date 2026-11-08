@@ -23,6 +23,17 @@ export function JoinForm({ token, name }: { token: string; name: string }) {
         <Label htmlFor="again">Password again</Label>
         <Input id="again" name="again" type="password" autoComplete="new-password" minLength={8} required />
       </div>
+      <p className="text-xs text-muted-foreground">
+        By joining you accept the{" "}
+        <a href="/legal/terms" target="_blank" className="underline">
+          terms of service
+        </a>{" "}
+        and the{" "}
+        <a href="/legal/privacy" target="_blank" className="underline">
+          privacy notice
+        </a>
+        .
+      </p>
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
       <Button type="submit" pending={pending} className="w-full">
         {pending ? "Joining…" : "Join and sign in"}

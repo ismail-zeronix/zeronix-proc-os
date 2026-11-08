@@ -107,7 +107,7 @@ function RangeField({
 }
 
 /** Company branding for email signatures: template, logo, text lines, divider line and style, with a live preview. */
-export function BrandCard({ brand, version, sample }: { brand: Brand; version: number; sample: { name: string; email: string } }) {
+export function BrandCard({ brand, version, sample, zeronixPreset = false }: { brand: Brand; version: number; sample: { name: string; email: string }; /** Zeronix's own install only: load its ready-made signature. */ zeronixPreset?: boolean }) {
   const { hasLogo: savedLogo, ...initial } = brand;
   const [f, setF] = useState<Form>(initial);
   // undefined = keep the saved logo, "remove" = delete it, otherwise a data URL picked just now
@@ -186,16 +186,18 @@ export function BrandCard({ brand, version, sample }: { brand: Brand; version: n
                 ))}
               </NativeSelect>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setF((p) => ({ ...p, ...ZERONIX_SAMPLE }));
-                toast.info("Zeronix signature loaded. Check the preview, then Save branding.");
-              }}
-            >
-              <Sparkles /> Load Zeronix signature
-            </Button>
+            {zeronixPreset && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setF((p) => ({ ...p, ...ZERONIX_SAMPLE }));
+                  toast.info("Zeronix signature loaded. Check the preview, then Save branding.");
+                }}
+              >
+                <Sparkles /> Load Zeronix signature
+              </Button>
+            )}
           </div>
 
           <Tabs defaultValue="content">

@@ -43,6 +43,7 @@ export function AppHeader({
   withSidebar = false,
   punch,
   bell,
+  orgName = "Zeronix",
 }: {
   user: { name: string; email: string; role: Role };
   /** Every app the user may open (drives search). */
@@ -56,18 +57,20 @@ export function AppHeader({
   punch?: PunchProps;
   /** The bell's first load (later updates come live and from re-reads). */
   bell?: BellData;
+  /** The organisation's name, from its brand profile (each SaaS tenant sees its own). */
+  orgName?: string;
 }) {
   const switcher = APPS.filter((a) => visible.includes(a.key));
   const pathname = usePathname();
-  const title = pageTitle(pathname);
+  const title = pageTitle(pathname, orgName);
   return (
     <header className="sticky top-0 z-10 flex h-(--header-h) items-center gap-1 border-b bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur sm:gap-2 sm:px-3">
       {withSidebar && <SidebarTrigger className="max-md:hidden" />}
       <Link href="/" data-punch-allow className="flex min-w-0 items-center gap-2 rounded-md px-1 font-semibold tracking-tight">
         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-xs text-primary-foreground">
-          Z
+          {(orgName.trim()[0] ?? "Z").toUpperCase()}
         </span>
-        <span className="hidden md:inline">Zeronix</span>
+        <span className="hidden max-w-48 truncate md:inline">{orgName}</span>
         <span className="truncate md:hidden">{title}</span>
       </Link>
 
@@ -161,12 +164,12 @@ export function AppHeader({
 }
 
 /** What the phone header calls the page: the sidebar page you are on, the app (on its overview), or the screen. */
-function pageTitle(pathname: string): string {
+function pageTitle(pathname: string, orgName: string): string {
   if (pathname === "/") return "Home";
   if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return "Notifications";
   if (pathname === "/account" || pathname.startsWith("/account/")) return "My account";
   const app = appOfPath(pathname);
-  if (!app) return "Zeronix";
+  if (!app) return orgName;
   const under = (base: string) => pathname.startsWith(base + "/");
   const item = navFor(app.key as AppKey, { accountant: true })
     .flatMap((g) => g.items)

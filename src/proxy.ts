@@ -14,6 +14,8 @@ export async function proxy(req: NextRequest) {
   if (pathname.startsWith("/api/site/")) return NextResponse.next();
   // an invitation link is opened before its person has an account
   if (pathname.startsWith("/invite/")) return NextResponse.next();
+  // the terms and privacy notice are read before signing up or in
+  if (pathname.startsWith("/legal/")) return NextResponse.next();
   // the platform console has its own sign-in (password + authenticator code), apart from every organisation's
   if (pathname === "/platform" || pathname.startsWith("/platform/")) {
     if (pathname === "/platform/login" || pathname === "/platform/signout" || pathname === "/platform/exit") return NextResponse.next();

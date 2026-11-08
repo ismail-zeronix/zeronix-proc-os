@@ -11,7 +11,7 @@ export async function SupportVisits() {
   if (!visits.length) return null;
   return (
     <section className="grid gap-1.5 rounded-xl border bg-card p-3 text-sm">
-      <h2 className="font-medium">Zeronix support in your account</h2>
+      <h2 className="font-medium">Platform support in your account</h2>
       {visits.map((v) => (
         <div key={v.id} className="flex flex-wrap gap-x-2">
           <span className="tabular-nums text-muted-foreground">{v.at.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dubai" })}</span>

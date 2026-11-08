@@ -44,7 +44,7 @@ export default async function PrintRefund({ params }: PageProps<"/print/refund/[
           amountInWords: true,
           notes: [`Reason: ${r.reason}`],
           stamp: r.voidedAt ? "VOID" : undefined,
-          signatures: customer ? ["Paid by (Zeronix)", "Received by"] : undefined,
+          signatures: customer ? ["Paid by", "Received by"] : undefined,
         }}
       />
     </PrintPage>

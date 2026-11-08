@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { next } = await searchParams;
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
-      <LoginForm next={next} />
+      <LoginForm next={next} showLegal={process.env.MULTI_TENANT === "true"} />
     </main>
   );
 }

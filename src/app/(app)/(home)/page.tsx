@@ -23,6 +23,7 @@ import {
   TipCard,
   WidgetSkeleton,
 } from "./widgets";
+import { GettingStarted } from "./getting-started";
 
 export const metadata = { title: "Home · Zeronix" };
 
@@ -68,6 +69,13 @@ export default async function HomePage() {
           <blockquote className="italic">{quoteOfTheDay()}</blockquote>
         </figure>
       </header>
+
+      {/* a new company's admin: what its documents still need (goes away when everything is set) */}
+      {user.role === "admin" && (
+        <Suspense fallback={null}>
+          <GettingStarted />
+        </Suspense>
+      )}
 
       {/* phones: a launcher grid of icons, like a phone home screen; wider screens: small one-row tiles */}
       <section aria-label="Apps" className="grid grid-cols-4 gap-x-1 gap-y-2 sm:grid-cols-2 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">

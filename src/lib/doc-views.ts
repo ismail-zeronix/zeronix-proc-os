@@ -66,7 +66,7 @@ export function deliveryDoc(o: Order): SalesDocData {
     vatAmount: o.vatAmount,
     total: o.total,
     notes: ["Please check the goods on delivery. Report anything missing or damaged within 2 working days.", ...(o.receivedBy ? [`Received by: ${o.receivedBy}`] : [])],
-    signatures: ["Delivered by (Zeronix)", "Received in good condition by (customer)"],
+    signatures: ["Delivered by", "Received in good condition by (customer)"],
     stamp: o.status === "cancelled" ? "CANCELLED" : undefined,
     preparedBy: o.author?.name,
   };

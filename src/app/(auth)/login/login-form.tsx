@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login } from "./actions";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, showLegal = false }: { next?: string; /** the SaaS install links its terms and privacy notice */ showLegal?: boolean }) {
   const [state, action, pending] = useActionState(login, undefined);
   return (
     <Card className="w-full max-w-sm">
@@ -33,6 +33,16 @@ export function LoginForm({ next }: { next?: string }) {
             {pending ? "Signing in…" : "Sign in"}
           </Button>
         </form>
+        {showLegal && (
+          <p className="mt-4 flex gap-3 text-xs text-muted-foreground">
+            <a href="/legal/terms" className="hover:underline">
+              Terms
+            </a>
+            <a href="/legal/privacy" className="hover:underline">
+              Privacy
+            </a>
+          </p>
+        )}
       </CardContent>
     </Card>
   );

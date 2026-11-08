@@ -19,7 +19,7 @@ import { BADGE_LABELS, navFor, type NavItem, type NavPerms } from "@/lib/app-nav
 import { appByKey, type AppKey } from "@/lib/apps";
 
 /** The left menu of one app. Pages come from lib/app-nav.ts; `badges` maps a badge name to its number. */
-export function AppSidebar({ app, badges = {}, perms }: { app: AppKey; badges?: Record<string, number>; perms?: NavPerms }) {
+export function AppSidebar({ app, badges = {}, perms, orgName = "Zeronix" }: { app: AppKey; badges?: Record<string, number>; perms?: NavPerms; orgName?: string }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const def = appByKey(app);
@@ -44,7 +44,7 @@ export function AppSidebar({ app, badges = {}, perms }: { app: AppKey; badges?: 
               </div>
               <div className="grid leading-tight">
                 <span className="font-semibold">{def.label}</span>
-                <span className="text-xs text-muted-foreground">Zeronix</span>
+                <span className="truncate text-xs text-muted-foreground">{orgName}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
