@@ -442,6 +442,13 @@
       "when": 1794105603660,
       "tag": "0062_seller_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794152235023,
+      "tag": "0063_session_version",
+      "breakpoints": true
     }
   ]
 }

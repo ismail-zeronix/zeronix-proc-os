@@ -6,8 +6,12 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/db";
-import { clearFailures, lockedMinutes, recordFailure } from "@/lib/auth/lockout";
-import { SESSION_COOKIE, SESSION_DAYS, signSession } from "@/lib/auth/token";
+import { clearFailures, ipLockedMinutes, lockedMinutes, recordFailure } from "@/lib/auth/lockout";
+import { setSessionCookie } from "@/lib/auth/session-cookie";
+import { audit } from "@/lib/audit";
+import { SESSION_COOKIE } from "@/lib/auth/token";
+import { safeNext } from "@/lib/auth/safe-next";
+import { ipFromHeaders } from "@/lib/client-ip";
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -15,31 +19,32 @@ const loginSchema = z.object({
   next: z.string().optional(),
 });
 
+/** A bcrypt hash of nothing anyone knows: compared against when the email is unknown, so both cases take as long. */
+const DUMMY_HASH = "$2b$10$CPmiTFy4B8jsqJavIFsIT.LITWmRl2I1z.bG3.vDTKkhOMyA9pZTe";
+
 export async function login(_prev: { error?: string } | undefined, form: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: "Enter your email and password." };
   const { email, password, next } = parsed.data;
+  const ip = ipFromHeaders(await headers());
 
+  const ipWait = await ipLockedMinutes(ip);
+  if (ipWait) return { error: `Too many wrong passwords from your network. Try again in ${ipWait} minute${ipWait === 1 ? "" : "s"}.` };
   const wait = await lockedMinutes(email);
   if (wait) return { error: `Too many wrong passwords. Try again in ${wait} minute${wait === 1 ? "" : "s"}, or ask an admin to reset it.` };
 
   const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
-  if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
-    const h = await headers();
-    await recordFailure(email, h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "");
+  // always run one bcrypt compare, so an unknown email answers as slowly as a wrong password (no account guessing by timing)
+  const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user || !user.isActive || !ok) {
+    await recordFailure(email, ip);
     return { error: "Wrong email or password." };
   }
   await clearFailures(email);
+  await audit(db, { userId: user.id, action: "auth.login", entity: "user", entityId: user.id, summary: `${user.email} signed in` });
 
-  const token = await signSession({ id: user.id, name: user.name, email: user.email, role: user.role });
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.COOKIE_SECURE === "true",
-    path: "/",
-    maxAge: SESSION_DAYS * 86400,
-  });
-  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  await setSessionCookie({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion });
+  redirect(safeNext(next));
 }
 
 export async function logout() {

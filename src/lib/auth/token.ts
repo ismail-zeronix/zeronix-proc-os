@@ -8,6 +8,12 @@ export interface SessionUser {
   name: string;
   email: string;
   role: "admin" | "sales";
+  /**
+   * The user's session version when the cookie was signed. Changing the password, deactivating the user or "Sign out
+   * everywhere" raises users.session_version, and every older cookie stops working at once (loadAccess compares them).
+   * Cookies from before this existed count as version 1, the default, so nobody is signed out by the upgrade itself.
+   */
+  sv: number;
 }
 
 function key() {
@@ -17,7 +23,7 @@ function key() {
 }
 
 export async function signSession(user: SessionUser): Promise<string> {
-  return new SignJWT({ name: user.name, email: user.email, role: user.role })
+  return new SignJWT({ name: user.name, email: user.email, role: user.role, sv: user.sv })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(String(user.id))
     .setIssuedAt()
@@ -34,6 +40,7 @@ export async function verifySession(token: string | undefined): Promise<SessionU
       name: String(payload.name),
       email: String(payload.email),
       role: payload.role === "admin" ? "admin" : "sales",
+      sv: typeof payload.sv === "number" && Number.isInteger(payload.sv) ? payload.sv : 1,
     };
   } catch {
     return null;

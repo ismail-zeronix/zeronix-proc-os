@@ -81,10 +81,10 @@ const FRIENDLY = "This file could not be made. Please try again, or tell whoever
 /** Makes one file. A failure is kept on the job for the person to see, with the details in the server log only. */
 export async function runExportJob(job: ExportJob, fetcher: typeof fetch = fetch): Promise<void> {
   try {
-    const [u] = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, role: schema.users.role, isActive: schema.users.isActive }).from(schema.users).where(eq(schema.users.id, job.userId));
+    const [u] = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, role: schema.users.role, isActive: schema.users.isActive, sv: schema.users.sessionVersion }).from(schema.users).where(eq(schema.users.id, job.userId));
     if (!u?.isActive) throw new Error("the person who asked is no longer active");
-    const session = await signSession({ id: u.id, name: u.name, email: u.email, role: u.role });
-    const res = await fetcher(internalUrl() + job.url, { headers: { cookie: `${SESSION_COOKIE}=${session}` }, redirect: "manual", cache: "no-store" });
+    const session = await signSession({ id: u.id, name: u.name, email: u.email, role: u.role, sv: u.sv });
+    const res = await fetcher(internalUrl() + job.url, { headers: { cookie: `${SESSION_COOKIE}=${session}` }, redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(STUCK_MINUTES * 60_000) });
     if (!res.ok) throw new Error(`the address answered ${res.status}`);
     const data = Buffer.from(await res.arrayBuffer());
     const contentType = res.headers.get("content-type");

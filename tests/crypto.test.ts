@@ -38,4 +38,20 @@ describe("secret encryption", () => {
     process.env.AUTH_SECRET = "short";
     expect(() => encryptSecret("x")).toThrow(/AUTH_SECRET/);
   });
+
+  it("uses DATA_KEY for new values once it is set, and still reads the older ones", () => {
+    const old = encryptSecret("from before");
+    process.env.DATA_KEY = "a-separate-data-key-of-at-least-32-chars!";
+    try {
+      const fresh = encryptSecret("new one");
+      expect(fresh.startsWith("k2.")).toBe(true);
+      expect(decryptSecret(fresh)).toBe("new one");
+      expect(decryptSecret(old)).toBe("from before");
+      // a new AUTH_SECRET (signing cookies) no longer breaks what DATA_KEY saved
+      process.env.AUTH_SECRET = "another-auth-secret-entirely";
+      expect(decryptSecret(fresh)).toBe("new one");
+    } finally {
+      delete process.env.DATA_KEY;
+    }
+  });
 });

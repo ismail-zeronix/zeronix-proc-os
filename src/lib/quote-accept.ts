@@ -1,6 +1,7 @@
 import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { type db, schema } from "@/db";
+import { audit } from "@/lib/audit";
 import { money } from "@/lib/quotation";
 import { stageLabel } from "@/lib/sales";
 import type { Tx } from "@/lib/tx";
@@ -37,7 +38,10 @@ export async function acceptQuote(
     await tx.update(schema.quotes).set({ status: "rejected", decidedAt: now }).where(inArray(schema.quotes.id, open.map((o) => o.id)));
     await tx.insert(schema.activities).values({ type: "note", body: `${open.map((o) => o.number).join(", ")} marked rejected: replaced by ${q.number}.`, dealId: q.dealId, companyId: q.companyId, userId: opts.userId });
   }
-  if (changed) await tx.update(schema.quotes).set({ status: "accepted", decidedAt: now }).where(eq(schema.quotes.id, q.id));
+  if (changed) {
+    await tx.update(schema.quotes).set({ status: "accepted", decidedAt: now }).where(eq(schema.quotes.id, q.id));
+    await audit(tx, { userId: opts.userId, action: "quote.accept", entity: "quote", entityId: q.id, summary: `${q.number} accepted${opts.via ? ` (${opts.via})` : ""}`, before: { status: q.status }, after: { status: "accepted", rejected: open.map((o) => o.number) } });
+  }
 
   if (q.dealId) {
     const [deal] = await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, q.dealId));

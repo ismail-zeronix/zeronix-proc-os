@@ -69,6 +69,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role", { enum: ["admin", "sales"] }).notNull().default("sales"),
   isActive: boolean("is_active").notNull().default(true),
+  /** Raised to sign the user out everywhere (password change, deactivation, "Sign out everywhere"): see lib/auth/token.ts. */
+  sessionVersion: integer("session_version").notNull().default(1),
   /** Apps this user may open (keys from lib/apps.ts). NULL = the role's defaults. Admins always see everything. */
   apps: text("apps").array(),
   /** Which sales records they see: "own" = deals they are assigned to (and what hangs off them), "all" = everyone's. Admins always see all. */
@@ -670,7 +672,7 @@ export const loginFailures = pgTable(
     ip: text("ip").notNull().default(""),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("login_failures_email_idx").on(t.email, t.at)],
+  (t) => [index("login_failures_email_idx").on(t.email, t.at), index("login_failures_ip_idx").on(t.ip, t.at)],
 );
 
 /**

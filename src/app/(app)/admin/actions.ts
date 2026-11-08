@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { GRANTABLE_APPS } from "@/lib/apps";
 import { audit } from "@/lib/audit";
+import { revokeSessions, setSessionCookie } from "@/lib/auth/session-cookie";
 import { clearFailures } from "@/lib/auth/lockout";
 import { assertAccountant, requireAdmin } from "@/lib/auth/session";
 import { parseLogoDataUrl } from "@/lib/logo";
@@ -23,16 +24,20 @@ const userSchema = z.object({
 });
 
 export async function createUser(input: z.input<typeof userSchema>) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const d = parseInput(userSchema, input);
   const [exists] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, d.email));
   if (exists) throw new UserError("A user with this email already exists.");
-  await db.insert(schema.users).values({
-    name: d.name,
-    email: d.email,
-    role: d.role,
-    passwordHash: await bcrypt.hash(d.password, 10),
-  });
+  const [created] = await db
+    .insert(schema.users)
+    .values({
+      name: d.name,
+      email: d.email,
+      role: d.role,
+      passwordHash: await bcrypt.hash(d.password, 10),
+    })
+    .returning({ id: schema.users.id });
+  await audit(db, { userId: me.id, action: "user.create", entity: "user", entityId: created.id, summary: `${d.email} added as ${d.role}`, after: { name: d.name, email: d.email, role: d.role } });
   revalidatePath("/admin", "layout");
 }
 
@@ -58,9 +63,21 @@ export async function updateUser(
     if (patch.password.length < 8) throw new UserError("Password must be at least 8 characters");
     set.passwordHash = await bcrypt.hash(patch.password, 10);
   }
+  const [before] = await db.select({ role: schema.users.role, isActive: schema.users.isActive, apps: schema.users.apps, dataScope: schema.users.dataScope, isAccountant: schema.users.isAccountant }).from(schema.users).where(eq(schema.users.id, id));
   const [u] = await db.update(schema.users).set(set).where(eq(schema.users.id, id)).returning({ email: schema.users.email });
   // a new password from the admin also lifts a lock from too many wrong tries
   if (patch.password && u) await clearFailures(u.email);
+  // a new password or a deactivation signs them out everywhere at once (a stolen cookie stops working too)
+  if (u && (patch.password || patch.isActive === false)) {
+    const sv = await revokeSessions(id);
+    if (id === me.id) await setSessionCookie({ ...me, sv });
+  }
+  if (u) {
+    // who changed whose access, and how (never the password itself)
+    const { passwordHash: _hash, ...changed } = set;
+    void _hash;
+    await audit(db, { userId: me.id, action: "user.update", entity: "user", entityId: id, summary: `${u.email}: ${[...Object.keys(changed), ...(patch.password ? ["password reset"] : [])].join(", ")}`, before, after: { ...changed, ...(patch.password ? { password: "reset" } : {}) } });
+  }
   revalidatePath("/admin", "layout");
 }
 

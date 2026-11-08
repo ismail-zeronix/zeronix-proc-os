@@ -11,7 +11,7 @@ import { ago } from "@/lib/format";
 import { mailServer } from "@/lib/mail/config";
 import { getBrand } from "@/lib/brand";
 import { MailForm } from "./mail-form";
-import { PasswordForm } from "./password-form";
+import { PasswordForm, SignOutEverywhere } from "./password-form";
 import { SignatureCard } from "./signature-card";
 
 export const metadata = { title: "My account · Zeronix" };
@@ -136,7 +136,10 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <PasswordForm />
+                  <div className="grid gap-6">
+                    <PasswordForm />
+                    <SignOutEverywhere />
+                  </div>
                 </CardContent>
               </Card>
             ),

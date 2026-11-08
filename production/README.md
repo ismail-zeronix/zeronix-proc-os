@@ -9,7 +9,8 @@ Caddy, DNS, the firewall or SouqFeed.
 Internet ──► :80/:443  caddy (separate stack, already running)
                           │  proxy-net (external Docker network, shared with SouqFeed)
                           ▼
-                  zeronix-app:3000   Next.js standalone server, non-root, + background worker
+                  zeronix-app:3000   Next.js standalone server, non-root (pages only)
+                  zeronix-worker     same image: background jobs, not on proxy-net
                           │  zeronixos_backend (internal Docker network, no outside route)
                           ▼
                   zeronix-postgres:5432   PostgreSQL 16, named volume zeronixos_pgdata
@@ -19,8 +20,10 @@ Internet ──► :80/:443  caddy (separate stack, already running)
 |---|---|---|---|---|
 | App (Next.js) | `zeronix-app` | `backend`, `proxy-net` | none | volume `zeronixos_files` (uploads) |
 | PostgreSQL 16 | `zeronix-postgres` | `backend` only | none | volume `zeronixos_pgdata` |
+| Worker (same image) | `zeronix-worker` | `backend`, `site-net`, `site-db-net`, `worker-out` | none | same volumes as the app |
 
-There is **no Redis**. Background jobs (mail sync, feeds, AI queue) run inside the app process, and chat uses
+There is **no Redis**. Background jobs (mail sync, feeds, AI queue, downloads) run in `zeronix-worker`; a database lock
+makes sure only one process ever runs them (`src/worker/leader.ts`), and chat uses
 PostgreSQL LISTEN/NOTIFY. There is **no Ollama** on the server. AI will go through a hosted model API later, and
 memory and context stay in the application's PostgreSQL database.
 

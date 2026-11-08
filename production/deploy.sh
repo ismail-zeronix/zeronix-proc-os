@@ -106,6 +106,9 @@ if [ "$STATUS" != "healthy" ]; then
 fi
 docker exec "$APP" wget -qO- http://127.0.0.1:3000/api/health/db || die "app is up but cannot reach the database"
 
+log "Starting the background worker"
+"${COMPOSE[@]}" up -d --no-build --no-deps zeronix-worker
+
 log "Starting the scraper"
 "${COMPOSE[@]}" up -d --no-build --no-deps zeronix-scraper
 if [ "$SITE_ON" = 1 ]; then

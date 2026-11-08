@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { changeMyPassword } from "./actions";
+import { changeMyPassword, signOutEverywhere } from "./actions";
 import { errorText } from "@/lib/user-error";
 
 /** Change your own password: current one first, new one twice. */
@@ -26,7 +26,7 @@ export function PasswordForm() {
             const res = await changeMyPassword({ current: f.current, next: f.next });
             if (res.error) return void toast.error(res.error);
             setF(blank);
-            toast.success("Password changed. Use the new one next time you sign in.");
+            toast.success("Password changed. Other browsers and phones are signed out.");
           } catch (err) {
             toast.error(errorText(err));
           }
@@ -50,5 +50,34 @@ export function PasswordForm() {
         Change password
       </Button>
     </form>
+  );
+}
+
+/** Signs you out on every other browser and phone, e.g. after losing a phone or using a shared computer. */
+export function SignOutEverywhere() {
+  const [pending, start] = useTransition();
+  return (
+    <div className="grid max-w-sm gap-1.5">
+      <p className="text-sm text-muted-foreground">Lost a phone or used a shared computer? Sign out everywhere except here.</p>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-fit"
+        pending={pending}
+        onClick={() =>
+          start(async () => {
+            try {
+              const res = await signOutEverywhere();
+              if (res.error) return void toast.error(res.error);
+              toast.success("Signed out on every other browser and phone.");
+            } catch (err) {
+              toast.error(errorText(err));
+            }
+          })
+        }
+      >
+        Sign out everywhere else
+      </Button>
+    </div>
   );
 }

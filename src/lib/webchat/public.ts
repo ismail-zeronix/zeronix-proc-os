@@ -1,4 +1,5 @@
 import "server-only";
+import { ipFromHeaders } from "@/lib/client-ip";
 
 /**
  * Helpers for the public widget endpoints (/api/widget/*). They are open to the internet, so: only the website's own
@@ -69,7 +70,7 @@ export async function readJson(req: Request, maxBytes = 8_000): Promise<Record<s
 }
 
 export function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "";
+  return ipFromHeaders(req.headers);
 }
 
 /** A trimmed string from the body, cut to `max`; anything else becomes "". */

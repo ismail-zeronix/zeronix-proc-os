@@ -31,3 +31,18 @@ describe.skipIf(!live)("error log (needs the dev database)", () => {
     await db.delete(schema.errorLog).where((await import("drizzle-orm")).eq(schema.errorLog.message, "not even an Error"));
   });
 });
+
+describe("error text", () => {
+  it("never keeps the values a query ran with", async () => {
+    const { scrubError } = await import("@/lib/error-log");
+    const { DrizzleQueryError } = await import("drizzle-orm/errors");
+    const e = new DrizzleQueryError("update users set password_hash = $1 where id = $2", ["$2b$10$secret-hash", "line one\nline two"], new Error("deadlock"));
+    const msg = scrubError(e.message);
+    expect(msg).toContain("update users set password_hash");
+    expect(msg).not.toContain("secret-hash");
+    expect(msg).not.toContain("line two");
+    const stack = scrubError(e.stack ?? "");
+    expect(stack).not.toContain("secret-hash");
+    expect(stack).toMatch(/\n\s+at /);
+  });
+});

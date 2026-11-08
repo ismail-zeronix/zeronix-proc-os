@@ -15,6 +15,23 @@ async function userFromCookie(header: string | string[] | undefined): Promise<nu
   return user?.id ?? null;
 }
 
+/**
+ * The text of an error without the values a database query was run with: Drizzle puts "params: ..." in its message (and
+ * so in the stack), and those can be passwords, tokens or a customer's details. The query text and Postgres's own reason
+ * (err.cause) are kept, which is what finding the bug needs.
+ */
+export function scrubError(text: string): string {
+  // params run to the stack lines ("    at ...") or the end, and a value may itself hold line breaks
+  return text.replace(/\nparams: [\s\S]*?(?=\n\s+at |$)/g, "\nparams: (not logged)");
+}
+
+function messageOf(err: unknown): string {
+  const e = err instanceof Error ? err : null;
+  const base = e?.message ?? String(err);
+  const cause = e && e.cause instanceof Error && e.cause.message && !base.includes(e.cause.message) ? `\ncause: ${e.cause.message}` : "";
+  return scrubError(base + cause);
+}
+
 /** Saves one server error. Never throws: logging must not turn one failure into two. */
 export async function logServerError(
   err: unknown,
@@ -29,9 +46,9 @@ export async function logServerError(
       method: request.method,
       routeType: context.routeType ?? "",
       routePath: (context.routePath ?? "").slice(0, 300),
-      message: (e?.message ?? String(err)).slice(0, 2000),
+      message: messageOf(err).slice(0, 2000),
       digest,
-      stack: (e?.stack ?? "").slice(0, 6000),
+      stack: scrubError(e?.stack ?? "").slice(0, 6000),
       userId: await userFromCookie(request.headers.cookie),
     });
     // keep the table small

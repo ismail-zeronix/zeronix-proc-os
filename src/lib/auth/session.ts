@@ -45,12 +45,15 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       apps: schema.users.apps,
       dataScope: schema.users.dataScope,
       isAccountant: schema.users.isAccountant,
+      sessionVersion: schema.users.sessionVersion,
     })
     .from(schema.users)
     .where(eq(schema.users.id, session.id))
     .limit(1);
   if (!row || !row.isActive) return null;
-  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role };
+  // the password changed, or "Sign out everywhere": this cookie is from before, so it no longer opens anything
+  if (row.sessionVersion !== session.sv) return null;
+  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv };
   const apps = allowedApps({ role: row.role, apps: row.apps });
   return {
     user,

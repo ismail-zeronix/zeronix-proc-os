@@ -13,6 +13,7 @@ import { termsLabel, yearNumber } from "@/lib/invoicing";
 import { quoteDecided } from "@/lib/notifications/events";
 import { money } from "@/lib/quotation";
 import { acceptQuote } from "@/lib/quote-accept";
+import { audit } from "@/lib/audit";
 import { stageLabel, trnProblem } from "@/lib/sales";
 import { parseInput, UserError } from "@/lib/user-error";
 
@@ -102,6 +103,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
       companyId: q.companyId,
       userId: me.id,
     });
+    await audit(tx, { userId: me.id, action: "order.create", entity: "sales_order", entityId: order.id, summary: `${number} made from ${q.number}: ${money(q.total)}`, after: { quoteId, total: q.total, termsDays: d.termsDays, customerRef: d.customerRef } });
     return { id: order.id, number, dealId: q.dealId, accepted: accepted.changed };
   });
   if (result.accepted) await quoteDecided(quoteId, "accepted", me.id);
@@ -202,6 +204,7 @@ export async function cancelOrder(orderId: number, reason: string) {
       companyId: o.companyId,
       userId: me.id,
     });
+    await audit(tx, { userId: me.id, action: "order.cancel", entity: "sales_order", entityId: o.id, summary: `${o.number} cancelled: ${why}`, before: { status: o.status }, after: { status: "cancelled", reason: why } });
     return o.dealId;
   });
   refresh(dealId, orderId);

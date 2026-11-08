@@ -15,6 +15,7 @@ import { getFx, toAed } from "@/lib/fx";
 import { addDays, costFields, isQuoteStatus, marginOf, money, quoteNumber, quoteStatusLabel, round2, sellPrice, totals, type QuoteStatus } from "@/lib/quotation";
 import { quoteDecided } from "@/lib/notifications/events";
 import { acceptQuote, unwinDeal } from "@/lib/quote-accept";
+import { audit } from "@/lib/audit";
 import { snapshotForQuote } from "@/lib/proposals-data";
 import { quoteDefaults } from "@/lib/quotes-data";
 import { stageLabel } from "@/lib/sales";
@@ -396,6 +397,7 @@ export async function setQuoteStatus(quoteId: number, status: string) {
       });
     }
     await note();
+    await audit(tx, { userId: me.id, action: "quote.status", entity: "quote", entityId: quoteId, summary: `${q.number}: ${quoteStatusLabel(q.status)} to ${quoteStatusLabel(next)}`, before: { status: q.status }, after: { status: next } });
     return { dealId: q.dealId, stage: movedTo, changed: true };
   });
   if (result.changed && (next === "accepted" || next === "rejected")) await quoteDecided(quoteId, next, me.id);
@@ -408,13 +410,16 @@ export async function setQuoteStatus(quoteId: number, status: string) {
 export async function deleteQuote(quoteId: number) {
   const me = await assertAnyApp("sales", "accounts");
   await assertDealOf("quotes", quoteId, true);
-  const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
+  const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId, number: schema.quotes.number, total: schema.quotes.total, companyId: schema.quotes.companyId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
   if (!q) return;
   await assertNotConverted(db, quoteId);
   const [past] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId)).limit(1);
   if (past) throw new UserError(`This quote keeps the history of cancelled order ${past.number}. Mark it rejected instead.`);
   if (q.status !== "draft" && me.role !== "admin") throw new UserError("Only an admin can delete a quote that was sent. Mark it rejected instead.");
-  await db.delete(schema.quotes).where(and(eq(schema.quotes.id, quoteId)));
+  await db.transaction(async (tx) => {
+    await audit(tx, { userId: me.id, action: "quote.delete", entity: "quote", entityId: quoteId, summary: `${q.number} (${quoteStatusLabel(q.status)}, ${money(q.total)}) deleted`, before: q });
+    await tx.delete(schema.quotes).where(eq(schema.quotes.id, quoteId));
+  });
   refresh(q.dealId);
 }
 

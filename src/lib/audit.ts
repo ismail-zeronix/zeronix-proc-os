@@ -1,5 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
+import { ipFromHeaders } from "@/lib/client-ip";
 import { db, schema } from "@/db";
 import { DEFAULT_ORG_ID } from "@/lib/org";
 import type { Tx } from "@/lib/tx";
@@ -20,7 +21,7 @@ export interface AuditEntry {
 async function clientIp(): Promise<string> {
   try {
     const h = await headers();
-    return (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "";
+    return ipFromHeaders(h);
   } catch {
     return ""; // scripts and tests have no request
   }

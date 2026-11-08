@@ -18,6 +18,8 @@ docker image inspect "$APP:$TARGET" >/dev/null 2>&1 || { echo "image $APP:$TARGE
 echo "switching $APP to $APP:$TARGET"
 docker tag "$APP:$TARGET" "$APP:latest"
 "${COMPOSE[@]}" up -d --no-build "$APP"
+# the background worker runs the same image
+"${COMPOSE[@]}" up -d --no-build --no-deps zeronix-worker
 
 STATUS=starting
 for _ in $(seq 1 40); do

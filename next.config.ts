@@ -31,10 +31,30 @@ const nextConfig: NextConfig = {
   env: { APP_VERSION: new Date().toISOString() },
   // `npm run dev -- -H 0.0.0.0` serves the office LAN; without this, pages opened by IP load without their dev JS.
   allowedDevOrigins: ["192.168.*.*"],
-  serverExternalPackages: ["pg", "pg-boss", "bcryptjs"],
+  serverExternalPackages: ["pg", "bcryptjs"],
   // The login gate (proxy.ts) buffers request bodies, 10 MB by default and silently cut off beyond that.
   // Email attachments (15 MB) and Excel price lists (15 MB) need more room.
   experimental: { proxyClientMaxBodySize: "20mb" },
+  /**
+   * Security headers on every response. Other websites may not show the portal in a frame (clickjacking); the portal's
+   * own frames (mail preview, visitor pages) still work. HSTS is ignored by browsers on plain http, so local development
+   * is unaffected. A full Content-Security-Policy comes later, report-only first.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       ...MOVED_TO_PROCUREMENT.flatMap((p) => [

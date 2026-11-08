@@ -10,6 +10,7 @@ import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
 import { dealAssigned, quoteDecided } from "@/lib/notifications/events";
 import { acceptQuote, liveSaleOfDeal } from "@/lib/quote-accept";
+import { audit } from "@/lib/audit";
 import { companyOwners, saveCompanyOwners } from "@/lib/company-owners";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
@@ -505,7 +506,7 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
 export async function deleteDeal(dealId: number) {
   const me = await assertApp("crm");
   await assertDeal(dealId);
-  const [deal] = await db.select({ id: schema.deals.id }).from(schema.deals).where(eq(schema.deals.id, dealId));
+  const [deal] = await db.select({ id: schema.deals.id, title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
   if (!deal) return;
   const [member] = await db
     .select({ userId: schema.dealAssignees.userId })
@@ -514,6 +515,11 @@ export async function deleteDeal(dealId: number) {
   if (me.role !== "admin" && !member) throw new UserError("Only the people on the deal or an admin can delete it.");
   const [order] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.dealId, dealId)).limit(1);
   if (order) throw new UserError(`This deal has order ${order.number}, so it cannot be deleted. Cancel the order instead.`);
+  // a tax invoice is never deleted, so neither is the deal it belongs to (it would fail on the database link anyway)
+  const [invoice] = await db.select({ number: schema.invoices.number }).from(schema.invoices).where(eq(schema.invoices.dealId, dealId)).limit(1);
+  if (invoice) throw new UserError(`This deal has invoice ${invoice.number}, so it cannot be deleted. Mark it lost instead.`);
+  const quotes = await db.select({ number: schema.quotes.number, status: schema.quotes.status }).from(schema.quotes).where(eq(schema.quotes.dealId, dealId));
+  await audit(db, { userId: me.id, action: "deal.delete", entity: "deal", entityId: dealId, summary: `Deal "${deal.title}" deleted${quotes.length ? ` with quotes ${quotes.map((q) => q.number).join(", ")}` : ""}`, before: { ...deal, quotes } });
   await db.delete(schema.tasks).where(and(eq(schema.tasks.relatedType, "deal"), eq(schema.tasks.relatedId, dealId)));
   // the project goes with the deal (cascade); its checklist is linked loosely, so remove it here
   const [project] = await db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.dealId, dealId));

@@ -44,7 +44,7 @@ export async function createInitialAdmin(_prev: { error?: string } | undefined, 
 
   if (!user) return { error: "Setup is already complete. Please sign in instead." };
 
-  const token = await signSession({ id: user.id, name: user.name, email: user.email, role: user.role });
+  const token = await signSession({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion });
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

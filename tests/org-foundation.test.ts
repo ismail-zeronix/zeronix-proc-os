@@ -5,6 +5,7 @@ import { seriesNumber } from "@/lib/doc-numbers";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers({ "x-forwarded-for": "10.1.2.3, 10.0.0.1" }) }));
+// the caller wrote 10.1.2.3; our proxy added 10.0.0.1 (the last entry), which is the address the trail keeps
 
 describe("organisation helpers", () => {
   it("names the fiscal year by the year it starts in", () => {
@@ -74,7 +75,7 @@ describe.skipIf(!live)("organisation foundation (needs the dev database)", () =>
     ).rejects.toThrow("undo");
     const rows = await db.select().from(schema.auditLog).where(eq(schema.auditLog.entity, key));
     expect(rows.map((r) => r.summary)).toEqual(["kept"]);
-    expect(rows[0]).toMatchObject({ organizationId: 1, ip: "10.1.2.3", after: { a: 1 } });
+    expect(rows[0]).toMatchObject({ organizationId: 1, ip: "10.0.0.1", after: { a: 1 } });
     await db.delete(schema.auditLog).where(eq(schema.auditLog.entity, key));
     await db.delete(schema.docSeries).where(eq(schema.docSeries.key, key));
   });

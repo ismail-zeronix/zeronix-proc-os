@@ -20,6 +20,27 @@ export async function lockedMinutes(email: string, now = new Date()): Promise<nu
   return Math.max(1, Math.ceil((freeAt - now.getTime()) / 60_000));
 }
 
+/**
+ * One network may get this many wrong passwords in the window, across all emails: password spraying (one password tried
+ * on many accounts) is stopped even though no single account reaches its own limit. High enough for an office behind
+ * one address.
+ */
+export const MAX_IP_FAILURES = 30;
+
+/** Minutes until this address may try again, or 0. An empty address (local development) is never blocked. */
+export async function ipLockedMinutes(ip: string, now = new Date()): Promise<number> {
+  if (!ip) return 0;
+  const since = new Date(now.getTime() - WINDOW_MINUTES * 60_000);
+  const rows = await db
+    .select({ at: schema.loginFailures.at })
+    .from(schema.loginFailures)
+    .where(and(eq(schema.loginFailures.ip, ip.slice(0, 64)), gt(schema.loginFailures.at, since)))
+    .orderBy(schema.loginFailures.at);
+  if (rows.length < MAX_IP_FAILURES) return 0;
+  const freeAt = rows[rows.length - MAX_IP_FAILURES].at.getTime() + WINDOW_MINUTES * 60_000;
+  return Math.max(1, Math.ceil((freeAt - now.getTime()) / 60_000));
+}
+
 export async function recordFailure(email: string, ip: string) {
   await db.insert(schema.loginFailures).values({ email, ip: ip.slice(0, 64) });
   console.warn(`[login] wrong password for ${email} from ${ip || "unknown address"}`);

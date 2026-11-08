@@ -6,7 +6,7 @@ let cookieValue: string | undefined;
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined) }),
+  cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined), set: (_n: string, v: string) => void (cookieValue = v) }),
   headers: async () => new Headers(),
 }));
 

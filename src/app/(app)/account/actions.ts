@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { loadAccess } from "@/lib/auth/session";
+import { revokeSessions, setSessionCookie } from "@/lib/auth/session-cookie";
+import { audit } from "@/lib/audit";
 import { encryptSecret } from "@/lib/crypto";
 import { fetchLatest } from "@/lib/mail/imap";
 import { syncMailbox } from "@/lib/mail/sync";
@@ -105,5 +107,16 @@ export async function changeMyPassword(input: z.input<typeof passwordSchema>): P
   const [row] = await db.select({ hash: schema.users.passwordHash }).from(schema.users).where(eq(schema.users.id, user.id));
   if (!row || !(await bcrypt.compare(parsed.data.current, row.hash))) return { error: "Your current password is not right." };
   await db.update(schema.users).set({ passwordHash: await bcrypt.hash(parsed.data.next, 10) }).where(eq(schema.users.id, user.id));
+  await audit(db, { userId: user.id, action: "auth.password_change", entity: "user", entityId: user.id, summary: `${user.email} changed their password` });
+  // every other browser and phone signed in with the old password is signed out; this one stays signed in
+  await setSessionCookie({ ...user, sv: await revokeSessions(user.id) });
+  return {};
+}
+
+/** Signs you out on every other browser and phone (a lost phone, a shared computer). This browser stays signed in. */
+export async function signOutEverywhere(): Promise<Result> {
+  const user = await me();
+  await audit(db, { userId: user.id, action: "auth.sign_out_everywhere", entity: "user", entityId: user.id, summary: `${user.email} signed out everywhere else` });
+  await setSessionCookie({ ...user, sv: await revokeSessions(user.id) });
   return {};
 }

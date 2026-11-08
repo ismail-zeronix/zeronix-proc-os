@@ -26,7 +26,7 @@ services:
     depends_on:
       zeronix-postgres:
         condition: service_healthy
-    environment:
+    environment: &app-env
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: 0.0.0.0
@@ -37,6 +37,8 @@ services:
       SITE_DATABASE_URL: ${SITE_POSTGRES_PASSWORD:+postgres://${SITE_POSTGRES_USER:-zeronix_site}:${SITE_POSTGRES_PASSWORD}@zeronix-site-db:5432/${SITE_POSTGRES_DB:-zeronix_site}}
       SITE_FILES_DIR: /app/data/site-media
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      # encrypts saved mailbox passwords and API keys (lib/crypto.ts); optional, AUTH_SECRET is used while it is empty
+      DATA_KEY: ${DATA_KEY:-}
       # served over HTTPS by Caddy, so the session cookie is Secure
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       # websites allowed to use the website chat widget (widget/README.md)
@@ -55,7 +57,8 @@ services:
       MAIL_WEBMAIL_URL: ${MAIL_WEBMAIL_URL:-https://mail.hostinger.com}
       # No Ollama on the server. A hosted AI model API will be added later (AI_* in .env.example); until then the
       # AI price-list reader is simply unavailable and everything else works.
-      RUN_WORKER: "true"
+      # background jobs run in zeronix-worker below, not in the web server (one worker only: src/worker/leader.ts)
+      RUN_WORKER: "false"
       MIGRATE_ON_START: "false"
       FILES_DIR: /app/data/files
     volumes:
@@ -68,6 +71,39 @@ services:
       - proxy-net
       - site-net
       - site-db-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *logging
+
+  # The background jobs (mail sync, feeds, notifications, background downloads, prospecting, website posts): the same image
+  # as the app, so a slow job never slows pages down and a web restart never interrupts a job. It runs its own copy of
+  # the server only to render downloads (PDF, Excel) for itself; nothing reaches it from outside (not on proxy-net).
+  # Only one worker ever runs jobs: a second one waits on a database lock (src/worker/leader.ts).
+  zeronix-worker:
+    image: zeronix-app:${APP_IMAGE_TAG:-latest}
+    container_name: zeronix-worker
+    restart: unless-stopped
+    depends_on:
+      zeronix-postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      RUN_WORKER: "true"
+      WORKER_ONLY: "true"
+      DB_POOL_MAX: ${WORKER_DB_POOL_MAX:-5}
+    volumes:
+      - files:/app/data/files
+      - sitemedia:/app/data/site-media
+    networks:
+      - backend
+      - site-net
+      - site-db-net
+      - worker-out
+    mem_limit: ${WORKER_MEM_LIMIT:-768m}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
       interval: 30s
@@ -175,6 +211,8 @@ networks:
     internal: true
   proxy-net:
     external: true
+  # outbound internet for the worker (mailboxes, feeds, AI API) without joining proxy-net
+  worker-out:
   # outbound internet for the scraper only
   scraper-out:
   # the public site and the portal only: the site reaches /api/site/*, the portal reaches the site's /api/revalidate
