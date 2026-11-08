@@ -4,7 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** Where uploaded files live on disk. In Docker this is a volume, so files survive a rebuild. */
-export const FILES_DIR = path.resolve(process.env.FILES_DIR ?? path.join(process.cwd(), "data", "files"));
+export const FILES_DIR = path.resolve(process.env.FILES_DIR ?? path.join(/* turbopackIgnore: true */ process.cwd(), "data", "files"));
 
 /** Stored names are random (uuid + allowed extension), never the name people gave the file. */
 const STORED = /^[0-9a-f-]{36}\.[a-z0-9]{1,8}$/;

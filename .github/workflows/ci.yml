@@ -1,0 +1,47 @@
+# Checks every push and pull request: types, lint, the full test suite on a throwaway Postgres, and a production build.
+# Tests make their own procurement_test database on this service (tests/setup-test-db.ts), so no real data is involved.
+name: CI
+
+on:
+  push:
+    branches: [dev, main, saas]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: zeronix
+          POSTGRES_PASSWORD: zeronix
+          POSTGRES_DB: procurement
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zeronix -d procurement"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://zeronix:zeronix@localhost:5432/procurement
+      AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit --incremental false
+      - name: Lint
+        run: npx eslint
+      - name: Tests
+        run: npx vitest run
+      - name: Build
+        run: npx next build

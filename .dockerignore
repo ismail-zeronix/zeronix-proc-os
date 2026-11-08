@@ -16,3 +16,5 @@ production
 .vscode
 .claude
 website
+# prospect contact data imported by hand (production/prospects-import.sh), never part of an image
+/prospects-data.sql
