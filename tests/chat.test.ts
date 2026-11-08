@@ -101,7 +101,7 @@ describe.skipIf(!live)("chat (needs the dev database)", () => {
     const got: ChatEvent[] = [];
     const off = bus.subscribe(bina, (e) => {
       if (e.t !== "resync") got.push(e);
-    });
+    }, 1);
     // let the LISTEN connection come up
     await new Promise((r) => setTimeout(r, 500));
 
@@ -480,7 +480,7 @@ describe.skipIf(!live)("status, mute, card buttons and search (needs the dev dat
   });
 
   it("shows people online, away or on do not disturb, and ends a timed do-not-disturb by itself", async () => {
-    const off = bus.subscribe(ali, () => {});
+    const off = bus.subscribe(ali, () => {}, 1);
     try {
       expect((await P.presenceMap())[ali]).toBe("online");
       await P.reportAway(ali, true);

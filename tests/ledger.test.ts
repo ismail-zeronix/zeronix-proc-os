@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import { AE_TRADING, categorySystemKey, debitNormal } from "@/lib/ledger/coa-templates";
 import { drCr, journalProblem, journalTotals, sourceHref } from "@/lib/ledger/journal";
 import { CATEGORIES } from "@/lib/purchases";
@@ -7,6 +8,12 @@ import { aeVat } from "@/lib/tax/ae-vat";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
+const mockOrg = vi.hoisted(() => ({ id: 0 }));
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
+});
 
 describe("UAE trading chart of accounts", () => {
   const byCode = new Map(AE_TRADING.accounts.map((a) => [a.code, a]));
@@ -98,8 +105,9 @@ describe.skipIf(!live)("ledger in the database (a throwaway organisation)", () =
     L = await import("@/lib/ledger/post");
     S = await import("@/lib/ledger/setup");
     O = await import("@/lib/org");
-    const [o] = await db.insert(schema.organizations).values({ name: `ZZLEDGER${Date.now()}` }).returning({ id: schema.organizations.id });
+    const [o] = await createTestOrg({ name: `ZZLEDGER${Date.now()}` });
     orgId = o.id;
+    mockOrg.id = orgId;
   });
 
   afterAll(async () => {
@@ -221,7 +229,7 @@ describe.skipIf(!live)("ledger in the database (a throwaway organisation)", () =
         const [e] = (await tx.execute(D.sql`INSERT INTO journal_entries (organization_id, number, date, source_type, total) VALUES (${orgId}, 'ZZ-RAW-3', ${day}, 'manual', 5) RETURNING id`)).rows as { id: number }[];
         await tx.execute(D.sql`INSERT INTO journal_lines (organization_id, entry_id, line_no, account_id, debit) VALUES (${orgId}, ${e.id}, 1, ${mine.id as number}, 5)`);
         await tx.execute(D.sql`INSERT INTO journal_lines (organization_id, entry_id, line_no, account_id, credit) VALUES (${orgId}, ${e.id}, 2, ${theirs.id as number}, 5)`);
-      }))).toMatch(/own organisation/);
+      }))).toMatch(/own organisation|row-level security/);
   });
 
   it("reverses once, carries tax codes across, and moves a reversal past the lock date", async () => {

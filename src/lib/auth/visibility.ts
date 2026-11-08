@@ -82,32 +82,42 @@ export function fileVisible(v: Viewer, relatedType: SQLWrapper, relatedId: SQLWr
     OR (${relatedType} = 'invoice' AND EXISTS (SELECT 1 FROM invoices fi WHERE fi.id = ${relatedId} AND ${invoiceVisible(v, { dealId: sql`fi.deal_id`, orderId: sql`fi.order_id`, quoteId: sql`fi.quote_id` })})))`;
 }
 
+/**
+ * "Sees everything" means everything in their own organisation: the row must still exist there. Row-level security
+ * hides other organisations' rows from this query, so an admin can never link to another tenant's record by its id.
+ */
+async function inMyOrg(table: "files" | "deals" | "quotes" | "sales_orders" | "invoices" | "companies", id: number): Promise<boolean> {
+  if (!Number.isInteger(id) || id < 1) return false;
+  const r = await db.execute(sql`SELECT 1 FROM ${sql.identifier(table)} WHERE id = ${id}`);
+  return r.rows.length > 0;
+}
+
 export async function canSeeFile(v: Viewer, fileId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("files", fileId);
   const r = await db.execute(sql`SELECT 1 FROM files f WHERE f.id = ${fileId} AND ${fileVisible(v, sql`f.related_type`, sql`f.related_id`)}`);
   return r.rows.length > 0;
 }
 
 export async function canSeeDeal(v: Viewer, dealId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("deals", dealId);
   const r = await db.execute(sql`SELECT 1 FROM deal_assignees WHERE deal_id = ${dealId} AND user_id = ${v.id} LIMIT 1`);
   return r.rows.length > 0;
 }
 
 export async function canSeeQuote(v: Viewer, quoteId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("quotes", quoteId);
   const r = await db.execute(sql`SELECT 1 FROM quotes q WHERE q.id = ${quoteId} AND ${quoteVisible(v, { dealId: sql`q.deal_id`, ownerId: sql`q.owner_id`, createdBy: sql`q.created_by` })}`);
   return r.rows.length > 0;
 }
 
 export async function canSeeOrder(v: Viewer, orderId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("sales_orders", orderId);
   const r = await db.execute(sql`SELECT 1 FROM sales_orders o WHERE o.id = ${orderId} AND ${orderVisible(v, { dealId: sql`o.deal_id`, quoteId: sql`o.quote_id` })}`);
   return r.rows.length > 0;
 }
 
 export async function canSeeInvoice(v: Viewer, invoiceId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("invoices", invoiceId);
   const r = await db.execute(sql`SELECT 1 FROM invoices i WHERE i.id = ${invoiceId} AND ${invoiceVisible(v, { dealId: sql`i.deal_id`, orderId: sql`i.order_id`, quoteId: sql`i.quote_id` })}`);
   return r.rows.length > 0;
 }
@@ -134,7 +144,7 @@ export async function canSeeRelated(v: Viewer, relatedType: string, relatedId: n
 }
 
 export async function canSeeCompany(v: Viewer, companyId: number): Promise<boolean> {
-  if (v.seesAll) return true;
+  if (v.seesAll) return inMyOrg("companies", companyId);
   const r = await db.execute(sql`SELECT 1 WHERE ${companyVisible(v, sql`${companyId}::int`)}`);
   return r.rows.length > 0;
 }

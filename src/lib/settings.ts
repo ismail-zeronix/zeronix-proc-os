@@ -76,5 +76,5 @@ export async function setSetting(key: SettingKey, value: string) {
   await db
     .insert(schema.settings)
     .values({ key, value })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: new Date() } });
+    .onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value, updatedAt: new Date() } });
 }

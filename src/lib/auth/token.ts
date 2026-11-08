@@ -14,6 +14,11 @@ export interface SessionUser {
    * Cookies from before this existed count as version 1, the default, so nobody is signed out by the upgrade itself.
    */
   sv: number;
+  /**
+   * The organisation (tenant) the user works in; every query of their requests is scoped to it (db/org-context.ts).
+   * Null on cookies from before organisations were in the cookie (a single-company install then uses organisation 1).
+   */
+  org: number | null;
 }
 
 function key() {
@@ -23,7 +28,7 @@ function key() {
 }
 
 export async function signSession(user: SessionUser): Promise<string> {
-  return new SignJWT({ name: user.name, email: user.email, role: user.role, sv: user.sv })
+  return new SignJWT({ name: user.name, email: user.email, role: user.role, sv: user.sv, org: user.org })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(String(user.id))
     .setIssuedAt()
@@ -41,6 +46,7 @@ export async function verifySession(token: string | undefined): Promise<SessionU
       email: String(payload.email),
       role: payload.role === "admin" ? "admin" : "sales",
       sv: typeof payload.sv === "number" && Number.isInteger(payload.sv) ? payload.sv : 1,
+      org: typeof payload.org === "number" && Number.isInteger(payload.org) && payload.org > 0 ? payload.org : null,
     };
   } catch {
     return null;

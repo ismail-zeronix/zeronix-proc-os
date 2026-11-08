@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import { journalProblem } from "@/lib/ledger/journal";
 import { buildOpening, parseAmount, parseTrialBalance, suggestAccount } from "@/lib/ledger/opening";
 import { billCostAccount, billLines, cogsLines, creditNoteLines, expenseLines, invoiceLines, receiptLines, supplierPaymentLines } from "@/lib/ledger/rules";
@@ -9,9 +10,10 @@ let cookieValue: string | undefined;
 vi.mock("server-only", () => ({}));
 /** The actions in this file work for a throwaway organisation, so Zeronix's books are never touched. */
 const mockOrg = vi.hoisted(() => ({ id: 0 }));
-vi.mock("@/lib/org", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/org")>();
-  return { ...real, currentOrgId: async () => mockOrg.id || real.DEFAULT_ORG_ID };
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined) }), headers: async () => new Headers() }));
@@ -216,8 +218,9 @@ describe.skipIf(!live)("documents post to the ledger (throwaway organisation, do
     Doc = await import("@/lib/ledger/documents");
     O = await import("@/lib/org");
     const S = await import("@/lib/ledger/setup");
-    orgId = (await db.insert(schema.organizations).values({ name: tag }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag }))[0].id;
     await S.ledgerReady(orgId);
+    mockOrg.id = orgId;
     await db.update(schema.accountingSettings).set({ cutoverDate: "2099-01-01" }).where(D.eq(schema.accountingSettings.organizationId, orgId));
     ids.company = (await db.insert(schema.companies).values({ name: `${tag} Customer`, nameNorm: `${tag.toLowerCase()} customer` }).returning({ id: schema.companies.id }))[0].id;
     ids.supplier = (await db.insert(schema.suppliers).values({ name: `${tag} Supplier` }).returning({ id: schema.suppliers.id }))[0].id;
@@ -420,8 +423,9 @@ describe.skipIf(!live)("Accounts actions post as they save (throwaway organisati
     A = await import("@/app/(app)/accounts/actions");
     const S = await import("@/lib/ledger/setup");
     today = (await import("@/lib/dates")).dubaiToday();
-    orgId = (await db.insert(schema.organizations).values({ name: tag }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag }))[0].id;
     await S.ledgerReady(orgId);
+    mockOrg.id = orgId;
     await db.update(schema.accountingSettings).set({ cutoverDate: today }).where(D.eq(schema.accountingSettings.organizationId, orgId));
     mockOrg.id = orgId;
     accountant = (await db.insert(schema.users).values({ name: `${tag}-acc`, email: `${tag}-acc@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"] }).returning({ id: schema.users.id }))[0].id;

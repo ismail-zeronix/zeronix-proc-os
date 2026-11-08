@@ -2,7 +2,6 @@ import "server-only";
 import { headers } from "next/headers";
 import { ipFromHeaders } from "@/lib/client-ip";
 import { db, schema } from "@/db";
-import { DEFAULT_ORG_ID } from "@/lib/org";
 import type { Tx } from "@/lib/tx";
 
 export interface AuditEntry {
@@ -33,7 +32,8 @@ async function clientIp(): Promise<string> {
  */
 export async function audit(tx: Tx | typeof db, e: AuditEntry): Promise<void> {
   await tx.insert(schema.auditLog).values({
-    organizationId: e.orgId ?? DEFAULT_ORG_ID,
+    // left out: the current organisation (the column default reads app.org_id)
+    ...(e.orgId ? { organizationId: e.orgId } : {}),
     userId: e.userId,
     action: e.action,
     entity: e.entity,

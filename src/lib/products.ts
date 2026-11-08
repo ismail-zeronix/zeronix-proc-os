@@ -105,7 +105,7 @@ export async function upsertProductFor(d: OfferDraft, tx: Tx): Promise<number> {
       specSummary: specSummary(d),
       matchKey: key,
     })
-    .onConflictDoUpdate({ target: schema.products.matchKey, set: { matchKey: key } })
+    .onConflictDoUpdate({ target: [schema.products.organizationId, schema.products.matchKey], set: { matchKey: key } })
     .returning({ id: schema.products.id });
   return created.id;
 }

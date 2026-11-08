@@ -1,22 +1,28 @@
 import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { cache } from "react";
-import { db, schema } from "@/db";
+import { db, runAsOrg, schema } from "@/db";
+import { resolveOrgId } from "@/db/org-context";
+import { UserError } from "@/lib/user-error";
 import { getBrandRow } from "@/lib/brand";
 import { getSetting } from "@/lib/settings";
 import type { Tx } from "@/lib/tx";
 
 /**
- * Organisations (tenants). Today there is one: Zeronix, id 1, and every row defaults to it. The base for more is here:
- * new tables carry organization_id plus the org_isolation RLS policy, and new ledger code runs through withOrg() so the
- * database knows whose rows a transaction may see. The policies are enforced once the app connects as a non-owner role
- * (Phase T of the accounts plan); until then they are inert and this module only passes the id along.
+ * Organisations (tenants). Zeronix is 1. Every table carries organization_id with the org_isolation row-level-security
+ * policy, and the connection pool sets app.org_id for every query (db/index.ts, db/org-context.ts), so a query only ever
+ * sees the current organisation's rows. withOrg() also sets it inside one transaction, as the ledger has always done.
  */
 export const DEFAULT_ORG_ID = 1;
 
-/** The signed-in user's organisation. Always Zeronix until users can belong to more than one (Phase T). */
+/**
+ * The organisation the current work is for: runAsOrg(), else the signed-in user's, else the fallback of a single-company
+ * install. A SaaS request with none of these has no organisation, and that is an error, never organisation 1.
+ */
 export async function currentOrgId(): Promise<number> {
-  return DEFAULT_ORG_ID;
+  const org = await resolveOrgId();
+  if (!org) throw new UserError("Please sign in again.");
+  return org;
 }
 
 /** Tells Postgres which organisation this transaction works for (read by the org_isolation policies). */
@@ -27,10 +33,12 @@ export async function setTxOrg(tx: Tx, orgId: number): Promise<void> {
 
 /** Runs `fn` in a transaction scoped to one organisation. Use it for every ledger read and write. */
 export function withOrg<T>(orgId: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return db.transaction(async (tx) => {
-    await setTxOrg(tx, orgId);
-    return fn(tx);
-  });
+  return runAsOrg(orgId, () =>
+    db.transaction(async (tx) => {
+      await setTxOrg(tx, orgId);
+      return fn(tx);
+    }),
+  );
 }
 
 export interface OrgProfile {
@@ -49,13 +57,15 @@ export interface OrgProfile {
 }
 
 /**
- * Everything accounting needs to know about an organisation. For Zeronix the TRN and trade licence still live where the
- * documents read them (settings, brand profile), so there is one copy of each; they move onto the organisation in Phase T.
+ * Everything accounting needs to know about an organisation. The TRN and trade licence live where the documents read
+ * them (Accounts › Settings, brand profile), one copy each, per organisation. Left out: the current organisation.
  */
-export const orgProfile = cache(async (orgId: number = DEFAULT_ORG_ID): Promise<OrgProfile> => {
-  const [org] = await db.select().from(schema.organizations).where(eq(schema.organizations.id, orgId)).limit(1);
-  if (!org) throw new Error(`Organisation ${orgId} not found`);
-  const [trn, brand] = orgId === DEFAULT_ORG_ID ? await Promise.all([getSetting("quote_trn"), getBrandRow()]) : ["", null];
+export const orgProfile = cache(async (orgId?: number): Promise<OrgProfile> => {
+  const id = orgId ?? (await currentOrgId());
+  const [org, trn, brand] = await runAsOrg(id, () =>
+    Promise.all([db.select().from(schema.organizations).where(eq(schema.organizations.id, id)).limit(1).then((r) => r[0]), getSetting("quote_trn"), getBrandRow()]),
+  );
+  if (!org) throw new Error(`Organisation ${id} not found`);
   return {
     id: org.id,
     name: org.name,

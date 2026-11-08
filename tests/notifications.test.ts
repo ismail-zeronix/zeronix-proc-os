@@ -170,7 +170,7 @@ describe.skipIf(!live)("notifications (needs the dev database)", () => {
     const got: ChatEvent[] = [];
     const off = bus.subscribe(bina, (e) => {
       if (e.t !== "resync") got.push(e);
-    });
+    }, 1);
     await new Promise((r) => setTimeout(r, 600)); // LISTEN connects
     await N.notify({ userIds: [bina], kind: "assign", rule: "test", priority: "normal", title: `${tag} ping`, link: "/", key: `test:${tag}` });
     await new Promise((r) => setTimeout(r, 600));

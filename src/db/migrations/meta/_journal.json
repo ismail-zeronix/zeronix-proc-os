@@ -449,6 +449,13 @@
       "when": 1794152235023,
       "tag": "0063_session_version",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794153675768,
+      "tag": "0064_tenancy",
+      "breakpoints": true
     }
   ]
 }

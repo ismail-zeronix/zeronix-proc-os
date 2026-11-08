@@ -1,13 +1,13 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { db, schema } from "@/db";
+import { db, runAsOrg } from "@/db";
 import { clearFailures, ipLockedMinutes, lockedMinutes, recordFailure } from "@/lib/auth/lockout";
 import { setSessionCookie } from "@/lib/auth/session-cookie";
+import { loginUser } from "@/lib/auth/login-user";
 import { audit } from "@/lib/audit";
 import { SESSION_COOKIE } from "@/lib/auth/token";
 import { safeNext } from "@/lib/auth/safe-next";
@@ -33,7 +33,8 @@ export async function login(_prev: { error?: string } | undefined, form: FormDat
   const wait = await lockedMinutes(email);
   if (wait) return { error: `Too many wrong passwords. Try again in ${wait} minute${wait === 1 ? "" : "s"}, or ask an admin to reset it.` };
 
-  const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  // the one read of users across organisations: the email is global and the organisation is not known yet
+  const user = await loginUser(email);
   // always run one bcrypt compare, so an unknown email answers as slowly as a wrong password (no account guessing by timing)
   const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !user.isActive || !ok) {
@@ -41,9 +42,10 @@ export async function login(_prev: { error?: string } | undefined, form: FormDat
     return { error: "Wrong email or password." };
   }
   await clearFailures(email);
-  await audit(db, { userId: user.id, action: "auth.login", entity: "user", entityId: user.id, summary: `${user.email} signed in` });
+  if (!user.orgActive) return { error: "Your company's account is paused. Please contact Zeronix support." };
+  await runAsOrg(user.organizationId, () => audit(db, { userId: user.id, action: "auth.login", entity: "user", entityId: user.id, summary: `${user.email} signed in` }));
 
-  await setSessionCookie({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion });
+  await setSessionCookie({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion, org: user.organizationId });
   redirect(safeNext(next));
 }
 

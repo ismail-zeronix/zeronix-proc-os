@@ -1,6 +1,7 @@
 import "dotenv/config";
 import ExcelJS from "exceljs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import type { AccountType } from "@/lib/ledger/coa-templates";
 import { buildAccountLedger, buildAgeing, buildBalanceSheet, buildCashFlow, buildProfitLoss, buildTrialBalance, daysLate, plTotals, type AccountRow, type Move } from "@/lib/ledger/reports/build";
 import { compareRange, fiscalYearStart, parseReportParams, REPORT_GROUPS, reportDef, reportQuery } from "@/lib/report-centre";
@@ -9,9 +10,10 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
 /** Reports in this file read a throwaway organisation, so Zeronix's books are never touched. */
 const mockOrg = vi.hoisted(() => ({ id: 0 }));
-vi.mock("@/lib/org", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/org")>();
-  return { ...real, currentOrgId: async () => mockOrg.id || real.DEFAULT_ORG_ID };
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
 });
 
 let nextId = 1;
@@ -281,8 +283,9 @@ describe.skipIf(!live)("reports on a real ledger (throwaway organisation)", () =
     O = await import("@/lib/org");
     R = await import("@/lib/report-run");
     const S = await import("@/lib/ledger/setup");
-    orgId = (await db.insert(schema.organizations).values({ name: tag }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag }))[0].id;
     await S.ledgerReady(orgId);
+    mockOrg.id = orgId;
     await db.update(schema.accountingSettings).set({ cutoverDate: "2099-01-01" }).where(D.eq(schema.accountingSettings.organizationId, orgId));
     mockOrg.id = orgId;
     companyId = (await db.insert(schema.companies).values({ name: `${tag} Customer`, nameNorm: `${tag.toLowerCase()} customer` }).returning({ id: schema.companies.id }))[0].id;

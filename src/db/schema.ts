@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -24,8 +25,8 @@ import type { SellerSnapshot } from "@/lib/seller-types";
 
 /**
  * Organisations (tenants). Row 1 is Zeronix. Every new table carries organization_id, and the accounting tables also get
- * the org_isolation row-level-security policy (see lib/org.ts). The policies only bite once the app connects as a
- * non-owner database role (Phase T in the accounts plan); today it connects as the owner, so they change nothing.
+ * the org_isolation row-level-security policy (see lib/org.ts). They are enforced when the app connects as the non-owner
+ * role zx_app with FORCE ROW LEVEL SECURITY (SaaS, scripts/db-roles.sql); a superuser connection (local development) skips them.
  * Our TRN stays in settings (quote_trn) and the trade licence in brand_profile: read them through orgProfile().
  */
 export const organizations = pgTable("organizations", {
@@ -42,23 +43,46 @@ export const organizations = pgTable("organizations", {
   fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(1),
   timezone: text("timezone").notNull().default("Asia/Dubai"),
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  /**
+   * The apps this organisation's people may use (keys from lib/apps.ts); null = every app. Set from the platform console
+   * for SaaS tenants (core apps only); Zeronix (null) keeps everything.
+   */
+  enabledApps: text("enabled_apps").array(),
+  /** Most people the organisation may have (active users); null = no limit. */
+  userLimit: integer("user_limit"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, () => [
+  // an organisation sees its own row only (the platform console reads all of them through its own database role)
+  pgPolicy("org_self", {
+    for: "all",
+    using: sql`id = nullif(current_setting('app.org_id', true), '')::int`,
+    withCheck: sql`id = nullif(current_setting('app.org_id', true), '')::int`,
+  }),
+]);
 
-/** The organisation a row belongs to. Default 1 (Zeronix) until there is more than one. */
+/**
+ * The organisation (tenant) a row belongs to. Filled in by the database from app.org_id, which the connection pool sets
+ * for every query (src/db/index.ts), so inserts never name it; with no organisation set the insert fails (fail closed).
+ */
+const ORG_SETTING = sql`nullif(current_setting('app.org_id', true), '')::int`;
 const orgId = () =>
   integer("organization_id")
     .notNull()
-    .default(1)
+    .default(ORG_SETTING)
+    .references(() => organizations.id);
+/** For rows that may belong to no organisation (an error on the sign-in page). */
+const orgIdNullable = () =>
+  integer("organization_id")
+    .default(ORG_SETTING)
     .references(() => organizations.id);
 
 /** Row-level security for a tenant table: rows of the organisation set by withOrg() (app.org_id) only. */
 const orgPolicy = () =>
   pgPolicy("org_isolation", {
     for: "all",
-    using: sql`organization_id = nullif(current_setting('app.org_id', true), '')::int`,
-    withCheck: sql`organization_id = nullif(current_setting('app.org_id', true), '')::int`,
+    using: sql`organization_id = ${ORG_SETTING}`,
+    withCheck: sql`organization_id = ${ORG_SETTING}`,
   });
 
 export const users = pgTable("users", {
@@ -82,12 +106,13 @@ export const users = pgTable("users", {
   phone: text("phone").notNull().default(""),
   mobile: text("mobile").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 export const suppliers = pgTable("suppliers", {
   id: serial("id").primaryKey(),
   organizationId: orgId(),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull(),
   contactName: text("contact_name").notNull().default(""),
   phone: text("phone").notNull().default(""),
   location: text("location").notNull().default(""),
@@ -106,13 +131,15 @@ export const suppliers = pgTable("suppliers", {
   bankName: text("bank_name").notNull().default(""),
   iban: text("iban").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  (t) => [uniqueIndex("suppliers_org_name_uq").on(t.organizationId, t.name), orgPolicy()]);
 
 /**
  * A supplier who publishes their stock sheet at a link (e.g. a published Google Sheet). The background
  * scheduler re-reads it every `intervalMinutes` and saves a new price list only when the sheet changed.
  */
 export const supplierFeeds = pgTable("supplier_feeds", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   supplierId: integer("supplier_id")
     .notNull()
@@ -135,11 +162,13 @@ export const supplierFeeds = pgTable("supplier_feeds", {
   lastMessage: text("last_message").notNull().default(""),
   lastPriceListId: integer("last_price_list_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 export const priceLists = pgTable(
   "price_lists",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
@@ -164,12 +193,13 @@ export const priceLists = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     savedAt: timestamp("saved_at", { withTimezone: true }),
   },
-  (t) => [index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt)],
+  (t) => [index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt), orgPolicy()],
 );
 
 export const products = pgTable(
   "products",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     category: text("category").notNull(),
     brand: text("brand").notNull(),
@@ -181,13 +211,15 @@ export const products = pgTable(
     ramGb: integer("ram_gb"),
     storage: text("storage").notNull().default(""),
     specSummary: text("spec_summary").notNull().default(""),
-    matchKey: text("match_key").notNull().unique(),
+    matchKey: text("match_key").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("products_part_norm_idx").on(t.brand, t.partNorm),
     index("products_model_trgm").using("gin", t.modelName.op("gin_trgm_ops")),
     index("products_part_trgm").using("gin", t.partNumber.op("gin_trgm_ops")),
+    uniqueIndex("products_org_match_key_uq").on(t.organizationId, t.matchKey),
+    orgPolicy(),
   ],
 );
 
@@ -195,18 +227,20 @@ export const products = pgTable(
 export const productAliases = pgTable(
   "product_aliases",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     matchKey: text("match_key").notNull(),
   },
-  (t) => [uniqueIndex("product_aliases_key_idx").on(t.matchKey)],
+  (t) => [uniqueIndex("product_aliases_key_idx").on(t.organizationId, t.matchKey), orgPolicy()],
 );
 
 export const offers = pgTable(
   "offers",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     priceListId: integer("price_list_id")
       .notNull()
@@ -241,6 +275,7 @@ export const offers = pgTable(
     index("offers_product_idx").on(t.productId, t.receivedAt),
     index("offers_supplier_idx").on(t.supplierId, t.receivedAt),
     index("offers_search_trgm").using("gin", t.searchNorm.op("gin_trgm_ops")),
+    orgPolicy(),
   ],
 );
 
@@ -248,6 +283,7 @@ export const offers = pgTable(
 export const parseCorrections = pgTable(
   "parse_corrections",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     supplierId: integer("supplier_id")
       .notNull()
@@ -256,21 +292,24 @@ export const parseCorrections = pgTable(
     output: text("output").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("parse_corrections_supplier_idx").on(t.supplierId, t.createdAt)],
+  (t) => [index("parse_corrections_supplier_idx").on(t.supplierId, t.createdAt), orgPolicy()],
 );
 
 export const settings = pgTable("settings", {
-  key: text("key").primaryKey(),
+  organizationId: orgId(),
+  key: text("key").notNull(),
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
-});
+},
+  (t) => [primaryKey({ columns: [t.organizationId, t.key] }), orgPolicy()]);
 
 /** A to-do for one person. `relatedType`/`relatedId` link it to a deal or company once Sales exists. */
 export const tasks = pgTable(
   "tasks",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     title: text("title").notNull(),
     notes: text("notes").notNull().default(""),
@@ -296,11 +335,12 @@ export const tasks = pgTable(
     doneAt: timestamp("done_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("tasks_assignee_idx").on(t.assignedTo, t.status, t.dueDate)],
+  (t) => [index("tasks_assignee_idx").on(t.assignedTo, t.status, t.dueDate), orgPolicy()],
 );
 
 /** One user's mailbox, read over IMAP by the background worker. The password is encrypted (see lib/crypto.ts). */
 export const mailAccounts = pgTable("mail_accounts", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
@@ -316,12 +356,14 @@ export const mailAccounts = pgTable("mail_accounts", {
   /** Mailbox "UIDVALIDITY": when it changes the mailbox was rebuilt and the saved list is dropped. */
   uidValidity: text("uid_validity").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /** The newest messages in a user's inbox: sender, subject, time and read state only (no message body is stored). */
 export const mailMessages = pgTable(
   "mail_messages",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     userId: integer("user_id")
       .notNull()
@@ -333,12 +375,14 @@ export const mailMessages = pgTable(
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
     seen: boolean("seen").notNull().default(false),
   },
-  (t) => [uniqueIndex("mail_messages_user_uid_idx").on(t.userId, t.uid), index("mail_messages_recent_idx").on(t.userId, t.receivedAt)],
+  (t) => [uniqueIndex("mail_messages_user_uid_idx").on(t.userId, t.uid), index("mail_messages_recent_idx").on(t.userId, t.receivedAt), orgPolicy()],
 );
 
 /** Company branding used in email signatures. One row (id = 1), edited by an admin. */
 export const brandProfile = pgTable("brand_profile", {
-  id: integer("id").primaryKey(),
+  /** One row per organisation (always 1, kept for older code). */
+  id: integer("id").notNull().default(1),
+  organizationId: orgId().primaryKey(),
   company: text("company").notNull().default("Zeronix"),
   tagline: text("tagline").notNull().default(""),
   address: text("address").notNull().default(""),
@@ -367,12 +411,14 @@ export const brandProfile = pgTable("brand_profile", {
   stampB64: text("stamp_b64").notNull().default(""),
   stampMime: text("stamp_mime").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /** Every email sent from the portal: who, to how many people, and when. Used for the daily send limit and, later, the CRM timeline. */
 export const mailSentLog = pgTable(
   "mail_sent_log",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     userId: integer("user_id")
       .notNull()
@@ -383,7 +429,7 @@ export const mailSentLog = pgTable(
     recipients: integer("recipients").notNull().default(1),
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("mail_sent_user_idx").on(t.userId, t.sentAt)],
+  (t) => [index("mail_sent_user_idx").on(t.userId, t.sentAt), orgPolicy()],
 );
 
 // ---------- Sales ----------
@@ -413,7 +459,7 @@ export const companies = pgTable(
     ownerId: integer("owner_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("companies_name_norm_idx").on(t.nameNorm)],
+  (t) => [index("companies_name_norm_idx").on(t.nameNorm), orgPolicy()],
 );
 
 /**
@@ -423,6 +469,7 @@ export const companies = pgTable(
 export const companyOwners = pgTable(
   "company_owners",
   {
+    organizationId: orgId(),
     companyId: integer("company_id")
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
@@ -431,13 +478,14 @@ export const companyOwners = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.companyId, t.userId] }), index("company_owners_user_idx").on(t.userId)],
+  (t) => [primaryKey({ columns: [t.companyId, t.userId] }), index("company_owners_user_idx").on(t.userId), orgPolicy()],
 );
 
 /** A person at a company. */
 export const contacts = pgTable(
   "contacts",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     companyId: integer("company_id")
       .notNull()
@@ -450,13 +498,14 @@ export const contacts = pgTable(
     isDecisionMaker: boolean("is_decision_maker").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("contacts_company_idx").on(t.companyId), index("contacts_email_idx").on(t.email)],
+  (t) => [index("contacts_company_idx").on(t.companyId), index("contacts_email_idx").on(t.email), orgPolicy()],
 );
 
 /** One opportunity. A lead is simply a deal at stage "new". */
 export const deals = pgTable(
   "deals",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     title: text("title").notNull(),
     companyId: integer("company_id")
@@ -484,13 +533,14 @@ export const deals = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("deals_stage_idx").on(t.stage), index("deals_owner_idx").on(t.ownerId), index("deals_company_idx").on(t.companyId)],
+  (t) => [index("deals_stage_idx").on(t.stage), index("deals_owner_idx").on(t.ownerId), index("deals_company_idx").on(t.companyId), orgPolicy()],
 );
 
 /** The timeline of a deal: calls, messages, emails, meetings, notes and stage changes. */
 export const activities = pgTable(
   "activities",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     /** call, whatsapp, email, meeting, note, stage, created */
     type: text("type").notNull(),
@@ -500,13 +550,14 @@ export const activities = pgTable(
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at)],
+  (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at), orgPolicy()],
 );
 
 /** Everyone working on a deal, in display order. The first one is also stored as deals.owner_id (the main owner). */
 export const dealAssignees = pgTable(
   "deal_assignees",
   {
+    organizationId: orgId(),
     dealId: integer("deal_id")
       .notNull()
       .references(() => deals.id, { onDelete: "cascade" }),
@@ -515,7 +566,7 @@ export const dealAssignees = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.dealId, t.userId] }), index("deal_assignees_user_idx").on(t.userId)],
+  (t) => [primaryKey({ columns: [t.dealId, t.userId] }), index("deal_assignees_user_idx").on(t.userId), orgPolicy()],
 );
 
 // ---------- Quotes ----------
@@ -524,6 +575,7 @@ export const dealAssignees = pgTable(
 export const dealItems = pgTable(
   "deal_items",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     dealId: integer("deal_id")
       .notNull()
@@ -550,7 +602,7 @@ export const dealItems = pgTable(
     optional: boolean("optional").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("deal_items_deal_idx").on(t.dealId, t.position)],
+  (t) => [index("deal_items_deal_idx").on(t.dealId, t.position), orgPolicy()],
 );
 
 /** A quotation sent to a customer. Its lines are a copy, so later price changes never alter a sent quote. */
@@ -562,7 +614,7 @@ export const quotes = pgTable(
     /** ZQ-2026-0001: the year and a running number that restarts every year. */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     /** The CRM deal it was made for; empty for an instant quote to a customer (Sales › Quotes › New quote). */
     dealId: integer("deal_id").references(() => deals.id, { onDelete: "cascade" }),
     /** The customer, always set (the deal's company when there is a deal). */
@@ -595,12 +647,13 @@ export const quotes = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("quotes_year_seq_idx").on(t.year, t.seq), index("quotes_deal_idx").on(t.dealId), index("quotes_status_idx").on(t.status), index("quotes_company_idx").on(t.companyId), index("quotes_owner_idx").on(t.ownerId)],
+  (t) => [uniqueIndex("quotes_year_seq_idx").on(t.organizationId, t.year, t.seq), index("quotes_deal_idx").on(t.dealId), index("quotes_status_idx").on(t.status), index("quotes_company_idx").on(t.companyId), index("quotes_owner_idx").on(t.ownerId), uniqueIndex("quotes_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 export const quoteItems = pgTable(
   "quote_items",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     quoteId: integer("quote_id")
       .notNull()
@@ -616,7 +669,7 @@ export const quoteItems = pgTable(
     costAed: numeric("cost_aed", { precision: 14, scale: 2, mode: "number" }),
     supplierName: text("supplier_name").notNull().default(""),
   },
-  (t) => [index("quote_items_quote_idx").on(t.quoteId, t.position)],
+  (t) => [index("quote_items_quote_idx").on(t.quoteId, t.position), orgPolicy()],
 );
 
 /**
@@ -626,6 +679,7 @@ export const quoteItems = pgTable(
 export const attendancePunches = pgTable(
   "attendance_punches",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     userId: integer("user_id")
       .notNull()
@@ -642,13 +696,14 @@ export const attendancePunches = pgTable(
     /** True when the system closed a session nobody punched out of. */
     autoClosed: boolean("auto_closed").notNull().default(false),
   },
-  (t) => [index("attendance_punches_user_day_idx").on(t.userId, t.day)],
+  (t) => [index("attendance_punches_user_day_idx").on(t.userId, t.day), orgPolicy()],
 );
 
 /** A day someone was away for a known reason. Only shows on days without a punch. */
 export const attendanceAbsences = pgTable(
   "attendance_absences",
   {
+    organizationId: orgId(),
     userId: integer("user_id")
       .notNull()
       .references(() => users.id),
@@ -660,7 +715,7 @@ export const attendanceAbsences = pgTable(
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+  (t) => [primaryKey({ columns: [t.userId, t.day] }), orgPolicy()],
 );
 
 /** Wrong passwords, kept to lock an email for a while after too many tries (see lib/auth/lockout.ts). */
@@ -687,7 +742,7 @@ export const salesOrders = pgTable(
     /** ZSO-2026-0001 */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     /** One live order per quote; a cancelled order frees the quote (sales_orders_live_quote_idx). */
     quoteId: integer("quote_id")
       .notNull()
@@ -718,7 +773,7 @@ export const salesOrders = pgTable(
     /** ZDN-2026-0001, given when the goods are delivered. */
     dnYear: integer("dn_year"),
     dnSeq: integer("dn_seq"),
-    dnNumber: text("dn_number").unique(),
+    dnNumber: text("dn_number"),
     deliveredOn: date("delivered_on"),
     receivedBy: text("received_by").notNull().default(""),
     cancelReason: text("cancel_reason").notNull().default(""),
@@ -727,18 +782,22 @@ export const salesOrders = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("sales_orders_year_seq_idx").on(t.year, t.seq),
-    uniqueIndex("sales_orders_dn_year_seq_idx").on(t.dnYear, t.dnSeq),
+    uniqueIndex("sales_orders_year_seq_idx").on(t.organizationId, t.year, t.seq),
+    uniqueIndex("sales_orders_dn_year_seq_idx").on(t.organizationId, t.dnYear, t.dnSeq),
     uniqueIndex("sales_orders_live_quote_idx").on(t.quoteId).where(sql`status <> 'cancelled'`),
     index("sales_orders_quote_idx").on(t.quoteId),
     index("sales_orders_status_idx").on(t.status),
     index("sales_orders_company_idx").on(t.companyId),
+    uniqueIndex("sales_orders_org_number_uq").on(t.organizationId, t.number),
+    uniqueIndex("sales_orders_org_dn_number_uq").on(t.organizationId, t.dnNumber),
+    orgPolicy(),
   ],
 );
 
 export const salesOrderItems = pgTable(
   "sales_order_items",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     orderId: integer("order_id")
       .notNull()
@@ -748,7 +807,7 @@ export const salesOrderItems = pgTable(
     qty: integer("qty").notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull(),
   },
-  (t) => [index("sales_order_items_order_idx").on(t.orderId, t.position)],
+  (t) => [index("sales_order_items_order_idx").on(t.orderId, t.position), orgPolicy()],
 );
 
 /**
@@ -761,7 +820,7 @@ export const invoices = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: orgId(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     /**
      * "sale": issued here, from an order, from a quote or typed directly. "opening": a customer invoice still unpaid when
      * the portal took over from Zoho, kept with Zoho's number and total, no lines, no order; it counts in what customers
@@ -798,7 +857,7 @@ export const invoices = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("invoices_company_idx").on(t.companyId), index("invoices_due_idx").on(t.status, t.dueDate), index("invoices_order_idx").on(t.orderId), uniqueIndex("invoices_live_order_idx").on(t.orderId).where(sql`status <> 'cancelled' AND order_id IS NOT NULL`), uniqueIndex("invoices_live_quote_idx").on(t.quoteId).where(sql`status <> 'cancelled' AND quote_id IS NOT NULL AND order_id IS NULL`)],
+  (t) => [index("invoices_company_idx").on(t.companyId), index("invoices_due_idx").on(t.status, t.dueDate), index("invoices_order_idx").on(t.orderId), uniqueIndex("invoices_live_order_idx").on(t.orderId).where(sql`status <> 'cancelled' AND order_id IS NOT NULL`), uniqueIndex("invoices_live_quote_idx").on(t.quoteId).where(sql`status <> 'cancelled' AND quote_id IS NOT NULL AND order_id IS NULL`), uniqueIndex("invoices_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 export const invoiceItems = pgTable(
@@ -818,7 +877,7 @@ export const invoiceItems = pgTable(
     /** VAT code of this line (lib/tax/ae-vat.ts): decides its rate and the VAT 201 box. */
     taxCode: text("tax_code").notNull().default("SR"),
   },
-  (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position)],
+  (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position), orgPolicy()],
 );
 
 /** Gives back all or part of an invoice (ZCN-2026-0001). An invoice can have several; when they reach its whole value it is cancelled. */
@@ -829,7 +888,7 @@ export const creditNotes = pgTable(
     organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     invoiceId: integer("invoice_id")
       .notNull()
       .references(() => invoices.id),
@@ -847,7 +906,7 @@ export const creditNotes = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("credit_notes_year_seq_idx").on(t.year, t.seq), index("credit_notes_invoice_idx").on(t.invoiceId)],
+  (t) => [uniqueIndex("credit_notes_year_seq_idx").on(t.organizationId, t.year, t.seq), index("credit_notes_invoice_idx").on(t.invoiceId), uniqueIndex("credit_notes_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 /** What a credit note gives back, line by line: all or part of an invoice line, at its price or at a lower one. */
@@ -884,7 +943,7 @@ export const payments = pgTable(
     sellerSnapshot: jsonb("seller_snapshot").$type<SellerSnapshot>(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     /** Only on receipts from before allocations existed. Read payment_allocations instead. */
     invoiceId: integer("invoice_id").references(() => invoices.id),
     companyId: integer("company_id")
@@ -903,7 +962,7 @@ export const payments = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("payments_year_seq_idx").on(t.year, t.seq), index("payments_invoice_idx").on(t.invoiceId), index("payments_company_idx").on(t.companyId)],
+  (t) => [uniqueIndex("payments_year_seq_idx").on(t.organizationId, t.year, t.seq), index("payments_invoice_idx").on(t.invoiceId), index("payments_company_idx").on(t.companyId), uniqueIndex("payments_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 /** How much of a receipt went to which invoice. Applying an advance later adds a row with its own date; taking one off voids the row. */
@@ -941,7 +1000,7 @@ export const bills = pgTable(
     organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     kind: text("kind", { enum: ["bill", "expense", "opening"] }).notNull().default("bill"),
     supplierId: integer("supplier_id").references(() => suppliers.id),
     /** Who was paid when there is no supplier record (landlord, DEWA, a staff member). */
@@ -973,7 +1032,7 @@ export const bills = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("bills_year_seq_idx").on(t.year, t.seq),
+    uniqueIndex("bills_year_seq_idx").on(t.organizationId, t.year, t.seq),
     // the same supplier invoice cannot be entered twice
     uniqueIndex("bills_supplier_ref_idx").on(t.supplierId, t.supplierRef).where(sql`supplier_ref <> '' AND status <> 'void'`),
     index("bills_supplier_idx").on(t.supplierId),
@@ -981,6 +1040,8 @@ export const bills = pgTable(
     index("bills_order_idx").on(t.orderId),
     index("bills_invoice_idx").on(t.invoiceId),
     index("bills_date_idx").on(t.billDate),
+    uniqueIndex("bills_org_number_uq").on(t.organizationId, t.number),
+    orgPolicy(),
   ],
 );
 
@@ -999,7 +1060,7 @@ export const billItems = pgTable(
     /** VAT code of this line (lib/tax/ae-vat.ts). */
     taxCode: text("tax_code").notNull().default("SR"),
   },
-  (t) => [index("bill_items_bill_idx").on(t.billId, t.position)],
+  (t) => [index("bill_items_bill_idx").on(t.billId, t.position), orgPolicy()],
 );
 
 /**
@@ -1039,7 +1100,7 @@ export const debitNotes = pgTable(
     organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     billId: integer("bill_id")
       .notNull()
       .references(() => bills.id),
@@ -1053,7 +1114,7 @@ export const debitNotes = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("debit_notes_year_seq_idx").on(t.year, t.seq), index("debit_notes_bill_idx").on(t.billId), orgPolicy()],
+  (t) => [uniqueIndex("debit_notes_year_seq_idx").on(t.organizationId, t.year, t.seq), index("debit_notes_bill_idx").on(t.billId), orgPolicy(), uniqueIndex("debit_notes_org_number_uq").on(t.organizationId, t.number)],
 );
 
 export const debitNoteItems = pgTable(
@@ -1085,7 +1146,7 @@ export const advanceRefunds = pgTable(
     organizationId: orgId(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     party: text("party", { enum: ["customer", "supplier"] }).notNull(),
     paymentId: integer("payment_id").references(() => payments.id),
     supplierPaymentId: integer("supplier_payment_id").references((): AnyPgColumn => supplierPayments.id),
@@ -1101,7 +1162,7 @@ export const advanceRefunds = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("advance_refunds_year_seq_idx").on(t.year, t.seq), index("advance_refunds_payment_idx").on(t.paymentId), index("advance_refunds_supplier_payment_idx").on(t.supplierPaymentId), orgPolicy()],
+  (t) => [uniqueIndex("advance_refunds_year_seq_idx").on(t.organizationId, t.year, t.seq), index("advance_refunds_payment_idx").on(t.paymentId), index("advance_refunds_supplier_payment_idx").on(t.supplierPaymentId), orgPolicy(), uniqueIndex("advance_refunds_org_number_uq").on(t.organizationId, t.number)],
 );
 
 /**
@@ -1117,7 +1178,7 @@ export const supplierPayments = pgTable(
     sellerSnapshot: jsonb("seller_snapshot").$type<SellerSnapshot>(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     /** Only on vouchers from before allocations existed. Read supplier_payment_allocations instead. */
     billId: integer("bill_id").references(() => bills.id),
     supplierId: integer("supplier_id").references(() => suppliers.id),
@@ -1136,7 +1197,7 @@ export const supplierPayments = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("supplier_payments_year_seq_idx").on(t.year, t.seq), index("supplier_payments_bill_idx").on(t.billId), index("supplier_payments_supplier_idx").on(t.supplierId)],
+  (t) => [uniqueIndex("supplier_payments_year_seq_idx").on(t.organizationId, t.year, t.seq), index("supplier_payments_bill_idx").on(t.billId), index("supplier_payments_supplier_idx").on(t.supplierId), uniqueIndex("supplier_payments_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 /** How much of a voucher went to which bill. Works like payment_allocations. */
@@ -1168,6 +1229,7 @@ export const supplierPaymentAllocations = pgTable(
 export const files = pgTable(
   "files",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     storedName: text("stored_name").notNull().unique(),
@@ -1181,20 +1243,22 @@ export const files = pgTable(
     uploadedBy: integer("uploaded_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("files_folder_idx").on(t.folder, t.createdAt), index("files_related_idx").on(t.relatedType, t.relatedId)],
+  (t) => [index("files_folder_idx").on(t.folder, t.createdAt), index("files_related_idx").on(t.relatedType, t.relatedId), orgPolicy()],
 );
 
 // ---------- Projects ----------
 
 /** Kinds of project work (CCTV, networking...). Admin-editable; the key is what projects store. */
 export const projectTypes = pgTable("project_types", {
-  key: text("key").primaryKey(),
+  organizationId: orgId(),
+  key: text("key").notNull(),
   label: text("label").notNull(),
   /** BOQ sections a new project of this type starts with (editable per project). */
   defaultSections: text("default_sections").array().notNull().default(sql`'{}'::text[]`),
   isActive: boolean("is_active").notNull().default(true),
   position: integer("position").notNull().default(0),
-});
+},
+  (t) => [primaryKey({ columns: [t.organizationId, t.key] }), orgPolicy()]);
 
 /**
  * The execution side of a deal of kind "project" (one project per deal). While the deal is open the project is a lead
@@ -1204,18 +1268,18 @@ export const projectTypes = pgTable("project_types", {
 export const projects = pgTable(
   "projects",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     /** ZPJ-2026-0001 */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
-    number: text("number").notNull().unique(),
+    number: text("number").notNull(),
     dealId: integer("deal_id")
       .notNull()
       .unique()
       .references(() => deals.id, { onDelete: "cascade" }),
     typeKey: text("type_key")
-      .notNull()
-      .references(() => projectTypes.key),
+      .notNull(),
     /** not_started, in_progress, on_hold, completed, closed, cancelled (see lib/projects.ts) */
     status: text("status").notNull().default("not_started"),
     /** Who runs the site work; defaults to the deal owner. */
@@ -1232,17 +1296,17 @@ export const projects = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("projects_year_seq_idx").on(t.year, t.seq), index("projects_status_idx").on(t.status), index("projects_type_idx").on(t.typeKey)],
+  (t) => [uniqueIndex("projects_year_seq_idx").on(t.organizationId, t.year, t.seq), index("projects_status_idx").on(t.status), index("projects_type_idx").on(t.typeKey), foreignKey({ columns: [t.organizationId, t.typeKey], foreignColumns: [projectTypes.organizationId, projectTypes.key] }), uniqueIndex("projects_org_number_uq").on(t.organizationId, t.number), orgPolicy()],
 );
 
 /** The starting checklist of each project type: copied into a new project as tasks (admin-editable). */
 export const projectTaskTemplates = pgTable(
   "project_task_templates",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     typeKey: text("type_key")
-      .notNull()
-      .references(() => projectTypes.key, { onDelete: "cascade" }),
+      .notNull(),
     /** survey, work, handover (lib/projects.ts CHECKLIST_GROUPS) */
     checklistGroup: text("checklist_group").notNull(),
     title: text("title").notNull(),
@@ -1251,7 +1315,7 @@ export const projectTaskTemplates = pgTable(
     required: boolean("required").notNull().default(false),
     position: integer("position").notNull().default(0),
   },
-  (t) => [index("project_task_templates_type_idx").on(t.typeKey, t.checklistGroup, t.position)],
+  (t) => [index("project_task_templates_type_idx").on(t.typeKey, t.checklistGroup, t.position), foreignKey({ columns: [t.organizationId, t.typeKey], foreignColumns: [projectTypes.organizationId, projectTypes.key] }).onDelete("cascade"), orgPolicy()],
 );
 
 /**
@@ -1259,6 +1323,7 @@ export const projectTaskTemplates = pgTable(
  * save based on an older version is refused instead of overwriting someone else's changes.
  */
 export const proposals = pgTable("proposals", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   projectId: integer("project_id")
     .notNull()
@@ -1270,32 +1335,38 @@ export const proposals = pgTable("proposals", {
   updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /** A proposal saved as a starting point for others, for one project type or for all (type_key null). */
 export const proposalTemplates = pgTable("proposal_templates", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  typeKey: text("type_key").references(() => projectTypes.key, { onDelete: "set null" }),
+  typeKey: text("type_key"),
   blocks: jsonb("blocks").$type<unknown[]>().notNull(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  (t) => [foreignKey({ columns: [t.organizationId, t.typeKey], foreignColumns: [projectTypes.organizationId, projectTypes.key] }), orgPolicy()]);
 
 /** Standard texts people saved from a terms block (warranty, exclusions...), offered in every proposal. */
 export const termsLibrary = pgTable("terms_library", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   doc: jsonb("doc").$type<unknown>().notNull(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /**
  * The proposal exactly as it was when a quote was made or updated from it: its blocks, the BOQ lines and the cover
  * details. The quote's print page, PDF and email use this copy, so a sent proposal never changes afterwards.
  */
 export const proposalSnapshots = pgTable("proposal_snapshots", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   proposalId: integer("proposal_id")
     .notNull()
@@ -1311,7 +1382,8 @@ export const proposalSnapshots = pgTable("proposal_snapshots", {
   cover: jsonb("cover").$type<unknown>().notNull(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 // ---------- Chat ----------
 
@@ -1322,6 +1394,7 @@ export const proposalSnapshots = pgTable("proposal_snapshots", {
 export const chatChannels = pgTable(
   "chat_channels",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     kind: text("kind", { enum: ["dm", "group", "record", "system"] }).notNull(),
     name: text("name").notNull().default(""),
@@ -1339,13 +1412,14 @@ export const chatChannels = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("chat_channels_record_idx").on(t.recordType, t.recordId), uniqueIndex("chat_channels_owner_idx").on(t.ownerId)],
+  (t) => [uniqueIndex("chat_channels_record_idx").on(t.recordType, t.recordId), uniqueIndex("chat_channels_owner_idx").on(t.ownerId), orgPolicy()],
 );
 
 /** Who is in a conversation, and how far they have read. */
 export const chatMembers = pgTable(
   "chat_members",
   {
+    organizationId: orgId(),
     channelId: integer("channel_id")
       .notNull()
       .references(() => chatChannels.id, { onDelete: "cascade" }),
@@ -1359,7 +1433,7 @@ export const chatMembers = pgTable(
     pinned: boolean("pinned").notNull().default(false),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.channelId, t.userId] }), index("chat_members_user_idx").on(t.userId)],
+  (t) => [primaryKey({ columns: [t.channelId, t.userId] }), index("chat_members_user_idx").on(t.userId), orgPolicy()],
 );
 
 /**
@@ -1369,6 +1443,7 @@ export const chatMembers = pgTable(
 export const chatMessages = pgTable(
   "chat_messages",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     channelId: integer("channel_id")
       .notNull()
@@ -1397,6 +1472,7 @@ export const chatMessages = pgTable(
     index("chat_messages_mentions_idx").using("gin", t.mentions),
     // message search (pg_trgm is switched on by scripts/migrate.ts)
     index("chat_messages_body_trgm_idx").using("gin", t.body.op("gin_trgm_ops")),
+    orgPolicy(),
   ],
 );
 
@@ -1404,6 +1480,7 @@ export const chatMessages = pgTable(
 export const chatReactions = pgTable(
   "chat_reactions",
   {
+    organizationId: orgId(),
     messageId: integer("message_id")
       .notNull()
       .references(() => chatMessages.id, { onDelete: "cascade" }),
@@ -1412,11 +1489,12 @@ export const chatReactions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     emoji: text("emoji").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] })],
+  (t) => [primaryKey({ columns: [t.messageId, t.userId, t.emoji] }), orgPolicy()],
 );
 
 /** Each person's chat settings: status (do not disturb), sounds and desktop alerts, last seen. */
 export const chatPrefs = pgTable("chat_prefs", {
+  organizationId: orgId(),
   userId: integer("user_id")
     .primaryKey()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -1427,7 +1505,8 @@ export const chatPrefs = pgTable("chat_prefs", {
   sound: boolean("sound").notNull().default(true),
   desktop: boolean("desktop").notNull().default(true),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-});
+},
+  () => [orgPolicy()]);
 
 // ---------- Notifications ----------
 
@@ -1439,6 +1518,7 @@ export const chatPrefs = pgTable("chat_prefs", {
 export const notifications = pgTable(
   "notifications",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     userId: integer("user_id")
       .notNull()
@@ -1467,6 +1547,7 @@ export const notifications = pgTable(
     uniqueIndex("notifications_user_key_idx").on(t.userId, t.dedupeKey),
     index("notifications_user_idx").on(t.userId, t.resolvedAt, t.readAt),
     index("notifications_rule_idx").on(t.rule, t.resolvedAt),
+    orgPolicy(),
   ],
 );
 
@@ -1480,6 +1561,7 @@ export const notifications = pgTable(
 export const webChats = pgTable(
   "web_chats",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     token: text("token").notNull().unique(),
     status: text("status", { enum: ["waiting", "active", "closed"] }).notNull().default("waiting"),
@@ -1533,13 +1615,14 @@ export const webChats = pgTable(
     events: jsonb("events").$type<WebSiteEvent[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId), index("web_chats_visitor_idx").on(t.visitorKey)],
+  (t) => [index("web_chats_status_idx").on(t.status, t.lastMessageAt), index("web_chats_agent_idx").on(t.agentId), index("web_chats_visitor_idx").on(t.visitorKey), orgPolicy()],
 );
 
 /** A line in a website chat: from the visitor, from the agent, or written by the portal ("Ismail joined"). */
 export const webChatMessages = pgTable(
   "web_chat_messages",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     chatId: integer("chat_id")
       .notNull()
@@ -1549,7 +1632,7 @@ export const webChatMessages = pgTable(
     body: text("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("web_chat_messages_chat_idx").on(t.chatId, t.id)],
+  (t) => [index("web_chat_messages_chat_idx").on(t.chatId, t.id), orgPolicy()],
 );
 
 
@@ -1560,6 +1643,7 @@ export const webChatMessages = pgTable(
 export const errorLog = pgTable(
   "error_log",
   {
+    organizationId: orgIdNullable(),
     id: serial("id").primaryKey(),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
     path: text("path").notNull().default(""),
@@ -1572,13 +1656,22 @@ export const errorLog = pgTable(
     stack: text("stack").notNull().default(""),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
   },
-  (t) => [index("error_log_at_idx").on(t.at)],
+  (t) => [
+    index("error_log_at_idx").on(t.at),
+    // an error on the sign-in page belongs to no organisation: it may be written, and only the platform console reads it
+    pgPolicy("org_isolation", {
+      for: "all",
+      using: sql`organization_id = ${ORG_SETTING}`,
+      withCheck: sql`organization_id IS NULL OR organization_id = ${ORG_SETTING}`,
+    }),
+  ],
 );
 
 // ---------- Prospecting (its own tables; nothing here touches the CRM until "Convert to lead") ----------
 
 /** Who we target: a group of companies with the offer that fits them and the people to find (seeded by migration 0039). */
 export const prospectSegments = pgTable("prospect_segments", {
+  organizationId: orgId(),
   key: text("key").primaryKey(),
   label: text("label").notNull(),
   /** What we sell them, in one line. */
@@ -1587,10 +1680,12 @@ export const prospectSegments = pgTable("prospect_segments", {
   keyRoles: text("key_roles").array().notNull().default(sql`'{}'::text[]`),
   position: integer("position").notNull().default(0),
   active: boolean("active").notNull().default(true),
-});
+},
+  () => [orgPolicy()]);
 
 /** Where prospects come from: a public site, an official API, a file import or manual research. */
 export const prospectSources = pgTable("prospect_sources", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
   name: text("name").notNull(),
@@ -1607,12 +1702,14 @@ export const prospectSources = pgTable("prospect_sources", {
   config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
   lastRunAt: timestamp("last_run_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /** A company we may approach. Lives only here; Convert to lead copies it into the CRM and keeps the link. */
 export const prospectCompanies = pgTable(
   "prospect_companies",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     /** Same normalising as companies.name_norm, to spot duplicates. */
@@ -1659,10 +1756,11 @@ export const prospectCompanies = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("prospect_companies_domain_uq").on(t.domain),
+    uniqueIndex("prospect_companies_domain_uq").on(t.organizationId, t.domain),
     index("prospect_companies_name_norm_idx").on(t.nameNorm),
     index("prospect_companies_status_idx").on(t.status),
     index("prospect_companies_segment_idx").on(t.segmentKey),
+    orgPolicy(),
   ],
 );
 
@@ -1670,6 +1768,7 @@ export const prospectCompanies = pgTable(
 export const prospectPeople = pgTable(
   "prospect_people",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     companyId: integer("company_id")
       .notNull()
@@ -1688,13 +1787,14 @@ export const prospectPeople = pgTable(
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prospect_people_company_idx").on(t.companyId), index("prospect_people_email_idx").on(t.email)],
+  (t) => [index("prospect_people_company_idx").on(t.companyId), index("prospect_people_email_idx").on(t.email), orgPolicy()],
 );
 
 /** Evidence that something is happening now (new licence, hiring, new office...), always with a date and a source. */
 export const prospectSignals = pgTable(
   "prospect_signals",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     companyId: integer("company_id")
       .notNull()
@@ -1707,13 +1807,14 @@ export const prospectSignals = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prospect_signals_company_idx").on(t.companyId)],
+  (t) => [index("prospect_signals_company_idx").on(t.companyId), orgPolicy()],
 );
 
 /** The timeline of a prospect: notes, status changes, imports, research. */
 export const prospectActivities = pgTable(
   "prospect_activities",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     companyId: integer("company_id")
       .notNull()
@@ -1724,29 +1825,32 @@ export const prospectActivities = pgTable(
     body: text("body").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt)],
+  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt), orgPolicy()],
 );
 
 /** Never email these: an address or a whole domain. Checked when a prospect is queued and again just before sending. */
 export const outreachSuppression = pgTable("outreach_suppression", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   /** Lower-case email ("a@b.ae") or bare domain ("b.ae"). */
-  value: text("value").notNull().unique(),
+  value: text("value").notNull(),
   kind: text("kind", { enum: ["email", "domain"] }).notNull(),
   /** unsubscribe / bounce / complaint / customer / manual */
   reason: text("reason").notNull().default("manual"),
   note: text("note").notNull().default(""),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  (t) => [uniqueIndex("outreach_suppression_org_value_uq").on(t.organizationId, t.value), orgPolicy()]);
 
 /**
  * A mailbox that sends cold email (on the separate sending domain, never zeronix.ae). Its daily limit starts low and
  * rises each week while the domain warms up; nothing is sent from it until a connection test has passed.
  */
 export const outreachMailboxes = pgTable("outreach_mailboxes", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
+  email: text("email").notNull(),
   fromName: text("from_name").notNull().default(""),
   /** Login name; usually the email address. */
   username: text("username").notNull().default(""),
@@ -1776,10 +1880,12 @@ export const outreachMailboxes = pgTable("outreach_mailboxes", {
   lastTestOk: boolean("last_test_ok").notNull().default(false),
   lastError: text("last_error").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  (t) => [uniqueIndex("outreach_mailboxes_org_email_uq").on(t.organizationId, t.email), orgPolicy()]);
 
 /** An AI service Prospecting may use once AI features are switched on (research notes, first drafts, reply sorting). */
 export const prospectAiProviders = pgTable("prospect_ai_providers", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   label: text("label").notNull(),
   /** anthropic / openai / gemini / openai_compatible / ollama (see lib/prospecting/ai.ts). */
@@ -1809,7 +1915,8 @@ export const prospectAiProviders = pgTable("prospect_ai_providers", {
   lastTestOk: boolean("last_test_ok").notNull().default(false),
   lastError: text("last_error").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /**
  * One "Research" run for a prospect. The app queues it; the Python scraper (scraper/) reads the company website and
@@ -1819,6 +1926,7 @@ export const prospectAiProviders = pgTable("prospect_ai_providers", {
 export const prospectResearchRuns = pgTable(
   "prospect_research_runs",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     companyId: integer("company_id")
       .notNull()
@@ -1847,7 +1955,7 @@ export const prospectResearchRuns = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
-  (t) => [index("prospect_research_runs_status_idx").on(t.status, t.id), index("prospect_research_runs_company_idx").on(t.companyId, t.id)],
+  (t) => [index("prospect_research_runs_status_idx").on(t.status, t.id), index("prospect_research_runs_company_idx").on(t.companyId, t.id), orgPolicy()],
 );
 
 /**
@@ -1857,6 +1965,7 @@ export const prospectResearchRuns = pgTable(
 export const prospectAiModels = pgTable(
   "prospect_ai_models",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     providerId: integer("provider_id")
       .notNull()
@@ -1875,22 +1984,25 @@ export const prospectAiModels = pgTable(
     lastError: text("last_error").notNull().default(""),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("prospect_ai_models_uq").on(t.providerId, t.modelId)],
+  (t) => [uniqueIndex("prospect_ai_models_uq").on(t.providerId, t.modelId), orgPolicy()],
 );
 
 /** A series of emails: step 1 starts a thread, the follow-ups reply in it after a number of working days. */
 export const outreachSequences = pgTable("outreach_sequences", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   /** Optional: the segment this sequence is written for. */
   segmentKey: text("segment_key").references(() => prospectSegments.key, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 export const outreachSequenceSteps = pgTable(
   "outreach_sequence_steps",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     sequenceId: integer("sequence_id")
       .notNull()
@@ -1904,13 +2016,14 @@ export const outreachSequenceSteps = pgTable(
     /** Text with merge fields such as {first_name}; see lib/prospecting/outreach-rules.ts. */
     body: text("body").notNull(),
   },
-  (t) => [uniqueIndex("outreach_sequence_steps_uq").on(t.sequenceId, t.position)],
+  (t) => [uniqueIndex("outreach_sequence_steps_uq").on(t.sequenceId, t.position), orgPolicy()],
 );
 
 /** Every cold email sent (or that failed to send), for the campaign page and the daily limits. */
 export const outreachMessages = pgTable(
   "outreach_messages",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     enrollmentId: integer("enrollment_id")
       .notNull()
@@ -1925,11 +2038,12 @@ export const outreachMessages = pgTable(
     error: text("error").notNull().default(""),
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("outreach_messages_mailbox_idx").on(t.mailboxId, t.sentAt), index("outreach_messages_enrollment_idx").on(t.enrollmentId)],
+  (t) => [index("outreach_messages_mailbox_idx").on(t.mailboxId, t.sentAt), index("outreach_messages_enrollment_idx").on(t.enrollmentId), orgPolicy()],
 );
 
 /** Who gets which sequence from which mailboxes. */
 export const outreachCampaigns = pgTable("outreach_campaigns", {
+  organizationId: orgId(),
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   sequenceId: integer("sequence_id")
@@ -1949,7 +2063,8 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
   /** No email goes out before this. */
   startAt: timestamp("start_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+},
+  () => [orgPolicy()]);
 
 /**
  * One person in one campaign. Starts as a draft (the first email waits in the review queue); approving it makes it
@@ -1958,6 +2073,7 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
 export const outreachEnrollments = pgTable(
   "outreach_enrollments",
   {
+    organizationId: orgId(),
     id: serial("id").primaryKey(),
     campaignId: integer("campaign_id")
       .notNull()
@@ -1997,6 +2113,7 @@ export const outreachEnrollments = pgTable(
     index("outreach_enrollments_company_idx").on(t.companyId),
     index("outreach_enrollments_due_idx").on(t.status, t.nextSendAt),
     uniqueIndex("outreach_enrollments_open_uq").on(t.companyId).where(sql`status in ('writing','draft','active','paused')`),
+    orgPolicy(),
   ],
 );
 

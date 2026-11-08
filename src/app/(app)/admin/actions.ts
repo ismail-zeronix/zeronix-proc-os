@@ -116,7 +116,7 @@ export async function saveBrand(input: z.input<typeof brandSchema> & { logo?: st
   await db
     .insert(schema.brandProfile)
     .values({ id: 1, ...set })
-    .onConflictDoUpdate({ target: schema.brandProfile.id, set });
+    .onConflictDoUpdate({ target: schema.brandProfile.organizationId, set });
   revalidatePath("/admin", "layout");
   revalidatePath("/account");
   revalidatePath("/mail", "layout");

@@ -76,6 +76,6 @@ export async function takeInvoiceNumber(tx: Tx): Promise<string> {
   await tx
     .insert(schema.settings)
     .values({ key: "invoice_next_number", value: String(next + 1) })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { value: String(next + 1), updatedAt: new Date() } });
+    .onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value: String(next + 1), updatedAt: new Date() } });
   return number;
 }

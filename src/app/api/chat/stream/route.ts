@@ -25,7 +25,7 @@ export async function GET(req: Request) {
           stop();
         }
       };
-      const off = subscribe(userId, (evt) => send(`data: ${JSON.stringify(evt)}\n\n`));
+      const off = subscribe(userId, (evt) => send(`data: ${JSON.stringify(evt)}\n\n`), access.orgId);
       // keeps proxies from closing an idle connection
       const ping = setInterval(() => send(": ping\n\n"), 25_000);
       stop = () => {

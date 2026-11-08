@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import { partyNeededFor } from "@/lib/ledger/journal";
 import { closingStockLines, purchaseTaxCode } from "@/lib/ledger/rules";
 
@@ -17,9 +18,10 @@ vi.mock("next/navigation", () => ({
   },
 }));
 const mockOrg = vi.hoisted(() => ({ id: 0 }));
-vi.mock("@/lib/org", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/org")>();
-  return { ...real, currentOrgId: async () => mockOrg.id || real.DEFAULT_ORG_ID };
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
 });
 
 describe("logic rules", () => {
@@ -114,7 +116,7 @@ describe.skipIf(!live)("goods, services and the opening balances through the rea
     Doc = await import("@/lib/ledger/documents");
     AD = await import("@/lib/accounts-data");
     const S = await import("@/lib/ledger/setup");
-    orgId = (await db.insert(schema.organizations).values({ name: tag }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag }))[0].id;
     await S.ledgerReady(orgId);
     mockOrg.id = orgId;
     const mk = async (name: string, isAccountant: boolean) => (await db.insert(schema.users).values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"], isAccountant }).returning({ id: schema.users.id }))[0].id;

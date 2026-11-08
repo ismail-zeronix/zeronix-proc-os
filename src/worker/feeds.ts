@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { syncFeed } from "@/lib/feed/sync";
@@ -33,8 +34,8 @@ export async function runDueFeeds() {
 
 export function startFeedScheduler() {
   if (g.__feedTimer) return;
-  g.__feedTimer = setInterval(() => void runDueFeeds(), TICK_MS);
+  g.__feedTimer = setInterval(() => void eachOrg(runDueFeeds, "feeds"), TICK_MS);
   g.__feedTimer.unref?.();
-  setTimeout(() => void runDueFeeds(), 15_000).unref?.();
+  setTimeout(() => void eachOrg(runDueFeeds, "feeds"), 15_000).unref?.();
   console.log("[feeds] scheduler running, checking every minute for due feeds");
 }

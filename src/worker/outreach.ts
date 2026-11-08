@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { checkAllReplies, fillIndustries, sendDue, writePending } from "@/lib/prospecting/sender";
 
 const TICK_MS = 20_000;
@@ -23,10 +24,11 @@ async function tick() {
 
 export function startOutreachScheduler() {
   if (g.__outreachTimer) return;
-  void fillIndustries()
-    .then((n) => n && console.log(`[outreach] industry guessed for ${n} prospects`))
-    .catch((e) => console.error("[outreach] industry fill failed", e));
-  g.__outreachTimer = setInterval(() => void tick(), TICK_MS);
+  void eachOrg(async () => {
+    const n = await fillIndustries();
+    if (n) console.log(`[outreach] industry guessed for ${n} prospects`);
+  }, "outreach");
+  g.__outreachTimer = setInterval(() => void eachOrg(tick, "outreach"), TICK_MS);
   g.__outreachTimer.unref?.();
   console.log("[outreach] writing, sending and reading replies every 20 seconds");
 }

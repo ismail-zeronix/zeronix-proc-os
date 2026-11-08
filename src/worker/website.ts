@@ -1,3 +1,4 @@
+import { websiteOrg } from "./orgs";
 import { siteDbConfigured } from "@/db/site";
 import { pruneEvents, rebuildDaily } from "@/lib/website/analytics";
 import { dailySearchImport } from "@/lib/website/gsc";
@@ -64,9 +65,9 @@ async function picturesTick() {
 
 export function startWebsiteScheduler() {
   if (g.__websiteTimer) return;
-  g.__websiteTimer = setInterval(() => void tick(), TICK_MS);
+  g.__websiteTimer = setInterval(() => void websiteOrg(tick), TICK_MS);
   g.__websiteTimer.unref?.();
-  g.__websitePicturesTimer = setInterval(() => void picturesTick(), TICK_MS);
+  g.__websitePicturesTimer = setInterval(() => void websiteOrg(picturesTick), TICK_MS);
   g.__websitePicturesTimer.unref?.();
   console.log("[website] scheduled posts checked every minute, analytics rolled up every 15 minutes");
 }

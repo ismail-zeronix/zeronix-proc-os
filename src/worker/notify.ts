@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { isOffDay } from "@/lib/attendance";
 import { workHours } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
@@ -37,9 +38,9 @@ async function tick() {
 
 export function startNotifyScheduler() {
   if (g.__notifyTimer) return;
-  g.__notifyTimer = setInterval(() => void tick(), TICK_MS);
+  g.__notifyTimer = setInterval(() => void eachOrg(tick, "notify"), TICK_MS);
   g.__notifyTimer.unref?.();
   // first check shortly after start, once the server is up
-  setTimeout(() => void tick(), 30_000).unref?.();
+  setTimeout(() => void eachOrg(tick, "notify"), 30_000).unref?.();
   console.log("[notify] alert rules checked every 5 minutes, digests each working morning");
 }

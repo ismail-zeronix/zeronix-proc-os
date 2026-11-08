@@ -83,7 +83,7 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     await db.insert(schema.attendancePunches).values(userIds.map((userId) => ({ userId, day: today })));
     savedSeries = await db.select({ key: schema.settings.key, value: schema.settings.value }).from(schema.settings).where(inArray(schema.settings.key, ["invoice_prefix", "invoice_next_number", "invoice_digits", "quote_trn"]));
     for (const [key, value] of [["invoice_prefix", prefix], ["invoice_next_number", "41"], ["invoice_digits", "3"], ["quote_trn", "100000000000003"]] as const)
-      await db.insert(schema.settings).values({ key, value }).onConflictDoUpdate({ target: schema.settings.key, set: { value } });
+      await db.insert(schema.settings).values({ key, value }).onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value } });
   });
 
   afterAll(async () => {

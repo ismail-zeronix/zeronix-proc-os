@@ -23,6 +23,8 @@ export async function requireUser(): Promise<SessionUser> {
 export interface Access {
   /** Name, email and role as they are in the database right now (not as they were when the cookie was signed). */
   user: SessionUser;
+  /** The organisation (tenant) they work in. */
+  orgId: number;
   apps: AppKey[];
   /** True when they see every sales record (admins, and users set to "All data"); false = only the deals they are on. */
   seesAll: boolean;
@@ -46,17 +48,26 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       dataScope: schema.users.dataScope,
       isAccountant: schema.users.isAccountant,
       sessionVersion: schema.users.sessionVersion,
+      organizationId: schema.users.organizationId,
+      orgStatus: schema.organizations.status,
+      orgApps: schema.organizations.enabledApps,
     })
     .from(schema.users)
+    .innerJoin(schema.organizations, eq(schema.organizations.id, schema.users.organizationId))
     .where(eq(schema.users.id, session.id))
     .limit(1);
   if (!row || !row.isActive) return null;
   // the password changed, or "Sign out everywhere": this cookie is from before, so it no longer opens anything
   if (row.sessionVersion !== session.sv) return null;
-  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv };
-  const apps = allowedApps({ role: row.role, apps: row.apps });
+  // the cookie names the organisation its queries run in: it must be the user's own, and still active
+  if (session.org != null && row.organizationId !== session.org) return null;
+  if (row.orgStatus !== "active") return null;
+  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv, org: row.organizationId };
+  // the organisation's plan decides which apps exist at all (null = every app); Admin always stays for its admins
+  const apps = allowedApps({ role: row.role, apps: row.apps }).filter((a) => !row.orgApps || a === "admin" || row.orgApps.includes(a));
   return {
     user,
+    orgId: row.organizationId,
     apps,
     seesAll: row.role === "admin" || row.dataScope === "all",
     finance: apps.includes("accounts"),

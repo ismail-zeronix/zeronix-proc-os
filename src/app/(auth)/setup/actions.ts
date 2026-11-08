@@ -21,6 +21,7 @@ const setupSchema = z
   });
 
 export async function createInitialAdmin(_prev: { error?: string } | undefined, form: FormData) {
+  if (process.env.MULTI_TENANT === "true") return { error: "Setup is not available here. Ask Zeronix for an invitation." };
   const parsed = setupSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) {
     return { error: "Enter your name, a valid email, and matching passwords of at least 12 characters." };
@@ -44,7 +45,7 @@ export async function createInitialAdmin(_prev: { error?: string } | undefined, 
 
   if (!user) return { error: "Setup is already complete. Please sign in instead." };
 
-  const token = await signSession({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion });
+  const token = await signSession({ id: user.id, name: user.name, email: user.email, role: user.role, sv: user.sessionVersion, org: user.organizationId });
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

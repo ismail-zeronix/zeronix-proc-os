@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { runDueMailboxes } from "@/lib/mail/sync";
 
 const TICK_MS = 60_000;
@@ -18,8 +19,8 @@ async function tick() {
 
 export function startMailScheduler() {
   if (g.__mailTimer) return;
-  g.__mailTimer = setInterval(() => void tick(), TICK_MS);
+  g.__mailTimer = setInterval(() => void eachOrg(tick, "mail"), TICK_MS);
   g.__mailTimer.unref?.();
-  setTimeout(() => void tick(), 20_000).unref?.();
+  setTimeout(() => void eachOrg(tick, "mail"), 20_000).unref?.();
   console.log("[mail] scheduler running, checking connected mailboxes every few minutes");
 }

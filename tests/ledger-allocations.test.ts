@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import { journalProblem } from "@/lib/ledger/journal";
 import { advanceAppliedLines, advanceReturnedLines, invoiceLines, receiptLines, supplierAdvanceAppliedLines, supplierAdvanceReturnedLines, supplierPaymentLines } from "@/lib/ledger/rules";
 
@@ -17,9 +18,10 @@ vi.mock("next/navigation", () => ({
   },
 }));
 const mockOrg = vi.hoisted(() => ({ id: 0 }));
-vi.mock("@/lib/org", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/org")>();
-  return { ...real, currentOrgId: async () => mockOrg.id || real.DEFAULT_ORG_ID };
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
 });
 
 const signed = (lines: { account: number | string; debit?: number; credit?: number }[]) => lines.map((l) => [l.account, l.debit ?? -(l.credit ?? 0)]);
@@ -135,7 +137,7 @@ describe.skipIf(!live)("working directly in Accounts, as a user with only the Ac
     AD = await import("@/lib/accounts-data");
     PD = await import("@/lib/purchases-data");
     const S = await import("@/lib/ledger/setup");
-    orgId = (await db.insert(schema.organizations).values({ name: tag }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag }))[0].id;
     await S.ledgerReady(orgId);
     mockOrg.id = orgId;
     accountant = (await db.insert(schema.users).values({ name: tag, email: `${tag}@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"], isAccountant: true }).returning({ id: schema.users.id }))[0].id;
@@ -143,7 +145,7 @@ describe.skipIf(!live)("working directly in Accounts, as a user with only the Ac
     supplierId = (await db.insert(schema.suppliers).values({ name: `${tag} Supplier` }).returning({ id: schema.suppliers.id }))[0].id;
     const [t] = await db.select().from(schema.settings).where(D.eq(schema.settings.key, "quote_trn"));
     savedTrn = t?.value ?? null;
-    await db.insert(schema.settings).values({ key: "quote_trn", value: "100000000000003" }).onConflictDoUpdate({ target: schema.settings.key, set: { value: "100000000000003" } });
+    await db.insert(schema.settings).values({ key: "quote_trn", value: "100000000000003" }).onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value: "100000000000003" } });
     await as(accountant);
     await O.setCutover(day(40));
   });

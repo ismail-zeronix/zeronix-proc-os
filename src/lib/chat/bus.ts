@@ -1,6 +1,7 @@
 import "server-only";
 import { Client } from "pg";
-import { pool } from "@/db";
+import { pool, runAsOrg } from "@/db";
+import { resolveOrgId } from "@/db/org-context";
 import type { VisitorEvent } from "@/lib/webchat/types";
 import type { ChatEvent, PresenceStatus } from "./types";
 
@@ -20,6 +21,8 @@ const MAX_PAYLOAD = 7500;
 /** On the wire: who it is for (`"all"` = everybody connected) and either the event or a message id to load. */
 interface Envelope {
   to: number[] | "all";
+  /** The organisation it happened in: "all" means everybody connected in that organisation, never other tenants. */
+  org?: number | null;
   evt?: ChatEvent;
   messageId?: number;
   /** For a website visitor's widget: their chat id and the event. */
@@ -32,6 +35,8 @@ type VisitorListener = (evt: VisitorEvent) => void;
 
 interface Bus {
   listeners: Map<number, Set<Listener>>;
+  /** The organisation of each connected user, so "all" reaches one tenant only. */
+  orgOf: Map<number, number>;
   /** Website chat id → the visitor's open widget streams. */
   visitors: Map<number, Set<VisitorListener>>;
   /** People whose portal tab has been in the background for a while. */
@@ -42,7 +47,8 @@ interface Bus {
 
 // one per process, also across dev hot reloads
 const g = globalThis as unknown as { chatBus?: Bus };
-const bus: Bus = (g.chatBus ??= { listeners: new Map(), visitors: new Map(), away: new Set(), client: null, connecting: null });
+const bus: Bus = (g.chatBus ??= { listeners: new Map(), orgOf: new Map(), visitors: new Map(), away: new Set(), client: null, connecting: null });
+bus.orgOf ??= new Map();
 bus.away ??= new Set(); // a bus made before these fields existed (dev hot reload)
 bus.visitors ??= new Map();
 
@@ -58,8 +64,9 @@ export function setMessageLoader(fn: (id: number) => Promise<ChatEvent | null>) 
   loadMessage = fn;
 }
 
-function deliver(to: number[] | "all", evt: ChatEvent | { t: "resync" }) {
-  const targets = to === "all" ? [...bus.listeners.keys()] : to;
+function deliver(to: number[] | "all", evt: ChatEvent | { t: "resync" }, org?: number | null) {
+  // "all" = everybody connected in that organisation; a resync (no organisation) asks every open tab to re-read
+  const targets = to === "all" ? [...bus.listeners.keys()].filter((u) => org == null || bus.orgOf.get(u) === org) : to;
   for (const userId of targets) {
     for (const fn of bus.listeners.get(userId) ?? []) {
       try {
@@ -89,10 +96,14 @@ async function onNotify(payload: string | undefined) {
     }
     return;
   }
-  if (env.evt) return deliver(env.to, env.evt);
-  if (env.messageId && loadMessage) {
-    const evt = await loadMessage(env.messageId).catch(() => null);
-    if (evt) deliver(env.to, evt);
+  if (env.to === "all" && !env.org) return;
+  if (env.evt) return deliver(env.to, env.evt, env.org);
+  if (env.messageId && loadMessage && env.org) {
+    // this process has no session for it: load the message in the organisation it was written in
+    const load = loadMessage;
+    const id = env.messageId;
+    const evt = await runAsOrg(env.org, () => load(id)).catch(() => null);
+    if (evt) deliver(env.to, evt, env.org);
   }
 }
 
@@ -121,12 +132,14 @@ function connect(): Promise<void> {
 }
 
 /** Sends an event to these users' open portal tabs (in every process). Call it after the change is committed. */
-export async function publish(to: number[] | "all", evt: ChatEvent): Promise<void> {
+export async function publish(to: number[] | "all", evt: ChatEvent, orgId?: number): Promise<void> {
   if (Array.isArray(to) && !to.length) return;
-  let payload = JSON.stringify({ to, evt } satisfies Envelope);
+  const org = orgId ?? (await resolveOrgId());
+  if (to === "all" && !org) return;
+  let payload = JSON.stringify({ to, org, evt } satisfies Envelope);
   if (Buffer.byteLength(payload) > MAX_PAYLOAD) {
     if (evt.t !== "message.new") return; // only messages can be big
-    payload = JSON.stringify({ to, messageId: evt.message.id } satisfies Envelope);
+    payload = JSON.stringify({ to, org, messageId: evt.message.id } satisfies Envelope);
   }
   try {
     await pool.query("SELECT pg_notify($1, $2)", [CHANNEL, payload]);
@@ -164,14 +177,15 @@ export function subscribeVisitor(chatId: number, fn: VisitorListener): () => voi
 export const visitorConnected = (chatId: number) => !!bus.visitors.get(chatId)?.size;
 
 /** Starts listening for a user's events (one call per open browser tab). Returns the function that stops it. */
-export function subscribe(userId: number, fn: Listener): () => void {
+export function subscribe(userId: number, fn: Listener, orgId: number): () => void {
   void connect().catch((e) => console.error("[chat] listen failed", e));
+  bus.orgOf.set(userId, orgId);
   let set = bus.listeners.get(userId);
   if (!set) {
     bus.listeners.set(userId, (set = new Set()));
     void statusOf(userId)
       .catch(() => "online" as const)
-      .then((status) => publish("all", { t: "presence", userId, status }));
+      .then((status) => publish("all", { t: "presence", userId, status }, orgId));
   }
   set.add(fn);
   let done = false;
@@ -186,7 +200,8 @@ export function subscribe(userId: number, fn: Listener): () => void {
       setTimeout(() => {
         if (!bus.listeners.get(userId)?.size) {
           bus.away.delete(userId);
-          void publish("all", { t: "presence", userId, status: "offline" });
+          bus.orgOf.delete(userId);
+          void publish("all", { t: "presence", userId, status: "offline" }, orgId);
         }
       }, 10_000);
     }

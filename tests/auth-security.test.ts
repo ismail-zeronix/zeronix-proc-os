@@ -73,7 +73,7 @@ describe.skipIf(!live)("sessions can be revoked (needs the test database)", () =
     const { signSession } = await import("@/lib/auth/token");
     const { revokeSessions, setSessionCookie } = await import("@/lib/auth/session-cookie");
     const session = await import("@/lib/auth/session");
-    const old = await signSession({ id: userId, name: tag, email: `${tag}@example.test`, role: "sales", sv: 1 });
+    const old = await signSession({ id: userId, name: tag, email: `${tag}@example.test`, role: "sales", sv: 1, org: 1 });
     cookieValue = old;
     // loadAccess is cached per request in React; outside a request it runs each time
     expect((await session.loadAccess())?.user.id).toBe(userId);
@@ -81,7 +81,7 @@ describe.skipIf(!live)("sessions can be revoked (needs the test database)", () =
     expect(sv).toBe(2);
     cookieValue = old;
     expect(await session.loadAccess()).toBeNull();
-    await setSessionCookie({ id: userId, name: tag, email: `${tag}@example.test`, role: "sales", sv });
+    await setSessionCookie({ id: userId, name: tag, email: `${tag}@example.test`, role: "sales", sv, org: 1 });
     expect(cookieValue).not.toBe(old);
     expect((await session.loadAccess())?.user.id).toBe(userId);
   });

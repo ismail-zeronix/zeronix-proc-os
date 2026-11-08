@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { cleanExportJobs, requeueInterrupted, runExportJob, takeNextExport } from "@/lib/export-jobs";
 
 const TICK_MS = 2000;
@@ -22,7 +23,7 @@ async function tick() {
 
 export function startExportScheduler() {
   if (g.__exportTimer) return;
-  void requeueInterrupted().catch((e) => console.error("[exports] could not requeue", e));
-  g.__exportTimer = setInterval(() => void tick(), TICK_MS);
-  g.__exportCleanTimer = setInterval(() => void cleanExportJobs().catch((e) => console.error("[exports] clean-up failed", e)), CLEAN_MS);
+  void eachOrg(requeueInterrupted, "exports");
+  g.__exportTimer = setInterval(() => void eachOrg(tick, "exports"), TICK_MS);
+  g.__exportCleanTimer = setInterval(() => void eachOrg(cleanExportJobs, "exports"), CLEAN_MS);
 }

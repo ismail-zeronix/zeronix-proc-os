@@ -36,7 +36,7 @@ export async function saveDocumentBrand(input: z.input<typeof docSchema> & { log
   await db
     .insert(schema.brandProfile)
     .values({ id: 1, ...set })
-    .onConflictDoUpdate({ target: schema.brandProfile.id, set });
+    .onConflictDoUpdate({ target: schema.brandProfile.organizationId, set });
   revalidatePath("/admin", "layout");
   revalidatePath("/accounts", "layout");
   revalidatePath("/projects", "layout");

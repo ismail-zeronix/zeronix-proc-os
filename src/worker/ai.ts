@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getPriceListLlm } from "@/lib/llm";
@@ -101,7 +102,7 @@ export async function runAiCycle(opts: { manual?: boolean } = {}): Promise<AiCyc
 export function startAiScheduler() {
   if (g.__aiTimer) return;
   g.__aiTimer = setInterval(() => {
-    runAiCycle().catch((e) => console.error("[ai] cycle failed", e));
+    void eachOrg(runAiCycle, "ai");
   }, TICK_MS);
   g.__aiTimer.unref?.();
   console.log("[ai] queue control ready (stopped until an admin presses Start)");

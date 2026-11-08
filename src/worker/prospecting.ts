@@ -1,3 +1,4 @@
+import { eachOrg } from "./orgs";
 import { dubaiToday } from "@/lib/dates";
 import { refreshStaleFreeModels } from "@/lib/prospecting/ai-client";
 import { processResearch, resumeApplying } from "@/lib/prospecting/research";
@@ -31,8 +32,8 @@ async function tick() {
 export function startResearchScheduler() {
   if (g.__researchTimer) return;
   // runs a restart left half-applied go back to be applied
-  void resumeApplying().catch((e) => console.error("[research] resume failed", e));
-  g.__researchTimer = setInterval(() => void tick(), TICK_MS);
+  void eachOrg(resumeApplying, "research");
+  g.__researchTimer = setInterval(() => void eachOrg(tick, "research"), TICK_MS);
   g.__researchTimer.unref?.();
   console.log("[research] applying prospect research every few seconds");
 }

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTestOrg } from "./helpers/orgs";
 import { buildStatement } from "@/lib/invoicing";
 import { journalProblem } from "@/lib/ledger/journal";
 import { customerRefundLines, supplierRefundLines } from "@/lib/ledger/rules";
@@ -18,9 +19,10 @@ vi.mock("next/navigation", () => ({
   },
 }));
 const mockOrg = vi.hoisted(() => ({ id: 0 }));
-vi.mock("@/lib/org", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/org")>();
-  return { ...real, currentOrgId: async () => mockOrg.id || real.DEFAULT_ORG_ID };
+// every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
+vi.mock("@/db/org-context", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/org-context")>();
+  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
 });
 
 describe("refund rules", () => {
@@ -93,7 +95,7 @@ describe.skipIf(!live)("sales returns and refunds through the real actions (thro
     V = await import("@/lib/ledger/vat");
     RD = await import("@/lib/refunds-data");
     const S = await import("@/lib/ledger/setup");
-    orgId = (await db.insert(schema.organizations).values({ name: tag, emirate: "dubai" }).returning({ id: schema.organizations.id }))[0].id;
+    orgId = (await createTestOrg({ name: tag, emirate: "dubai" }))[0].id;
     await S.ledgerReady(orgId);
     mockOrg.id = orgId;
     accountant = (await db.insert(schema.users).values({ name: tag, email: `${tag}@example.test`, passwordHash: "x", role: "sales", apps: ["accounts"], isAccountant: true }).returning({ id: schema.users.id }))[0].id;
@@ -101,7 +103,7 @@ describe.skipIf(!live)("sales returns and refunds through the real actions (thro
     supplierId = (await db.insert(schema.suppliers).values({ name: `${tag} Supplier`, trn: "100000000000003" }).returning({ id: schema.suppliers.id }))[0].id;
     const [t] = await db.select().from(schema.settings).where(D.eq(schema.settings.key, "quote_trn"));
     savedTrn = t?.value ?? null;
-    await db.insert(schema.settings).values({ key: "quote_trn", value: "100000000000003" }).onConflictDoUpdate({ target: schema.settings.key, set: { value: "100000000000003" } });
+    await db.insert(schema.settings).values({ key: "quote_trn", value: "100000000000003" }).onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value: "100000000000003" } });
     cookieValue = await new SignJWT({ name: tag, email: `${tag}@example.test`, role: "sales" }).setProtectedHeader({ alg: "HS256" }).setSubject(String(accountant)).setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(process.env.AUTH_SECRET));
     await O.setCutover(day(40));
     companyId = (await A.createCustomerFromAccounts({ name: `${tag} Customer`, address: "Dubai" })).id;
