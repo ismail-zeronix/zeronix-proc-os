@@ -106,9 +106,12 @@ export default async function HomePage() {
             <MyTasksCard userId={user.id} />
           </Suspense>
         )}
-        <Suspense fallback={<WidgetSkeleton />}>
-          <LatestEmailsCard userId={user.id} />
-        </Suspense>
+        {/* only with the Mail app: a SaaS company without it is never asked to connect a mailbox */}
+        {hasMail && (
+          <Suspense fallback={<WidgetSkeleton />}>
+            <LatestEmailsCard userId={user.id} />
+          </Suspense>
+        )}
         {hasSales && (
           <Suspense fallback={<WidgetSkeleton />}>
             <PipelineCard userId={user.id} team={seesAll} />
