@@ -5,6 +5,8 @@ import { MobileNav } from "@/components/mobile-nav";
 import { punchState } from "@/lib/attendance-data";
 import { visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
+import { orgProfile } from "@/lib/org";
+import { SupportBanner } from "@/components/support-banner";
 
 /**
  * Every signed-in page. Each app (and the home screen) adds its own header, and a sidebar where it has one. Nothing works
@@ -12,11 +14,14 @@ import { requireAccess } from "@/lib/auth/session";
  * (Home, Chat, Tasks, Alerts, Menu) takes its place.
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const { user, apps, accountant } = await requireAccess();
-  const { punchedIn } = await punchState(user.id);
+  const { user, apps, accountant, support, orgId } = await requireAccess();
+  // a support visitor looks around without punching in (they cannot punch in for the person, nor change anything read-only)
+  const punchedIn = support ? true : (await punchState(user.id)).punchedIn;
+  const orgName = support ? ((await orgProfile(orgId).catch(() => null))?.name ?? "this organisation") : "";
   const visible = visibleApps({ role: user.role, apps }).map((a) => a.key);
   return (
     <>
+      {support && <SupportBanner adminName={support.adminName} orgName={orgName} readOnly={support.readOnly} />}
       <PunchGate locked={!punchedIn} />
       <ExportWatcher />
       {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}

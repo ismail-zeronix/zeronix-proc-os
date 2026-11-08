@@ -2,7 +2,7 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { db, schema } from "@/db";
-import { SESSION_COOKIE, SESSION_DAYS, signSession, type SessionUser } from "./token";
+import { SESSION_COOKIE, SESSION_DAYS, signSession, SUPPORT_MINUTES, type SessionUser } from "./token";
 
 /** Signs the user in on this browser: the session cookie, httpOnly, for SESSION_DAYS. */
 export async function setSessionCookie(user: SessionUser): Promise<void> {
@@ -12,7 +12,7 @@ export async function setSessionCookie(user: SessionUser): Promise<void> {
     sameSite: "lax",
     secure: process.env.COOKIE_SECURE === "true",
     path: "/",
-    maxAge: SESSION_DAYS * 86400,
+    maxAge: user.support ? SUPPORT_MINUTES * 60 : SESSION_DAYS * 86400,
   });
 }
 

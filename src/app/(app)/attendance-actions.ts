@@ -7,13 +7,14 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { dubaiMinutes, isOffDay, needsReason } from "@/lib/attendance";
 import { closeStaleSessions, workHours } from "@/lib/attendance-data";
-import { loadAccess } from "@/lib/auth/session";
+import { loadAccess, SUPPORT_READ_ONLY } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { parseInput, UserError } from "@/lib/user-error";
 
 async function me() {
   const access = await loadAccess();
   if (!access) throw new UserError("Please sign in again");
+  if (access.support) throw new UserError("Not available in a support visit: people punch in and out themselves.");
   return access.user;
 }
 
@@ -73,6 +74,7 @@ const absenceSchema = z.object({
 async function checkAbsenceAccess(userId: number, day: string) {
   const access = await loadAccess();
   if (!access) throw new UserError("Please sign in again");
+  if (access.support?.readOnly) throw new UserError(SUPPORT_READ_ONLY);
   if (access.user.id !== userId && access.user.role !== "admin") throw new UserError("You can only change your own days.");
   const limit = new Date(Date.now() + 60 * 86400_000);
   if (day > dubaiToday(limit)) throw new UserError("Pick a day within the next 60 days.");

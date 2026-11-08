@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient, type PoolConfig } from "pg";
-import { resolveOrgId } from "./org-context";
+import { resolveScope } from "./org-context";
 import * as schema from "./schema";
 
 /**
@@ -15,13 +15,16 @@ class OrgPool extends Pool {
   connect(): Promise<PoolClient>;
   connect(callback: (err: Error | undefined, client: PoolClient | undefined, done: (release?: unknown) => void) => void): void;
   connect(callback?: (err: Error | undefined, client: PoolClient | undefined, done: (release?: unknown) => void) => void): Promise<PoolClient> | void {
-    const org = resolveOrgId();
+    const scope = resolveScope();
     const scoped = async (client: PoolClient) => {
-      const value = String((await org) ?? "");
+      const { org, readOnly } = await scope;
+      const value = String(org ?? "");
+      const ro = readOnly ? "on" : "off";
       const c = client as PoolClient & { __zxOrg?: string };
-      if (c.__zxOrg !== value) {
-        await client.query("SELECT set_config('app.org_id', $1, false)", [value]);
-        c.__zxOrg = value;
+      if (c.__zxOrg !== `${value}|${ro}`) {
+        // a read-only support visit: Postgres itself refuses every write made for this request
+        await client.query("SELECT set_config('app.org_id', $1, false), set_config('default_transaction_read_only', $2, false)", [value, ro]);
+        c.__zxOrg = `${value}|${ro}`;
       }
       return client;
     };

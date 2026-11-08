@@ -2401,3 +2401,71 @@ export const journalLines = pgTable(
     orgPolicy(),
   ],
 );
+
+// ---------- Platform (SaaS operator: the Zeronix team running demo.zeronixos.online) ----------
+
+/**
+ * The people who run the platform ("god mode"). They are not users of any organisation and sign in at /platform with a
+ * password and a 6-digit code from an authenticator app (TOTP, required). Only the platform's own database role reads
+ * this table: the app's role (zx_app) has no rights on it (production/saas-db-roles.sql).
+ */
+export const platformAdmins = pgTable("platform_admins", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  /** The TOTP secret, encrypted (lib/crypto.ts). */
+  totpSecret: text("totp_secret").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sessionVersion: integer("session_version").notNull().default(1),
+  /** The last TOTP time step used, so a code cannot be used twice. */
+  lastTotpStep: integer("last_totp_step").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Everything a platform admin did: tenants made, paused, apps changed, every support visit (read-only or with changes,
+ * and why). A tenant's admin sees the rows about their organisation in Admin (read only: zx_app may not change them).
+ */
+export const platformAuditLog = pgTable(
+  "platform_audit_log",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgIdNullable(),
+    adminId: integer("admin_id").references(() => platformAdmins.id, { onDelete: "set null" }),
+    adminName: text("admin_name").notNull().default(""),
+    /** tenant.create, tenant.suspend, tenant.apps, support.enter, support.changes, invite.create ... */
+    action: text("action").notNull(),
+    summary: text("summary").notNull().default(""),
+    reason: text("reason").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("platform_audit_org_idx").on(t.organizationId, t.at),
+    pgPolicy("org_isolation", { for: "select", using: sql`organization_id = ${ORG_SETTING}` }),
+  ],
+);
+
+/**
+ * A one-time link to join an organisation (/invite/<token>): made by the platform for a new tenant's first admin, or by
+ * an organisation's admin for their staff. Only a hash of the token is kept. Opened through app_invite_lookup(), since
+ * the person following the link is not signed in to the organisation yet.
+ */
+export const invites = pgTable(
+  "invites",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    role: text("role", { enum: ["admin", "sales"] }).notNull().default("sales"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** A user of the organisation, or null when the platform made it. */
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invites_org_idx").on(t.organizationId, t.createdAt), orgPolicy()],
+);

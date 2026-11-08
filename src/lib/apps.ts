@@ -210,3 +210,9 @@ export function appByKey(key: AppKey): AppDef {
 export function appOfPath(path: string): AppDef | undefined {
   return APPS.find((a) => path === a.href || path.startsWith(a.href + "/") || path.startsWith(a.href + "?"));
 }
+
+/**
+ * The apps a SaaS organisation gets (demo.zeronixos.online, v1): CRM, Sales, Accounts, Projects, Tasks, Files and Chat
+ * (attendance is part of every account). Procurement, Mail, Knowledge, Prospecting and Website stay Zeronix's own for now.
+ */
+export const TENANT_CORE_APPS: AppKey[] = ["crm", "sales", "accounts", "projects", "tasks", "files", "chat"];

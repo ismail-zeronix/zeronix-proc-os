@@ -28,10 +28,16 @@ export function fallbackOrgId(): number | null {
   return process.env.MULTI_TENANT === "true" ? null : 1;
 }
 
-// a signed cookie always names the same organisation: remember the last few instead of checking the signature per query
-const fromToken = new Map<string, number | null>();
+interface SessionScope {
+  org: number | null;
+  /** A read-only support visit from the platform console: the database refuses every write of the request. */
+  readOnly: boolean;
+}
 
-async function sessionOrgId(): Promise<number | null> {
+// a signed cookie always says the same thing: remember the last few instead of checking the signature per query
+const fromToken = new Map<string, SessionScope>();
+
+async function sessionScope(): Promise<SessionScope | null> {
   let token: string | undefined;
   try {
     const { cookies } = await import("next/headers");
@@ -42,17 +48,24 @@ async function sessionOrgId(): Promise<number | null> {
     return null;
   }
   if (!token) return null;
-  if (fromToken.has(token)) return fromToken.get(token)!;
+  const known = fromToken.get(token);
+  if (known) return known;
   const user = await verifySession(token);
-  const org = user?.org ?? null;
+  const scope: SessionScope = { org: user?.org ?? null, readOnly: !!user?.support?.readOnly };
   if (fromToken.size > 500) fromToken.clear();
-  fromToken.set(token, org);
-  return org;
+  fromToken.set(token, scope);
+  return scope;
 }
 
 /** The organisation for the next query, or null (no rows visible, inserts refused). */
 export async function resolveOrgId(): Promise<number | null> {
+  return (await resolveScope()).org;
+}
+
+/** The organisation, and whether the work may write: runAsOrg() always may, a read-only support visit never. */
+export async function resolveScope(): Promise<SessionScope> {
   const explicit = explicitOrgId();
-  if (explicit) return explicit;
-  return (await sessionOrgId()) ?? fallbackOrgId();
+  if (explicit) return { org: explicit, readOnly: false };
+  const s = await sessionScope();
+  return { org: s?.org ?? fallbackOrgId(), readOnly: s?.readOnly ?? false };
 }

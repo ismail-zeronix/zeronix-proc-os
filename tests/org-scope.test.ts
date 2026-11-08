@@ -10,9 +10,9 @@ import * as schema from "@/db/schema";
  * Only platform tables are left out: the organisations themselves (their own org_self policy) and failed sign-ins (kept
  * by email and address before anyone is signed in to an organisation).
  */
-const PLATFORM = new Set(["organizations", "login_failures"]);
+const PLATFORM = new Set(["organizations", "login_failures", "platform_admins"]);
 /** Rows that may belong to no organisation (an error on the sign-in page): nullable organization_id. */
-const NULLABLE = new Set(["error_log"]);
+const NULLABLE = new Set(["error_log", "platform_audit_log"]);
 
 const tables = Object.values(schema as Record<string, unknown>)
   .filter((v): v is PgTable => is(v, PgTable))

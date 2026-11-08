@@ -7,6 +7,8 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { GRANTABLE_APPS } from "@/lib/apps";
 import { audit } from "@/lib/audit";
+import { loginUser } from "@/lib/auth/login-user";
+import { assertRoomForUser } from "@/lib/invites";
 import { revokeSessions, setSessionCookie } from "@/lib/auth/session-cookie";
 import { clearFailures } from "@/lib/auth/lockout";
 import { assertAccountant, requireAdmin } from "@/lib/auth/session";
@@ -26,8 +28,10 @@ const userSchema = z.object({
 export async function createUser(input: z.input<typeof userSchema>) {
   const me = await requireAdmin();
   const d = parseInput(userSchema, input);
-  const [exists] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, d.email));
-  if (exists) throw new UserError("A user with this email already exists.");
+  // emails are unique across every organisation: ask the sign-in lookup, which sees them all
+  const exists = await loginUser(d.email);
+  if (exists) throw new UserError("Someone already signs in with this email.");
+  await assertRoomForUser();
   const [created] = await db
     .insert(schema.users)
     .values({
@@ -53,6 +57,7 @@ export async function updateUser(
   const set: Partial<typeof schema.users.$inferInsert> = {};
   if (patch.role) set.role = patch.role;
   if (patch.isActive !== undefined) set.isActive = patch.isActive;
+  if (patch.isActive === true) await assertRoomForUser();
   if (patch.dataScope) set.dataScope = z.enum(["own", "all"]).parse(patch.dataScope);
   if (patch.isAccountant !== undefined) set.isAccountant = z.boolean().parse(patch.isAccountant);
   if (patch.apps !== undefined) {
@@ -259,4 +264,21 @@ export async function requeueStuckLists() {
     .where(eq(schema.priceLists.status, "parsing"));
   revalidatePath("/admin", "layout");
   revalidatePath("/procurement/price-lists");
+}
+
+/** A one-time link for someone to join this company (Admin › Users): they choose their own password. */
+export async function createInviteLink(input: { email: string; name: string; role: "admin" | "sales" }): Promise<{ url: string; expiresAt: string } | { error: string }> {
+  const me = await requireAdmin();
+  try {
+    const { createInvite } = await import("@/lib/invites");
+    const { currentOrgId } = await import("@/lib/org");
+    const role = z.enum(["admin", "sales"]).parse(input.role);
+    const r = await createInvite(await currentOrgId(), { email: z.string().max(200).parse(input.email), name: z.string().max(120).parse(input.name), role, createdBy: me.id });
+    await audit(db, { userId: me.id, action: "invite.create", entity: "user", summary: `Invitation for ${input.email.trim().toLowerCase()} as ${role}` });
+    revalidatePath("/admin/users");
+    return { url: r.url, expiresAt: r.expiresAt.toISOString() };
+  } catch (e) {
+    if (e instanceof UserError) return { error: e.message };
+    throw e;
+  }
 }

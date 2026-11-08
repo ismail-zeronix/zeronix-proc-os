@@ -13,7 +13,8 @@ const mockOrg = vi.hoisted(() => ({ id: 0 }));
 // every query of the test runs in the throwaway organisation once it exists (runAsOrg still wins, as in the app)
 vi.mock("@/db/org-context", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/db/org-context")>();
-  return { ...real, resolveOrgId: async () => real.explicitOrgId() ?? (mockOrg.id || 1) };
+  const org = () => real.explicitOrgId() ?? (mockOrg.id || 1);
+  return { ...real, resolveOrgId: async () => org(), resolveScope: async () => ({ org: org(), readOnly: false }) };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined) }), headers: async () => new Headers() }));

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { PLATFORM_COOKIE, verifyPlatform } from "@/lib/auth/platform-token";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/token";
 
 /**
@@ -11,6 +12,14 @@ export async function proxy(req: NextRequest) {
   if (pathname === "/api/health" || pathname === "/api/health/db") return NextResponse.next();
   if (pathname.startsWith("/api/widget/") || pathname.startsWith("/widget/")) return NextResponse.next();
   if (pathname.startsWith("/api/site/")) return NextResponse.next();
+  // an invitation link is opened before its person has an account
+  if (pathname.startsWith("/invite/")) return NextResponse.next();
+  // the platform console has its own sign-in (password + authenticator code), apart from every organisation's
+  if (pathname === "/platform" || pathname.startsWith("/platform/")) {
+    if (pathname === "/platform/login" || pathname === "/platform/signout" || pathname === "/platform/exit") return NextResponse.next();
+    if (await verifyPlatform(req.cookies.get(PLATFORM_COOKIE)?.value)) return NextResponse.next();
+    return NextResponse.redirect(new URL("/platform/login", req.url));
+  }
 
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = pathname === "/login";

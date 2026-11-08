@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Sign in · Zeronix" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  if (!(await isSetupComplete())) redirect("/setup");
+  // a multi-tenant install has no first-run setup (and, before sign-in, no organisation to count users in)
+  if (process.env.MULTI_TENANT !== "true" && !(await isSetupComplete())) redirect("/setup");
   const { next } = await searchParams;
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">

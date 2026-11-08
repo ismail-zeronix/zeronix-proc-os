@@ -16,6 +16,8 @@ import { parseInput, UserError } from "@/lib/user-error";
 async function me() {
   const access = await loadAccess();
   if (!access) throw new UserError("Please sign in again.");
+  // a platform admin on a support visit never changes the person's own password, mailbox or profile
+  if (access.support) throw new UserError("Not available in a support visit: only the person themselves can change their account.");
   return access.user;
 }
 

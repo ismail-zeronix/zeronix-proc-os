@@ -5,6 +5,17 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // the platform console's database role sees every organisation: only the console itself may use it
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/platform/**", "src/app/(platform)/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [{ group: ["@/platform/*"], message: "Platform code (all organisations) is for the platform console only: use @/db, which is scoped to one organisation." }] },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

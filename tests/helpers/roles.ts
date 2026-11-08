@@ -28,6 +28,9 @@ export function appRoleSql(role: string, password: string, database: string): st
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${r}`,
     `GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${r}`,
     `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO ${r}`,
+    // platform admins are the platform role's alone; tenants may read their support visits, never change them
+    `REVOKE ALL ON platform_admins FROM ${r}`,
+    `REVOKE INSERT, UPDATE, DELETE ON platform_audit_log FROM ${r}`,
     // the migration table is the owner's alone
     `REVOKE ALL ON ALL TABLES IN SCHEMA drizzle FROM ${r}`,
   ];

@@ -1,5 +1,5 @@
 import "server-only";
-import { isPunchedIn, loadAccess, NOT_PUNCHED_IN, type Access } from "@/lib/auth/session";
+import { assertWritable, loadAccess, type Access } from "@/lib/auth/session";
 import { UserError } from "@/lib/user-error";
 
 /**
@@ -9,6 +9,6 @@ import { UserError } from "@/lib/user-error";
 export async function assertChat(): Promise<Access> {
   const access = await loadAccess();
   if (!access) throw new UserError("You are not signed in.");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access;
 }

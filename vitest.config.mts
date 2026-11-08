@@ -15,7 +15,8 @@ function testDatabaseUrl(): Record<string, string> {
   const app = new URL(admin.toString());
   app.username = "zx_app";
   app.password = "zx_app_test_only";
-  return { DATABASE_URL: app.toString(), TEST_ADMIN_DATABASE_URL: admin.toString() };
+  // the platform console role (BYPASSRLS in production) is the owner here
+  return { DATABASE_URL: app.toString(), TEST_ADMIN_DATABASE_URL: admin.toString(), PLATFORM_DATABASE_URL: admin.toString() };
 }
 
 export default defineConfig({

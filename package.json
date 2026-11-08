@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:site:generate": "drizzle-kit generate --config drizzle.site.config.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "platform-admin": "tsx scripts/platform-admin.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "try-parse": "tsx scripts/try-parse.ts",

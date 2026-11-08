@@ -3,6 +3,8 @@ import { teamMonth, todayLine } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
 import { AdminUsers, type TodayInfo } from "../admin-ui";
 import { listUsers } from "../data";
+import { InviteByLink } from "./invite-ui";
+import { SupportVisits } from "./support-visits";
 
 export const metadata = { title: "Users · Admin · Zeronix" };
 
@@ -12,5 +14,11 @@ export default async function AdminUsersPage() {
   const [users, team] = await Promise.all([listUsers(), teamMonth(today.slice(0, 7))]);
   const todayBy: Record<number, TodayInfo> = {};
   for (const r of team) todayBy[r.user.id] = todayLine(r.data.cells.find((c) => c.day === today));
-  return <AdminUsers users={users} meId={me.id} today={todayBy} />;
+  return (
+    <div className="grid gap-3">
+      <AdminUsers users={users} meId={me.id} today={todayBy} />
+      <InviteByLink />
+      <SupportVisits />
+    </div>
+  );
 }

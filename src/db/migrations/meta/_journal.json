@@ -456,6 +456,13 @@
       "when": 1794153675768,
       "tag": "0064_tenancy",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794155883769,
+      "tag": "0065_platform",
+      "breakpoints": true
     }
   ]
 }

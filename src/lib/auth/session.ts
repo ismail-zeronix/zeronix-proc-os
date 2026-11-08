@@ -6,6 +6,7 @@ import { cache } from "react";
 import { db, schema } from "@/db";
 import { allowedApps, type AppKey } from "@/lib/apps";
 import { dubaiToday } from "@/lib/dates";
+import { PLATFORM_COOKIE, verifyPlatform } from "./platform-token";
 import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 import { UserError } from "@/lib/user-error";
 
@@ -32,6 +33,8 @@ export interface Access {
   finance: boolean;
   /** Accountant work on top of Accounts: journals, chart of accounts, reconciliation, VAT filing, lock date. Admins always. */
   accountant: boolean;
+  /** A platform admin on a support visit (read only unless they switched changes on); null for the organisation's own people. */
+  support: { adminId: number; adminName: string; readOnly: boolean } | null;
 }
 
 /** The signed-in user's current role and apps, read from the database once per request. Null = not signed in or deactivated. */
@@ -62,7 +65,15 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
   // the cookie names the organisation its queries run in: it must be the user's own, and still active
   if (session.org != null && row.organizationId !== session.org) return null;
   if (row.orgStatus !== "active") return null;
-  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv, org: row.organizationId };
+  // a support visit (platform console "Enter"): only while that platform admin is still signed in to the console
+  let support: Access["support"] = null;
+  if (session.support) {
+    const jar = await cookies();
+    const platform = await verifyPlatform(jar.get(PLATFORM_COOKIE)?.value);
+    if (!platform || platform.id !== session.support.adminId) return null;
+    support = { adminId: platform.id, adminName: platform.name, readOnly: session.support.readOnly };
+  }
+  const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv, org: row.organizationId, support: session.support ?? null };
   // the organisation's plan decides which apps exist at all (null = every app); Admin always stays for its admins
   const apps = allowedApps({ role: row.role, apps: row.apps }).filter((a) => !row.orgApps || a === "admin" || row.orgApps.includes(a));
   return {
@@ -72,6 +83,7 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
     seesAll: row.role === "admin" || row.dataScope === "all",
     finance: apps.includes("accounts"),
     accountant: row.role === "admin" || (apps.includes("accounts") && row.isAccountant),
+    support,
   };
 });
 
@@ -122,13 +134,24 @@ export const isPunchedIn = cache(async (userId: number): Promise<boolean> => {
   return !!open;
 });
 
+export const SUPPORT_READ_ONLY = "This is a read-only support view. Turn on changes in the platform console (with a reason) to change anything.";
+
+/**
+ * Before any change: a read-only support visit may not (the database refuses it too), the organisation's own people must
+ * have punched in today. A support visit with changes switched on is not punched in and does not need to be.
+ */
+export async function assertWritable(access: Access): Promise<void> {
+  if (access.support?.readOnly) throw new UserError(SUPPORT_READ_ONLY);
+  if (!access.support && !(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+}
+
 export const NOT_PUNCHED_IN = "Punch in first: click the clock at the top of the page.";
 
 /** For server actions that change something: throws unless the user may use this app and has punched in. */
 export async function assertApp(key: AppKey): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !access.apps.includes(key)) throw new UserError("You do not have access to this");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access.user;
 }
 
@@ -136,7 +159,7 @@ export async function assertApp(key: AppKey): Promise<SessionUser> {
 export async function assertAnyApp(...keys: AppKey[]): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !keys.some((k) => access.apps.includes(k))) throw new UserError("You do not have access to this");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access.user;
 }
 
@@ -144,7 +167,7 @@ export async function assertAnyApp(...keys: AppKey[]): Promise<SessionUser> {
 export async function assertFinance(): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !access.finance) throw new UserError("Only the accounts team can do this");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access.user;
 }
 
@@ -152,7 +175,7 @@ export async function assertFinance(): Promise<SessionUser> {
 export async function assertAccountant(): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || !access.accountant) throw new UserError("Only an accountant can do this. An admin can switch it on in Admin › Users.");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access.user;
 }
 
@@ -165,6 +188,6 @@ export async function hasApp(key: AppKey): Promise<boolean> {
 export async function requireAdmin(): Promise<SessionUser> {
   const access = await loadAccess();
   if (!access || access.user.role !== "admin") throw new UserError("Admin access required");
-  if (!(await isPunchedIn(access.user.id))) throw new UserError(NOT_PUNCHED_IN);
+  await assertWritable(access);
   return access.user;
 }

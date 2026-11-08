@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db, schema } from "@/db";
-import { isPunchedIn, loadAccess, NOT_PUNCHED_IN } from "@/lib/auth/session";
+import { isPunchedIn, loadAccess, NOT_PUNCHED_IN, SUPPORT_READ_ONLY } from "@/lib/auth/session";
 import { canSeeRelated, financeViewerOf } from "@/lib/auth/visibility";
 import { ALLOWED_TYPES, extOf, isFolder, isRelatedType, MAX_FILE_BYTES, sizeLabel } from "@/lib/file-folders";
 import { saveFile } from "@/lib/files-store";
@@ -14,7 +14,8 @@ const fail = (error: string, status: number) => NextResponse.json({ error }, { s
 export async function POST(req: NextRequest) {
   const access = await loadAccess();
   if (!access || !access.apps.includes("files")) return fail("You do not have access to Files.", 401);
-  if (!(await isPunchedIn(access.user.id))) return fail(NOT_PUNCHED_IN, 403);
+  if (access.support?.readOnly) return fail(SUPPORT_READ_ONLY, 403);
+  if (!access.support && !(await isPunchedIn(access.user.id))) return fail(NOT_PUNCHED_IN, 403);
 
   let form: FormData;
   try {
