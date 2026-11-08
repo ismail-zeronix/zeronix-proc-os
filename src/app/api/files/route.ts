@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db, schema } from "@/db";
 import { isPunchedIn, loadAccess, NOT_PUNCHED_IN } from "@/lib/auth/session";
+import { canSeeRelated, financeViewerOf } from "@/lib/auth/visibility";
 import { ALLOWED_TYPES, extOf, isFolder, isRelatedType, MAX_FILE_BYTES, sizeLabel } from "@/lib/file-folders";
 import { saveFile } from "@/lib/files-store";
 
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
   const relType = String(form.get("relatedType") ?? "");
   const relId = Number(form.get("relatedId") ?? 0);
   const related = relType && isRelatedType(relType) && Number.isInteger(relId) && relId > 0 ? { relatedType: relType, relatedId: relId } : {};
+  // a file may only be put on a record the uploader can open (Accounts sees every order and invoice)
+  if (related.relatedType && !(await canSeeRelated(financeViewerOf(access), related.relatedType, related.relatedId))) return fail("That record does not exist or is not assigned to you.", 404);
 
   for (const f of files) {
     if (f.size > MAX_FILE_BYTES) return fail(`"${f.name}" is ${sizeLabel(f.size)}. The limit is ${sizeLabel(MAX_FILE_BYTES)} per file.`, 413);

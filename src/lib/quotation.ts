@@ -1,4 +1,5 @@
 /** Quote rules in one place (pure, no database): numbers, prices, totals, statuses and the WhatsApp text. */
+import { fromMinor, pctOf, toMinor } from "@/lib/money";
 
 export const QUOTE_STATUSES = [
   { key: "draft", label: "Draft", hint: "Made, not yet sent to the customer" },
@@ -23,7 +24,11 @@ export const DEFAULT_TERMS = [
   "Payment: as agreed on the confirmed order.",
 ].join("\n");
 
-export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+/**
+ * To the fil, half away from zero, through the same minor-unit rounding the ledger and VAT use (lib/money.ts), so a
+ * figure rounds the same everywhere: 2.135 → 2.14 (plain float maths gave 2.13 here and 2.14 in the ledger).
+ */
+export const round2 = (n: number) => (Number.isFinite(n) ? fromMinor(toMinor(n)) : n);
 
 /** ZQ-2026-0001 */
 export function quoteNumber(year: number, seq: number): string {
@@ -64,7 +69,8 @@ export interface Totals {
 
 export function totals(lines: Line[], vatPct: number): Totals {
   const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
-  const vat = round2((subtotal * vatPct) / 100);
+  // the same VAT rule as invoices (lib/tax/doc-tax.ts): the rate on the subtotal in fils, half away from zero
+  const vat = fromMinor(pctOf(toMinor(subtotal), vatPct));
   const withCost = lines.filter((l) => l.cost != null);
   const cost = withCost.length ? round2(withCost.reduce((s, l) => s + l.qty * (l.cost as number), 0)) : null;
   const soldWithCost = round2(withCost.reduce((s, l) => s + lineTotal(l), 0));
@@ -77,6 +83,32 @@ export function totals(lines: Line[], vatPct: number): Totals {
     profit: cost == null ? null : round2(soldWithCost - cost),
     unpriced: lines.length - withCost.length,
   };
+}
+
+/** The cost columns a quote (and the order made from it) saves, so its profit can be worked out honestly later. */
+export function costFields(t: Totals) {
+  return { costTotal: t.cost, soldWithCost: t.cost == null ? null : t.soldWithCost, uncostedLines: t.unpriced };
+}
+
+export interface Profit {
+  /** Sale minus cost of the lines that have a cost; null when no line has one. */
+  profit: number | null;
+  /** What those lines sell for. */
+  soldWithCost: number;
+  /** Some lines have no cost, so the profit covers only part of the sale. */
+  partial: boolean;
+  uncostedLines: number;
+}
+
+/**
+ * Profit of a quote or order from its saved columns. Never subtotal - cost: a AED 10,000 quote with one AED 6,000 line
+ * costing 5,000 and one AED 4,000 line with no cost made AED 1,000 on what we know, not 5,000.
+ */
+export function profitOf(r: { subtotal: number; costTotal: number | null; soldWithCost?: number | null; uncostedLines?: number | null }): Profit {
+  const uncostedLines = r.uncostedLines ?? 0;
+  if (r.costTotal == null) return { profit: null, soldWithCost: 0, partial: false, uncostedLines };
+  const soldWithCost = r.soldWithCost ?? r.subtotal;
+  return { profit: round2(soldWithCost - r.costTotal), soldWithCost, partial: uncostedLines > 0, uncostedLines };
 }
 
 /** "valid until" day a number of days after a YYYY-MM-DD day. */

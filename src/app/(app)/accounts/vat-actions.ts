@@ -1,6 +1,7 @@
 "use server";
 
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { schema } from "@/db";
@@ -18,7 +19,7 @@ import { getSetting } from "@/lib/settings";
 import { emirateKnown, vatPeriodOf } from "@/lib/tax/vat201";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 
 const refresh = () => {
   revalidatePath("/accounts", "layout");

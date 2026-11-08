@@ -249,6 +249,7 @@ export async function getSupplierPayment(id: number) {
     .select({
       id: schema.supplierPayments.id,
       number: schema.supplierPayments.number,
+      sellerSnapshot: schema.supplierPayments.sellerSnapshot,
       paidOn: schema.supplierPayments.paidOn,
       amount: schema.supplierPayments.amount,
       method: schema.supplierPayments.method,

@@ -60,10 +60,16 @@ export function orderVisible(v: Viewer, o: { dealId: SQLWrapper; quoteId: SQLWra
   return sql`((${o.dealId} IS NOT NULL AND ${dealVisible(v, o.dealId)}) OR (${o.dealId} IS NULL AND EXISTS (SELECT 1 FROM quotes vq WHERE vq.id = ${o.quoteId} AND (vq.owner_id = ${v.id} OR vq.created_by = ${v.id}))))`;
 }
 
-/** SQL condition: an invoice the viewer may see (opening balances: the accounts team only, who see everything). */
-export function invoiceVisible(v: Viewer, i: { dealId: SQLWrapper; orderId: SQLWrapper }): SQL {
+/**
+ * SQL condition: an invoice the viewer may see. It follows its deal; without one, the order it was made from; a direct
+ * invoice from an instant quote follows that quote's salesperson. Opening balances: the accounts team only (who see all).
+ */
+export function invoiceVisible(v: Viewer, i: { dealId: SQLWrapper; orderId: SQLWrapper; quoteId?: SQLWrapper }): SQL {
   if (v.seesAll) return sql`TRUE`;
-  return sql`((${i.dealId} IS NOT NULL AND ${dealVisible(v, i.dealId)}) OR (${i.dealId} IS NULL AND EXISTS (SELECT 1 FROM sales_orders vo WHERE vo.id = ${i.orderId} AND ${orderVisible(v, { dealId: sql`vo.deal_id`, quoteId: sql`vo.quote_id` })})))`;
+  const byQuote = i.quoteId
+    ? sql` OR (${i.dealId} IS NULL AND ${i.orderId} IS NULL AND EXISTS (SELECT 1 FROM quotes viq WHERE viq.id = ${i.quoteId} AND (viq.owner_id = ${v.id} OR viq.created_by = ${v.id})))`
+    : sql``;
+  return sql`((${i.dealId} IS NOT NULL AND ${dealVisible(v, i.dealId)}) OR (${i.dealId} IS NULL AND EXISTS (SELECT 1 FROM sales_orders vo WHERE vo.id = ${i.orderId} AND ${orderVisible(v, { dealId: sql`vo.deal_id`, quoteId: sql`vo.quote_id` })}))${byQuote})`;
 }
 
 /** SQL condition for a file: unlinked files are shared with everyone; linked ones follow their company / deal / order / invoice. */
@@ -73,7 +79,7 @@ export function fileVisible(v: Viewer, relatedType: SQLWrapper, relatedId: SQLWr
     OR (${relatedType} = 'company' AND ${companyVisible(v, relatedId)})
     OR (${relatedType} = 'deal' AND ${dealVisible(v, relatedId)})
     OR (${relatedType} = 'order' AND EXISTS (SELECT 1 FROM sales_orders fo WHERE fo.id = ${relatedId} AND ${orderVisible(v, { dealId: sql`fo.deal_id`, quoteId: sql`fo.quote_id` })}))
-    OR (${relatedType} = 'invoice' AND EXISTS (SELECT 1 FROM invoices fi WHERE fi.id = ${relatedId} AND ${invoiceVisible(v, { dealId: sql`fi.deal_id`, orderId: sql`fi.order_id` })})))`;
+    OR (${relatedType} = 'invoice' AND EXISTS (SELECT 1 FROM invoices fi WHERE fi.id = ${relatedId} AND ${invoiceVisible(v, { dealId: sql`fi.deal_id`, orderId: sql`fi.order_id`, quoteId: sql`fi.quote_id` })})))`;
 }
 
 export async function canSeeFile(v: Viewer, fileId: number): Promise<boolean> {
@@ -98,6 +104,33 @@ export async function canSeeOrder(v: Viewer, orderId: number): Promise<boolean> 
   if (v.seesAll) return true;
   const r = await db.execute(sql`SELECT 1 FROM sales_orders o WHERE o.id = ${orderId} AND ${orderVisible(v, { dealId: sql`o.deal_id`, quoteId: sql`o.quote_id` })}`);
   return r.rows.length > 0;
+}
+
+export async function canSeeInvoice(v: Viewer, invoiceId: number): Promise<boolean> {
+  if (v.seesAll) return true;
+  const r = await db.execute(sql`SELECT 1 FROM invoices i WHERE i.id = ${invoiceId} AND ${invoiceVisible(v, { dealId: sql`i.deal_id`, orderId: sql`i.order_id`, quoteId: sql`i.quote_id` })}`);
+  return r.rows.length > 0;
+}
+
+/**
+ * Whether the viewer may see the record a file (or anything else) is linked to. Unknown kinds are refused, so a link can
+ * never be made to a record the person could not open themselves.
+ */
+export async function canSeeRelated(v: Viewer, relatedType: string, relatedId: number): Promise<boolean> {
+  if (!Number.isInteger(relatedId) || relatedId < 1) return false;
+  const exists = async (table: string) => (await db.execute(sql`SELECT 1 FROM ${sql.identifier(table)} WHERE id = ${relatedId}`)).rows.length > 0;
+  switch (relatedType) {
+    case "company":
+      return (await exists("companies")) && canSeeCompany(v, relatedId);
+    case "deal":
+      return (await exists("deals")) && canSeeDeal(v, relatedId);
+    case "order":
+      return (await exists("sales_orders")) && canSeeOrder(v, relatedId);
+    case "invoice":
+      return (await exists("invoices")) && canSeeInvoice(v, relatedId);
+    default:
+      return false;
+  }
 }
 
 export async function canSeeCompany(v: Viewer, companyId: number): Promise<boolean> {

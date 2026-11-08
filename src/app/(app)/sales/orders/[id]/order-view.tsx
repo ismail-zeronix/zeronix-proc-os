@@ -18,7 +18,7 @@ import { termsLabel } from "@/lib/invoicing";
 import { getOrder } from "@/lib/orders-data";
 import { orderCosts } from "@/lib/purchases-data";
 import { getSetting } from "@/lib/settings";
-import { lineTotal, longDay, money } from "@/lib/quotation";
+import { lineTotal, longDay, money, profitOf } from "@/lib/quotation";
 import { param, type SalesBase } from "@/lib/sales-base";
 
 /** One sales order: delivery, invoice and money in one place, with the customer's PO and other files. */
@@ -39,7 +39,7 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
   ]);
   const active = o.invoices.find((i) => i.status !== "cancelled");
   const closed = o.status === "invoiced" || o.status === "cancelled";
-  const profit = o.costTotal != null ? o.subtotal - o.costTotal : null;
+  const pr = profitOf(o);
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
@@ -187,9 +187,10 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
                           <dd className="tabular-nums">{money(o.costTotal)}</dd>
                         </div>
                         <div className="flex justify-between font-medium">
-                          <dt>Expected profit</dt>
-                          <dd className="tabular-nums">{money(profit!)}</dd>
+                          <dt>{pr.partial ? "Expected profit (partial)" : "Expected profit"}</dt>
+                          <dd className="tabular-nums">{money(pr.profit!)}</dd>
                         </div>
+                        {pr.partial && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{pr.uncostedLines} line{pr.uncostedLines === 1 ? " has" : "s have"} no cost, so this profit covers only {money(pr.soldWithCost)} of the sale.</p>}
                       </>
                     )}
                     {costs && (

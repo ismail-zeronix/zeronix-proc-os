@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { dayString } from "@/lib/validation";
 import { z } from "zod";
 import { assertApp } from "@/lib/auth/session";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
@@ -25,7 +26,7 @@ export async function importKeywordsAction(form: FormData): Promise<Result<{ add
 const statusSchema = z.object({
   id: z.number().int().positive(),
   status: z.enum(["idea", "planned", "writing", "draft", "published"]),
-  plannedFor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  plannedFor: dayString().nullable(),
 });
 
 export async function setKeywordStatusAction(input: z.infer<typeof statusSchema>): Promise<Result<null>> {

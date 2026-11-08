@@ -1,6 +1,7 @@
 "use server";
 
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { dayString, toFils } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -11,14 +12,15 @@ import { dubaiToday } from "@/lib/dates";
 import { orderedBoq } from "@/lib/boq";
 import { PROJECT_VALID_DAYS } from "@/lib/proposal";
 import { getFx, toAed } from "@/lib/fx";
-import { addDays, isQuoteStatus, marginOf, money, quoteNumber, quoteStatusLabel, round2, sellPrice, totals, type QuoteStatus } from "@/lib/quotation";
+import { addDays, costFields, isQuoteStatus, marginOf, money, quoteNumber, quoteStatusLabel, round2, sellPrice, totals, type QuoteStatus } from "@/lib/quotation";
 import { quoteDecided } from "@/lib/notifications/events";
+import { acceptQuote, unwinDeal } from "@/lib/quote-accept";
 import { snapshotForQuote } from "@/lib/proposals-data";
 import { quoteDefaults } from "@/lib/quotes-data";
 import { stageLabel } from "@/lib/sales";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const price = z.number().min(0).max(1e9);
+const price = z.number().min(0).max(1e9).transform(toFils);
 
 function refresh(dealId?: number | null) {
   revalidatePath("/crm", "layout");
@@ -151,7 +153,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /** A quote that became a sales order or an invoice stays as it is: cancel that instead. */
 async function assertNotConverted(tx: Tx | typeof db, quoteId: number, number?: string) {
   const name = number ? `Quote ${number}` : "This quote";
-  const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
+  const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(and(eq(schema.salesOrders.quoteId, quoteId), ne(schema.salesOrders.status, "cancelled")));
   if (order) throw new UserError(`${name} became sales order ${order.number} and cannot be changed. Cancel the order instead.`);
   const [inv] = await tx.select({ number: schema.invoices.number }).from(schema.invoices).where(and(eq(schema.invoices.quoteId, quoteId), ne(schema.invoices.status, "cancelled")));
   if (inv) throw new UserError(`${name} became invoice ${inv.number} and cannot be changed. Cancel the invoice instead.`);
@@ -238,7 +240,7 @@ export async function createQuote(dealId: number, input: z.input<typeof quoteInp
         subtotal: t.subtotal,
         vatAmount: t.vat,
         total: t.total,
-        costTotal: t.cost,
+        ...costFields(t),
         createdBy: me.id,
       })
       .returning({ id: schema.quotes.id });
@@ -289,7 +291,7 @@ export async function reviseQuote(quoteId: number) {
     await snapshotForQuote(tx, dealId, { id: quoteId, number: q.number, vatPct: q.vatPct, validUntil }, me.id);
     await tx
       .update(schema.quotes)
-      .set({ subtotal: t.subtotal, vatAmount: t.vat, total: t.total, costTotal: t.cost, validUntil })
+      .set({ subtotal: t.subtotal, vatAmount: t.vat, total: t.total, ...costFields(t), validUntil })
       .where(eq(schema.quotes.id, quoteId));
     await tx.update(schema.deals).set({ valueAed: t.subtotal }).where(eq(schema.deals.id, dealId));
     await tx.insert(schema.activities).values({
@@ -307,7 +309,7 @@ export async function reviseQuote(quoteId: number) {
 }
 
 const quotePatch = z.object({
-  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date").optional(),
+  validUntil: dayString("Pick a valid date").optional(),
   terms: z.string().trim().max(2000).optional(),
 });
 
@@ -343,10 +345,19 @@ export async function setQuoteStatus(quoteId: number, status: string) {
     const [q] = await tx
       .select({ number: schema.quotes.number, status: schema.quotes.status, dealId: schema.quotes.dealId, companyId: schema.quotes.companyId, subtotal: schema.quotes.subtotal, total: schema.quotes.total })
       .from(schema.quotes)
-      .where(eq(schema.quotes.id, quoteId));
+      .where(eq(schema.quotes.id, quoteId))
+      .for("update");
     if (!q) throw new UserError("That quote no longer exists.");
     if (q.status === next) return { dealId: q.dealId, stage: null as string | null, changed: false };
     await assertNotConverted(tx, quoteId);
+    const note = () =>
+      tx.insert(schema.activities).values({ type: "note", body: `Quote ${q.number} marked ${quoteStatusLabel(next).toLowerCase()} (${money(round2(q.total))}).`, dealId: q.dealId, companyId: q.companyId, userId: me.id });
+    // accepted: the one rule every entry point uses (lib/quote-accept.ts)
+    if (next === "accepted") {
+      const r = await acceptQuote(tx, { quoteId, userId: me.id, allowRejected: true });
+      await note();
+      return { dealId: q.dealId, stage: r.dealId ? "won" : null, changed: r.changed };
+    }
     // an instant quote has no deal: no stage to move, no other quotes to keep in line
     const [deal] = q.dealId ? await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, q.dealId)) : [];
     const now = new Date();
@@ -362,39 +373,20 @@ export async function setQuoteStatus(quoteId: number, status: string) {
     const otherOpen = others.filter((o) => o.status === "draft" || o.status === "sent");
     if (otherOpen.length && (next === "draft" || next === "sent"))
       throw new UserError(`Quote ${otherOpen[0].number} is already open for this deal. Update that one, or mark it rejected first.`);
-    if (next === "accepted" && otherOpen.length) {
-      // the customer took this one, so the older open quotes are answered too
-      await tx.update(schema.quotes).set({ status: "rejected", decidedAt: now }).where(inArray(schema.quotes.id, otherOpen.map((o) => o.id)));
-      await tx.insert(schema.activities).values({
-        type: "note",
-        body: `${otherOpen.map((o) => o.number).join(", ")} marked rejected: replaced by ${q.number}.`,
-        dealId: q.dealId,
-        companyId: q.companyId,
-        userId: me.id,
-      });
-    }
     await tx
       .update(schema.quotes)
       .set({
         status: next,
         sentAt: next === "sent" ? now : next === "draft" ? null : undefined,
-        decidedAt: next === "accepted" || next === "rejected" ? now : null,
+        decidedAt: next === "rejected" ? now : null,
       })
       .where(eq(schema.quotes.id, quoteId));
     let movedTo: string | null = null;
-    if (deal && next === "sent" && BEFORE_QUOTED.has(deal.stage)) movedTo = "quoted";
-    if (deal && next === "accepted" && deal.stage !== "won") movedTo = "won";
-    if (deal && q.dealId && movedTo) {
-      await tx
-        .update(schema.deals)
-        .set({
-          stage: movedTo,
-          stageChangedAt: now,
-          closedAt: movedTo === "won" ? now : null,
-          lostReason: "",
-          ...(movedTo === "won" ? { valueAed: q.subtotal } : {}),
-        })
-        .where(eq(schema.deals.id, q.dealId));
+    // it was the accepted quote: the deal it won is open again
+    if (q.status === "accepted") movedTo = await unwinDeal(tx, { dealId: q.dealId, companyId: q.companyId, userId: me.id, why: `quote ${q.number} ${quoteStatusLabel(next).toLowerCase()}` });
+    if (deal && q.dealId && next === "sent" && BEFORE_QUOTED.has(deal.stage)) {
+      movedTo = "quoted";
+      await tx.update(schema.deals).set({ stage: movedTo, stageChangedAt: now, closedAt: null, lostReason: "" }).where(eq(schema.deals.id, q.dealId));
       await tx.insert(schema.activities).values({
         type: "stage",
         body: `Moved from ${stageLabel(deal.stage)} to ${stageLabel(movedTo)} (quote ${q.number} ${quoteStatusLabel(next).toLowerCase()}).`,
@@ -403,13 +395,7 @@ export async function setQuoteStatus(quoteId: number, status: string) {
         userId: me.id,
       });
     }
-    await tx.insert(schema.activities).values({
-      type: "note",
-      body: `Quote ${q.number} marked ${quoteStatusLabel(next).toLowerCase()} (${money(round2(q.total))}).`,
-      dealId: q.dealId,
-      companyId: q.companyId,
-      userId: me.id,
-    });
+    await note();
     return { dealId: q.dealId, stage: movedTo, changed: true };
   });
   if (result.changed && (next === "accepted" || next === "rejected")) await quoteDecided(quoteId, next, me.id);
@@ -425,6 +411,8 @@ export async function deleteQuote(quoteId: number) {
   const [q] = await db.select({ status: schema.quotes.status, dealId: schema.quotes.dealId }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
   if (!q) return;
   await assertNotConverted(db, quoteId);
+  const [past] = await db.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId)).limit(1);
+  if (past) throw new UserError(`This quote keeps the history of cancelled order ${past.number}. Mark it rejected instead.`);
   if (q.status !== "draft" && me.role !== "admin") throw new UserError("Only an admin can delete a quote that was sent. Mark it rejected instead.");
   await db.delete(schema.quotes).where(and(eq(schema.quotes.id, quoteId)));
   refresh(q.dealId);
@@ -436,7 +424,7 @@ const lineSchema = z.object({
   description: z.string().trim().min(1, "Describe each line").max(400),
   qty: z.number().int().min(1, "Quantity must be at least 1").max(100000),
   costAed: price.nullable().optional(),
-  unitPriceAed: z.number().positive("Every line needs a selling price").max(1e9),
+  unitPriceAed: z.number().positive("Every line needs a selling price").max(1e9).transform(toFils),
   supplierName: z.string().trim().max(160).default(""),
 });
 
@@ -447,7 +435,7 @@ const saveSchema = z.object({
   contactId: z.number().int().positive().nullable().optional(),
   /** The salesperson it is in the name of. */
   ownerId: z.number().int().positive("Pick the salesperson"),
-  validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the valid-until date"),
+  validUntil: dayString("Pick the valid-until date"),
   termsDays: z.number().int().min(0).max(365),
   vatPct: z.number().min(0).max(100),
   lines: z.array(lineSchema).min(1, "Add at least one line").max(300),
@@ -509,7 +497,7 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
       number = q.number;
       await tx
         .update(schema.quotes)
-        .set({ dealId, companyId: d.companyId, contactId: d.contactId ?? null, ownerId: d.ownerId, validUntil: d.validUntil, termsDays: d.termsDays, vatPct: d.vatPct, terms: d.terms, notes: d.notes, subtotal: t.subtotal, vatAmount: t.vat, total: t.total, costTotal: t.cost })
+        .set({ dealId, companyId: d.companyId, contactId: d.contactId ?? null, ownerId: d.ownerId, validUntil: d.validUntil, termsDays: d.termsDays, vatPct: d.vatPct, terms: d.terms, notes: d.notes, subtotal: t.subtotal, vatAmount: t.vat, total: t.total, ...costFields(t) })
         .where(eq(schema.quotes.id, id));
       await tx.delete(schema.quoteItems).where(eq(schema.quoteItems.quoteId, id));
     } else {
@@ -519,7 +507,7 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
       number = quoteNumber(year, seq);
       const [q] = await tx
         .insert(schema.quotes)
-        .values({ year, seq, number, dealId, companyId: d.companyId, contactId: d.contactId ?? null, ownerId: d.ownerId, validUntil: d.validUntil, termsDays: d.termsDays, vatPct: d.vatPct, terms: d.terms, notes: d.notes, subtotal: t.subtotal, vatAmount: t.vat, total: t.total, costTotal: t.cost, createdBy: me.id })
+        .values({ year, seq, number, dealId, companyId: d.companyId, contactId: d.contactId ?? null, ownerId: d.ownerId, validUntil: d.validUntil, termsDays: d.termsDays, vatPct: d.vatPct, terms: d.terms, notes: d.notes, subtotal: t.subtotal, vatAmount: t.vat, total: t.total, ...costFields(t), createdBy: me.id })
         .returning({ id: schema.quotes.id });
       id = q.id;
     }

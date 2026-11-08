@@ -1,6 +1,6 @@
 import { amt, cell, DocFooter, DocHeader, DocSheet, Label, LinesTable, MetaStrip, NumberedList, Parties, Party, type QuoteBrand, rowClass, SignOff, styleOf, TotalsBlock, withNumbers, zebra } from "@/components/doc-parts";
 import { lineTotal, round2 } from "@/lib/quotation";
-import { chargedRate, taxCodeLabel } from "@/lib/tax/doc-tax";
+import { chargedRate, lineVats, taxCodeLabel } from "@/lib/tax/doc-tax";
 import { aedInWords } from "@/lib/words";
 
 export interface BankDetails {
@@ -65,6 +65,8 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
   const byCode: [string, string][] =
     codes.length > 1 ? codes.map((c) => [`${taxCodeLabel(c)} on ${amt(round2(d.items.filter((i) => i.taxCode === c).reduce((s, i) => s + lineTotal(i), 0)))}`, amt(c === "SR" ? d.vatAmount : 0)]) : [];
   const single = codes.length === 1 ? codes[0] : null;
+  // the document's VAT shared over its lines, so the line column adds up to the VAT in the totals
+  const lineVat = d.vatPerLine ? lineVats(d.items.map((i) => ({ net: lineTotal(i), ratePct: rateOf(i) })), d.vatAmount) : [];
   const vatLabel = single === "EX" ? "Exempt from VAT" : single === "OS" ? "Outside the scope of VAT" : d.vatPct > 0 ? `VAT (${d.vatPct}%)` : "VAT 0% (zero-rated)";
   const notes = d.notes && d.notes.length > 0 ? <NumberedList label="Notes" items={d.notes} s={s} /> : null;
   const bankBox = bank && (
@@ -112,7 +114,7 @@ export function SalesDocument({ d, brand }: { d: SalesDocData; brand: QuoteBrand
               {d.showPrices && <td className={`${cell} text-right tabular-nums`}>{amt(i.unitPrice)}</td>}
               {d.showPrices && <td className={`${cell} text-right font-semibold text-neutral-900 tabular-nums`}>{amt(amount)}</td>}
               {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{i.taxCode === "EX" ? "Exempt" : i.taxCode === "OS" ? "N/A" : `${rateOf(i)}%`}</td>}
-              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{amt(round2((amount * rateOf(i)) / 100))}</td>}
+              {d.showPrices && d.vatPerLine && <td className={`${cell} text-right tabular-nums`}>{amt(lineVat[n] ?? 0)}</td>}
             </tr>
           );
         })}

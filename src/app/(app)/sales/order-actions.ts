@@ -1,6 +1,7 @@
 "use server";
 
 import { and, asc, eq, ne } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -9,11 +10,13 @@ import { assertDealOf } from "@/lib/auth/visibility";
 import { dubaiToday } from "@/lib/dates";
 import { nextSeq } from "@/lib/doc-numbers";
 import { termsLabel, yearNumber } from "@/lib/invoicing";
+import { quoteDecided } from "@/lib/notifications/events";
 import { money } from "@/lib/quotation";
+import { acceptQuote } from "@/lib/quote-accept";
 import { stageLabel, trnProblem } from "@/lib/sales";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 
 function refresh(dealId: number | null, orderId?: number) {
   revalidatePath("/crm", "layout");
@@ -48,7 +51,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
     const [q] = await tx.select().from(schema.quotes).where(eq(schema.quotes.id, quoteId)).for("update");
     if (!q) throw new UserError("That quote no longer exists.");
     if (q.status === "rejected") throw new UserError("This quote was rejected. Set it back to Sent first if the customer changed their mind.");
-    const [existing] = await tx.select({ id: schema.salesOrders.id, number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
+    const [existing] = await tx.select({ id: schema.salesOrders.id, number: schema.salesOrders.number }).from(schema.salesOrders).where(and(eq(schema.salesOrders.quoteId, quoteId), ne(schema.salesOrders.status, "cancelled")));
     if (existing) throw new UserError(`This quote is already order ${existing.number}.`);
     const [invoiced] = await tx.select({ number: schema.invoices.number }).from(schema.invoices).where(and(eq(schema.invoices.quoteId, quoteId), ne(schema.invoices.status, "cancelled")));
     if (invoiced) throw new UserError(`This quote is already invoice ${invoiced.number}.`);
@@ -81,6 +84,8 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
         vatAmount: q.vatAmount,
         total: q.total,
         costTotal: q.costTotal,
+        soldWithCost: q.soldWithCost,
+        uncostedLines: q.uncostedLines,
         deliveryAddress: d.deliveryAddress,
         notes: d.notes,
         createdBy: me.id,
@@ -88,21 +93,8 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
       .returning({ id: schema.salesOrders.id });
     await tx.insert(schema.salesOrderItems).values(items.map((i, position) => ({ orderId: order.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPrice })));
 
-    const now = new Date();
-    if (q.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: now }).where(eq(schema.quotes.id, quoteId));
-    if (deal && q.dealId && deal.stage !== "won") {
-      await tx
-        .update(schema.deals)
-        .set({ stage: "won", stageChangedAt: now, closedAt: now, lostReason: "", valueAed: q.subtotal })
-        .where(eq(schema.deals.id, q.dealId));
-      await tx.insert(schema.activities).values({
-        type: "stage",
-        body: `Moved from ${stageLabel(deal.stage)} to ${stageLabel("won")} (order ${number}).`,
-        dealId: q.dealId,
-        companyId: q.companyId,
-        userId: me.id,
-      });
-    }
+    // the same acceptance rule as the quote page (lib/quote-accept.ts): other open quotes rejected, deal Won
+    const accepted = await acceptQuote(tx, { quoteId, userId: me.id, via: `order ${number}` });
     await tx.insert(schema.activities).values({
       type: "note",
       body: `Order ${number} made from quote ${q.number}: ${money(q.total)} with VAT, ${termsLabel(d.termsDays).toLowerCase()}${d.customerRef ? `, customer PO ${d.customerRef}` : ""}.`,
@@ -110,8 +102,9 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
       companyId: q.companyId,
       userId: me.id,
     });
-    return { id: order.id, number, dealId: q.dealId };
+    return { id: order.id, number, dealId: q.dealId, accepted: accepted.changed };
   });
+  if (result.accepted) await quoteDecided(quoteId, "accepted", me.id);
   refresh(result.dealId, result.id);
   revalidatePath(`/sales/quotes/${quoteId}`);
   return { id: result.id, number: result.number };
@@ -189,6 +182,8 @@ export async function cancelOrder(orderId: number, reason: string) {
     if (o.status === "invoiced") throw new UserError("This order has an invoice. Cancel the invoice (credit note) in Accounts first.");
     if (o.status === "cancelled") return o.dealId;
     await tx.update(schema.salesOrders).set({ status: "cancelled", cancelReason: why, cancelledAt: new Date() }).where(eq(schema.salesOrders.id, orderId));
+    // the quote is open again (Sent), so it can be changed, re-ordered or replaced: the deal never gets stuck
+    await tx.update(schema.quotes).set({ status: "sent", decidedAt: null }).where(and(eq(schema.quotes.id, o.quoteId), eq(schema.quotes.status, "accepted")));
     const [deal] = o.dealId ? await tx.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, o.dealId)) : [];
     if (o.dealId && deal?.stage === "won") {
       await tx.update(schema.deals).set({ stage: "negotiation", stageChangedAt: new Date(), closedAt: null }).where(eq(schema.deals.id, o.dealId));
@@ -202,7 +197,7 @@ export async function cancelOrder(orderId: number, reason: string) {
     }
     await tx.insert(schema.activities).values({
       type: "note",
-      body: `Order ${o.number} cancelled: ${why}`,
+      body: `Order ${o.number} cancelled: ${why}. Its quote is open again.`,
       dealId: o.dealId,
       companyId: o.companyId,
       userId: me.id,

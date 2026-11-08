@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           or(ilike(schema.invoices.number, like(q)), ilike(schema.invoices.customerRef, like(q))),
-          accounts ? undefined : invoiceVisible(v, { dealId: schema.invoices.dealId, orderId: schema.invoices.orderId }),
+          accounts ? undefined : invoiceVisible(v, { dealId: schema.invoices.dealId, orderId: schema.invoices.orderId, quoteId: schema.invoices.quoteId }),
         ),
       )
       .orderBy(desc(schema.invoices.createdAt))

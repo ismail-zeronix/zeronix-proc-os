@@ -22,6 +22,7 @@ import { listFiles } from "@/lib/files-data";
 import { methodLabel, termsLabel } from "@/lib/invoicing";
 import { invoiceCosts, orderCosts } from "@/lib/purchases-data";
 import { longDay, money, round2 } from "@/lib/quotation";
+import { brandFor } from "@/lib/seller";
 import { quoteBrand } from "@/lib/quote-view";
 import { FitWidth } from "@/components/fit-width";
 
@@ -42,7 +43,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const opening = inv.kind === "opening";
   const orgId = await currentOrgId();
   const [brand, doc, files, advances, costs, accounts, soldCost] = await Promise.all([
-    quoteBrand(),
+    quoteBrand().then((b) => brandFor(b, inv.sellerSnapshot)),
     invoiceDoc(inv),
     canFiles ? listFiles(financeViewerOf(access), { relatedType: "invoice", relatedId: inv.id, finance: true }) : Promise.resolve([]),
     (inv.status !== "cancelled" && inv.state.balance > 0) || inv.credits.length > 0 ? customerAdvances(inv.companyId) : Promise.resolve([]),

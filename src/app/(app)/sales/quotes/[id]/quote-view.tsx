@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import type { Access } from "@/lib/auth/session";
 import { financeViewerOf } from "@/lib/auth/visibility";
 import { dayLabel } from "@/lib/dates";
-import { money, quoteWhatsApp } from "@/lib/quotation";
+import { money, profitOf, quoteWhatsApp } from "@/lib/quotation";
 import { proposalBrand, quoteBrand, toDoc } from "@/lib/quote-view";
 import { invoiceOfQuote, orderOfQuote } from "@/lib/orders-data";
 import { projectOfDeal } from "@/lib/projects-data";
@@ -57,7 +57,7 @@ export async function QuoteView({ access, base, id }: { access: Access; base: Sa
     ourCompany: brand.company,
   });
   const locked = q.status === "accepted" || q.status === "rejected";
-  const profit = q.costTotal != null ? q.subtotal - q.costTotal : null;
+  const pr = profitOf(q);
   const canDelete = !order && !invoice && (q.status === "draft" || user.role === "admin");
 
   return (
@@ -165,8 +165,8 @@ export async function QuoteView({ access, base, id }: { access: Access; base: Sa
                     <dd className="tabular-nums">{money(q.costTotal)}</dd>
                   </div>
                   <div className="flex justify-between font-medium">
-                    <dt>Profit</dt>
-                    <dd className="tabular-nums">{money(profit!)}</dd>
+                    <dt>{pr.partial ? "Profit (partial)" : "Profit"}</dt>
+                    <dd className="tabular-nums">{money(pr.profit!)}</dd>
                   </div>
                 </>
               )}
@@ -181,6 +181,7 @@ export async function QuoteView({ access, base, id }: { access: Access; base: Sa
                 </div>
               )}
             </dl>
+            {pr.partial && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{pr.uncostedLines} line{pr.uncostedLines === 1 ? " has" : "s have"} no cost, so this profit covers only {money(pr.soldWithCost)} of the sale.</p>}
             {q.costTotal == null && <p className="mt-1 text-xs text-muted-foreground">No costs were entered on this quote, so there is no profit figure.</p>}
             {q.shownStatus === "expired" && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">This quote has passed its date. Change “Valid until” below to give the customer more time.</p>}
           </section>

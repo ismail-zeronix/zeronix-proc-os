@@ -257,4 +257,93 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     await A.recordPayment(inv.id, { paidOn: today, amount: 525, method: "cash" });
     expect((await AD.getInvoice(inv.id))!.state.key).toBe("paid");
   });
+
+  // ---------- launch plan, Phase 1 (review findings H1, H2, H4, H5) ----------
+
+  it("saves what the costed lines sell for, so profit is never subtotal minus a partial cost (H1)", async () => {
+    const { quoteId } = await quotedDeal("Profit");
+    const [q] = await db.select().from(schema.quotes).where(eq(schema.quotes.id, quoteId));
+    // Laptop 2 x 1000 costs 2 x 900; the Dock (500) has no cost
+    expect(q).toMatchObject({ subtotal: 2500, costTotal: 1800, soldWithCost: 2000, uncostedLines: 1 });
+    const { profitOf } = await import("@/lib/quotation");
+    expect(profitOf(q)).toMatchObject({ profit: 200, partial: true, uncostedLines: 1 });
+    const o = await O.convertQuoteToOrder(quoteId, { termsDays: 30 });
+    const [order] = await db.select().from(schema.salesOrders).where(eq(schema.salesOrders.id, o.id));
+    expect(profitOf(order)).toMatchObject({ profit: 200, partial: true });
+    await O.cancelOrder(o.id, "Test order only");
+  });
+
+  it("a cancelled order frees its quote: the deal can be ordered again (H4)", async () => {
+    const { dealId, quoteId } = await quotedDeal("Reorder");
+    const first = await O.convertQuoteToOrder(quoteId, { termsDays: 30 });
+    await O.cancelOrder(first.id, "Customer changed the PO");
+    const [q] = await db.select({ status: schema.quotes.status }).from(schema.quotes).where(eq(schema.quotes.id, quoteId));
+    expect(q.status).toBe("sent");
+    const [d1] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, dealId));
+    expect(d1.stage).toBe("negotiation");
+    // the quote can be changed or ordered again
+    await expect(Q.reviseQuote(quoteId)).resolves.toBeTruthy();
+    const second = await O.convertQuoteToOrder(quoteId, { termsDays: 15 });
+    expect(second.id).not.toBe(first.id);
+    const [d2] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, dealId));
+    expect(d2.stage).toBe("won");
+    // still only one live order per quote, even at the same moment
+    await expect(O.convertQuoteToOrder(quoteId, { termsDays: 15 })).rejects.toThrow(/already order/);
+    // a quote with order history is kept
+    await O.cancelOrder(second.id, "Test order only");
+    await expect(Q.deleteQuote(quoteId)).rejects.toThrow(/cancelled order/);
+  });
+
+  it("accepting a quote has the same result from the quote page and from making the order (H5)", async () => {
+    const a = await quotedDeal("AcceptA");
+    const b = await quotedDeal("AcceptB");
+    await Q.setQuoteStatus(a.quoteId, "accepted");
+    const o = await O.convertQuoteToOrder(b.quoteId, { termsDays: 30 });
+    const deals = await db.select({ id: schema.deals.id, stage: schema.deals.stage, valueAed: schema.deals.valueAed, closedAt: schema.deals.closedAt }).from(schema.deals).where(inArray(schema.deals.id, [a.dealId, b.dealId]));
+    for (const d of deals) expect(d).toMatchObject({ stage: "won", valueAed: 2500 });
+    for (const d of deals) expect(d.closedAt).not.toBeNull();
+    // taking the acceptance back opens the deal again
+    await Q.setQuoteStatus(a.quoteId, "sent");
+    const [da] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, a.dealId));
+    expect(da.stage).toBe("negotiation");
+    // a deal with a live order cannot be marked lost
+    await expect(S.moveDeal(b.dealId, "lost", "Price")).rejects.toThrow(/Cancel it first/);
+    await O.cancelOrder(o.id, "Test order only");
+    await S.moveDeal(b.dealId, "lost", "Price");
+    const [qb] = await db.select({ status: schema.quotes.status }).from(schema.quotes).where(eq(schema.quotes.id, b.quoteId));
+    expect(qb.status).toBe("sent");
+  });
+
+  it("an invoice line is saved as printed, so lines always add up to the total (H2)", async () => {
+    const { dealId } = await quotedDeal("Fils");
+    const [deal] = await db.select({ companyId: schema.deals.companyId }).from(schema.deals).where(eq(schema.deals.id, dealId));
+    await as(accountant);
+    const inv = await A.createInvoice({ companyId: deal.companyId, issueDate: today, termsDays: 0, customerAddress: "Dubai", vatPct: 5, lines: [{ description: "Cable", qty: 100, unitPrice: 10.555, lineKind: "product", taxCode: "SR" }] });
+    const [row] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, inv.id));
+    const items = await db.select().from(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id));
+    expect(items[0].unitPrice).toBe(10.56);
+    expect(row.subtotal).toBe(1056);
+    expect(row.subtotal).toBe(items.reduce((s, i) => s + Math.round(i.qty * i.unitPrice * 100) / 100, 0));
+    // an impossible date is refused with a plain message, never a database error
+    await expect(A.createInvoice({ companyId: deal.companyId, issueDate: "2026-02-31", termsDays: 0, customerAddress: "Dubai", vatPct: 5, lines: [{ description: "x", qty: 1, unitPrice: 1 }] })).rejects.toThrow(/valid date/);
+    await A.cancelInvoice(inv.id, "Test invoice only");
+    await as(seller);
+  });
+
+  it("an invoice keeps the seller details it was issued with (H3)", async () => {
+    const { orderId } = await deliveredOrder("Snapshot");
+    await as(accountant);
+    const inv = await A.issueInvoice(orderId, { issueDate: today, termsDays: 30 });
+    const [row] = await db.select({ snap: schema.invoices.sellerSnapshot }).from(schema.invoices).where(eq(schema.invoices.id, inv.id));
+    expect(row.snap?.trn).toBe("100000000000003");
+    // the TRN changes later: the old invoice still prints the one it was issued with
+    await db.update(schema.settings).set({ value: "100000000000099" }).where(eq(schema.settings.key, "quote_trn"));
+    const { brandFor, bankFor } = await import("@/lib/seller");
+    const current = { company: "New name", tagline: "", address: "New address", website: "", mainPhone: "", color: "#000", trn: "100000000000099", logoSrc: null };
+    expect(brandFor(current, row.snap).trn).toBe("100000000000003");
+    expect(brandFor(current, null).trn).toBe("100000000000099");
+    expect(bankFor({ name: "Now", accountName: "", accountNumber: "1", iban: "", swift: "" }, row.snap)).toEqual(row.snap?.bank ?? null);
+    await db.update(schema.settings).set({ value: "100000000000003" }).where(eq(schema.settings.key, "quote_trn"));
+    await as(seller);
+  });
 });

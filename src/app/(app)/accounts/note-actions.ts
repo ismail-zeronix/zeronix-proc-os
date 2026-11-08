@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { dayString, toFils, toQty2 } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -18,14 +19,14 @@ import { parseInput, UserError } from "@/lib/user-error";
 
 const line = z.object({
   itemId: z.number().int().positive(),
-  qty: z.number().min(0).max(1e7),
-  unitPrice: z.number().min(0).max(1e10),
+  qty: z.number().min(0).max(1e7).transform(toQty2),
+  unitPrice: z.number().min(0).max(1e10).transform(toFils),
 });
 
 const creditSchema = z.object({
-  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date"),
+  issueDate: dayString("Pick a valid date"),
   /** The day the goods came back or the price was agreed. */
-  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date").optional(),
+  eventDate: dayString("Pick a valid date").optional(),
   reason: z.string().trim().min(3, "Say why the credit note is issued").max(300),
   goodsBack: z.boolean().default(false),
   goodsCost: z.number().min(0).max(1e10).nullable().optional(),
@@ -64,7 +65,7 @@ export async function createCreditNote(invoiceId: number, input: CreditNoteInput
 }
 
 const debitSchema = z.object({
-  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date"),
+  issueDate: dayString("Pick a valid date"),
   reason: z.string().trim().min(3, "Say why the debit note is issued").max(300),
   supplierRef: z.string().trim().max(60).default(""),
   lines: z.array(line).min(1, "Pick at least one line").max(200),
@@ -100,8 +101,8 @@ const refundSchema = z.object({
   party: z.enum(["customer", "supplier"]),
   /** The receipt or voucher holding the advance. */
   paymentId: z.number().int().positive(),
-  amount: z.number().positive("Enter an amount above zero").max(1e10),
-  refundedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date"),
+  amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils),
+  refundedOn: dayString("Pick a valid date"),
   method: z.enum(["cash", "bank"]),
   bankAccountId: z.number().int().positive().nullable().optional(),
   reference: z.string().trim().max(120).default(""),

@@ -5,6 +5,7 @@ import { termsLabel } from "@/lib/invoicing";
 import { getOrder } from "@/lib/orders-data";
 import { getBill } from "@/lib/purchases-data";
 import { longDay, money, round2 } from "@/lib/quotation";
+import { bankFor } from "@/lib/seller";
 
 type Order = NonNullable<Awaited<ReturnType<typeof getOrder>>>;
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
@@ -95,7 +96,7 @@ export async function invoiceDoc(inv: Invoice): Promise<SalesDocData> {
     total: inv.total,
     amountInWords: true,
     notes: [`Please pay by ${longDay(inv.dueDate)} and quote ${inv.number} with your payment.`],
-    bank: det.bank,
+    bank: bankFor(det.bank, inv.sellerSnapshot),
     stamp: inv.status === "cancelled" ? "CANCELLED" : undefined,
     preparedBy: inv.author?.name,
   };

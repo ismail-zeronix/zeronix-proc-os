@@ -1,6 +1,7 @@
 "use server";
 
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -63,7 +64,7 @@ export async function punchOut(input: { reason?: string }) {
 
 const absenceSchema = z.object({
   userId: z.number().int().positive(),
-  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  day: dayString(),
   kind: z.enum(["medical", "other"]),
   note: z.string().trim().max(300).default(""),
 });

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNull, like } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { schema } from "@/db";
 import { audit } from "@/lib/audit";
 import { nextSeq } from "@/lib/doc-numbers";
@@ -28,6 +28,7 @@ export interface NoteLineInput {
 type Invoice = typeof schema.invoices.$inferSelect;
 type Bill = typeof schema.bills.$inferSelect;
 
+/** The collection task of an invoice is found by this exact title (never LIKE: INV-12 must not match INV-123, and "_" or "%" in a number are not wildcards). */
 export const collectTitle = (number: string) => `Collect payment: ${number}`;
 
 /** What is left of each line after earlier notes, keyed by the document's line id. */
@@ -110,9 +111,9 @@ export async function writeCreditNote(tx: Tx, orgId: number, userId: number, inv
 
   if (cleared) {
     if (inv.orderId) await tx.update(schema.salesOrders).set({ status: "delivered" }).where(eq(schema.salesOrders.id, inv.orderId));
-    await tx.delete(schema.tasks).where(and(eq(schema.tasks.status, "open"), like(schema.tasks.title, `${collectTitle(inv.number)}%`)));
+    await tx.delete(schema.tasks).where(and(eq(schema.tasks.status, "open"), eq(schema.tasks.title, collectTitle(inv.number))));
   } else if (round2(inv.total - inv.creditedTotal - total) <= (await paidOn(tx, inv.id))) {
-    await tx.update(schema.tasks).set({ status: "done", doneAt: new Date() }).where(and(eq(schema.tasks.status, "open"), like(schema.tasks.title, `${collectTitle(inv.number)}%`)));
+    await tx.update(schema.tasks).set({ status: "done", doneAt: new Date() }).where(and(eq(schema.tasks.status, "open"), eq(schema.tasks.title, collectTitle(inv.number))));
   }
   return { id: cn.id, number, subtotal, vat, total, cleared, toAdvance };
 }

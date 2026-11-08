@@ -10,7 +10,8 @@ import { proposalBrand, quoteBrand, toDoc } from "@/lib/quote-view";
 import { getQuote } from "@/lib/quotes-data";
 
 export async function generateMetadata({ params }: PageProps<"/print/quote/[id]">) {
-  const q = await getQuote(Number((await params).id), financeViewerOf(await requireAnyApp("sales", "projects"))).catch(() => null);
+  // the same apps as the page: an Accounts-only user prints quotes too
+  const q = await getQuote(Number((await params).id), financeViewerOf(await requireAnyApp("sales", "accounts", "projects"))).catch(() => null);
   return { title: q ? `Quotation ${q.number}` : "Quotation" };
 }
 

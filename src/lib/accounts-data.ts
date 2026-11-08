@@ -260,6 +260,7 @@ export async function getPayment(id: number) {
       notes: schema.payments.notes,
       voidedAt: schema.payments.voidedAt,
       voidReason: schema.payments.voidReason,
+      sellerSnapshot: schema.payments.sellerSnapshot,
       companyId: schema.payments.companyId,
       customerName: schema.companies.name,
       customerTrn: schema.companies.trn,

@@ -8,7 +8,8 @@ import { assertAnyApp, assertApp } from "@/lib/auth/session";
 import { assertCompany, assertContact, assertDeal, canSeeCompany, canSeeDeal, currentViewer } from "@/lib/auth/visibility";
 import { deleteDealThread, syncDealThread } from "@/lib/chat/channels";
 import { notifyMentions } from "@/lib/chat/mentions";
-import { dealAssigned } from "@/lib/notifications/events";
+import { dealAssigned, quoteDecided } from "@/lib/notifications/events";
+import { acceptQuote, liveSaleOfDeal } from "@/lib/quote-accept";
 import { companyOwners, saveCompanyOwners } from "@/lib/company-owners";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
@@ -16,7 +17,7 @@ import { ensureProject } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
 import { duplicateCompany } from "@/lib/sales-data";
 import { ACTIVITY_TYPES, CHECKS, customerGaps, isOpen, isStage, normName, stageLabel, type CustomerGap, type StageKey } from "@/lib/sales";
-import { addDays, money } from "@/lib/quotation";
+import { addDays } from "@/lib/quotation";
 import { parseInput, UserError } from "@/lib/user-error";
 
 const text = (max: number) => z.string().trim().max(max).default("");
@@ -409,6 +410,11 @@ export async function moveDeal(dealId: number, stage: string, lostReason = "") {
   if (!deal) throw new UserError("That deal no longer exists.");
   if (deal.stage === stage) return;
   // the deal page asks through Mark as won (markDealWon); a plain move to Won still flags missing customer details
+  // a deal with a live order or invoice stays Won: cancel those first (moving it to Lost would leave a sale nobody counts)
+  if (deal.stage === "won" || stage === "lost") {
+    const sale = await liveSaleOfDeal(db, dealId);
+    if (sale) throw new UserError(`This deal has ${sale}. Cancel it first, then move the deal.`);
+  }
   const won = stage === "won" ? await customerOf(dealId) : null;
   await db.transaction(async (tx) => {
     await tx
@@ -428,6 +434,17 @@ export async function moveDeal(dealId: number, stage: string, lostReason = "") {
       userId: me.id,
     });
     if (won) await followUpGaps(tx, dealId, won.company.name, won.gaps, won.deal.ownerId, me.id);
+    // no longer won: the quote that won it is open again (Sent), so the deal and its quote never disagree
+    if (deal.stage === "won") {
+      const reopened = await tx
+        .update(schema.quotes)
+        .set({ status: stage === "lost" ? "rejected" : "sent", decidedAt: stage === "lost" ? new Date() : null })
+        .where(and(eq(schema.quotes.dealId, dealId), eq(schema.quotes.status, "accepted")))
+        .returning({ number: schema.quotes.number });
+      if (reopened.length) {
+        await tx.insert(schema.activities).values({ type: "note", body: `Quote ${reopened.map((r) => r.number).join(", ")} marked ${stage === "lost" ? "rejected" : "sent"}: the deal is no longer won.`, dealId, companyId: deal.companyId, userId: me.id });
+      }
+    }
   });
   refresh();
 }
@@ -574,21 +591,20 @@ export async function markDealWon(dealId: number, input: z.input<typeof wonSchem
   if (quote?.status === "rejected") throw new UserError(`${quote.number} was rejected. Pick the quote the customer accepted.`);
   if (!quote && d.terms.length < 3) throw new UserError("Pick the winning quote, or write down what was agreed.");
 
-  await db.transaction(async (tx) => {
-    if (quote && quote.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: new Date() }).where(eq(schema.quotes.id, quote.id));
-    await tx.update(schema.deals).set({ stage: "won", stageChangedAt: new Date(), closedAt: new Date(), lostReason: "" }).where(eq(schema.deals.id, dealId));
-    await tx.insert(schema.activities).values({
-      type: "stage",
-      body:
-        `Moved from ${stageLabel(deal.stage)} to Won` +
-        (quote ? ` with quote ${quote.number} (${money(quote.total)}).` : `. Agreed: ${d.terms}`) +
-        (gaps.length ? ` Customer details missing: ${gaps.map((g) => g.label).join(", ")}.` : ""),
-      dealId,
-      companyId: company.id,
-      userId: me.id,
-    });
+  const gapNote = gaps.length ? `Customer details missing: ${gaps.map((g) => g.label).join(", ")}.` : "";
+  const accepted = await db.transaction(async (tx) => {
+    let changed = false;
+    if (quote) {
+      // the same acceptance rule as the quote page (lib/quote-accept.ts): other open quotes rejected, deal Won at the quoted amount
+      changed = (await acceptQuote(tx, { quoteId: quote.id, userId: me.id, note: gapNote })).changed;
+    } else {
+      await tx.update(schema.deals).set({ stage: "won", stageChangedAt: new Date(), closedAt: new Date(), lostReason: "" }).where(eq(schema.deals.id, dealId));
+      await tx.insert(schema.activities).values({ type: "stage", body: `Moved from ${stageLabel(deal.stage)} to Won. Agreed: ${d.terms}${gapNote ? ` ${gapNote}` : ""}`, dealId, companyId: company.id, userId: me.id });
+    }
     await followUpGaps(tx, dealId, company.name, gaps, deal.ownerId, me.id);
+    return changed;
   });
+  if (accepted && quote) await quoteDecided(quote.id, "accepted", me.id);
   refresh();
   revalidatePath("/sales", "layout");
   return { gaps };

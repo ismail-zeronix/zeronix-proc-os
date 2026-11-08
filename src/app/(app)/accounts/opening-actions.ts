@@ -1,6 +1,7 @@
 "use server";
 
 import { and, count, eq, lt } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { schema } from "@/db";
@@ -19,7 +20,7 @@ import { readWorkbook } from "@/lib/parse/excel-read";
 import { addDays, longDay } from "@/lib/quotation";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 
 function refresh() {
   revalidatePath("/accounts/settings/opening");

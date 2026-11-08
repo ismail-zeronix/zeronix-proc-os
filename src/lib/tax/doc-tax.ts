@@ -3,7 +3,7 @@
  * the net of all lines with that code, so a document with one code gives exactly what it gave before line codes.
  * Only standard-rated lines charge VAT on the document; reverse charge and imports are VAT we account for ourselves.
  */
-import { fromMinor, pctOf, toMinor } from "@/lib/money";
+import { allocate, fromMinor, pctOf, toMinor } from "@/lib/money";
 import { aeVat } from "./ae-vat";
 
 export const SALES_TAX_CODES = ["SR", "ZR", "EX", "OS"] as const;
@@ -63,4 +63,16 @@ export function noteVat(note: readonly { net: number; code: string }[], remainin
   if (standard === 0) return 0;
   if (standard >= toMinor(remaining.standardNet)) return fromMinor(left);
   return fromMinor(Math.min(pctOf(standard, 5), left));
+}
+
+/**
+ * The VAT printed on each line of a tax invoice or note: the document's VAT shared over its charged lines by their amounts
+ * (largest remainder), so the lines always add up to the VAT in the totals. Three lines of 0.30 print 0.02, 0.02, 0.01
+ * under a total of 0.05, not 0.06.
+ */
+export function lineVats(lines: readonly { net: number; ratePct: number }[], vatAmount: number): number[] {
+  const weights = lines.map((l) => (l.ratePct > 0 ? Math.abs(toMinor(l.net)) : 0));
+  const vat = toMinor(vatAmount);
+  if (vat === 0 || weights.every((w) => w === 0)) return lines.map(() => 0);
+  return allocate(vat, weights).map(fromMinor);
 }

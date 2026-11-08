@@ -127,8 +127,8 @@ export async function invoiceOfQuote(quoteId: number) {
   return i ?? null;
 }
 
-/** The order made from a quote, if any (for the quote page button). */
+/** The live order made from a quote, if any (for the quote page button). A cancelled order frees the quote. */
 export async function orderOfQuote(quoteId: number) {
-  const [o] = await db.select({ id: schema.salesOrders.id, number: schema.salesOrders.number, status: schema.salesOrders.status }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, quoteId));
+  const [o] = await db.select({ id: schema.salesOrders.id, number: schema.salesOrders.number, status: schema.salesOrders.status }).from(schema.salesOrders).where(and(eq(schema.salesOrders.quoteId, quoteId), ne(schema.salesOrders.status, "cancelled")));
   return o ?? null;
 }

@@ -1,6 +1,8 @@
 "use server";
 
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { sellerSnapshot } from "@/lib/seller";
+import { dayString, toFils, toQty2 } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -20,7 +22,7 @@ import { currentOrgId, setTxOrg } from "@/lib/org";
 import type { Tx } from "@/lib/tx";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 const id = z.number().int().positive();
 
 function refresh(ids: { billId?: number | null; supplierId?: number | null; orderId?: number | null; dealId?: number | null }) {
@@ -33,8 +35,8 @@ function refresh(ids: { billId?: number | null; supplierId?: number | null; orde
 
 const lineSchema = z.object({
   description: z.string().trim().min(1, "Describe each line").max(500),
-  qty: z.number().positive("Quantity must be above zero").max(1e7),
-  unitCost: z.number().min(0, "Cost cannot be below zero").max(1e10),
+  qty: z.number().positive("Quantity must be above zero").max(1e7).transform(toQty2),
+  unitCost: z.number().min(0, "Cost cannot be below zero").max(1e10).transform(toFils),
   /** VAT code of the line; left out, what the bill's rate means. */
   taxCode: z.enum(PURCHASE_TAX_CODES).optional(),
 });
@@ -172,7 +174,7 @@ const expenseSchema = z.object({
   supplierId: id.nullable().optional(),
   paidTo: z.string().trim().max(120).default(""),
   description: z.string().trim().min(2, "Say what it was for").max(300),
-  amount: z.number().positive("Enter the amount before VAT").max(1e10),
+  amount: z.number().positive("Enter the amount before VAT").max(1e10).transform(toFils),
   vatPct: z.number().min(0).max(100).default(0),
   /** VAT code; left out, what the rate means. */
   taxCode: z.enum(PURCHASE_TAX_CODES).optional(),
@@ -232,7 +234,7 @@ export async function createExpense(input: ExpenseInput) {
     const bankAccountId = await pickPaymentAccount(tx, orgId, d.bankAccountId, d.method);
     const [voucher] = await tx
       .insert(schema.supplierPayments)
-      .values({ year, seq, number, supplierId: supplier?.id ?? null, paidTo: supplier ? "" : d.paidTo, paidOn: d.paidOn, amount: t.total, method: d.method, bankAccountId, reference: d.reference, createdBy: me.id })
+      .values({ sellerSnapshot: await sellerSnapshot(), year, seq, number, supplierId: supplier?.id ?? null, paidTo: supplier ? "" : d.paidTo, paidOn: d.paidOn, amount: t.total, method: d.method, bankAccountId, reference: d.reference, createdBy: me.id })
       .returning({ id: schema.supplierPayments.id });
     await tx.insert(schema.supplierPaymentAllocations).values({ paymentId: voucher.id, billId: b.id, amount: t.total, appliedOn: d.paidOn, createdBy: me.id });
     await postBillDoc(tx, orgId, b.id, me.id);
@@ -252,7 +254,7 @@ export async function createExpense(input: ExpenseInput) {
 
 const paySchema = z.object({
   paidOn: day,
-  amount: z.number().positive("Enter an amount above zero").max(1e10),
+  amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils),
   method: z.enum(["cash", "bank"]),
   reference: z.string().trim().max(120).default(""),
   notes: z.string().trim().max(500).default(""),
@@ -263,7 +265,7 @@ export type SupplierPaymentInput = z.input<typeof paySchema>;
 const voucherSchema = paySchema.extend({
   supplierId: id,
   /** What it pays. Whatever is left of the amount is an advance to the supplier. */
-  allocations: z.array(z.object({ billId: id, amount: z.number().positive("Enter an amount above zero").max(1e10) })).max(200),
+  allocations: z.array(z.object({ billId: id, amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils) })).max(200),
 });
 export type VoucherInput = z.input<typeof voucherSchema>;
 
@@ -314,6 +316,7 @@ async function saveVoucher(me: { id: number }, d: z.infer<typeof voucherSchema>)
     const [p] = await tx
       .insert(schema.supplierPayments)
       .values({
+        sellerSnapshot: await sellerSnapshot(),
         year,
         seq,
         number,
@@ -361,7 +364,7 @@ export async function createVoucher(input: VoucherInput) {
   return saveVoucher(me, parseInput(voucherSchema, input));
 }
 
-const applySchema = z.object({ paymentId: id, billId: id, amount: z.number().positive("Enter an amount above zero").max(1e10), appliedOn: day });
+const applySchema = z.object({ paymentId: id, billId: id, amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils), appliedOn: day });
 
 /** Sets an advance (what is left of a voucher) against a bill of the same supplier, on the day it is applied. */
 export async function applySupplierAdvance(input: z.input<typeof applySchema>) {

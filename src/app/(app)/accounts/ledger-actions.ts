@@ -1,6 +1,7 @@
 "use server";
 
 import { and, count, eq, inArray, ne, sql } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { schema } from "@/db";
@@ -17,7 +18,7 @@ import { ensureLedger } from "@/lib/ledger/setup";
 import { currentOrgId, withOrg } from "@/lib/org";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 
 const accountSchema = z.object({
   code: z

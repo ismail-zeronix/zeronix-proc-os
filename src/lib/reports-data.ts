@@ -177,8 +177,9 @@ async function salesReport(from: string, to: string, period: string): Promise<Re
 
 async function profitReport(from: string, to: string, period: string): Promise<Report> {
   // every sale (not cancelled) invoiced in the period, by order or direct; real cost = supplier bills bought for it
-  const list = await rows<{ number: string; customer: string; invoice: string; sale: number; quoted: number | null; billed: number; bills: number }>(sql`
+  const list = await rows<{ number: string; customer: string; invoice: string; sale: number; quoted: number | null; covered: number | null; quoteSub: number | null; uncosted: number; billed: number; bills: number }>(sql`
     SELECT coalesce(o.number, 'Direct') AS number, i.customer_name customer, i.number invoice, (i.subtotal - i.credited_net)::float sale, coalesce(o.cost_total, q.cost_total)::float quoted,
+      coalesce(o.sold_with_cost, q.sold_with_cost)::float covered, coalesce(o.subtotal, q.subtotal)::float "quoteSub", coalesce(o.uncosted_lines, q.uncosted_lines, 0)::int uncosted,
       coalesce((SELECT sum(b.subtotal - b.credited_net) FROM bills b WHERE (b.invoice_id = i.id OR (i.order_id IS NOT NULL AND b.order_id = i.order_id)) AND b.status <> 'void'), 0)::float billed,
       (SELECT count(*) FROM bills b WHERE (b.invoice_id = i.id OR (i.order_id IS NOT NULL AND b.order_id = i.order_id)) AND b.status <> 'void')::int bills
     FROM invoices i LEFT JOIN sales_orders o ON o.id = i.order_id LEFT JOIN quotes q ON q.id = i.quote_id
@@ -186,8 +187,11 @@ async function profitReport(from: string, to: string, period: string): Promise<R
   const data = list
     .map((r) => {
       const cost = r.bills > 0 ? n(r.billed) : r.quoted != null ? n(r.quoted) : null;
-      const profit = cost != null ? round2(n(r.sale) - cost) : null;
-      return { ...r, cost, profit, margin: profit != null ? pct(profit, n(r.sale)) : null, basis: r.bills > 0 ? "Bills" : r.quoted != null ? "Quote" : "No cost" };
+      // quote cost with uncosted lines: compare it with the part of the sale those costed lines make up, never the whole sale
+      const partial = r.bills === 0 && r.quoted != null && r.uncosted > 0 && r.covered != null && n(r.quoteSub) > 0;
+      const base = partial ? round2((n(r.sale) * n(r.covered)) / n(r.quoteSub)) : n(r.sale);
+      const profit = cost != null ? round2(base - cost) : null;
+      return { ...r, cost, profit, margin: profit != null ? pct(profit, base) : null, basis: r.bills > 0 ? "Bills" : r.quoted != null ? (partial ? "Quote (partial)" : "Quote") : "No cost" };
     })
     .sort((a, b) => (a.margin ?? 999) - (b.margin ?? 999));
   const sale = round2(data.reduce((s, r) => s + n(r.sale), 0));
@@ -208,7 +212,7 @@ async function profitReport(from: string, to: string, period: string): Promise<R
         columns: [{ label: "Order" }, { label: "Customer" }, { label: "Invoice" }, { label: "Sale", kind: "money" }, { label: "Cost", kind: "money" }, { label: "Cost from" }, { label: "Profit", kind: "money" }, { label: "Margin", kind: "pct" }],
         rows: data.map((r) => [r.number, r.customer, r.invoice, n(r.sale), r.cost, r.basis, r.profit, r.margin]),
         total: ["Total", null, null, sale, null, null, profit, null],
-        note: "Cost is the supplier bills linked to the sale; without bills, the cost saved on the quote.",
+        note: "Cost is the supplier bills linked to the sale; without bills, the cost saved on the quote. Quote (partial): some quote lines had no cost, so the profit covers only the costed lines.",
       },
     ],
   };

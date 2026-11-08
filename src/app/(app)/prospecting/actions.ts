@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -265,7 +266,7 @@ const signalSchema = z.object({
   kind: z.string().refine(isSignal, "Pick what is happening"),
   detail: z.string().trim().min(3, "Say what happened").max(400),
   sourceUrl: z.string().trim().min(4, "Add where you saw it (a link)").max(500),
-  observedOn: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the date it happened"),
+  observedOn: dayString("Pick the date it happened"),
 });
 export type SignalInput = z.input<typeof signalSchema>;
 

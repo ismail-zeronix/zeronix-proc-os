@@ -33,11 +33,14 @@ const editSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-/** Rename, move to another folder, or change the note. */
+/** Rename, move to another folder, or change the note: the person who uploaded it, or an admin (like delete). */
 export async function updateFile(id: number, input: z.input<typeof editSchema>) {
-  await assertApp("files");
+  const me = await assertApp("files");
   const access = await loadAccess();
   if (!access || !(await canSeeFile(financeViewerOf(access), id))) throw new UserError("That file no longer exists.");
+  const [f] = await db.select({ uploadedBy: schema.files.uploadedBy }).from(schema.files).where(eq(schema.files.id, id));
+  if (!f) throw new UserError("That file no longer exists.");
+  if (f.uploadedBy !== me.id && me.role !== "admin") throw new UserError("Only the person who uploaded this file, or an admin, can change it.");
   const d = parseInput(editSchema, input);
   await db.update(schema.files).set(d).where(eq(schema.files.id, id));
   refresh();

@@ -20,6 +20,7 @@ import {
 import type { ChatCard } from "@/lib/chat/types";
 import type { WebClientInfo, WebGeo, WebPageVisit, WebSiteEvent } from "@/lib/webchat/types";
 import type { OfferDraft } from "@/lib/llm/schema";
+import type { SellerSnapshot } from "@/lib/seller-types";
 
 /**
  * Organisations (tenants). Row 1 is Zeronix. Every new table carries organization_id, and the accounting tables also get
@@ -583,6 +584,10 @@ export const quotes = pgTable(
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
     /** Our cost of the lines that had one, to show the profit inside the portal (never printed). */
     costTotal: numeric("cost_total", { precision: 14, scale: 2, mode: "number" }),
+    /** What the lines with a cost sell for: profit = soldWithCost - costTotal, never subtotal - costTotal. */
+    soldWithCost: numeric("sold_with_cost", { precision: 14, scale: 2, mode: "number" }),
+    /** Lines with no cost: the profit then covers only part of the quote. */
+    uncostedLines: integer("uncosted_lines").notNull().default(0),
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
@@ -681,9 +686,9 @@ export const salesOrders = pgTable(
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
+    /** One live order per quote; a cancelled order frees the quote (sales_orders_live_quote_idx). */
     quoteId: integer("quote_id")
       .notNull()
-      .unique()
       .references(() => quotes.id),
     /** Empty when it came from an instant quote (no CRM deal). */
     dealId: integer("deal_id").references(() => deals.id),
@@ -703,6 +708,9 @@ export const salesOrders = pgTable(
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
     costTotal: numeric("cost_total", { precision: 14, scale: 2, mode: "number" }),
+    /** Copied from the quote (see quotes.soldWithCost). */
+    soldWithCost: numeric("sold_with_cost", { precision: 14, scale: 2, mode: "number" }),
+    uncostedLines: integer("uncosted_lines").notNull().default(0),
     deliveryAddress: text("delivery_address").notNull().default(""),
     notes: text("notes").notNull().default(""),
     /** ZDN-2026-0001, given when the goods are delivered. */
@@ -719,6 +727,8 @@ export const salesOrders = pgTable(
   (t) => [
     uniqueIndex("sales_orders_year_seq_idx").on(t.year, t.seq),
     uniqueIndex("sales_orders_dn_year_seq_idx").on(t.dnYear, t.dnSeq),
+    uniqueIndex("sales_orders_live_quote_idx").on(t.quoteId).where(sql`status <> 'cancelled'`),
+    index("sales_orders_quote_idx").on(t.quoteId),
     index("sales_orders_status_idx").on(t.status),
     index("sales_orders_company_idx").on(t.companyId),
   ],
@@ -771,6 +781,8 @@ export const invoices = pgTable(
     customerName: text("customer_name").notNull(),
     customerAddress: text("customer_address").notNull().default(""),
     customerTrn: text("customer_trn").notNull().default(""),
+    /** Our name, address, TRN and bank as they were when it was issued (lib/seller.ts); null on older documents. */
+    sellerSnapshot: jsonb("seller_snapshot").$type<SellerSnapshot>(),
     customerRef: text("customer_ref").notNull().default(""),
     vatPct: numeric("vat_pct", { precision: 5, scale: 2, mode: "number" }).notNull(),
     subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
@@ -784,7 +796,7 @@ export const invoices = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("invoices_company_idx").on(t.companyId), index("invoices_due_idx").on(t.status, t.dueDate), index("invoices_order_idx").on(t.orderId)],
+  (t) => [index("invoices_company_idx").on(t.companyId), index("invoices_due_idx").on(t.status, t.dueDate), index("invoices_order_idx").on(t.orderId), uniqueIndex("invoices_live_order_idx").on(t.orderId).where(sql`status <> 'cancelled' AND order_id IS NOT NULL`), uniqueIndex("invoices_live_quote_idx").on(t.quoteId).where(sql`status <> 'cancelled' AND quote_id IS NOT NULL AND order_id IS NULL`)],
 );
 
 export const invoiceItems = pgTable(
@@ -866,6 +878,8 @@ export const payments = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: orgId(),
+    /** Our name, address, TRN and bank as they were when it was issued (lib/seller.ts); null on older documents. */
+    sellerSnapshot: jsonb("seller_snapshot").$type<SellerSnapshot>(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),
@@ -1097,6 +1111,8 @@ export const supplierPayments = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: orgId(),
+    /** Our name, address, TRN and bank as they were when it was issued (lib/seller.ts); null on older documents. */
+    sellerSnapshot: jsonb("seller_snapshot").$type<SellerSnapshot>(),
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     number: text("number").notNull().unique(),

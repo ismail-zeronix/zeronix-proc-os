@@ -4,6 +4,7 @@ import { PrintPage } from "@/components/print-page";
 import { requireFinance } from "@/lib/auth/session";
 import { categoryLabel } from "@/lib/purchases";
 import { getSupplierPayment } from "@/lib/purchases-data";
+import { brandFor } from "@/lib/seller";
 import { quoteBrand } from "@/lib/quote-view";
 
 export const metadata = { title: "Payment voucher" };
@@ -15,7 +16,8 @@ export default async function PrintVoucher({ params }: PageProps<"/print/payment
   if (!Number.isInteger(id) || id < 1) notFound();
   const p = await getSupplierPayment(id);
   if (!p) notFound();
-  const brand = await quoteBrand();
+  // the name, address and TRN it was issued with (older ones: the current details)
+  const brand = brandFor(await quoteBrand(), p.sellerSnapshot);
   return (
     <PrintPage back={p.documents.length === 1 ? `/accounts/bills/${p.documents[0].id}` : "/accounts/payments-made"} number={p.number} pdfHref={`/api/documents/payment-voucher/${p.id}/pdf`}>
       <VoucherDocument brand={brand} v={{ ...p, documents: p.documents.map((d) => ({ ...d, category: categoryLabel(d.category) })), voided: p.voidedAt ? p.voidReason || "Voided" : null }} />

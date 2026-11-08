@@ -1,6 +1,7 @@
 "use server";
 
 import { and, desc, eq, isNull, like, ne, sql } from "drizzle-orm";
+import { dayString } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -84,7 +85,7 @@ export async function saveFiscalYear(startMonth: number) {
  */
 export async function setLockDate(date: string | null, reason: string) {
   const me = await assertAccountant();
-  const day = date ? z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date").parse(date) : null;
+  const day = date ? dayString("Pick a valid date").parse(date) : null;
   const why = parseInput(z.string().trim().max(300), reason);
   if (day && day > dubaiToday()) throw new UserError("The lock date cannot be in the future: that would stop today's work.");
   const orgId = await currentOrgId();

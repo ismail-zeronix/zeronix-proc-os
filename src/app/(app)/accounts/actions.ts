@@ -1,6 +1,8 @@
 "use server";
 
-import { and, asc, eq, inArray, isNull, like, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { sellerSnapshot } from "@/lib/seller";
+import { dayString, toFils, toQty2 } from "@/lib/validation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -15,8 +17,10 @@ import { collectTitle, writeCreditNote } from "@/lib/ledger/notes";
 import { taxCodeForRate } from "@/lib/ledger/rules";
 import { docTax, SALES_TAX_CODES } from "@/lib/tax/doc-tax";
 import { fromMinor, sumMinor, toMinor } from "@/lib/money";
+import { quoteDecided } from "@/lib/notifications/events";
 import { money, round2 } from "@/lib/quotation";
-import { normName, stageLabel, trnProblem } from "@/lib/sales";
+import { acceptQuote } from "@/lib/quote-accept";
+import { normName, trnProblem } from "@/lib/sales";
 import { duplicateCompany } from "@/lib/sales-data";
 import { getSetting } from "@/lib/settings";
 import { assertInLedgerPeriod, assertOpeningDate, assertOpeningOpen, pickPaymentAccount, postAllocationDoc, postAllocationRemoved, postInvoiceDoc, postReceiptDoc, reversePayment } from "@/lib/ledger/documents";
@@ -24,7 +28,7 @@ import { currentOrgId, setTxOrg, withOrg } from "@/lib/org";
 import type { Tx } from "@/lib/tx";
 import { parseInput, UserError } from "@/lib/user-error";
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date");
+const day = dayString("Pick a valid date");
 
 function refresh(ids: { dealId?: number | null; orderId?: number | null; invoiceId?: number; companyId?: number }) {
   revalidatePath("/accounts", "layout");
@@ -82,6 +86,7 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
     const [inv] = await tx
       .insert(schema.invoices)
       .values({
+        sellerSnapshot: await sellerSnapshot(),
         number,
         orderId,
         dealId: o.dealId,
@@ -194,7 +199,7 @@ export async function cancelInvoice(invoiceId: number, reason: string, opts: { g
 
 const paymentSchema = z.object({
   paidOn: day,
-  amount: z.number().positive("Enter an amount above zero").max(1e10),
+  amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils),
   method: z.enum(["cash", "bank"]),
   reference: z.string().trim().max(120).default(""),
   notes: z.string().trim().max(500).default(""),
@@ -206,7 +211,7 @@ export type PaymentInput = z.input<typeof paymentSchema>;
 const receiptSchema = paymentSchema.extend({
   companyId: z.number().int().positive("Pick the customer"),
   /** What it pays. Whatever is left of the amount is kept as an advance. */
-  allocations: z.array(z.object({ invoiceId: z.number().int().positive(), amount: z.number().positive("Enter an amount above zero").max(1e10) })).max(200),
+  allocations: z.array(z.object({ invoiceId: z.number().int().positive(), amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils) })).max(200),
 });
 export type ReceiptInput = z.input<typeof receiptSchema>;
 
@@ -214,7 +219,7 @@ const closeCollectTask = (tx: Tx, invoiceNumber: string) =>
   tx
     .update(schema.tasks)
     .set({ status: "done", doneAt: new Date() })
-    .where(and(eq(schema.tasks.status, "open"), like(schema.tasks.title, `${collectTitle(invoiceNumber)}%`)));
+    .where(and(eq(schema.tasks.status, "open"), eq(schema.tasks.title, collectTitle(invoiceNumber))));
 
 /** Money set against an invoice so far (inside the transaction that holds its lock). */
 async function allocatedTo(tx: Tx, invoiceId: number): Promise<number> {
@@ -263,6 +268,7 @@ async function saveReceipt(me: { id: number }, d: z.infer<typeof receiptSchema>)
     const [p] = await tx
       .insert(schema.payments)
       .values({
+        sellerSnapshot: await sellerSnapshot(),
         year,
         seq,
         number,
@@ -326,7 +332,7 @@ export async function createReceipt(input: ReceiptInput) {
 const applySchema = z.object({
   paymentId: z.number().int().positive(),
   invoiceId: z.number().int().positive(),
-  amount: z.number().positive("Enter an amount above zero").max(1e10),
+  amount: z.number().positive("Enter an amount above zero").max(1e10).transform(toFils),
   appliedOn: day,
 });
 
@@ -440,8 +446,8 @@ export async function voidPayment(paymentId: number, reason: string) {
 
 const invoiceLineSchema = z.object({
   description: z.string().trim().min(1, "Describe each line").max(500),
-  qty: z.number().positive("Quantity must be above zero").max(1e7),
-  unitPrice: z.number().min(0, "Price cannot be below zero").max(1e10),
+  qty: z.number().positive("Quantity must be above zero").max(1e7).transform(toQty2),
+  unitPrice: z.number().min(0, "Price cannot be below zero").max(1e10).transform(toFils),
   lineKind: z.enum(["product", "service"]).default("product"),
   /** VAT code of the line; left out, what the invoice's rate means. */
   taxCode: z.enum(SALES_TAX_CODES).optional(),
@@ -493,7 +499,7 @@ export async function createInvoice(input: DirectInvoiceInput) {
       if (!q) throw new UserError("That quote no longer exists.");
       if (q.companyId !== d.companyId) throw new UserError(`Quote ${q.number} is for another customer.`);
       if (q.status === "rejected") throw new UserError("This quote was rejected. Set it back to Sent first if the customer changed their mind.");
-      const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(eq(schema.salesOrders.quoteId, q.id));
+      const [order] = await tx.select({ number: schema.salesOrders.number }).from(schema.salesOrders).where(and(eq(schema.salesOrders.quoteId, q.id), ne(schema.salesOrders.status, "cancelled")));
       if (order) throw new UserError(`This quote is already order ${order.number}: make the invoice from the order.`);
       const [live] = await tx.select({ number: schema.invoices.number }).from(schema.invoices).where(and(eq(schema.invoices.quoteId, q.id), ne(schema.invoices.status, "cancelled")));
       if (live) throw new UserError(`This quote is already invoice ${live.number}.`);
@@ -507,6 +513,7 @@ export async function createInvoice(input: DirectInvoiceInput) {
     const [inv] = await tx
       .insert(schema.invoices)
       .values({
+        sellerSnapshot: await sellerSnapshot(),
         number,
         quoteId: quote?.id ?? null,
         dealId: quote?.dealId ?? null,
@@ -527,14 +534,8 @@ export async function createInvoice(input: DirectInvoiceInput) {
       })
       .returning({ id: schema.invoices.id });
     await tx.insert(schema.invoiceItems).values(coded.map((l, position) => ({ invoiceId: inv.id, position, description: l.description, qty: l.qty, unitPrice: round2(l.unitPrice), lineKind: l.lineKind, taxCode: l.taxCode })));
-    if (quote) {
-      const now = new Date();
-      if (quote.status !== "accepted") await tx.update(schema.quotes).set({ status: "accepted", decidedAt: now }).where(eq(schema.quotes.id, quote.id));
-      if (deal && deal.stage !== "won") {
-        await tx.update(schema.deals).set({ stage: "won", stageChangedAt: now, closedAt: now, lostReason: "", valueAed: quote.subtotal }).where(eq(schema.deals.id, deal.id));
-        await tx.insert(schema.activities).values({ type: "stage", body: `Moved from ${stageLabel(deal.stage)} to ${stageLabel("won")} (invoice ${number}).`, dealId: deal.id, companyId: d.companyId, userId: me.id });
-      }
-    }
+    // the same acceptance rule as the quote page (lib/quote-accept.ts): other open quotes rejected, deal Won
+    const accepted = quote ? (await acceptQuote(tx, { quoteId: quote.id, userId: me.id, via: `invoice ${number}` })).changed : false;
     await tx.insert(schema.activities).values({
       type: "note",
       body: `Invoice ${number} issued${quote ? ` from quote ${quote.number}` : ""}: ${money(t.total)} with VAT, ${termsLabel(d.termsDays).toLowerCase()}, due ${dueDate}.`,
@@ -561,8 +562,9 @@ export async function createInvoice(input: DirectInvoiceInput) {
       summary: `${number} issued to ${company.name}${quote ? ` from ${quote.number}` : ""}: ${money(t.total)}`,
       after: { number, quoteId: quote?.id ?? null, issueDate: d.issueDate, dueDate, subtotal: t.subtotal, vatAmount: t.vat, total: t.total },
     });
-    return { id: inv.id, number, dealId: quote?.dealId ?? null, quoteId: quote?.id ?? null };
+    return { id: inv.id, number, dealId: quote?.dealId ?? null, quoteId: quote?.id ?? null, accepted };
   });
+  if (result.accepted && result.quoteId) await quoteDecided(result.quoteId, "accepted", me.id);
   refresh({ dealId: result.dealId, invoiceId: result.id, companyId: d.companyId });
   revalidatePath("/tasks");
   if (result.quoteId) revalidatePath("/sales", "layout");
