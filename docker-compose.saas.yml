@@ -57,7 +57,7 @@ services:
 
   # one-off: migrations as the owner, then the app and platform roles; exits when done
   zxsaas-migrate:
-    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    image: zeronix-saas:${APP_IMAGE_TAG:-latest}
     container_name: zxsaas-migrate
     depends_on:
       zxsaas-postgres:
@@ -74,7 +74,7 @@ services:
 
   zxsaas-app:
     build: .
-    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    image: zeronix-saas:${APP_IMAGE_TAG:-latest}
     container_name: zxsaas-app
     restart: unless-stopped
     depends_on:
@@ -100,7 +100,7 @@ services:
     logging: *logging
 
   zxsaas-worker:
-    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    image: zeronix-saas:${APP_IMAGE_TAG:-latest}
     container_name: zxsaas-worker
     restart: unless-stopped
     depends_on:
