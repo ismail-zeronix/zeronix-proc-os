@@ -1,0 +1,140 @@
+# ZeronixOS SaaS (demo.zeronixos.online): its own stack, beside Zeronix's own (docker-compose.prod.yml), sharing nothing
+# with it but the server and the Caddy network. Built from the `saas` branch. See production/SAAS.md.
+#
+#   docker compose -f docker-compose.saas.yml --env-file .env.saas up -d
+#   locally, with ports: add -f docker-compose.saas.local.yml
+#
+# Three database roles (src/db/roles.ts): the owner (POSTGRES_USER, migrations only), zx_app (the app, row-level security
+# always applies) and zx_platform (the platform console, sees every organisation). zxsaas-migrate runs the migrations and
+# sets up the two roles, then exits; the app and the worker start after it.
+
+name: zeronixsaas
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-app-env: &app-env
+  NODE_ENV: production
+  PORT: "3000"
+  HOSTNAME: 0.0.0.0
+  MULTI_TENANT: "true"
+  DATABASE_URL: postgres://zx_app:${ZX_APP_PASSWORD:?set ZX_APP_PASSWORD}@zxsaas-postgres:5432/${POSTGRES_DB:-zeronix_saas}
+  PLATFORM_DATABASE_URL: postgres://zx_platform:${ZX_PLATFORM_PASSWORD:?set ZX_PLATFORM_PASSWORD}@zxsaas-postgres:5432/${POSTGRES_DB:-zeronix_saas}
+  DB_POOL_MAX: ${DB_POOL_MAX:-10}
+  AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+  DATA_KEY: ${DATA_KEY:-}
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  APP_PUBLIC_URL: ${APP_PUBLIC_URL:-https://demo.zeronixos.online}
+  FILES_DIR: /app/data/files
+  # the Website and Prospecting apps are off for tenants: no website database, no chat-widget sites
+  WEBCHAT_ORIGINS: ""
+  MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-200}
+  MIGRATE_ON_START: "false"
+
+services:
+  zxsaas-postgres:
+    image: postgres:16-alpine
+    container_name: zxsaas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zx_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-zeronix_saas}
+    volumes:
+      - saas-pgdata:/var/lib/postgresql/data
+    networks:
+      - saas-backend
+    mem_limit: ${SAAS_DB_MEM:-512m}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # one-off: migrations as the owner, then the app and platform roles; exits when done
+  zxsaas-migrate:
+    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    container_name: zxsaas-migrate
+    depends_on:
+      zxsaas-postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-zx_owner}:${POSTGRES_PASSWORD}@zxsaas-postgres:5432/${POSTGRES_DB:-zeronix_saas}
+      ZX_APP_PASSWORD: ${ZX_APP_PASSWORD}
+      ZX_PLATFORM_PASSWORD: ${ZX_PLATFORM_PASSWORD}
+    command: ["sh", "-c", "node scripts/migrate.js && node scripts/saas-roles.js"]
+    restart: "no"
+    networks:
+      - saas-backend
+    logging: *logging
+
+  zxsaas-app:
+    build: .
+    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    container_name: zxsaas-app
+    restart: unless-stopped
+    depends_on:
+      zxsaas-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+      RUN_WORKER: "false"
+    volumes:
+      - saas-files:/app/data/files
+    expose:
+      - "3000"
+    networks:
+      - saas-backend
+      - proxy-net
+    mem_limit: ${SAAS_APP_MEM:-768m}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *logging
+
+  zxsaas-worker:
+    image: zeronix-app:${APP_IMAGE_TAG:-saas}
+    container_name: zxsaas-worker
+    restart: unless-stopped
+    depends_on:
+      zxsaas-migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+      RUN_WORKER: "true"
+      WORKER_ONLY: "true"
+      DB_POOL_MAX: "5"
+    volumes:
+      - saas-files:/app/data/files
+    networks:
+      - saas-backend
+      - saas-out
+    mem_limit: ${SAAS_WORKER_MEM:-640m}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging: *logging
+
+networks:
+  # the database: no route to the outside world
+  saas-backend:
+    internal: true
+  # Caddy reaches zxsaas-app here (demo.zeronixos.online { reverse_proxy zxsaas-app:3000 })
+  proxy-net:
+    external: true
+  # outbound for the worker (mail, AI API later)
+  saas-out:
+
+volumes:
+  saas-pgdata:
+  saas-files:

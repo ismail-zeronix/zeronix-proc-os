@@ -1,0 +1,17 @@
+# Local check of the SaaS stack on this computer: http://localhost:3400 (portal) and http://localhost:3400/platform.
+#   docker network create proxy-net   (once; production has it already)
+#   docker compose -f docker-compose.saas.yml -f docker-compose.saas.local.yml --env-file .env.saas.local up -d --build
+services:
+  zxsaas-app:
+    ports:
+      - "127.0.0.1:${SAAS_PORT:-3400}:3000"
+    environment:
+      COOKIE_SECURE: "false"
+      APP_PUBLIC_URL: http://localhost:${SAAS_PORT:-3400}
+  zxsaas-worker:
+    environment:
+      COOKIE_SECURE: "false"
+      APP_PUBLIC_URL: http://localhost:${SAAS_PORT:-3400}
+  zxsaas-postgres:
+    ports:
+      - "127.0.0.1:${SAAS_DB_PORT:-5435}:5432"

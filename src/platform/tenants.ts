@@ -27,7 +27,7 @@ export async function listTenants() {
   }>(sql`
     SELECT o.id, o.name, o.status, o.created_at, o.enabled_apps, o.user_limit,
       (SELECT count(*)::int FROM users u WHERE u.organization_id = o.id AND u.is_active) AS users,
-      (SELECT max(a.at) FROM audit_log a WHERE a.organization_id = o.id AND a.action = 'auth.login') AS last_login,
+      (SELECT max(a.at) FROM audit_log a WHERE a.organization_id = o.id AND a.action IN ('auth.login', 'user.join')) AS last_login,
       (SELECT count(*)::int FROM quotes q WHERE q.organization_id = o.id) AS quotes,
       (SELECT count(*)::int FROM invoices i WHERE i.organization_id = o.id) AS invoices,
       (SELECT coalesce(sum(f.size), 0)::float FROM files f WHERE f.organization_id = o.id) AS storage

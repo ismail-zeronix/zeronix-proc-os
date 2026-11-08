@@ -194,9 +194,13 @@ export function allowedApps(user: AccessUser): AppKey[] {
   return APPS.filter((a) => (a.defaultFor as readonly Role[]).includes(user.role)).map((a) => a.key);
 }
 
-/** Apps to show as tiles / in the switcher: live ones the user may open, plus "coming soon" ones for admins only. */
+/**
+ * The app tiles and menu entries to show. Pass the apps the person may open as loadAccess() resolved them (role,
+ * their own list and the organisation's plan): an admin of a SaaS organisation sees only what its plan includes.
+ * Live apps only, plus "coming soon" ones for admins.
+ */
 export function visibleApps(user: AccessUser): AppDef[] {
-  const allowed = new Set<string>(allowedApps(user));
+  const allowed = new Set<string>(user.apps ?? allowedApps(user));
   return APPS.filter((a) => allowed.has(a.key) && (a.status === "live" || user.role === "admin"));
 }
 

@@ -15,7 +15,7 @@ COPY . .
 RUN npm run build
 # Migrations run outside Next.js; bundle them to plain JS so the final image needs no tsx.
 # No admin is seeded: the first administrator is created in the /setup wizard (a SaaS install: platform-admin, below).
-RUN node_modules/.bin/esbuild scripts/migrate.ts scripts/platform-admin.ts --bundle --platform=node --target=node22 \
+RUN node_modules/.bin/esbuild scripts/migrate.ts scripts/platform-admin.ts scripts/saas-roles.ts --bundle --platform=node --target=node22 \
       --format=cjs --external:pg-native --outdir=dist-scripts
 
 FROM node:22-alpine AS run
