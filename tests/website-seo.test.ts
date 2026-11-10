@@ -57,6 +57,8 @@ describe("product copy", () => {
     expect(t).toContain("21V7006FUS");
     expect(t).toContain("Price in UAE");
     expect(productTitle(product({ seo: { title: "Own title" } }))).toBe("Own title");
+    // no series name (most imported products): the model name is cut at a word so the part number still fits
+    expect(productTitle(product({ series: "" }))).toBe("Lenovo ThinkPad X1 Carbon Gen 14 21V7006FUS Price in UAE");
   });
 
   it("names the model without the spec tail", () => {

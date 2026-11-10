@@ -47,7 +47,10 @@ export function productTitle(p: Product): string {
   const name = shortName(p);
   // people searching a part number type it exactly: keep it, with the series name if the full model name is too long
   const series = p.series ? (p.brand && !p.series.toLowerCase().startsWith(p.brand.toLowerCase()) ? `${p.brand} ${p.series}` : p.series) : "";
-  const names = [name, series].filter((n, i, a) => n && a.indexOf(n) === i);
+  // last resort before dropping the part number: the model name cut at a word ("Lenovo ThinkPad X1 Carbon Gen 14")
+  const room = TITLE_MAX - ` ${p.mpn} Price in UAE`.length;
+  const cut = p.mpn && name.length > room ? name.slice(0, room + 1).replace(/\s+\S*$/, "").replace(/[\s,;:–-]+$/, "") : "";
+  const names = [name, series, cut.split(" ").length >= 3 ? cut : ""].filter((n, i, a) => n && a.indexOf(n) === i);
   const tries = [
     ...(p.mpn ? names.flatMap((n) => [`${n} ${p.mpn} Price in UAE | ${SITE}`, `${n} ${p.mpn} Price in UAE`]) : []),
     `${name} Price in UAE | ${SITE}`,
