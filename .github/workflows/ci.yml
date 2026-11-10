@@ -37,8 +37,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # next typegen writes the route types (PageProps, LayoutProps) that tsc needs; next dev and next build make them too
       - name: Typecheck
-        run: npx tsc --noEmit --incremental false
+        run: npx next typegen && npx tsc --noEmit --incremental false
       - name: Lint
         run: npx eslint
       - name: Tests
