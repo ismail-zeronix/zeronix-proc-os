@@ -1,9 +1,8 @@
-import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import Link from "next/link";
 import type { SiteBrand, SiteIconLink, SiteNavResponse } from "@/lib/contract";
 import { Logo } from "@/components/brand/logo";
-import { KeywordHub, type EmirateKeywords } from "@/components/home/keyword-hub";
-import { profileLinks } from "@/lib/seo";
+import { profileLinks, readableHours } from "@/lib/seo";
 import { SocialLinks } from "./social-links";
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
@@ -12,11 +11,11 @@ function Column({ title, links }: { title: string; links: { href: string; label:
   if (!links.length) return null;
   return (
     <div>
-      <h3 className="flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-mint-300 uppercase">{title}</h3>
+      <h3 className="flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-highlight uppercase">{title}</h3>
       <ul className="mt-3 grid gap-2">
         {links.map((l) => (
           <li key={l.href}>
-            <Link href={l.href} className="text-sm text-white/65 transition-colors hover:text-lime-400">
+            <Link href={l.href} className="text-sm text-white/65 transition-colors hover:text-cta">
               {l.label}
             </Link>
           </li>
@@ -26,29 +25,18 @@ function Column({ title, links }: { title: string; links: { href: string; label:
   );
 }
 
-const contact = "inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm text-white/85 transition-colors hover:border-lime-400 hover:bg-lime-400 hover:text-forest-950";
-
-/** Searches per emirate (home page only, see KeywordHub): every link goes to a real category or service page. */
-function emirateKeywords(nav: SiteNavResponse, services: SiteIconLink[]): EmirateKeywords[] {
-  return EMIRATES.map((e) => ({
-    emirate: e,
-    products: [
-      ...nav.categories.map((c) => ({ href: `/products/${c.slug}`, label: `${c.name} in ${e}` })),
-      { href: "/products", label: `IT hardware supplier in ${e}` },
-      { href: "/quote", label: `Bulk IT orders in ${e}` },
-    ],
-    services: [...services.map((s) => ({ href: s.href, label: `${s.label} in ${e}` })), { href: "/services", label: `IT company in ${e}` }],
-  }));
-}
+const contact = "inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm text-white/85 transition-colors hover:border-cta hover:bg-cta hover:text-brand-950";
 
 /**
- * Full-width forest footer: brand and contact row, link columns, then either popular searches by emirate (home) or the
- * emirates we deliver to (other pages), the legal line, and a large faded wordmark.
+ * Full-width navy footer: brand and contact row, link columns, the emirates we deliver to, then the address, hours and
+ * legal line (the same name, address and phone as schema.org and the Google Business Profile), and a faded wordmark.
+ * No "Laptops in Dubai / in Sharjah…" link lists: links that all lead to the same pages read as doorway text to Google
+ * (website/SEO-STRATEGY.md).
  */
 export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNavResponse; services: SiteIconLink[] }) {
   const wa = brand.whatsapp.replace(/\D/g, "");
   return (
-    <footer className="relative mt-2 overflow-hidden bg-forest-950 text-white sm:rounded-t-[2rem]">
+    <footer className="relative mt-2 overflow-hidden bg-brand-950 text-white sm:rounded-t-[2rem]">
       <div className="relative container-site">
         <div className="flex flex-col gap-5 border-b border-white/10 py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid max-w-md gap-3">
@@ -100,23 +88,36 @@ export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNa
           />
         </div>
 
-        <KeywordHub groups={emirateKeywords(nav, services)}>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/10 py-5 text-xs text-white/55">
-            Delivery and on-site service in
-            {EMIRATES.map((e, i) => (
-              <span key={e} className="text-white/75">
-                {e}
-                {i < EMIRATES.length - 1 ? "," : ""}
-              </span>
-            ))}
-          </p>
-        </KeywordHub>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/10 py-5 text-xs text-white/55">
+          Delivery and on-site service in
+          {EMIRATES.map((e, i) => (
+            <span key={e} className="text-white/75">
+              {e}
+              {i < EMIRATES.length - 1 ? "," : ""}
+            </span>
+          ))}
+        </p>
 
         <div className="flex flex-col gap-3 border-t border-white/10 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <p className="flex items-center gap-2 text-xs text-white/55">
-            <MapPin className="size-3.5 text-lime-400" />
-            {brand.address || "United Arab Emirates"}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/55">
+            {brand.mapUrl ? (
+              <a href={brand.mapUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white">
+                <MapPin className="size-3.5 text-cta" />
+                {brand.address || "United Arab Emirates"}
+              </a>
+            ) : (
+              <p className="flex items-center gap-2">
+                <MapPin className="size-3.5 text-cta" />
+                {brand.address || "United Arab Emirates"}
+              </p>
+            )}
+            {brand.hours && (
+              <p className="flex items-center gap-2">
+                <Clock className="size-3.5 text-cta" />
+                {readableHours(brand.hours)}
+              </p>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/50">
             <span>
               © {new Date().getFullYear()} {brand.name}

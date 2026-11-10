@@ -57,11 +57,11 @@ function SignIn({ onDone }: { onDone: () => void }) {
           </Field>
         )}
         {msg && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{msg}</p>}
-        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-full bg-lime-400 px-5 text-sm font-semibold text-forest-950 hover:bg-lime-500 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-full bg-cta px-5 text-sm font-semibold text-brand-950 hover:bg-cta-strong disabled:opacity-60">
           {busy ? "Please wait…" : step === "email" ? "Email me a code" : "Sign in"}
         </button>
         {step === "code" && (
-          <button type="button" className="text-xs font-semibold text-forest-800" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
+          <button type="button" className="text-xs font-semibold text-brand-800" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
             Use another email or send a new code
           </button>
         )}
@@ -119,10 +119,10 @@ function Profile({ account, onSaved }: { account: Account; onSaved: () => void }
         </Field>
       </div>
       <div className="flex items-center gap-3">
-        <button type="submit" className="inline-flex h-10 items-center rounded-full bg-forest-900 px-5 text-sm font-semibold text-white hover:bg-forest-800">
+        <button type="submit" className="inline-flex h-10 items-center rounded-full bg-brand-900 px-5 text-sm font-semibold text-white hover:bg-brand-800">
           Save
         </button>
-        {msg && <span className={cn("text-sm", msg.ok ? "text-forest-700" : "text-red-700")}>{msg.text}</span>}
+        {msg && <span className={cn("text-sm", msg.ok ? "text-brand-700" : "text-red-700")}>{msg.text}</span>}
       </div>
     </form>
   );
@@ -159,7 +159,7 @@ export function AccountView() {
             <h1 className="text-xl font-semibold text-ink">My account</h1>
             <p className="text-sm text-muted-ink">{account.customer.email}</p>
           </div>
-          <button type="button" onClick={async () => (await post({ action: "logout" }), setAccount(null))} className="inline-flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-forest-900 hover:border-forest-900">
+          <button type="button" onClick={async () => (await post({ action: "logout" }), setAccount(null))} className="inline-flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-brand-900 hover:border-brand-900">
             <LogOut className="size-4" /> Sign out
           </button>
         </div>
@@ -172,9 +172,9 @@ export function AccountView() {
           {account.orders.map((o) => (
             <li key={o.number} className="grid gap-1 rounded-xl border border-line/70 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <Package className="size-4 text-forest-700" />
+                <Package className="size-4 text-brand-700" />
                 <span className="font-semibold">{o.number}</span>
-                <span className="rounded-full bg-sage-100 px-2 py-0.5 text-xs font-semibold text-forest-900">{STATUS[o.status] ?? o.status}</span>
+                <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-brand-900">{STATUS[o.status] ?? o.status}</span>
                 <span className="ml-auto font-semibold tabular-nums">{aed(o.total)}</span>
               </div>
               <p className="line-clamp-2 text-xs text-muted-ink">{o.items.map((i) => `${i.qty} × ${i.name}`).join(", ")}</p>

@@ -18,7 +18,7 @@ export function AddToQuote({ slug, name, className, label = false }: { slug: str
       className={cn(
         "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border transition-colors",
         label ? "px-4 text-sm font-semibold" : "w-10",
-        on ? "border-forest-900 bg-forest-900 text-lime-400" : "border-line text-forest-900 hover:border-forest-900",
+        on ? "border-brand-900 bg-brand-900 text-cta" : "border-line text-brand-900 hover:border-brand-900",
         className,
       )}
     >
@@ -33,10 +33,10 @@ export function AddToQuote({ slug, name, className, label = false }: { slug: str
 export function QuoteListLink({ withLabel = false }: { withLabel?: boolean }) {
   const n = useQuoteList().reduce((s, i) => s + i.qty, 0);
   return (
-    <Link href="/quote" aria-label={n ? `Quote list, ${n} item${n === 1 ? "" : "s"}` : "Quote list"} className="relative inline-flex h-10 items-center gap-2 rounded-full px-2.5 text-forest-900 transition-colors hover:bg-sage-100">
+    <Link href="/quote" aria-label={n ? `Quote list, ${n} item${n === 1 ? "" : "s"}` : "Quote list"} className="relative inline-flex h-10 items-center gap-2 rounded-full px-2.5 text-brand-900 transition-colors hover:bg-surface">
       <span className="relative">
         <ClipboardList className="size-5" />
-        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-lime-400 px-1 text-[10px] leading-[1.125rem] font-bold text-forest-950">{n}</span>}
+        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-cta px-1 text-[10px] leading-[1.125rem] font-bold text-brand-950">{n}</span>}
       </span>
       {withLabel && <span className="hidden text-sm font-semibold xl:inline">Quote list</span>}
     </Link>

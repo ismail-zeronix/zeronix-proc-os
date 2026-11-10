@@ -6,7 +6,8 @@ import { pageTitles } from "@/lib/website/analytics";
 import { getGsc, pageStats, queryStats } from "@/lib/website/gsc";
 import { listKeywords, type KeywordView } from "@/lib/website/keywords";
 import { dubaiDay } from "@/lib/website/traffic";
-import { KeywordDelete, KeywordImport, KeywordState } from "./seo-controls";
+import { getDfs, rankOverview } from "@/lib/website/dataforseo";
+import { AddGapIdea, DfsButtons, KeywordDelete, KeywordImport, KeywordState } from "./seo-controls";
 import { PhoneCards } from "@/components/phone-cards";
 
 export const metadata = { title: "SEO · Zeronix Website" };
@@ -15,6 +16,7 @@ const TABS = [
   { key: "clusters", label: "Clusters" },
   { key: "calendar", label: "Calendar" },
   { key: "opportunities", label: "Opportunities" },
+  { key: "rankings", label: "Rankings" },
 ] as const;
 
 const STATUS_TONE: Record<string, string> = {
@@ -34,7 +36,7 @@ const dayLabel = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateStrin
 
 /** The SEO plan: what to rank for, which page answers it, and when it gets written (website/content/seo-research.md). */
 export default async function SeoPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireApp("website");
+  const { user } = await requireApp("website");
   const want = String((await searchParams).tab ?? "");
   const tab = TABS.find((t) => t.key === want)?.key ?? "clusters";
   const [list, gsc] = await Promise.all([listKeywords(), getGsc()]);
@@ -64,7 +66,9 @@ export default async function SeoPage({ searchParams }: { searchParams: Promise<
         <KeywordImport />
       </div>
 
-      {list.length === 0 ? (
+      {tab === "rankings" ? (
+        <Rankings admin={user.role === "admin"} />
+      ) : list.length === 0 ? (
         <section className="rounded-lg border bg-card p-6 text-sm">
           <p className="font-medium">No keywords yet.</p>
           <p className="mt-1 text-muted-foreground">
@@ -264,6 +268,122 @@ async function Opportunities({ queries, planned }: { queries: QueryStat[]; plann
         )),
         "Every search with 20+ impressions is already in the plan.",
       )}
+    </div>
+  );
+}
+
+/**
+ * DataForSEO (website/SEO-STRATEGY.md step 7): where we rank on Google UAE for the tracked keywords, who holds the top
+ * ten, and the searches competitors rank for that we do not.
+ */
+async function Rankings({ admin }: { admin: boolean }) {
+  const dfs = await getDfs();
+  if (!dfs?.login) {
+    return (
+      <section className="rounded-lg border bg-card p-4 text-sm">
+        <p className="flex items-center gap-2 font-medium">
+          <CircleAlert className="size-4 text-amber-600" aria-hidden /> Needs DataForSEO
+        </p>
+        <p className="mt-1 text-muted-foreground">
+          Connect it in Website › Settings (API login, a monthly budget and the competitor domains). Then this tab shows the Google UAE position of every priority keyword each Monday, which sites hold the top ten, and the searches competitors rank for that we
+          do not.
+        </p>
+      </section>
+    );
+  }
+  const { rows, share, lastDay } = await rankOverview();
+  const gap = dfs.gap;
+  const move = (r: (typeof rows)[number]) => {
+    if (r.previous === null || r.position === null) return null;
+    const d = r.previous - r.position;
+    return d === 0 ? null : <span className={d > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}>{d > 0 ? `▲${d}` : `▼${-d}`}</span>;
+  };
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted-foreground">
+          Google UAE, top 30{lastDay ? ` · last checked ${dayLabel(lastDay)}` : " · not checked yet"} · {rows.filter((r) => r.position !== null && r.position <= 10).length} on page one · {rows.filter((r) => r.position !== null).length} of {rows.length} in the top 30
+        </span>
+        {admin && (
+          <div className="ml-auto">
+            <DfsButtons />
+          </div>
+        )}
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="min-w-0 rounded-lg border bg-card">
+          <header className="border-b px-3 py-2">
+            <h2 className="text-sm font-semibold">Our positions</h2>
+          </header>
+          {rows.length ? (
+            <ul className="divide-y text-sm">
+              {rows.map((r) => (
+                <li key={r.keywordId} className="flex items-center gap-3 px-3 py-1.5">
+                  <span className="w-12 shrink-0 font-semibold tabular-nums">{r.position === null ? "—" : `#${r.position}`}</span>
+                  <span className="grid min-w-0 flex-1">
+                    <span className="truncate font-medium">{r.keyword}</span>
+                    <span className="truncate text-xs text-muted-foreground">{r.url ? r.url.replace(/^https?:\/\/(www\.)?/, "") : `Top: ${r.top.slice(0, 3).map((t) => t.domain).join(", ") || "no results"}`}</span>
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums">{move(r)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-3 py-3 text-sm text-muted-foreground">No check yet. It runs every Monday morning{admin ? ", or press Check rankings now" : ""}.</p>
+          )}
+        </section>
+        <section className="min-w-0 rounded-lg border bg-card">
+          <header className="border-b px-3 py-2">
+            <h2 className="text-sm font-semibold">Who ranks above us</h2>
+            <p className="text-xs text-muted-foreground">How often each site is in the top ten of these searches.</p>
+          </header>
+          {share.length ? (
+            <ul className="divide-y text-sm">
+              {share.slice(0, 15).map((s) => (
+                <li key={s.domain} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate">{s.domain}</span>
+                  <span className="h-1.5 w-20 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round(s.share * 100)}%` }} />
+                  </span>
+                  <span className="w-10 text-right text-xs tabular-nums">{Math.round(s.share * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-3 py-3 text-sm text-muted-foreground">Shows after the first check.</p>
+          )}
+        </section>
+      </div>
+      <section className="min-w-0 rounded-lg border bg-card">
+        <header className="border-b px-3 py-2">
+          <h2 className="text-sm font-semibold">Competitor gap</h2>
+          <p className="text-xs text-muted-foreground">
+            Searches where {dfs.competitors.length} competitors are in Google UAE&apos;s top 20 and we are not, not yet in the plan, most searched first.{gap ? ` Found ${new Date(gap.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : ""}
+          </p>
+        </header>
+        {gap?.rows.length ? (
+          <div className="overflow-x-auto">
+            <PhoneCards>
+              <table className="w-full min-w-[640px] text-sm">
+                <tbody className="divide-y">
+                  {gap.rows.slice(0, 100).map((r) => (
+                    <tr key={r.keyword}>
+                      <td className="px-3 py-1.5 font-medium">{r.keyword}</td>
+                      <td className="w-px px-2 py-1.5 text-right text-xs whitespace-nowrap tabular-nums">{r.volume === null ? "—" : `${r.volume.toLocaleString("en-US")}/mo`}</td>
+                      <td className="max-w-0 px-2 py-1.5 text-xs text-muted-foreground">
+                        <span className="block truncate">{r.competitors.map((c) => `${c.domain} #${c.position}`).join(" · ")}</span>
+                      </td>
+                      <td className="w-px py-1.5 pr-2">{admin && <AddGapIdea keyword={r.keyword} />}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </PhoneCards>
+          </div>
+        ) : (
+          <p className="px-3 py-3 text-sm text-muted-foreground">{gap ? "Nothing found: every search they rank for is already ours or in the plan." : admin ? "Press Competitor gap to find them." : "Not run yet."}</p>
+        )}
+      </section>
     </div>
   );
 }

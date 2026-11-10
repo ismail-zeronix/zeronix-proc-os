@@ -16,8 +16,8 @@ import { SiteIconView } from "@/lib/icons";
 
 function Tile({ href, item }: { href: string; item: SiteNavLink }) {
   return (
-    <NavigationMenuLink render={<Link href={href} />} className="items-start gap-3 rounded-2xl p-3 hover:bg-sage-50 focus:bg-sage-50">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-sage-100 text-forest-900">
+    <NavigationMenuLink render={<Link href={href} />} className="items-start gap-3 rounded-2xl p-3 hover:bg-surface-soft focus:bg-surface-soft">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-brand-900">
         <SiteIconView name={item.icon} className="size-4" strokeWidth={1.75} />
       </span>
       <span className="grid gap-0.5">
@@ -28,18 +28,18 @@ function Tile({ href, item }: { href: string; item: SiteNavLink }) {
   );
 }
 
-/** The forest panel at the side of each menu: the one action every page pushes (BRAND.md section 6). */
+/** The navy panel at the side of each menu: the one action every page pushes (BRAND.md section 6). */
 function Promo({ title, text, href, cta }: { title: string; text: string; href: string; cta: string }) {
   return (
-    <Link href={href} className="group flex flex-col justify-between rounded-2xl bg-forest-900 p-5 text-white">
+    <Link href={href} className="group flex flex-col justify-between rounded-2xl bg-brand-900 p-5 text-white">
       <div className="grid gap-2">
         <Tag onDark className="w-fit">B2B</Tag>
         <p className="mt-2 font-heading text-lg font-medium">{title}</p>
         <p className="text-sm leading-relaxed text-white/65">{text}</p>
       </div>
-      <span className="mt-5 inline-flex h-10 items-center gap-2 self-start rounded-full bg-lime-400 pr-1 pl-4 text-sm font-semibold text-forest-950">
+      <span className="mt-5 inline-flex h-10 items-center gap-2 self-start rounded-full bg-cta pr-1 pl-4 text-sm font-semibold text-brand-950">
         {cta}
-        <span className="grid size-8 place-items-center rounded-full bg-forest-950 text-lime-400">
+        <span className="grid size-8 place-items-center rounded-full bg-brand-950 text-cta">
           <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </span>
       </span>
@@ -100,7 +100,7 @@ export function MegaMenu({ nav, services, ctaLabel }: { nav: SiteNavResponse; se
             <NavigationMenuContent className="w-[min(94vw,420px)] p-3">
               <div className="grid grid-cols-2 gap-0.5">
                 {nav.brands.map((b) => (
-                  <NavigationMenuLink key={b.slug} render={<Link href={`/brands/${b.slug}`} />} className="justify-between rounded-2xl p-3 font-semibold hover:bg-sage-50">
+                  <NavigationMenuLink key={b.slug} render={<Link href={`/brands/${b.slug}`} />} className="justify-between rounded-2xl p-3 font-semibold hover:bg-surface-soft">
                     {b.name} <ArrowRight className="size-3.5 text-muted-foreground" />
                   </NavigationMenuLink>
                 ))}
@@ -128,7 +128,7 @@ export function MegaMenu({ nav, services, ctaLabel }: { nav: SiteNavResponse; se
           <NavigationMenuContent className="w-[min(94vw,420px)] p-3">
             <div className="grid gap-0.5">
               {RESOURCES.map((r) => (
-                <NavigationMenuLink key={r.href} render={<Link href={r.href} />} className="grid gap-0.5 rounded-2xl p-3 hover:bg-sage-50">
+                <NavigationMenuLink key={r.href} render={<Link href={r.href} />} className="grid gap-0.5 rounded-2xl p-3 hover:bg-surface-soft">
                   <span className="font-semibold text-ink">{r.label}</span>
                   <span className="text-xs text-muted-ink">{r.text}</span>
                 </NavigationMenuLink>

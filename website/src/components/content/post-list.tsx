@@ -36,7 +36,7 @@ export function PostList({
         {chips && chips.length > 1 && (
           <div className="scroll-row sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {chips.map((c) => (
-              <Link key={c.href} href={c.href} className={cn("inline-flex h-8 items-center rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors", c.active ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white hover:border-forest-700/40")}>
+              <Link key={c.href} href={c.href} className={cn("inline-flex h-8 items-center rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors", c.active ? "border-brand-900 bg-brand-900 text-white" : "border-line bg-white hover:border-brand-700/40")}>
                 {c.label}
               </Link>
             ))}
@@ -46,7 +46,7 @@ export function PostList({
         {pages > 1 && (
           <nav aria-label="Pages" className="flex justify-center gap-2">
             {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
-              <Link key={n} href={n === 1 ? base : `${base}${base.includes("?") ? "&" : "?"}page=${n}`} aria-current={n === page ? "page" : undefined} className={cn("grid size-10 place-items-center rounded-full border text-sm", n === page ? "border-forest-900 bg-forest-900 text-white" : "border-line bg-white")}>
+              <Link key={n} href={n === 1 ? base : `${base}${base.includes("?") ? "&" : "?"}page=${n}`} aria-current={n === page ? "page" : undefined} className={cn("grid size-10 place-items-center rounded-full border text-sm", n === page ? "border-brand-900 bg-brand-900 text-white" : "border-line bg-white")}>
                 {n}
               </Link>
             ))}

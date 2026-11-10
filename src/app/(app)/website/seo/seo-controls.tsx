@@ -1,12 +1,13 @@
 "use client";
 
-import { Trash2, Upload } from "lucide-react";
+import { BarChart3, Plus, Search, Swords, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import type { KeywordStatus } from "@/lib/website/keywords";
+import { addGapIdeasAction, checkRanksAction, competitorGapAction, fillVolumesAction } from "../dataforseo-actions";
 import { deleteKeywordAction, importKeywordsAction, setKeywordStatusAction } from "../seo-actions";
 
 /** Import website/content/keywords.csv or a Google Keyword Planner export. */
@@ -101,6 +102,88 @@ export function KeywordDelete({ id, keyword }: { id: number; keyword: string }) 
       }
     >
       <Trash2 />
+    </Button>
+  );
+}
+
+/** The paid DataForSEO buttons on the Rankings tab (admins only; each one checks the monthly budget first). */
+export function DfsButtons() {
+  const router = useRouter();
+  const [vol, startVol] = useTransition();
+  const [rank, startRank] = useTransition();
+  const [gap, startGap] = useTransition();
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        pending={vol}
+        title="Monthly UAE searches and difficulty for keywords that have none"
+        onClick={() =>
+          startVol(async () => {
+            const res = await fillVolumesAction();
+            if (res.error !== undefined) return void toast.error(res.error);
+            toast.success(`Search volumes for ${res.value.updated} keyword(s)`);
+            router.refresh();
+          })
+        }
+      >
+        <BarChart3 /> Get volumes
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        pending={rank}
+        title="Google UAE positions for priority 1–2 and live keywords (also runs every Monday)"
+        onClick={() =>
+          startRank(async () => {
+            const res = await checkRanksAction();
+            if (res.error !== undefined) return void toast.error(res.error);
+            toast.success("Ranking check started. It takes a few minutes; reload this page to see it.");
+          })
+        }
+      >
+        <Search /> Check rankings now
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        pending={gap}
+        title="Searches the competitors in Settings rank for in the UAE and we do not"
+        onClick={() =>
+          startGap(async () => {
+            const res = await competitorGapAction();
+            if (res.error !== undefined) return void toast.error(res.error);
+            toast.success(`${res.value.rows} searches found`);
+            router.refresh();
+          })
+        }
+      >
+        <Swords /> Competitor gap
+      </Button>
+    </div>
+  );
+}
+
+/** "Add to plan" for one search from the competitor gap. */
+export function AddGapIdea({ keyword }: { keyword: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      pending={pending}
+      onClick={() =>
+        start(async () => {
+          const res = await addGapIdeasAction([keyword]);
+          if (res.error !== undefined) return void toast.error(res.error);
+          toast.success(res.value.added ? `"${keyword}" added to the plan` : "Already in the plan");
+          router.refresh();
+        })
+      }
+    >
+      <Plus /> Add
     </Button>
   );
 }

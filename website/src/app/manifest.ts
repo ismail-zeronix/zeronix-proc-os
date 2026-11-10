@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "UAE-stock laptops, desktops, workstations and servers for business, with B2B pricing.",
     start_url: "/",
     display: "browser",
-    background_color: "#F6F6F1",
-    theme_color: "#03201A",
+    background_color: "#F7F8FA",
+    theme_color: "#081A31",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

@@ -2,6 +2,7 @@ import { PackageOpen } from "lucide-react";
 import Link from "next/link";
 import { AddToQuote } from "@/components/quote/quote-buttons";
 import { AddToCart } from "@/components/store/cart-buttons";
+import { StockLabel, type Stock } from "@/components/store/stock";
 import { SiteIconView } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { ArrowCircle, Tag } from "./action";
@@ -11,10 +12,10 @@ import { Photo, type PhotoRatio } from "./photo";
 
 const lift = "transition-shadow duration-200 hover:shadow-lift";
 
-/** Icon in a circle: lime on light, mint on dark. */
+/** Icon in a circle: mint on light, mint on dark. */
 export function IconBadge({ name, onDark = false, className }: { name: string; onDark?: boolean; className?: string }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-forest-800 text-mint-300" : "bg-lime-400 text-forest-950", className)}>
+    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-brand-800 text-highlight" : "bg-cta text-brand-950", className)}>
       <SiteIconView name={name} className="size-[1.125rem]" strokeWidth={1.75} />
     </span>
   );
@@ -36,7 +37,7 @@ export function PhotoCard({ href, title, photo, subject, ratio = "4:5", icon, cl
   );
 }
 
-/** 2. Feature card (light): tag top-left, arrow top-right, title, a photo at the bottom. `tone="sage"` for the sage fill. */
+/** 2. Feature card (light): tag top-left, arrow top-right, title, a photo at the bottom. `tone="surface"` for the surface fill. */
 export function FeatureCard({
   href,
   tag,
@@ -53,11 +54,11 @@ export function FeatureCard({
   text?: string;
   photo?: string;
   subject?: string;
-  tone?: "white" | "sage";
+  tone?: "white" | "surface";
   className?: string;
 }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "sage" ? "bg-sage-100" : "bg-white", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "surface" ? "bg-surface" : "bg-white", lift, className)}>
       <div className="flex items-start justify-between gap-4">
         <Tag>{tag}</Tag>
         <ArrowCircle />
@@ -66,31 +67,31 @@ export function FeatureCard({
         <h3 className="max-w-xs text-xl leading-snug font-semibold">{title}</h3>
         {text && <p className="mt-2 text-sm text-muted-ink">{text}</p>}
       </div>
-      {subject && <Photo src={photo} subject={subject} ratio="4:3" className={cn("mt-auto", tone === "sage" && "bg-white/60")} />}
+      {subject && <Photo src={photo} subject={subject} ratio="4:3" className={cn("mt-auto", tone === "surface" && "bg-white/60")} />}
     </Link>
   );
 }
 
-/** 3. Accent card: lime fill, forest text, a photo. The one highlight in a group. */
+/** 3. Accent card: mint fill, navy text, a photo. The one highlight in a group. */
 export function AccentCard({ href, tag, title, photo, subject, className }: { href: string; tag: string; title: string; photo?: string; subject: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-lime-400 p-6 text-forest-950", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-brand-950", lift, className)}>
       <Photo src={photo} subject={subject} ratio="4:3" className="bg-white/40" />
       <div className="mt-auto flex items-end justify-between gap-4">
         <div>
-          <Tag className="border-forest-950/20 bg-transparent text-forest-950/70">{tag}</Tag>
+          <Tag className="border-brand-950/20 bg-transparent text-brand-950/70">{tag}</Tag>
           <h3 className="mt-3 max-w-xs text-xl leading-snug font-semibold">{title}</h3>
         </div>
-        <ArrowCircle className="border-forest-950 bg-forest-950 text-lime-400" />
+        <ArrowCircle className="border-brand-950 bg-brand-950 text-cta" />
       </div>
     </Link>
   );
 }
 
-/** 4. Dark card: on a forest band. Mint icon, white title, softer text. */
+/** 4. Dark card: on a navy band. Mint icon, white title, softer text. */
 export function DarkCard({ icon, title, text, className }: { icon: string; title: string; text: string; className?: string }) {
   return (
-    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-forest-800/70 p-6", className)}>
+    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-brand-800/70 p-6", className)}>
       <IconBadge name={icon} onDark />
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <p className="text-sm leading-relaxed text-white/65">{text}</p>
@@ -98,7 +99,7 @@ export function DarkCard({ icon, title, text, className }: { icon: string; title
   );
 }
 
-/** 5. Stat: big Manrope number, the unit in lime (light) or mint (dark), a muted label. */
+/** 5. Stat: big Manrope number, the unit in mint (light) or mint (dark), a muted label. */
 export function Stat({ value, label, onDark = false }: { value: string; label: string; onDark?: boolean }) {
   const m = value.match(/^([\d.,]+)(.*)$/);
   return (
@@ -108,7 +109,7 @@ export function Stat({ value, label, onDark = false }: { value: string; label: s
         {m ? (
           <>
             {m[1]}
-            <span className={onDark ? "text-mint-300" : "text-forest-700"}>{m[2]}</span>
+            <span className={onDark ? "text-highlight" : "text-brand-700"}>{m[2]}</span>
           </>
         ) : (
           value
@@ -130,6 +131,8 @@ export function ProductCard({
   photo,
   price,
   buy,
+  mpn,
+  stock,
   className,
 }: {
   href: string;
@@ -141,6 +144,10 @@ export function ProductCard({
   price?: string | null;
   /** The raw price ("4489.00") when the product is sold online: the card then has Add to cart instead of Add to quote. */
   buy?: string | null;
+  /** Manufacturer part number, shown after the brand. */
+  mpn?: string;
+  /** Stock label; shown on products sold online. */
+  stock?: Stock;
   className?: string;
 }) {
   const slug = href.split("/").pop() ?? "";
@@ -150,7 +157,7 @@ export function ProductCard({
         <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
       ) : (
         // no catalog picture yet: a calm neutral tile with the brand, never the design-time "photo slot"
-        <div className="grid aspect-square place-items-center rounded-inner bg-paper">
+        <div className="grid aspect-square place-items-center rounded-inner bg-canvas">
           <span className="grid justify-items-center gap-2 text-center">
             <PackageOpen className="size-9 text-ink/20" strokeWidth={1.25} />
             <span className="font-heading text-sm font-semibold tracking-tight text-ink/35">{brand}</span>
@@ -158,21 +165,35 @@ export function ProductCard({
         </div>
       )}
       <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
-        <span className="text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">{brand}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">
+          <span className="shrink-0 text-brand-700">{brand}</span>
+          {mpn && <span className="truncate font-medium tracking-normal normal-case tabular-nums" title={`Part number ${mpn}`}>{mpn}</span>}
+        </span>
         <h3 className="line-clamp-2 min-h-[2.6em] text-sm leading-snug font-semibold text-ink">
           <Link href={href} className="after:absolute after:inset-0">
             {name}
           </Link>
         </h3>
-        {specs.length > 0 && <p className="line-clamp-1 text-xs text-muted-ink">{specs.slice(0, 3).join(" · ")}</p>}
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+        {/* key specs as chips (CPU, RAM, storage); at most two rows so the cards in a row stay level */}
+        {specs.length > 0 && (
+          <ul className="flex max-h-[2.75rem] flex-wrap gap-1 overflow-hidden" aria-label="Key specifications">
+            {specs.slice(0, 3).map((s) => (
+              <li key={s} className="max-w-full truncate rounded-md bg-surface px-1.5 py-0.5 text-[0.6875rem] leading-4 text-brand-900">
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-auto grid gap-1.5 pt-2">
+        {buy && stock && <StockLabel value={stock} />}
+        <div className="flex items-end justify-between gap-2">
           {price ? (
             <p className="leading-tight">
-              <span className="block text-[0.9375rem] font-bold whitespace-nowrap text-ink tabular-nums sm:text-[1.0625rem]">{price}</span>
+              <span className="block font-heading text-base font-extrabold tracking-tight whitespace-nowrap text-ink tabular-nums sm:text-lg">{price}</span>
               <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>
             </p>
           ) : (
-            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-forest-800 hover:text-forest-950">
+            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-brand-800 hover:text-brand-950">
               Price on request
               <span className="block font-normal text-muted-ink">Get B2B quote</span>
             </Link>
@@ -182,6 +203,7 @@ export function ProductCard({
           ) : (
             <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
           )}
+        </div>
         </div>
       </div>
     </div>

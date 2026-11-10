@@ -6,7 +6,7 @@ import { db, schema } from "@/db";
 import { siteFiles } from "./media";
 import type { ListingItem } from "./listing-import";
 import { getStore } from "./store";
-import { markedUp } from "./store-core";
+import { markedUp, type Availability } from "./store-core";
 import { faqList, parseMarkdownFile, renderMarkdown, slugify, str, strList } from "./markdown";
 import type { SiteFaq, SiteImage, SiteIndustryRole, SiteSeo, SiteSpecTemplate, SiteUaeNotes } from "./types";
 
@@ -261,6 +261,8 @@ export interface ProductInput {
   priceMode?: "hidden" | "on_request" | "public";
   /** AED with VAT, "4149.00"; null = no price. */
   listPrice?: string | null;
+  /** Stock label on the site. Optional, so an upload leaves it as it is. */
+  availability?: Availability;
 }
 
 /** What the Products list is showing: a search, a status and a category (0 = products without one). */
@@ -314,7 +316,7 @@ export async function listProducts(opts: ProductFilter & { page?: number; pageSi
 
 // ---------- bulk changes from the Products list ----------
 
-export type ProductBulkOp = { op: "publish" | "draft" | "archive" | "sell_online" | "quote_only" | "delete" } | { op: "category"; categoryId: number };
+export type ProductBulkOp = { op: "publish" | "draft" | "archive" | "sell_online" | "quote_only" | "delete" } | { op: "category"; categoryId: number } | { op: "availability"; availability: Availability };
 
 /** Every product id matching the list's filter ("select all N"), capped so one click cannot run away. */
 export async function productIdsMatching(filter: ProductFilter): Promise<number[]> {
@@ -358,6 +360,9 @@ export async function bulkProducts(ids: number[], change: ProductBulkOp): Promis
       break;
     case "category":
       changed = await siteDb.update(P).set({ categoryId: change.categoryId, updatedAt: now }).where(inIds).returning({ id: P.id });
+      break;
+    case "availability":
+      changed = await siteDb.update(P).set({ availability: change.availability, updatedAt: now }).where(inIds).returning({ id: P.id });
       break;
     case "delete":
       changed = await siteDb.delete(P).where(inIds).returning({ id: P.id });

@@ -123,7 +123,7 @@ export default async function HomePage() {
       <BundlesBand bundles={home.bundles} />
       {shelf(4)}
       <LatestGuides posts={guides.posts} />
-      <WhyUs brand={brand} home={home} />
+      <WhyUs brand={brand} home={home} brandCount={nav.brands.length} />
       <Brands brands={nav.brands} />
       <Faq items={homeFaq(brand.name)} />
       <CtaStrip title={home.ctaBand.title} text={home.ctaBand.text} quoteHref={quoteLink({})} label={brand.ctaLabel} />

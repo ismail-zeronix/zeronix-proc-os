@@ -11,7 +11,7 @@ export const revalidate = 600;
  */
 
 const prose =
-  "prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-forest-700 prose-a:underline-offset-2 prose-strong:text-ink prose-table:text-base prose-th:text-left";
+  "prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-brand-700 prose-a:underline-offset-2 prose-strong:text-ink prose-table:text-base prose-th:text-left";
 
 export async function generateMetadata({ params }: PageProps<"/[page]">): Promise<Metadata> {
   const p = await getPost((await params).page);

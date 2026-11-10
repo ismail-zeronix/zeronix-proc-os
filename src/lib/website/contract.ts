@@ -58,6 +58,10 @@ export interface SiteBrand {
   ctaLabel: string;
   /** The company's own profiles elsewhere (LinkedIn, Google Business, Instagram...), separated by spaces: schema.org sameAs and llms.txt. */
   profiles?: string;
+  /** Opening hours as people read them and schema.org openingHours takes them, e.g. "Mo-Sa 09:00-19:00"; "" = not shown. */
+  hours?: string;
+  /** The office on Google Maps (the Business Profile link), for the footer, /contact and schema.org hasMap. */
+  mapUrl?: string;
 }
 
 export interface SiteLink {
@@ -165,6 +169,10 @@ export interface SiteProductSummary {
   priceMode: "hidden" | "on_request" | "public";
   price: string | null;
   currency: string;
+  /** Manufacturer part number (UAE one), "" when unknown. */
+  mpn: string;
+  /** Stock label set in Website › Products. */
+  availability: "in_stock" | "ships_soon" | "on_order";
 }
 
 export interface SiteSpecGroup {
@@ -174,7 +182,6 @@ export interface SiteSpecGroup {
 
 export interface SiteProductPage extends SiteProductSummary {
   contract: number;
-  mpn: string;
   series: string;
   summaryHtml: string;
   images: SiteImageRef[];
@@ -189,6 +196,25 @@ export interface SiteProductPage extends SiteProductSummary {
   bestFor: { industrySlug: string; industry: string; role: string; label: string }[];
   related: SiteProductSummary[];
   seo: { title?: string; description?: string };
+  /** The brand's own note on UAE warranty (Website › Brands), when the product has none of its own. */
+  brandWarrantyNote?: string;
+  /** Published guides that pick this product. */
+  guides?: SitePostLink[];
+  /** Delivery and returns from Website › Settings › Store, for the page and the Offer's shipping and return policy. */
+  store?: SiteStoreTerms;
+}
+
+/** A link to a guide or article. */
+export interface SitePostLink {
+  path: string;
+  title: string;
+}
+
+/** Delivery charge (AED incl. VAT, 0 = free), free-delivery threshold (0 = none) and return window in days (0 = not stated). */
+export interface SiteStoreTerms {
+  deliveryFee: number;
+  freeAbove: number;
+  returnDays: number;
 }
 
 export interface SiteIndustryCard extends SiteNavLink {
@@ -221,6 +247,8 @@ export interface SiteCategoryPage extends SiteNavLink {
   introHtml: string;
   faq: SiteFaqItem[];
   seo: { title?: string; description?: string };
+  /** Published guides that pick products from this category. */
+  guides?: SitePostLink[];
 }
 
 export interface SiteCategoriesResponse {
@@ -242,6 +270,8 @@ export interface SiteCompareResponse {
   contract: number;
   products: SiteProductSummary[];
   groups: { label: string; rows: { label: string; values: string[] }[] }[];
+  /** True when a published guide picks every product compared here; other pairs stay out of search (noindex). */
+  curated?: boolean;
 }
 
 // ---------- guides and blog (W.4) ----------
@@ -311,7 +341,8 @@ export interface SiteAuthorPage {
 
 export interface SiteSitemapResponse {
   contract: number;
-  entries: { path: string; updatedAt: string }[];
+  /** `images` are site paths (/media/<id>) shown on the page, for the image sitemap. */
+  entries: { path: string; updatedAt: string; images?: string[] }[];
 }
 
 /** Everything published, in short form, for /llms.txt and /llms-full.txt (a map of the site for AI assistants). */

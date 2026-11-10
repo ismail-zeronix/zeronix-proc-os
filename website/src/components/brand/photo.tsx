@@ -48,11 +48,11 @@ export function Photo({
         box,
         "grid p-5 text-center",
         slotAt === "end" ? "place-items-end" : "place-items-center",
-        tone === "dark" ? "bg-forest-800 text-white/55" : "bg-paper text-ink/40 ring-1 ring-line/60 ring-inset",
+        tone === "dark" ? "bg-brand-800 text-white/55" : "bg-canvas text-ink/40 ring-1 ring-line/60 ring-inset",
       )}
     >
       <span className="grid max-w-[16rem] justify-items-center gap-2.5">
-        <LogoMark className={cn("size-9", tone === "dark" && "[&_rect]:fill-forest-950")} />
+        <LogoMark className={cn("size-9", tone === "dark" && "[&_rect]:fill-brand-950")} />
         <span className="line-clamp-2 text-xs leading-snug font-medium">{subject}</span>
       </span>
     </div>

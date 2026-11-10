@@ -16,7 +16,9 @@ const FIELDS: { key: keyof SiteBrand; label: string; hint?: string; type?: strin
   { key: "email", label: "Email", type: "email" },
   { key: "phone", label: "Phone", type: "tel" },
   { key: "whatsapp", label: "WhatsApp", type: "tel", hint: "Number with country code, e.g. 9715..." },
-  { key: "address", label: "Address" },
+  { key: "address", label: "Address", hint: "Street, building and area exactly as on your Google Business Profile" },
+  { key: "hours", label: "Opening hours", hint: "e.g. Mo-Sa 09:00-19:00 (this exact form is what Google reads). Shown in the footer and on Contact." },
+  { key: "mapUrl", label: "Google Maps link", hint: "The share link of your Google Business Profile, starting with https://" },
   { key: "profiles", label: "Company profiles", hint: "LinkedIn, Google Business, Instagram... links separated by spaces. Search engines and AI assistants use them to recognise the company." },
 ];
 

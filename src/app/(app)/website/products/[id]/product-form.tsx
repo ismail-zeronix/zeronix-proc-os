@@ -10,6 +10,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { ago } from "@/lib/format";
 import type { ProductInput } from "@/lib/website/catalog";
+import { AVAILABILITY, AVAILABILITY_LABEL, type Availability } from "@/lib/website/store-core";
 import type { SiteImage, SiteSpecTemplate } from "@/lib/website/types";
 import { picturesFromLinksAction, saveProductAction, searchPortalProductsAction } from "../../catalog-actions";
 import { FaqRows, Field, ImagesField, LinesInput, Panel, Rows, StatusSelect, useLocal, useSave } from "../../catalog-ui";
@@ -89,7 +90,7 @@ export function ProductForm({ id, initial, checkedAt, categories, brands, indust
                 ))}
               </NativeSelect>
             </Field>
-            <Field id="mpn" label="Part number (UAE)" hint="The Middle East one, e.g. …#ABV for Arabic/English">
+            <Field id="mpn" label="Part number" hint="The exact maker part number. Middle East ones end e.g. #ABV (Arabic/English); for US ones (…US, #ABA) fill in the keyboard and warranty">
               <Input id="mpn" value={f.mpn} onChange={(e) => patch({ mpn: e.target.value })} />
             </Field>
             <Field id="series" label="Series">
@@ -195,6 +196,15 @@ export function ProductForm({ id, initial, checkedAt, categories, brands, indust
               <Input id="price" inputMode="decimal" value={f.listPrice ?? ""} disabled={f.priceMode !== "public"} onChange={(e) => patch({ listPrice: e.target.value })} />
             </Field>
           </div>
+          <Field id="availability" label="Stock label on the site">
+            <NativeSelect id="availability" value={f.availability ?? "in_stock"} onChange={(e) => patch({ availability: e.target.value as Availability })}>
+              {AVAILABILITY.map((a) => (
+                <NativeSelectOption key={a} value={a}>
+                  {AVAILABILITY_LABEL[a]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </Field>
           <Button type="submit" pending={pending}>
             Save
           </Button>

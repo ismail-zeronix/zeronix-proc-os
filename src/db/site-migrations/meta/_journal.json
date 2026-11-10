@@ -29,6 +29,20 @@
       "when": 1793668042390,
       "tag": "0003_category_content",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794341345289,
+      "tag": "0004_store_fulfilment",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794347606661,
+      "tag": "0005_keyword_ranks",
+      "breakpoints": true
     }
   ]
 }

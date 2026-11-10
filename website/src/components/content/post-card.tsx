@@ -12,7 +12,7 @@ export const coverSrc = (post: Pick<SitePostSummary, "cover" | "type" | "slug">)
 
 export const postDate =(iso: string) => new Date(iso).toLocaleDateString("en-AE", { day: "numeric", month: "short", year: "numeric" });
 
-/** Initials in a forest circle: the byline until authors have photos. */
+/** Initials in a navy circle: the byline until authors have photos. */
 export function AuthorAvatar({ name, className }: { name: string; className?: string }) {
   const initials = name
     .split(/\s+/)
@@ -20,7 +20,7 @@ export function AuthorAvatar({ name, className }: { name: string; className?: st
     .map((w) => w[0]?.toUpperCase())
     .join("");
   return (
-    <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-full bg-forest-900 font-heading text-sm font-semibold text-mint-300", className)}>
+    <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-full bg-brand-900 font-heading text-sm font-semibold text-highlight", className)}>
       {initials}
     </span>
   );

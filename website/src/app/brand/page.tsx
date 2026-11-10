@@ -8,24 +8,24 @@ import { Photo } from "@/components/brand/photo";
 export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false } };
 
 const COLOURS = [
-  { name: "forest-950", hex: "#03201A", use: "Deepest: footer, text on lime", cls: "bg-forest-950 text-white" },
-  { name: "forest-900", hex: "#06352B", use: "Dark bands, dark buttons", cls: "bg-forest-900 text-white" },
-  { name: "forest-800", hex: "#0B4A3B", use: "Cards on dark, hover", cls: "bg-forest-800 text-white" },
-  { name: "forest-700", hex: "#12614C", use: "Links, icons on light", cls: "bg-forest-700 text-white" },
-  { name: "lime-400", hex: "#B9F23F", use: "Primary CTA fill", cls: "bg-lime-400 text-forest-950" },
-  { name: "mint-300", hex: "#4FF0B4", use: "Highlights on dark", cls: "bg-mint-300 text-forest-950" },
-  { name: "sage-100", hex: "#E6F1E0", use: "Light cards, image wells", cls: "bg-sage-100 text-forest-950" },
-  { name: "sage-50", hex: "#F0F5EC", use: "Alternate sections", cls: "bg-sage-50 text-forest-950" },
-  { name: "paper", hex: "#F6F6F1", use: "Page background", cls: "bg-paper text-forest-950 border border-line" },
-  { name: "ink", hex: "#0C1F1A", use: "Body text", cls: "bg-ink text-white" },
-  { name: "muted", hex: "#5A6B65", use: "Secondary text", cls: "bg-muted-ink text-white" },
-  { name: "line", hex: "#DCE3DB", use: "Borders, dividers", cls: "bg-line text-forest-950" },
+  { name: "brand-950", hex: "#081A31", use: "Deepest: footer, text on mint", cls: "bg-brand-950 text-white" },
+  { name: "brand-900", hex: "#0F2747", use: "Dark bands, dark buttons", cls: "bg-brand-900 text-white" },
+  { name: "brand-800", hex: "#18375F", use: "Cards on dark, hover", cls: "bg-brand-800 text-white" },
+  { name: "brand-700", hex: "#1D4F8A", use: "Links, icons on light", cls: "bg-brand-700 text-white" },
+  { name: "cta", hex: "#2BD9A0", use: "Primary CTA fill", cls: "bg-cta text-brand-950" },
+  { name: "highlight", hex: "#5EEBC0", use: "Highlights on dark", cls: "bg-highlight text-brand-950" },
+  { name: "surface", hex: "#E9EFF6", use: "Light cards, image wells", cls: "bg-surface text-brand-950" },
+  { name: "surface-soft", hex: "#F2F5F9", use: "Alternate sections", cls: "bg-surface-soft text-brand-950" },
+  { name: "canvas", hex: "#F7F8FA", use: "Page background", cls: "bg-canvas text-brand-950 border border-line" },
+  { name: "ink", hex: "#0E1A2B", use: "Body text", cls: "bg-ink text-white" },
+  { name: "muted", hex: "#5A6577", use: "Secondary text", cls: "bg-muted-ink text-white" },
+  { name: "line", hex: "#DDE3EC", use: "Borders, dividers", cls: "bg-line text-brand-950" },
 ];
 
 function Block({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
     <section className="container-site border-t border-line py-6 sm:py-8">
-      <p className="text-sm font-semibold text-forest-700">{n}</p>
+      <p className="text-sm font-semibold text-brand-700">{n}</p>
       <h2 className="mt-1 text-3xl">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
@@ -35,13 +35,13 @@ function Block({ n, title, children }: { n: string; title: string; children: Rea
 export default function BrandPage() {
   return (
     <>
-      {/* hero sample: the Finovate frame with a photo, white headline, lime action and floating UI chips */}
-      <section className="frame relative mt-3 bg-forest-900 text-white">
+      {/* hero sample: the Finovate frame with a photo, white headline, mint action and floating UI chips */}
+      <section className="frame relative mt-3 bg-brand-900 text-white">
         <div className="relative grid min-h-[34rem] lg:grid-cols-2">
           <div className="relative z-10 flex flex-col justify-center gap-7 p-8 sm:p-12 lg:p-16">
             <Tag onDark>Corporate IT for UAE businesses</Tag>
             <h1 className="max-w-xl text-display text-white">
-              Business IT, matched to <span className="text-mint-300">your industry.</span>
+              Business IT, matched to <span className="text-highlight">your industry.</span>
             </h1>
             <p className="max-w-md text-lead text-white/70">Laptops, desktops, workstations and servers for the way your team works. UAE stock, local warranty, corporate pricing.</p>
             <div className="flex flex-wrap gap-3">
@@ -64,7 +64,7 @@ export default function BrandPage() {
       <div className="container-site py-6 sm:py-8">
         <Tag>Brand system</Tag>
         <h1 className="mt-5 max-w-3xl text-h2">The rules every page of zeronixtech.com follows.</h1>
-        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. Warm paper, forest-green bands, lime for action, mint for highlights on dark. Medium-weight headings, pill controls, rounded frames, real photography.</p>
+        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. Light canvas, deep navy bands, mint for action and for highlights on dark. Medium-weight headings, pill controls, rounded frames, real photography.</p>
       </div>
 
       <Block n="01" title="Logo">
@@ -72,10 +72,10 @@ export default function BrandPage() {
           <div className="grid h-40 place-items-center rounded-card bg-white">
             <Logo />
           </div>
-          <div className="grid h-40 place-items-center rounded-card bg-forest-900">
+          <div className="grid h-40 place-items-center rounded-card bg-brand-900">
             <Logo onDark />
           </div>
-          <div className="grid h-40 place-items-center gap-2 rounded-card bg-lime-400">
+          <div className="grid h-40 place-items-center gap-2 rounded-card bg-cta">
             <LogoMark className="size-16" />
           </div>
         </div>
@@ -93,7 +93,7 @@ export default function BrandPage() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-sm text-muted-ink">About 60% paper and white, 25% forest, 10% sage, 5% lime or mint. Lime is a fill, never text on light. No blue, purple, glows or gradient text.</p>
+        <p className="mt-6 text-sm text-muted-ink">About 60% canvas and white, 25% navy, 10% surface, 5% mint. Mint is a fill or text on navy, never text on light. No purple, glows or gradient text.</p>
       </Block>
 
       <Block n="03" title="Typography">
@@ -140,7 +140,7 @@ export default function BrandPage() {
             <Tag>Who we are</Tag>
             <IconBadge name="laptop" />
           </div>
-          <div className="flex flex-wrap items-center gap-3 rounded-card bg-forest-900 p-8">
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-brand-900 p-8">
             <Action href="/quote">Get B2B pricing</Action>
             <Action href="/products" variant="onDark" arrow={false}>
               All products
@@ -158,7 +158,7 @@ export default function BrandPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <FeatureCard href="/about" tag="Who we are" title="The UAE partner for business IT, matched to the work" subject="Our team with a client, office setting" />
           <AccentCard href="/industries/real-estate" tag="Industry" title="Best laptops for real estate agents in the UAE" subject="Agent showing a property on a light laptop" />
-          <FeatureCard href="/guides" tag="Guide" title="Workstations for architects: what really matters" tone="sage" subject="Architect at a dual-monitor workstation" />
+          <FeatureCard href="/guides" tag="Guide" title="Workstations for architects: what really matters" tone="surface" subject="Architect at a dual-monitor workstation" />
         </div>
       </Block>
 
@@ -171,7 +171,7 @@ export default function BrandPage() {
         </div>
       </Block>
 
-      <section className="frame bg-forest-900 py-8 sm:py-10">
+      <section className="frame bg-brand-900 py-8 sm:py-10">
         <div className="container-site">
           <SectionHeading onDark rule tag="Dark band" title="Strategic setups that fit how your teams work" />
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -201,7 +201,7 @@ export default function BrandPage() {
       <Block n="08" title="Photo slots">
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
           <Photo subject="Hero: UAE office team around a table with business laptops" ratio="16:9" />
-          <Photo subject="Product shot: laptop three-quarter view on sage" ratio="1:1" />
+          <Photo subject="Product shot: laptop three-quarter view on a light background" ratio="1:1" />
         </div>
         <p className="mt-6 max-w-2xl text-sm text-muted-ink">Until a real photo is uploaded, each slot names the subject and the ratio. The full list for the home page is in BRAND.md section 9.</p>
       </Block>

@@ -23,7 +23,7 @@ export function OrderDone() {
 
   return (
     <div className="mx-auto grid w-full max-w-lg justify-items-center gap-4 rounded-card border border-line/70 bg-white p-6 text-center">
-      <CircleCheck className="size-12 text-forest-700" strokeWidth={1.5} />
+      <CircleCheck className="size-12 text-brand-700" strokeWidth={1.5} />
       <h1 className="text-2xl font-semibold text-ink">Thank you for your order</h1>
       {number && (
         <p className="text-sm text-muted-ink">
@@ -32,7 +32,7 @@ export function OrderDone() {
         </p>
       )}
       {pay === "bank" && (
-        <div className="grid w-full gap-1.5 rounded-xl bg-sage-50 p-4 text-left text-sm">
+        <div className="grid w-full gap-1.5 rounded-xl bg-surface-soft p-4 text-left text-sm">
           <p className="font-semibold text-ink">Please pay by bank transfer, with {number || "your order number"} as the reference:</p>
           <p className="whitespace-pre-wrap text-ink">{bank || "Bank details are in your confirmation email."}</p>
         </div>

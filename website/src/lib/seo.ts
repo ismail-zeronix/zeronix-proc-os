@@ -22,11 +22,21 @@ export const AI_CRAWLERS = {
 /** Pages with no value in search: carts, accounts, internal search results, the hidden style guide. */
 export const PRIVATE_PATHS = ["/api/", "/cart", "/checkout", "/account", "/search", "/brand$"];
 
-/** Organization + WebSite structured data for every page: who runs the site and how to search it. */
+const DAYS: Record<string, string> = { Mo: "Mon", Tu: "Tue", We: "Wed", Th: "Thu", Fr: "Fri", Sa: "Sat", Su: "Sun" };
+
+/** "Mo-Sa 09:00-19:00" (schema.org form, as entered in Settings) → "Mon–Sat 09:00–19:00" for people. */
+export const readableHours = (hours: string) => hours.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, (d) => DAYS[d]).replace(/(\w)-(\w)/g, "$1–$2");
+
+/**
+ * Organization + WebSite structured data for every page: who runs the site and how to search it. Once Settings has the
+ * opening hours or the Google Maps link (a real office people can visit), the organisation is also a ComputerStore, the
+ * local-business type Google Maps and AI assistants match to "computer shop in Dubai" (claude-seo seo-local).
+ */
 export function siteJsonLd(brand: SiteBrand) {
   const sameAs = profileLinks(brand);
+  const local = Boolean(brand.hours || brand.mapUrl);
   const org = {
-    "@type": ["Organization", "OnlineStore"],
+    "@type": local ? ["Organization", "OnlineStore", "ComputerStore"] : ["Organization", "OnlineStore"],
     "@id": `${SITE_URL}/#organization`,
     name: brand.name,
     url: SITE_URL,
@@ -41,6 +51,9 @@ export function siteJsonLd(brand: SiteBrand) {
     currenciesAccepted: "AED",
     contactPoint: brand.phone || brand.email ? [{ "@type": "ContactPoint", contactType: "sales", telephone: brand.phone || undefined, email: brand.email || undefined, areaServed: "AE", availableLanguage: ["English"] }] : undefined,
     sameAs: sameAs.length ? sameAs : undefined,
+    openingHours: brand.hours ? brand.hours.split(/\s*[,;]\s*/).filter(Boolean) : undefined,
+    hasMap: brand.mapUrl || undefined,
+    priceRange: local ? "AED" : undefined,
   };
   const site = {
     "@type": "WebSite",

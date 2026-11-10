@@ -19,7 +19,7 @@ export function pageList(page: number, pages: number): (number | null)[] {
 export function Pagination({ page, pages, href, label = "Pages" }: { page: number; pages: number; href: (n: number) => string; label?: string }) {
   if (pages < 2) return null;
   const box = "grid size-10 place-items-center rounded-full border text-sm transition-colors";
-  const idle = "border-line bg-white text-ink hover:border-forest-900";
+  const idle = "border-line bg-white text-ink hover:border-brand-900";
   return (
     <nav aria-label={label} className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
       {page > 1 ? (
@@ -37,7 +37,7 @@ export function Pagination({ page, pages, href, label = "Pages" }: { page: numbe
             …
           </span>
         ) : (
-          <Link key={n} href={href(n)} aria-current={n === page ? "page" : undefined} className={cn(box, n === page ? "border-forest-900 bg-forest-900 font-semibold text-white" : idle)}>
+          <Link key={n} href={href(n)} aria-current={n === page ? "page" : undefined} className={cn(box, n === page ? "border-brand-900 bg-brand-900 font-semibold text-white" : idle)}>
             {n}
           </Link>
         ),

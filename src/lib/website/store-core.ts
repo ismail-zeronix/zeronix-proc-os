@@ -33,7 +33,24 @@ export interface StoreSettings {
   mailUserId: number | null;
   /** Where new-order notices go. */
   notifyEmail: string;
+  delivery: DeliveryRules;
+  /** ZeronixOS users.id suggested as the salesperson when a web order becomes a Sales order. */
+  webOrderOwnerId: number | null;
+  /** Days a customer has to return an item (as on the Delivery and warranty page); 0 = not stated, so no return policy is published. */
+  returnDays: number;
 }
+
+/** Delivery charge, AED incl. VAT. Collecting from the office is always free. */
+export interface DeliveryRules {
+  /** The charge when no emirate fee applies; 0 = free delivery. */
+  fee: number;
+  /** Orders at or above this (incl. VAT) deliver free; 0 = no free-delivery amount. */
+  freeAbove: number;
+  /** A different charge for some emirates (e.g. further away); left out = the normal fee. */
+  emirateFees: Partial<Record<string, number>>;
+}
+
+export const DELIVERY_DEFAULTS: DeliveryRules = { fee: 0, freeAbove: 0, emirateFees: {} };
 
 export const STORE_DEFAULTS: StoreSettings = {
   markupPercent: 0,
@@ -42,7 +59,67 @@ export const STORE_DEFAULTS: StoreSettings = {
   deliveryNote: "Delivery across the UAE in 2–4 working days.",
   mailUserId: null,
   notifyEmail: "",
+  delivery: DELIVERY_DEFAULTS,
+  webOrderOwnerId: null,
+  returnDays: 0,
 };
+
+/** The delivery charge for an order, "25.00" (incl. VAT). `goods` is the cart total incl. VAT. */
+export function deliveryFee(rules: DeliveryRules | undefined, goods: number | string, delivery: "delivery" | "pickup", emirate = ""): string {
+  const r = { ...DELIVERY_DEFAULTS, ...rules };
+  if (delivery === "pickup") return "0.00";
+  if (r.freeAbove > 0 && Number(goods) >= r.freeAbove) return "0.00";
+  const own = r.emirateFees?.[emirate];
+  const fee = typeof own === "number" && own >= 0 ? own : r.fee;
+  return Math.max(0, fee).toFixed(2);
+}
+
+/** A quote line as Sales takes it: price per unit before VAT. */
+export interface SalesLine {
+  description: string;
+  qty: number;
+  unitPriceAed: number;
+}
+
+/**
+ * A web order (prices with 5% VAT) as Sales quote lines (prices before VAT, VAT added on the subtotal by the quote's own
+ * rule, lib/quotation.ts totals). Each unit price is the VAT-inclusive price / 1.05 to the fils; the delivery charge is
+ * its own line. Rounding can leave the Sales total a few fils off the web total, so a line with quantity 1 (delivery
+ * first) is nudged by a few fils until both totals agree. `diff` is what is still off (0 in all but odd cases).
+ */
+export function salesLinesForWebOrder(
+  items: Pick<OrderLine, "name" | "mpn" | "qty" | "unitPrice">[],
+  deliveryFee: string | number,
+  webTotal: string | number,
+  totalOf: (lines: { qty: number; unitPrice: number }[]) => number,
+): { lines: SalesLine[]; total: number; diff: number } {
+  const net = (incl: string | number) => Math.round((Number(incl) * 100) / (1 + VAT_RATE)) / 100;
+  const lines: SalesLine[] = items.map((i) => ({ description: i.mpn ? `${i.name} (part no. ${i.mpn})` : i.name, qty: i.qty, unitPriceAed: net(i.unitPrice) }));
+  if (Number(deliveryFee) > 0) lines.push({ description: "Delivery", qty: 1, unitPriceAed: net(deliveryFee) });
+  const target = Math.round(Number(webTotal) * 100);
+  const sum = () => Math.round(totalOf(lines.map((l) => ({ qty: l.qty, unitPrice: l.unitPriceAed }))) * 100);
+  // VAT on the subtotal moves the total in steps of 1.05 fils, so a few web totals cannot be hit exactly: then the
+  // closest one is kept (1 fils off at most)
+  const adjustable = [...lines].reverse().find((l) => l.qty === 1);
+  if (adjustable && sum() !== target) {
+    const base = Math.round(adjustable.unitPriceAed * 100);
+    let best = { fils: base, off: Math.abs(sum() - target) };
+    for (const step of [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]) {
+      adjustable.unitPriceAed = (base + step) / 100;
+      const off = Math.abs(sum() - target);
+      if (off < best.off) best = { fils: base + step, off };
+      if (off === 0) break;
+    }
+    adjustable.unitPriceAed = best.fils / 100;
+  }
+  const total = sum() / 100;
+  return { lines, total, diff: Math.round((Number(webTotal) - total) * 100) / 100 };
+}
+
+/** Stock label of a product on the site. */
+export const AVAILABILITY = ["in_stock", "ships_soon", "on_order"] as const;
+export type Availability = (typeof AVAILABILITY)[number];
+export const AVAILABILITY_LABEL: Record<Availability, string> = { in_stock: "In stock", ships_soon: "Ships in 2–5 days", on_order: "On order" };
 
 /**
  * A listing price plus the markup, rounded up to the next price ending in 9: 4,149 + 8% = 4,480.92 → 4,489.

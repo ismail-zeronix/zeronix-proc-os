@@ -5,7 +5,10 @@ import { ago } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { listOrders, orderCounts } from "@/lib/website/store";
 import { ORDER_LABEL, ORDER_STATUSES, PAYMENT_LABEL, type OrderStatus } from "@/lib/website/store-core";
+import { FileOutput } from "lucide-react";
+import { AppLink } from "@/components/app-link";
 import { OrderActions } from "./order-actions";
+import { SalesOrderDialog } from "./sales-order-dialog";
 import { LIST_PAGE } from "@/components/list-page";
 
 export const metadata = { title: "Orders · Zeronix Website" };
@@ -74,7 +77,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/website/o
                 ))}
               </ul>
               <p className="border-t pt-1.5 text-xs text-muted-foreground tabular-nums">
-                Before VAT {aed(o.subtotal)} · VAT {aed(o.vat)} · <span className="font-semibold text-foreground">Total {aed(o.total)}</span>
+                {o.delivery === "delivery" && <>Delivery {Number(o.deliveryFee) ? aed(o.deliveryFee) : "free"} · </>}Before VAT {aed(o.subtotal)} · VAT {aed(o.vat)} · <span className="font-semibold text-foreground">Total {aed(o.total)}</span>
               </p>
               <p className="text-xs">
                 <span className="font-medium">{PAYMENT_LABEL[o.payment]}</span> ·{" "}
@@ -82,7 +85,17 @@ export default async function OrdersPage({ searchParams }: PageProps<"/website/o
               </p>
               {o.notes && <p className="text-xs whitespace-pre-wrap">Customer note: {o.notes}</p>}
             </div>
-            <OrderActions id={o.id} status={o.status} note={o.internalNote} />
+            <div className="grid content-start gap-2 lg:w-60">
+              {o.salesOrderId && (
+                <AppLink href={`/sales/orders/${o.salesOrderId}`} className={cn("inline-flex items-center gap-1.5 justify-self-start rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted", o.syncNote && "line-through opacity-70")}>
+                  <FileOutput className="size-3.5 text-muted-foreground" /> {o.salesOrderNumber}
+                </AppLink>
+              )}
+              {/* no Sales order yet, or the one it had was cancelled (the sync note says so) */}
+              {(!o.salesOrderId || o.syncNote) && o.status !== "cancelled" && <SalesOrderDialog orderId={o.id} number={o.number} />}
+              {o.syncNote && <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{o.syncNote}</p>}
+              <OrderActions id={o.id} status={o.status} note={o.internalNote} />
+            </div>
           </li>
         ))}
       </ul>

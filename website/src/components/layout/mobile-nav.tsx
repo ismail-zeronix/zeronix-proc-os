@@ -22,8 +22,8 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
           <div className="grid gap-0.5">
             {items.map((x) => {
               return (
-                <Link key={x.slug} href={`${base}/${x.slug}`} onClick={close} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sage-50">
-                  {x.icon && <SiteIconView name={x.icon} className="size-4 text-forest-700" />}
+                <Link key={x.slug} href={`${base}/${x.slug}`} onClick={close} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-surface-soft">
+                  {x.icon && <SiteIconView name={x.icon} className="size-4 text-brand-700" />}
                   {x.name}
                 </Link>
               );
@@ -38,7 +38,7 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
       <SheetTrigger render={<Button variant="ghost" size="icon" className="-ml-2 lg:hidden" aria-label="Open the menu" />}>
         <Menu />
       </SheetTrigger>
-      <SheetContent side="right" className="w-full max-w-sm overflow-y-auto bg-paper">
+      <SheetContent side="right" className="w-full max-w-sm overflow-y-auto bg-canvas">
         <SheetHeader>
           <SheetTitle>Menu</SheetTitle>
         </SheetHeader>
@@ -52,8 +52,8 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
                 <AccordionContent>
                   <div className="grid gap-0.5">
                     {services.map((s) => (
-                      <Link key={s.href} href={s.href} onClick={close} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sage-50">
-                        {s.icon && <SiteIconView name={s.icon} className="size-4 text-forest-700" />}
+                      <Link key={s.href} href={s.href} onClick={close} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-surface-soft">
+                        {s.icon && <SiteIconView name={s.icon} className="size-4 text-brand-700" />}
                         {s.label}
                       </Link>
                     ))}

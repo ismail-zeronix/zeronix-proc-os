@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import type { Result } from "@/lib/prospecting/result";
 import type { ProductBulkOp, ProductFilter } from "@/lib/website/catalog";
+import { AVAILABILITY, AVAILABILITY_LABEL } from "@/lib/website/store-core";
 import { bulkProductsAction, bulkStatusAction } from "./catalog-actions";
 import { bulkPostStatusAction } from "./content-actions";
 import { useSelection } from "@/components/data-table";
@@ -73,6 +74,23 @@ export function ProductBulkActions({ filter, categories, canDelete }: { filter: 
         {categories.map((c) => (
           <NativeSelectOption key={c.id} value={c.id}>
             {c.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <NativeSelect
+        size="sm"
+        aria-label="Set stock label"
+        value=""
+        disabled={pending}
+        onChange={(e) => {
+          const a = AVAILABILITY.find((x) => x === e.target.value);
+          if (a) apply({ op: "availability", availability: a }, `set to "${AVAILABILITY_LABEL[a]}"`);
+        }}
+      >
+        <NativeSelectOption value="">Stock label…</NativeSelectOption>
+        {AVAILABILITY.map((a) => (
+          <NativeSelectOption key={a} value={a}>
+            {AVAILABILITY_LABEL[a]}
           </NativeSelectOption>
         ))}
       </NativeSelect>

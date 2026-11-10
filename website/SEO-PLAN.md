@@ -4,7 +4,7 @@
 
 **Sources:** the claude-seo skills (github.com/AgriciDaniel/claude-seo: `seo-geo`, `seo-agentic`, `seo-technical`), llmstxt.org, indexnow.org, contentsignals.org, and Google's structured-data docs. Audit of the live site on 2026-11-04.
 
-**Status:** Phase 1 is coded on branch `website` and not committed. Phase 2 needs the owner. Phases 3–5 are ongoing work.
+**Status:** Phases 1–2 are live (2026-11-04). Phases 3–5 are ongoing work. **The competitor analysis, keyword targets, DataForSEO rankings and the 90-day plan are in `SEO-STRATEGY.md` (2026-11-11)**; it also replaces the "Later" list at the end of this file (Merchant feed, image sitemap and shipping/returns schema are built).
 
 ---
 

@@ -17,17 +17,22 @@ export function MoreProducts({
   category,
   brand,
   industry,
+  sort,
   page,
   pages,
   per,
+  cols = GRID_COLS,
   children,
 }: {
   category: string;
   brand?: string;
   industry?: string;
+  sort?: string;
   page: number;
   pages: number;
   per: number;
+  /** Grid classes, matching the server-rendered grid above. */
+  cols?: string;
   children: React.ReactNode;
 }) {
   const sentinel = useRef<HTMLDivElement>(null);
@@ -50,6 +55,7 @@ export function MoreProducts({
         const q = new URLSearchParams({ category, page: String(loaded + 1), per: String(per) });
         if (brand) q.set("brand", brand);
         if (industry) q.set("industry", industry);
+        if (sort) q.set("sort", sort);
         fetch(`/api/products?${q}`)
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
           .then((d: { products: SiteProductSummary[] }) => {
@@ -64,14 +70,14 @@ export function MoreProducts({
     io.observe(el);
     return () => io.disconnect();
     // `live`: the sentinel only exists after hydration, so the observer is attached on that render
-  }, [live, busy, more, loaded, category, brand, industry, per]);
+  }, [live, busy, more, loaded, category, brand, industry, sort, per]);
 
   // a failed load hands paging back to the numbered links
   if (!live || failed || page > 1) return <>{children}</>;
   return (
     <>
       {items.length > 0 && (
-        <div className={GRID_COLS}>
+        <div className={cols}>
           {items.map((p) => (
             <ProductCard
               key={p.slug}
@@ -83,13 +89,15 @@ export function MoreProducts({
               photo={p.image?.src}
               price={formatPrice(p.price, p.currency)}
               buy={p.price}
+              mpn={p.mpn}
+              stock={p.availability}
             />
           ))}
         </div>
       )}
       {more && (
         <div ref={sentinel}>
-          <GridSkeleton />
+          <GridSkeleton cols={cols} />
         </div>
       )}
       {!more && pages > 1 && <p className="pt-2 text-center text-sm text-muted-ink">That is every model in this list.</p>}

@@ -9,7 +9,7 @@ import { revalidateSite } from "@/lib/website/revalidate";
 import { importSearch, saveGsc, testGsc } from "@/lib/website/gsc";
 import { saveBrand } from "@/lib/website/settings";
 import { saveStore } from "@/lib/website/store";
-import { PAYMENT_METHODS, type StoreSettings } from "@/lib/website/store-core";
+import { EMIRATES, PAYMENT_METHODS, type StoreSettings } from "@/lib/website/store-core";
 import { dubaiDay } from "@/lib/website/traffic";
 import { parseInput } from "@/lib/user-error";
 
@@ -24,6 +24,8 @@ const brandSchema = z.object({
   whatsapp: text(40),
   address: text(200),
   ctaLabel: text(40).min(2, "Enter the button text"),
+  hours: text(120).optional(),
+  mapUrl: z.union([z.literal(""), z.string().trim().regex(/^https:\/\/\S+$/, "The map link must start with https://")]).optional(),
   profiles: text(1500)
     .optional()
     .refine((v) => !v || v.split(/\s+/).every((u) => /^https:\/\/\S+$/.test(u)), "Each company profile link must start with https://"),
@@ -91,6 +93,13 @@ const storeSchema = z.object({
   deliveryNote: text(300),
   mailUserId: z.number().int().positive().nullable(),
   notifyEmail: z.union([z.literal(""), z.email("Enter a valid email for new orders")]),
+  webOrderOwnerId: z.number().int().positive().nullable(),
+  returnDays: z.number().int().min(0, "Return days cannot be negative").max(365),
+  delivery: z.object({
+    fee: z.number().min(0, "The delivery charge cannot be negative").max(5000),
+    freeAbove: z.number().min(0).max(1_000_000),
+    emirateFees: z.record(z.enum(EMIRATES), z.number().min(0).max(5000)),
+  }),
 });
 
 /** Markup, ways to pay, bank details and the store mailbox. Admins only; checkout picks it up straight away. */

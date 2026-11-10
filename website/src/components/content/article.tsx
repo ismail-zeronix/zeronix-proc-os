@@ -9,7 +9,7 @@ import { SITE_URL } from "@/lib/defaults";
 import { AuthorAvatar, Byline, coverSrc, PostGrid, TYPE_LABEL } from "./post-card";
 
 const PROSE =
-  "prose prose-lg max-w-none prose-headings:scroll-mt-28 prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-forest-700 prose-a:underline-offset-2 prose-strong:text-ink prose-img:rounded-card prose-table:text-base prose-th:text-left";
+  "prose prose-lg max-w-none prose-headings:scroll-mt-28 prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-brand-700 prose-a:underline-offset-2 prose-strong:text-ink prose-img:rounded-card prose-table:text-base prose-th:text-left";
 
 /** Ranked picks: rank, label, the product card, and why it is on the list. */
 function Picks({ post }: { post: SitePostPage }) {
@@ -22,7 +22,7 @@ function Picks({ post }: { post: SitePostPage }) {
             <ProductTile p={p} />
             <div className="grid content-start gap-4 p-2 md:p-4">
               <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center rounded-full bg-forest-900 font-heading font-semibold text-lime-400">{i + 1}</span>
+                <span className="grid size-10 place-items-center rounded-full bg-brand-900 font-heading font-semibold text-cta">{i + 1}</span>
                 {p.label && <Tag>{p.label}</Tag>}
               </div>
               <h3 className="text-2xl font-medium">{p.name}</h3>
@@ -32,7 +32,7 @@ function Picks({ post }: { post: SitePostPage }) {
                   <ul className="grid gap-2 text-sm">
                     {p.pros.map((x) => (
                       <li key={x} className="flex gap-2">
-                        <Check className="mt-0.5 size-4 shrink-0 text-forest-700" /> {x}
+                        <Check className="mt-0.5 size-4 shrink-0 text-brand-700" /> {x}
                       </li>
                     ))}
                   </ul>
@@ -57,7 +57,7 @@ function Picks({ post }: { post: SitePostPage }) {
 
 function InlineCta({ text, href, label }: { text: string; href: string; label: string }) {
   return (
-    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-forest-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
+    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-brand-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
       <p className="font-heading text-xl font-medium">{text || "Want B2B pricing on these models?"}</p>
       <Action href={href}>
         {label}
@@ -66,7 +66,7 @@ function InlineCta({ text, href, label }: { text: string; href: string; label: s
   );
 }
 
-/** A guide or blog post (BRAND.md): sage header with the byline, cover, contents + body, picks, comparison, FAQ, author. */
+/** A guide or blog post (BRAND.md): surface header with the byline, cover, contents + body, picks, comparison, FAQ, author. */
 export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: SiteBrand; crumbs: Crumb[] }) {
   const quote = quoteLink({ industry: post.industry?.slug, product: post.picks[0]?.slug });
   const compareInline = post.blocks.some((b) => b.kind === "compare");
@@ -76,14 +76,14 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
 
   return (
     <>
-      <section className="frame mt-2 bg-sage-100">
+      <section className="frame mt-2 bg-surface">
         <div className="container-site grid gap-6 py-6 sm:py-8">
           <Breadcrumbs items={crumbs} />
           <div className="flex flex-wrap gap-2">
             <Tag>{TYPE_LABEL[post.type]}</Tag>
             {post.industry && (
               <Link href={`/industries/${post.industry.slug}`}>
-                <Tag className="hover:border-forest-700/40">{post.industry.name}</Tag>
+                <Tag className="hover:border-brand-700/40">{post.industry.name}</Tag>
               </Link>
             )}
           </div>
@@ -105,7 +105,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
             <nav aria-label="On this page" className="sticky top-28 grid gap-1 border-l border-line pl-4 text-sm">
               <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-muted-ink uppercase">On this page</p>
               {toc.map((t) => (
-                <a key={t.id} href={`#${t.id}`} className="py-1 text-muted-ink hover:text-forest-700">
+                <a key={t.id} href={`#${t.id}`} className="py-1 text-muted-ink hover:text-brand-700">
                   {t.text}
                 </a>
               ))}
@@ -165,7 +165,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
       </div>
 
       {post.related.length > 0 && (
-        <section className="container-site pb-20">
+        <section className="container-site pb-12">
           <SectionHeading tag="Keep reading" title="Related" />
           <div className="mt-5">
             <PostGrid posts={post.related} />

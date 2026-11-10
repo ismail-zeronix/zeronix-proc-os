@@ -13,7 +13,7 @@ export function CompareTable({ products, groups }: { products: SiteProductSummar
         <div className="grid gap-2" style={cols}>
           <div />
           {products.map((p) => (
-            <div key={p.slug} className="grid content-start gap-3 rounded-card bg-sage-50 p-3">
+            <div key={p.slug} className="grid content-start gap-3 rounded-card bg-surface-soft p-3">
               <Photo src={p.image?.src} subject={`${p.name}, product shot`} ratio="4:3" sizes="25vw" />
               <Link href={`/products/${p.categorySlug}/${p.slug}`} className="font-semibold hover:underline">
                 {p.name}

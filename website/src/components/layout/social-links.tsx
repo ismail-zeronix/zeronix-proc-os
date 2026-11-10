@@ -53,7 +53,7 @@ export function SocialLinks({ profiles, brandName }: { profiles: string[]; brand
                 rel="noopener me"
                 aria-label={`${brandName} on ${l.name}`}
                 title={l.name}
-                className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/[0.04] text-white/80 transition-colors hover:border-lime-400 hover:bg-lime-400 hover:text-forest-950"
+                className="grid size-10 place-items-center rounded-full border border-white/15 bg-white/[0.04] text-white/80 transition-colors hover:border-cta hover:bg-cta hover:text-brand-950"
               >
                 <SocialIcon network={l.key} className="size-4" />
               </a>

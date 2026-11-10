@@ -45,7 +45,7 @@ const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
 const GTM_ID = process.env.GTM_ID || "GTM-PJ5JPS9P";
 
 export const viewport: Viewport = {
-  themeColor: "#f6f6f1",
+  themeColor: "#f7f8fa",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -54,7 +54,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${body.variable} ${display.variable}`}>
       {flags.indexing && GTM_ID && <GoogleTagManager gtmId={GTM_ID} />}
       <body className="flex min-h-dvh flex-col font-sans">
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-lime-400 focus:px-3 focus:py-2 focus:text-forest-950">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-cta focus:px-3 focus:py-2 focus:text-brand-950">
           Skip to content
         </a>
         <Header brand={brand} home={home} nav={nav} />
@@ -68,8 +68,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {process.env.PORTAL_PUBLIC_URL && (
           <script
             src={`${process.env.PORTAL_PUBLIC_URL.replace(/\/$/, "")}/widget/zeronix-chat.js`}
-            data-color="#06352B"
-            data-dark="#03201A"
+            data-color="#0F2747"
+            data-dark="#081A31"
             data-title={`${brand.name} sales`}
             data-greeting={`Hi 👋 Welcome to ${brand.name}. Tell us what your team does, or which models you are looking at, and we will send B2B pricing.`}
             data-quick={`${brand.ctaLabel}|Which laptop suits my team?|Talk to a sales person`}

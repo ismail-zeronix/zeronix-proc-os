@@ -5,45 +5,65 @@
 
 /*
  * Zeronix Tech brand tokens: BRAND.md is the rulebook, /brand shows them live. Change both together.
- * One look (no dark mode): warm paper, forest-green bands, lime for action, mint for highlights on dark.
+ * Theme "Deep navy + mint" (owner, 2026-11-10): the Zeronix OS app colours.
+ * Components use ROLE names (brand, cta, highlight, surface, canvas), never a colour name, so a theme is only the
+ * --zx-* values below. Roles: brand-950..700 = dark bands, headings, primary buttons, links; cta = the action fill
+ * (text on it is brand-950); highlight = emphasis on dark; surface = image wells and soft cards; canvas = page.
  */
+:root {
+  --zx-brand-950: #081a31;
+  --zx-brand-900: #0f2747;
+  --zx-brand-800: #18375f;
+  --zx-brand-700: #1d4f8a;
+  --zx-cta: #2bd9a0;
+  --zx-cta-strong: #1fc48d;
+  --zx-highlight: #5eebc0;
+  --zx-surface: #e9eff6;
+  --zx-surface-soft: #f2f5f9;
+  --zx-canvas: #f7f8fa;
+  --zx-ink: #0e1a2b;
+  --zx-muted-ink: #5a6577;
+  --zx-line: #dde3ec;
+}
+
+
 @theme inline {
   --font-sans: var(--font-body);
   --font-heading: var(--font-display);
 
-  --color-forest-950: #03201a;
-  --color-forest-900: #06352b;
-  --color-forest-800: #0b4a3b;
-  --color-forest-700: #12614c;
-  --color-lime-400: #b9f23f;
-  --color-lime-500: #a4dc27;
-  --color-mint-300: #4ff0b4;
-  --color-sage-100: #e6f1e0;
-  --color-sage-50: #f0f5ec;
-  --color-paper: #f6f6f1;
-  --color-ink: #0c1f1a;
-  --color-muted-ink: #5a6b65;
-  --color-line: #dce3db;
+  --color-brand-950: var(--zx-brand-950);
+  --color-brand-900: var(--zx-brand-900);
+  --color-brand-800: var(--zx-brand-800);
+  --color-brand-700: var(--zx-brand-700);
+  --color-cta: var(--zx-cta);
+  --color-cta-strong: var(--zx-cta-strong);
+  --color-highlight: var(--zx-highlight);
+  --color-surface: var(--zx-surface);
+  --color-surface-soft: var(--zx-surface-soft);
+  --color-canvas: var(--zx-canvas);
+  --color-ink: var(--zx-ink);
+  --color-muted-ink: var(--zx-muted-ink);
+  --color-line: var(--zx-line);
 
   /* shadcn's names, pointed at the brand */
-  --color-background: var(--color-paper);
+  --color-background: var(--color-canvas);
   --color-foreground: var(--color-ink);
   --color-card: #ffffff;
   --color-card-foreground: var(--color-ink);
   --color-popover: #ffffff;
   --color-popover-foreground: var(--color-ink);
-  --color-primary: var(--color-forest-900);
+  --color-primary: var(--color-brand-900);
   --color-primary-foreground: #ffffff;
-  --color-secondary: var(--color-sage-100);
-  --color-secondary-foreground: var(--color-forest-900);
-  --color-muted: var(--color-sage-50);
+  --color-secondary: var(--color-surface);
+  --color-secondary-foreground: var(--color-brand-900);
+  --color-muted: var(--color-surface-soft);
   --color-muted-foreground: var(--color-muted-ink);
-  --color-accent: var(--color-sage-100);
-  --color-accent-foreground: var(--color-forest-900);
+  --color-accent: var(--color-surface);
+  --color-accent-foreground: var(--color-brand-900);
   --color-destructive: #c2410c;
   --color-border: var(--color-line);
   --color-input: var(--color-line);
-  --color-ring: var(--color-forest-700);
+  --color-ring: var(--color-brand-700);
 
   --radius: 1rem;
   --radius-sm: 0.5rem;
@@ -54,7 +74,7 @@
   --radius-card: 1rem;
   --radius-frame: 1.25rem;
 
-  --shadow-lift: 0 12px 32px -16px rgb(3 32 26 / 0.25);
+  --shadow-lift: 0 12px 32px -16px color-mix(in srgb, var(--zx-brand-950) 25%, transparent);
 
   --text-display: clamp(1.75rem, 1.35rem + 1.8vw, 2.75rem);
   --text-display--line-height: 1.1;
@@ -74,7 +94,7 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-paper font-sans text-ink antialiased;
+    @apply bg-canvas font-sans text-ink antialiased;
     font-size: 0.9375rem;
     line-height: 1.55;
   }
@@ -85,7 +105,7 @@
     @apply font-heading font-medium text-balance;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-forest-700;
+    @apply outline-2 outline-offset-2 outline-brand-700;
   }
 }
 

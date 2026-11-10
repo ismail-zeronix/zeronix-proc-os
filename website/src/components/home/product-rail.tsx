@@ -82,7 +82,7 @@ export function ProductRail({ products, label }: { products: SiteProductSummary[
 
   if (!products.length) return null;
   const arrow =
-    "absolute top-[38%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-forest-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-forest-900 hover:bg-forest-900 hover:text-lime-400 md:grid";
+    "absolute top-[38%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-brand-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-brand-900 hover:bg-brand-900 hover:text-cta md:grid";
   return (
     <div className="relative">
       <ul
@@ -97,7 +97,7 @@ export function ProductRail({ products, label }: { products: SiteProductSummary[
       >
         {products.map((p) => (
           <li key={p.slug} className="snap-start">
-            <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} />
+            <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} mpn={p.mpn} stock={p.availability} />
           </li>
         ))}
       </ul>

@@ -3,7 +3,7 @@ import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { jwtVerify, SignJWT } from "jose";
 import { siteDb, siteSchema } from "@/db/site";
-import { orderNumber, orderTotals, STORE_DEFAULTS, type CheckoutInput, type OrderLine, type OrderStatus, type SiteAddress, type StoreSettings } from "./store-core";
+import { DELIVERY_DEFAULTS, deliveryFee, orderNumber, orderTotals, STORE_DEFAULTS, type CheckoutInput, type OrderLine, type OrderStatus, type SiteAddress, type StoreSettings } from "./store-core";
 import { sendStoreMail } from "./store-mail";
 
 /**
@@ -17,7 +17,8 @@ const S = siteSchema;
 
 export async function getStore(): Promise<StoreSettings> {
   const [row] = await siteDb.select().from(S.siteSettings).where(eq(S.siteSettings.key, "store"));
-  return { ...STORE_DEFAULTS, ...((row?.value as Partial<StoreSettings> | undefined) ?? {}) };
+  const saved = (row?.value as Partial<StoreSettings> | undefined) ?? {};
+  return { ...STORE_DEFAULTS, ...saved, delivery: { ...DELIVERY_DEFAULTS, ...saved.delivery } };
 }
 
 export async function saveStore(value: StoreSettings, userId: number) {
@@ -28,10 +29,10 @@ export async function saveStore(value: StoreSettings, userId: number) {
     .onConflictDoUpdate({ target: S.siteSettings.key, set: { value: v, updatedBy: userId, updatedAt: new Date() } });
 }
 
-/** What the site may show: payment options, bank details and the delivery note (never the mailbox). */
+/** What the site may show: payment options, bank details, the delivery note and charges (never the mailbox). */
 export async function publicStore() {
   const s = await getStore();
-  return { payments: s.payments, bankDetails: s.bankDetails, deliveryNote: s.deliveryNote, signIn: Boolean(s.mailUserId) };
+  return { payments: s.payments, bankDetails: s.bankDetails, deliveryNote: s.deliveryNote, delivery: s.delivery, signIn: Boolean(s.mailUserId) };
 }
 
 // ---------- customer tokens (the site's cookie) ----------
@@ -171,7 +172,9 @@ export async function placeOrder(input: CheckoutInput, customerId: number | null
   if (!store.payments.includes(input.payment)) throw new StoreProblem("That way of paying is not offered. Please pick another.");
   const { lines, problems } = await priceCart(input.items);
   if (problems.length) throw new StoreProblem(`Please update your cart: ${problems.join("; ")}.`, 409);
-  const totals = orderTotals(lines);
+  // the delivery charge is worked out here from the store settings, never taken from the browser
+  const fee = deliveryFee(store.delivery, orderTotals(lines).total, input.delivery, input.address.emirate);
+  const totals = orderTotals([...lines, { qty: 1, unitPrice: fee }]);
   const order = await siteDb.transaction(async (tx) => {
     const [row] = await tx
       .insert(S.siteOrders)
@@ -187,6 +190,7 @@ export async function placeOrder(input: CheckoutInput, customerId: number | null
         address: input.delivery === "delivery" ? input.address : { emirate: "", area: "", street: "" },
         payment: input.payment,
         items: lines,
+        deliveryFee: fee,
         ...totals,
         notes: input.notes,
         site,
@@ -203,15 +207,18 @@ export async function placeOrder(input: CheckoutInput, customerId: number | null
       .set({ name: sql`coalesce(nullif(${S.siteCustomers.name}, ''), ${input.name})`, phone: sql`coalesce(nullif(${S.siteCustomers.phone}, ''), ${input.phone})` })
       .where(eq(S.siteCustomers.id, customerId));
   }
-  void orderEmails(store, order.number, input, lines, totals).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
+  void orderEmails(store, order.number, input, lines, fee, totals).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
   return { number: order.number, total: totals.total, payment: input.payment };
 }
 
 const aed = (v: string) => `AED ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-async function orderEmails(store: StoreSettings, number: string, input: CheckoutInput, lines: OrderLine[], totals: { subtotal: string; vat: string; total: string }) {
+async function orderEmails(store: StoreSettings, number: string, input: CheckoutInput, lines: OrderLine[], fee: string, totals: { subtotal: string; vat: string; total: string }) {
   if (!store.mailUserId) return;
-  const items = lines.map((l) => `${l.qty} × ${l.name} (${l.mpn}): ${aed((Number(l.unitPrice) * l.qty).toFixed(2))}`).join("\n");
+  const items = [
+    ...lines.map((l) => `${l.qty} × ${l.name} (${l.mpn}): ${aed((Number(l.unitPrice) * l.qty).toFixed(2))}`),
+    ...(input.delivery === "delivery" ? [`Delivery: ${Number(fee) ? aed(fee) : "Free"}`] : []),
+  ].join("\n");
   const where = input.delivery === "pickup" ? "Collect from our office" : `${input.address.street}, ${input.address.area}, ${input.address.emirate}`;
   const sums = `Total before VAT: ${aed(totals.subtotal)}\nVAT 5%: ${aed(totals.vat)}\nTotal: ${aed(totals.total)}`;
   const pay = input.payment === "bank" && store.bankDetails ? `\n\nPlease pay by bank transfer, with ${number} as the reference:\n${store.bankDetails}` : input.payment === "cod" ? "\n\nYou pay on delivery, by cash or card." : "\n\nWe will confirm your order and send you a payment link or invoice.";

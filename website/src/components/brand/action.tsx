@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 type Variant = "primary" | "dark" | "outline" | "onDark";
 
 const PILL: Record<Variant, string> = {
-  primary: "bg-lime-400 text-forest-950 hover:bg-lime-500",
-  dark: "bg-forest-900 text-white hover:bg-forest-800",
-  outline: "border border-line bg-white/60 text-ink hover:border-forest-700/40 hover:bg-white",
+  primary: "bg-cta text-brand-950 hover:bg-cta-strong",
+  dark: "bg-brand-900 text-white hover:bg-brand-800",
+  outline: "border border-line bg-white/60 text-ink hover:border-brand-700/40 hover:bg-white",
   onDark: "border border-white/20 text-white hover:bg-white/10",
 };
 
 const DOT: Record<Variant, string> = {
-  primary: "bg-forest-950 text-lime-400",
-  dark: "bg-lime-400 text-forest-950",
-  outline: "bg-forest-900 text-lime-400",
-  onDark: "bg-white text-forest-950",
+  primary: "bg-brand-950 text-cta",
+  dark: "bg-cta text-brand-950",
+  outline: "bg-brand-900 text-cta",
+  onDark: "bg-white text-brand-950",
 };
 
 /**
@@ -54,7 +54,7 @@ export function Action({
     >
       {children}
       {arrow && (
-        <span className={cn("grid place-items-center rounded-full transition-transform duration-200 group-hover/action:translate-x-0.5", size === "lg" ? "size-9" : "size-8", DOT[variant])}>
+        <span className={cn("grid shrink-0 place-items-center rounded-full transition-transform duration-200 group-hover/action:translate-x-0.5", size === "lg" ? "size-9" : "size-8", DOT[variant])}>
           <ArrowRight className="size-4" />
         </span>
       )}
@@ -69,7 +69,7 @@ export function ArrowCircle({ onDark = false, className }: { onDark?: boolean; c
       aria-hidden
       className={cn(
         "grid size-10 shrink-0 place-items-center rounded-full border transition-all duration-200 group-hover:rotate-45",
-        onDark ? "border-white/20 text-white group-hover:border-lime-400 group-hover:bg-lime-400 group-hover:text-forest-950" : "border-line bg-white text-forest-950 group-hover:border-forest-900 group-hover:bg-forest-900 group-hover:text-lime-400",
+        onDark ? "border-white/20 text-white group-hover:border-cta group-hover:bg-cta group-hover:text-brand-950" : "border-line bg-white text-brand-950 group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-cta",
         className,
       )}
     >

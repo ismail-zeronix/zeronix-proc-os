@@ -134,6 +134,8 @@ export const siteProducts = pgTable(
     listPrice: numeric("list_price", { precision: 12, scale: 2 }),
     currency: text("currency").notNull().default("AED"),
     vatIncluded: boolean("vat_included").notNull().default(true),
+    /** Stock label on the site, set by hand: "in_stock", "ships_soon" (2–5 days) or "on_order". */
+    availability: text("availability", { enum: ["in_stock", "ships_soon", "on_order"] }).notNull().default("in_stock"),
     status: text("status", { enum: siteStatus }).notNull().default("draft"),
     /** ZeronixOS users.id. */
     createdBy: integer("created_by"),
@@ -350,7 +352,7 @@ export const siteKeywords = pgTable(
     /** Monthly searches and difficulty (0-100) when a tool gave them; empty from web research alone. */
     volume: integer("volume"),
     difficulty: integer("difficulty"),
-    source: text("source", { enum: ["research", "gsc", "csv"] }).notNull().default("research"),
+    source: text("source", { enum: ["research", "gsc", "csv", "dataforseo"] }).notNull().default("research"),
     targetPostId: integer("target_post_id").references(() => sitePosts.id, { onDelete: "set null" }),
     /** The page it should land on when that page is not a post (an industry hub, a category). */
     targetPath: text("target_path").notNull().default(""),
@@ -361,6 +363,26 @@ export const siteKeywords = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("site_keywords_keyword_uq").on(sql`lower(${t.keyword})`), index("site_keywords_cluster_idx").on(t.cluster), index("site_keywords_status_idx").on(t.status, t.plannedFor)],
+);
+
+/**
+ * One weekly Google check of a planned keyword (DataForSEO, UAE results, lib/website/dataforseo.ts): where our site
+ * ranked (null = not in the top 100) and which domains held the top ten, for "who ranks above us".
+ */
+export const siteKeywordRanks = pgTable(
+  "site_keyword_ranks",
+  {
+    id: serial("id").primaryKey(),
+    keywordId: integer("keyword_id")
+      .notNull()
+      .references(() => siteKeywords.id, { onDelete: "cascade" }),
+    checkedOn: date("checked_on").notNull(),
+    position: integer("position"),
+    url: text("url").notNull().default(""),
+    top: jsonb("top").$type<{ position: number; domain: string; url: string }[]>().notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("site_keyword_ranks_day_uq").on(t.keywordId, t.checkedOn), index("site_keyword_ranks_day_idx").on(t.checkedOn)],
 );
 
 /**
@@ -432,6 +454,15 @@ export const siteOrders = pgTable(
     subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
     vat: numeric("vat", { precision: 12, scale: 2 }).notNull(),
     total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+    /** Delivery charge incl. VAT, part of `total` (0 for pickup or free delivery). */
+    deliveryFee: numeric("delivery_fee", { precision: 12, scale: 2 }).notNull().default("0"),
+    /** The ZeronixOS Sales order made from it (Website › Orders › Create sales order). */
+    salesOrderId: integer("sales_order_id"),
+    salesOrderNumber: text("sales_order_number").notNull().default(""),
+    /** Courier and tracking number, entered when it ships. */
+    tracking: jsonb("tracking").$type<{ courier?: string; number?: string; url?: string }>().notNull().default({}),
+    /** Set by the Sales sync when something needs staff (the Sales order was cancelled). */
+    syncNote: text("sync_note").notNull().default(""),
     notes: text("notes").notNull().default(""),
     internalNote: text("internal_note").notNull().default(""),
     status: text("status", { enum: ["new", "confirmed", "paid", "shipped", "delivered", "cancelled"] }).notNull().default("new"),

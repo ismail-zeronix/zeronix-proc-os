@@ -12,6 +12,8 @@ export const RAIL_ROW =
 
 /** Grid columns of ProductGrid (page-parts.tsx). */
 export const GRID_COLS = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5";
+/** The same grid next to a filter column (category pages on desktop): one column fewer. */
+export const GRID_COLS_FILTERED = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4";
 
 export function ProductCardSkeleton({ className }: { className?: string }) {
   return (
@@ -46,9 +48,9 @@ export function RailSkeleton({ count = 6 }: { count?: number }) {
 }
 
 /** A grid of placeholder cards (category pages). */
-export function GridSkeleton({ count = 10 }: { count?: number }) {
+export function GridSkeleton({ count = 10, cols = GRID_COLS }: { count?: number; cols?: string }) {
   return (
-    <div role="status" aria-label="Loading more products" className={GRID_COLS}>
+    <div role="status" aria-label="Loading more products" className={cols}>
       {Array.from({ length: count }, (_, i) => (
         <ProductCardSkeleton key={i} className={cn(i >= 4 && "hidden sm:flex", i >= 6 && "sm:hidden lg:flex")} />
       ))}

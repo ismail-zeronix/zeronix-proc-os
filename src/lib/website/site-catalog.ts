@@ -12,11 +12,14 @@ import {
   type SiteImageRef,
   type SiteIndustriesResponse,
   type SiteIndustryPage,
+  type SitePostLink,
   type SiteProductPage,
   type SiteProductsResponse,
   type SiteProductSummary,
   type SiteSpecGroup,
 } from "./contract";
+import { postPath } from "./post-parse";
+import { getStore } from "./store";
 import type { SiteImage, SiteSpecTemplate } from "./types";
 
 /**
@@ -28,6 +31,21 @@ const P = siteSchema.siteProducts;
 const C = siteSchema.siteCategories;
 const B = siteSchema.siteBrands;
 const I = siteSchema.siteIndustries;
+
+const SP = siteSchema.sitePosts;
+
+/** Published posts whose picks include any of these products, newest first: the "buying guides" links on product and category pages. */
+export async function guidesPicking(productIds: number[], limit = 6): Promise<SitePostLink[]> {
+  if (!productIds.length) return [];
+  const ids = sql.join(productIds.map((i) => sql`${i}`), sql`, `);
+  const rows = await siteDb
+    .select({ slug: SP.slug, type: SP.type, title: SP.title })
+    .from(SP)
+    .where(and(eq(SP.status, "published"), sql`exists (select 1 from jsonb_array_elements(${SP.products}) e where (e->>'productId')::int in (${ids}))`))
+    .orderBy(desc(SP.publishedAt))
+    .limit(limit);
+  return rows.map((r) => ({ path: postPath(r.type, r.slug), title: r.title }));
+}
 
 const icon = (v: string): SiteIcon | "" => ((SITE_ICONS as readonly string[]).includes(v) ? (v as SiteIcon) : "");
 export const imageRef = (img: SiteImage | null | undefined, fallbackAlt = ""): SiteImageRef | null => (img?.fileId ? { src: `/media/${img.fileId}`, alt: img.alt || fallbackAlt } : null);
@@ -56,6 +74,8 @@ const summaryCols = {
   priceMode: P.priceMode,
   listPrice: P.listPrice,
   currency: P.currency,
+  mpn: P.mpn,
+  availability: P.availability,
   brand: B.name,
   brandSlug: B.slug,
   category: C.name,
@@ -83,6 +103,8 @@ function toSummary(r: SummaryRow): SiteProductSummary {
     priceMode: r.priceMode ?? "on_request",
     price: r.priceMode === "public" ? (r.listPrice as string | null) : null,
     currency: r.currency ?? "AED",
+    mpn: r.mpn ?? "",
+    availability: r.availability ?? "in_stock",
   };
 }
 
@@ -211,12 +233,13 @@ export async function publicCategory(slug: string): Promise<SiteCategoryPage | n
     introHtml: c.introHtml,
     faq: c.faq,
     seo: { title: c.seo.title, description: c.seo.description },
+    guides: await guidesPicking(rows.map((r) => r.id)),
   };
 }
 
 export async function publicProduct(slug: string): Promise<SiteProductPage | null> {
   const [row] = await siteDb
-    .select({ ...summaryCols, mpn: P.mpn, series: P.series, summaryHtml: P.summaryHtml, uaeAvailable: P.uaeAvailable, uae: P.uaeNotes, sourceUrl: P.sourceUrl, checkedAt: P.specsCheckedAt, pros: P.pros, cons: P.cons, faq: P.faq, seo: P.seo, categoryId: P.categoryId })
+    .select({ ...summaryCols, mpn: P.mpn, series: P.series, summaryHtml: P.summaryHtml, uaeAvailable: P.uaeAvailable, uae: P.uaeNotes, sourceUrl: P.sourceUrl, checkedAt: P.specsCheckedAt, pros: P.pros, cons: P.cons, faq: P.faq, seo: P.seo, categoryId: P.categoryId, brandWarrantyNote: B.uaeWarrantyNote })
     .from(P)
     .innerJoin(C, eq(C.id, P.categoryId))
     .leftJoin(B, eq(B.id, P.brandId))
@@ -228,7 +251,7 @@ export async function publicProduct(slug: string): Promise<SiteProductPage | nul
     .innerJoin(I, and(eq(I.id, siteSchema.siteProductLinks.industryId), eq(I.status, "published")))
     .where(eq(siteSchema.siteProductLinks.productId, row.id))
     .orderBy(asc(siteSchema.siteProductLinks.rank));
-  const related = (await products(and(eq(P.categoryId, row.categoryId!), ne(P.id, row.id)), 4)).map(toSummary);
+  const [related, guides, store] = await Promise.all([products(and(eq(P.categoryId, row.categoryId!), ne(P.id, row.id)), 4).then((r) => r.map(toSummary)), guidesPicking([row.id]), getStore()]);
   return {
     contract: CONTRACT_VERSION,
     ...toSummary(row),
@@ -247,6 +270,9 @@ export async function publicProduct(slug: string): Promise<SiteProductPage | nul
     bestFor,
     related,
     seo: { title: row.seo.title, description: row.seo.description },
+    brandWarrantyNote: row.brandWarrantyNote ?? "",
+    guides,
+    store: { deliveryFee: store.delivery.fee, freeAbove: store.delivery.freeAbove, returnDays: store.returnDays ?? 0 },
   };
 }
 
@@ -272,7 +298,13 @@ export async function publicCompare(slugs: string[]): Promise<SiteCompareRespons
       for (const row of g.rows) if (!group.rows.some((x) => x.label === row.label)) group.rows.push({ label: row.label, values: [] });
     }
   for (const g of groups) for (const row of g.rows) row.values = tables.map((t) => t.find((x) => x.label === g.label)?.rows.find((x) => x.label === row.label)?.value ?? "—");
-  return { contract: CONTRACT_VERSION, products: ordered.map(toSummary), groups };
+  // curated: one published guide picks every product shown, so the pair is worth a search result of its own
+  const picksAll = sql.join(
+    ordered.map((r) => sql`exists (select 1 from jsonb_array_elements(${SP.products}) e where (e->>'productId')::int = ${r.id})`),
+    sql` and `,
+  );
+  const [hit] = await siteDb.select({ id: SP.id }).from(SP).where(and(eq(SP.status, "published"), picksAll)).limit(1);
+  return { contract: CONTRACT_VERSION, products: ordered.map(toSummary), groups, curated: Boolean(hit) };
 }
 
 /** A picture uploaded through the Website app (site_media); nothing from the Files app is ever public. */

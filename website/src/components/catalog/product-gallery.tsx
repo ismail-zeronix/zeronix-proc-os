@@ -11,7 +11,7 @@ interface GalleryImage {
   alt: string;
 }
 
-const arrow = "absolute top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-forest-900 shadow-sm ring-1 ring-line/70 transition-colors hover:bg-lime-400";
+const arrow = "absolute top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-brand-900 shadow-sm ring-1 ring-line/70 transition-colors hover:bg-cta";
 
 /**
  * Product pictures: the main picture whole (never cropped) on white, arrows and swipe to move, thumbnails under it, and
@@ -71,7 +71,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
             <button type="button" onClick={() => go(1)} className={cn(arrow, "right-2")} aria-label="Next picture">
               <ChevronRight className="size-5" />
             </button>
-            <span className="absolute right-3 bottom-3 rounded-full bg-forest-950/70 px-2 py-0.5 text-[0.6875rem] font-semibold text-white tabular-nums">
+            <span className="absolute right-3 bottom-3 rounded-full bg-brand-950/70 px-2 py-0.5 text-[0.6875rem] font-semibold text-white tabular-nums">
               {i + 1} / {n}
             </span>
           </>
@@ -86,7 +86,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
                 onClick={() => setI(k)}
                 aria-label={`Picture ${k + 1}`}
                 aria-current={k === i}
-                className={cn("relative block size-16 overflow-hidden rounded-inner border-2 bg-white sm:size-18", k === i ? "border-forest-900" : "border-line/70 hover:border-forest-700")}
+                className={cn("relative block size-16 overflow-hidden rounded-inner border-2 bg-white sm:size-18", k === i ? "border-brand-900" : "border-line/70 hover:border-brand-700")}
               >
                 <Image src={img.src} alt="" fill sizes="72px" className="object-contain p-1" />
               </button>
@@ -96,11 +96,11 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
       )}
 
       {zoom && (
-        <div role="dialog" aria-modal="true" aria-label={`${name} pictures`} className="fixed inset-0 z-60 grid bg-forest-950/95" onClick={() => setZoom(false)} {...swipe}>
+        <div role="dialog" aria-modal="true" aria-label={`${name} pictures`} className="fixed inset-0 z-60 grid bg-brand-950/95" onClick={() => setZoom(false)} {...swipe}>
           <div className="relative m-3 sm:m-10" onClick={(e) => e.stopPropagation()}>
             <Image src={images[i].src} alt={images[i].alt || name} fill sizes="100vw" className="rounded-card bg-white object-contain p-4" />
           </div>
-          <button type="button" onClick={() => setZoom(false)} className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white text-forest-950 hover:bg-lime-400" aria-label="Close">
+          <button type="button" onClick={() => setZoom(false)} className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white text-brand-950 hover:bg-cta" aria-label="Close">
             <X className="size-5" />
           </button>
           {n > 1 && (

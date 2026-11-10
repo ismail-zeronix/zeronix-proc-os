@@ -27,7 +27,7 @@ export function AddToCart({ item, qty = 1, label = false, className }: { item: O
       data-track="add-to-cart"
       className={cn(
         "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full font-semibold transition-colors",
-        label ? "bg-lime-400 px-5 text-sm text-forest-950 hover:bg-lime-500" : "w-10 bg-forest-900 text-lime-400 hover:bg-forest-800",
+        label ? "bg-cta px-5 text-sm text-brand-950 hover:bg-cta-strong" : "w-10 bg-brand-900 text-cta hover:bg-brand-800",
         className,
       )}
     >
@@ -41,10 +41,10 @@ export function AddToCart({ item, qty = 1, label = false, className }: { item: O
 export function CartLink() {
   const n = useCart().reduce((s, i) => s + i.qty, 0);
   return (
-    <Link href="/cart" aria-label={n ? `Cart, ${n} item${n === 1 ? "" : "s"}` : "Cart"} className="relative inline-flex h-10 items-center gap-2 rounded-full px-2.5 text-forest-900 transition-colors hover:bg-sage-100">
+    <Link href="/cart" aria-label={n ? `Cart, ${n} item${n === 1 ? "" : "s"}` : "Cart"} className="relative inline-flex h-10 items-center gap-3 rounded-full px-2.5 text-brand-900 transition-colors hover:bg-surface">
       <span className="relative">
         <ShoppingCart className="size-5" />
-        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-lime-400 px-1 text-[10px] leading-4.5 font-bold text-forest-950">{n}</span>}
+        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-cta px-1 text-[10px] leading-4.5 font-bold text-brand-950">{n}</span>}
       </span>
       <span className="hidden text-sm font-semibold xl:inline">Cart</span>
     </Link>
@@ -53,7 +53,7 @@ export function CartLink() {
 
 export function AccountLink() {
   return (
-    <Link href="/account" aria-label="My account" className="inline-flex h-10 items-center rounded-full px-2.5 text-forest-900 transition-colors hover:bg-sage-100">
+    <Link href="/account" aria-label="My account" className="inline-flex h-10 items-center rounded-full px-2.5 text-brand-900 transition-colors hover:bg-surface">
       <UserRound className="size-5" />
     </Link>
   );

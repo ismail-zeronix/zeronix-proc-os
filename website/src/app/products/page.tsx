@@ -23,7 +23,7 @@ export default async function ProductsPage() {
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {categories.map((c) => (
             <Link key={c.slug} href={`/products/${c.slug}`} className="group reveal flex h-full flex-col rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift">
-              <Photo src={c.image?.src ?? imageFor(`category-${c.slug}`)} subject={`${c.name}: product shot on sage`} ratio="1:1" />
+              <Photo src={c.image?.src ?? imageFor(`category-${c.slug}`)} subject={`${c.name}: product shot on a light background`} ratio="1:1" />
               <div className="flex items-start justify-between gap-3 px-3 pt-4 pb-3">
                 <div>
                   <h2 className="text-lg font-semibold">{c.name}</h2>

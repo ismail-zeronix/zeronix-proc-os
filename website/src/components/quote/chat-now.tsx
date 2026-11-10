@@ -38,11 +38,11 @@ export function ChatNowButton({ message, context, className }: { message: string
         const all = { ...context, page: location.pathname, landing: first?.path ?? "", referrer: first?.ref ?? "" };
         window.ZeronixChat?.open({ message, context: Object.fromEntries(Object.entries(all).filter(([, v]) => v)) });
       }}
-      className={`inline-flex h-11 items-center gap-2 rounded-full bg-forest-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-forest-800 ${className ?? ""}`}
+      className={`inline-flex h-11 items-center gap-2 rounded-full bg-brand-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-800 ${className ?? ""}`}
     >
       <MessagesSquare className="size-4" />
       Chat with sales
-      {online && <span className="size-2 rounded-full bg-lime-400" aria-label="online now" />}
+      {online && <span className="size-2 rounded-full bg-cta" aria-label="online now" />}
     </button>
   );
 }

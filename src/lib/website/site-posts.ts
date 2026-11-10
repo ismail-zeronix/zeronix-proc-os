@@ -14,6 +14,7 @@ import {
 import { slugify } from "./markdown";
 import { MARKER, postPath, readingMinutes, tocOf } from "./post-parse";
 import { imageRef, productCards, publicCompare } from "./site-catalog";
+import type { SiteImage } from "./types";
 
 /** Guides and blog for the public site: published posts only, the byline from the author's site_authors row. */
 
@@ -126,7 +127,7 @@ export async function publicPost(slug: string): Promise<SitePostPage | null> {
   const picks = r.products.flatMap((p) => {
     const card = pickRows.find((x) => x.id === p.productId);
     if (!card) return [];
-    const { id: _id, mpn: _mpn, ...summary } = card; // eslint-disable-line @typescript-eslint/no-unused-vars -- internal fields stay in the portal
+    const { id: _id, ...summary } = card; // eslint-disable-line @typescript-eslint/no-unused-vars -- the row id stays in the portal
     return [{ ...summary, rank: p.rank, label: p.label, verdict: p.verdict, pros: p.pros, cons: p.cons }];
   });
   const compare = picks.length >= 2 ? ((await publicCompare(picks.slice(0, 4).map((p) => p.slug)))?.groups ?? []) : [];
@@ -157,32 +158,58 @@ export async function publicAuthor(slug: string): Promise<SiteAuthorPage | null>
   return { contract: CONTRACT_VERSION, author: author(list[0])!, posts: list.map(toSummary) };
 }
 
-/** Every public page with its last change, for sitemap.xml. */
+/**
+ * Every public page with its last real change and its pictures, for sitemap.xml. Hubs (home, /products, a brand, an
+ * author) take the newest change among what they list, never "now": a date that moves on every request teaches search
+ * engines to ignore lastmod.
+ */
 export async function publicSitemap(): Promise<SiteSitemapResponse> {
+  const Cat = siteSchema.siteCategories;
+  const Prod = siteSchema.siteProducts;
+  const Br = siteSchema.siteBrands;
   const [ind, cats, prods, brands, posts] = await Promise.all([
     siteDb.select({ slug: I.slug, at: I.updatedAt }).from(I).where(eq(I.status, "published")),
-    siteDb.select({ slug: siteSchema.siteCategories.slug, at: siteSchema.siteCategories.createdAt }).from(siteSchema.siteCategories).where(eq(siteSchema.siteCategories.status, "published")),
+    siteDb.select({ id: Cat.id, slug: Cat.slug, at: Cat.createdAt }).from(Cat).where(eq(Cat.status, "published")),
     siteDb
-      .select({ slug: siteSchema.siteProducts.slug, cat: siteSchema.siteCategories.slug, at: siteSchema.siteProducts.updatedAt })
-      .from(siteSchema.siteProducts)
-      .innerJoin(siteSchema.siteCategories, and(eq(siteSchema.siteCategories.id, siteSchema.siteProducts.categoryId), eq(siteSchema.siteCategories.status, "published")))
-      .where(eq(siteSchema.siteProducts.status, "published")),
-    siteDb.select({ slug: siteSchema.siteBrands.slug }).from(siteSchema.siteBrands).where(eq(siteSchema.siteBrands.status, "published")),
-    rows(undefined, 5000),
+      .select({ slug: Prod.slug, cat: Cat.slug, catId: Prod.categoryId, brandId: Prod.brandId, at: Prod.updatedAt, images: Prod.images })
+      .from(Prod)
+      .innerJoin(Cat, and(eq(Cat.id, Prod.categoryId), eq(Cat.status, "published")))
+      .where(eq(Prod.status, "published")),
+    siteDb.select({ id: Br.id, slug: Br.slug }).from(Br).where(eq(Br.status, "published")),
+    siteDb
+      .select({ slug: S.slug, type: S.type, at: S.updatedAt, published: S.publishedAt, cover: S.cover, authorSlug: U.slug })
+      .from(S)
+      .leftJoin(U, eq(U.portalUserId, S.authorUserId))
+      .where(eq(S.status, "published")),
   ]);
-  const now = new Date().toISOString();
-  const at = (d: Date | null) => (d ?? new Date()).toISOString();
+  const iso = (d: Date) => d.toISOString();
+  const latest = (dates: (Date | null | undefined)[], fallback: Date) => {
+    let m: Date | null = null;
+    for (const d of dates) if (d && (!m || d > m)) m = d;
+    return m ?? fallback;
+  };
+  const postAt = (p: (typeof posts)[number]) => p.at ?? p.published ?? new Date(0);
+  const productAt = prods.map((p) => p.at);
+  const everything = latest([...productAt, ...ind.map((x) => x.at), ...posts.map(postAt)], new Date(0));
+  const pics = (list: SiteImage[] | null | undefined) => (list ?? []).flatMap((i) => (i?.fileId ? [`/media/${i.fileId}`] : [])).slice(0, 10);
+  const postsOf = (types: string[]) => posts.filter((p) => types.includes(p.type));
   const authors = [...new Set(posts.flatMap((p) => (p.authorSlug ? [p.authorSlug] : [])))];
   return {
     contract: CONTRACT_VERSION,
     entries: [
-      ...["/", "/industries", "/products", "/services", "/guides", "/blog", "/contact"].map((path) => ({ path, updatedAt: now })),
-      ...ind.map((x) => ({ path: `/industries/${x.slug}`, updatedAt: at(x.at) })),
-      ...cats.map((x) => ({ path: `/products/${x.slug}`, updatedAt: at(x.at) })),
-      ...prods.map((x) => ({ path: `/products/${x.cat}/${x.slug}`, updatedAt: at(x.at) })),
-      ...brands.map((x) => ({ path: `/brands/${x.slug}`, updatedAt: now })),
-      ...posts.map((p) => ({ path: postPath(p.type!, p.slug!), updatedAt: at(p.publishedAt) })),
-      ...authors.map((a) => ({ path: `/blog/author/${a}`, updatedAt: now })),
+      { path: "/", updatedAt: iso(everything) },
+      { path: "/industries", updatedAt: iso(latest(ind.map((x) => x.at), everything)) },
+      { path: "/products", updatedAt: iso(latest(productAt, everything)) },
+      { path: "/services", updatedAt: iso(latest(postsOf(["service"]).map(postAt), everything)) },
+      { path: "/guides", updatedAt: iso(latest(postsOf(["guide", "comparison", "industry_page"]).map(postAt), everything)) },
+      { path: "/blog", updatedAt: iso(latest(postsOf(["article"]).map(postAt), everything)) },
+      { path: "/contact", updatedAt: iso(everything) },
+      ...ind.map((x) => ({ path: `/industries/${x.slug}`, updatedAt: iso(x.at) })),
+      ...cats.map((x) => ({ path: `/products/${x.slug}`, updatedAt: iso(latest(prods.filter((p) => p.catId === x.id).map((p) => p.at), x.at)) })),
+      ...prods.map((x) => ({ path: `/products/${x.cat}/${x.slug}`, updatedAt: iso(x.at), images: pics(x.images as SiteImage[]) })),
+      ...brands.map((x) => ({ path: `/brands/${x.slug}`, updatedAt: iso(latest(prods.filter((p) => p.brandId === x.id).map((p) => p.at), everything)) })),
+      ...posts.map((p) => ({ path: postPath(p.type, p.slug), updatedAt: iso(postAt(p)), images: pics(p.cover ? [p.cover as SiteImage] : []) })),
+      ...authors.map((a) => ({ path: `/blog/author/${a}`, updatedAt: iso(latest(posts.filter((p) => p.authorSlug === a).map(postAt), everything)) })),
     ],
   };
 }

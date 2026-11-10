@@ -38,23 +38,23 @@ function CategoryCard({ c }: { c: CategoryCardData }) {
   const Glyph = ICONS[c.icon] ?? Package;
   return (
     <Lift className="h-full">
-      <Link href={c.href} className="group flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-[border-color,box-shadow] duration-200 hover:border-forest-900/40 hover:shadow-lift" data-track="home-category">
+      <Link href={c.href} className="group flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-[border-color,box-shadow] duration-200 hover:border-brand-900/40 hover:shadow-lift" data-track="home-category">
         <span className="relative block aspect-square overflow-hidden rounded-inner bg-white">
           {c.image ? (
             <Image src={c.image} alt="" fill sizes="(min-width: 1024px) 180px, 40vw" className="object-contain p-3 transition-transform duration-500 ease-out group-hover:scale-[1.06]" />
           ) : (
-            <span className="absolute inset-0 grid place-items-center bg-paper text-forest-700">
+            <span className="absolute inset-0 grid place-items-center bg-canvas text-brand-700">
               <Glyph weight="duotone" className="size-14 transition-transform duration-500 group-hover:scale-110" />
             </span>
           )}
-          {c.kind === "brand" && <span className="absolute top-1.5 left-1.5 rounded-full bg-forest-900 px-2 py-0.5 text-[0.625rem] font-semibold tracking-wide text-white uppercase">Brand pick</span>}
+          {c.kind === "brand" && <span className="absolute top-1.5 left-1.5 rounded-full bg-brand-900 px-2 py-0.5 text-[0.625rem] font-semibold tracking-wide text-white uppercase">Brand pick</span>}
         </span>
         <span className="flex flex-1 items-end justify-between gap-2 px-1.5 pt-2.5 pb-1">
           <span className="grid min-w-0 gap-0.5">
             <span className="line-clamp-2 text-[0.8125rem] leading-snug font-semibold text-ink sm:text-sm">{c.title}</span>
-            <span className={cn("text-xs tabular-nums", c.count ? "text-muted-ink" : "font-semibold text-forest-700")}>{countLabel(c.count)}</span>
+            <span className={cn("text-xs tabular-nums", c.count ? "text-muted-ink" : "font-semibold text-brand-700")}>{countLabel(c.count)}</span>
           </span>
-          <span className="grid size-7 shrink-0 place-items-center rounded-full border border-line text-forest-800 transition-colors group-hover:border-forest-900 group-hover:bg-forest-900 group-hover:text-lime-400">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full border border-line text-brand-800 transition-colors group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-cta">
             <ArrowUpRight className="size-3.5" weight="bold" />
           </span>
         </span>
@@ -90,7 +90,7 @@ export function CategoryRail({ cards }: { cards: CategoryCardData[] }) {
 
   const page = (dir: 1 | -1) => row.current?.scrollBy({ left: dir * row.current.clientWidth * 0.8, behavior: "smooth" });
   const arrow =
-    "absolute top-[40%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-forest-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-forest-900 hover:bg-forest-900 hover:text-lime-400 md:grid";
+    "absolute top-[40%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-brand-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-brand-900 hover:bg-brand-900 hover:text-cta md:grid";
 
   if (!cards.length) return null;
   return (
