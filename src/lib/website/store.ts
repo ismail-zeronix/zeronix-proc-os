@@ -1,9 +1,11 @@
 import "server-only";
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { jwtVerify, SignJWT } from "jose";
 import { siteDb, siteSchema } from "@/db/site";
 import { DELIVERY_DEFAULTS, deliveryFee, orderNumber, orderTotals, STORE_DEFAULTS, type CheckoutInput, type OrderLine, type OrderStatus, type SiteAddress, type StoreSettings } from "./store-core";
+import { nomodCheckoutBody, returnUrl } from "./nomod-core";
+import { createCheckout, getCheckout, NomodError, nomodConfigured } from "./nomod";
 import { sendStoreMail } from "./store-mail";
 
 /**
@@ -32,7 +34,9 @@ export async function saveStore(value: StoreSettings, userId: number) {
 /** What the site may show: payment options, bank details, the delivery note and charges (never the mailbox). */
 export async function publicStore() {
   const s = await getStore();
-  return { payments: s.payments, bankDetails: s.bankDetails, deliveryNote: s.deliveryNote, delivery: s.delivery, signIn: Boolean(s.mailUserId) };
+  // online payment is only offered while Nomod is connected (NOMOD_API_KEY)
+  const payments = s.payments.filter((p) => p !== "card" || nomodConfigured());
+  return { payments: payments.length ? payments : ["request" as const], bankDetails: s.bankDetails, deliveryNote: s.deliveryNote, delivery: s.delivery, signIn: Boolean(s.mailUserId) };
 }
 
 // ---------- customer tokens (the site's cookie) ----------
@@ -167,9 +171,13 @@ export async function priceCart(items: { slug: string; qty: number }[]): Promise
 }
 
 /** Places an order (prices from the database), then emails the customer and the store. Emails failing never lose an order. */
-export async function placeOrder(input: CheckoutInput, customerId: number | null, site: string): Promise<{ number: string; total: string; payment: CheckoutInput["payment"] }> {
+export async function placeOrder(
+  input: CheckoutInput,
+  customerId: number | null,
+  site: string,
+): Promise<{ number: string; total: string; payment: CheckoutInput["payment"]; token?: string; payUrl?: string; payError?: string }> {
   const store = await getStore();
-  if (!store.payments.includes(input.payment)) throw new StoreProblem("That way of paying is not offered. Please pick another.");
+  if (!store.payments.includes(input.payment) || (input.payment === "card" && !nomodConfigured())) throw new StoreProblem("That way of paying is not offered. Please pick another.");
   const { lines, problems } = await priceCart(input.items);
   if (problems.length) throw new StoreProblem(`Please update your cart: ${problems.join("; ")}.`, 409);
   // the delivery charge is worked out here from the store settings, never taken from the browser
@@ -207,13 +215,144 @@ export async function placeOrder(input: CheckoutInput, customerId: number | null
       .set({ name: sql`coalesce(nullif(${S.siteCustomers.name}, ''), ${input.name})`, phone: sql`coalesce(nullif(${S.siteCustomers.phone}, ''), ${input.phone})` })
       .where(eq(S.siteCustomers.id, customerId));
   }
+  if (input.payment === "card") {
+    // emails go out once Nomod confirms the payment (markPaid); an unpaid order waits in Website › Orders
+    const token = payToken(order.number);
+    try {
+      const { url } = await openCheckout(order.id);
+      return { number: order.number, total: totals.total, payment: "card", token, payUrl: url };
+    } catch (e) {
+      console.error(`[store] ${order.number}: could not open the online payment:`, (e as Error).message);
+      return { number: order.number, total: totals.total, payment: "card", token, payError: "We saved your order but could not open the payment page." };
+    }
+  }
   void orderEmails(store, order.number, input, lines, fee, totals).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
   return { number: order.number, total: totals.total, payment: input.payment };
 }
 
+// ---------- online payment (Nomod Hosted Checkout, nomod.ts) ----------
+
+const siteUrl = () => process.env.SITE_PUBLIC_URL || "https://zeronixtech.com";
+
+/** Proves a return or "try again" link was made by us for this order, so order numbers cannot be walked through. */
+export function payToken(number: string): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.length < 16) throw new Error("AUTH_SECRET is missing or too short");
+  return createHmac("sha256", `${secret}:site-pay`).update(number).digest("base64url").slice(0, 24);
+}
+
+function tokenOk(number: string, token: string): boolean {
+  const a = Buffer.from(payToken(number));
+  const b = Buffer.from(String(token ?? ""));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function orderByNumber(number: string, token: string) {
+  if (!/^WEB-\d{5,}$/.test(number) || !tokenOk(number, token)) throw new StoreProblem("This payment link is not valid.", 404);
+  const [o] = await siteDb.select().from(S.siteOrders).where(eq(S.siteOrders.number, number));
+  if (!o || o.payment !== "card") throw new StoreProblem("This payment link is not valid.", 404);
+  return o;
+}
+
+/** A new Hosted Checkout for the order's full total; the latest one is kept on the order. */
+async function openCheckout(orderId: number): Promise<{ url: string }> {
+  const [o] = await siteDb.select().from(S.siteOrders).where(eq(S.siteOrders.id, orderId));
+  const token = payToken(o.number);
+  const body = nomodCheckoutBody(
+    { number: o.number, name: o.name, email: o.email, phone: o.phone, company: o.company, items: o.items, deliveryFee: o.deliveryFee, total: o.total },
+    { success: returnUrl(siteUrl(), o.number, token, "success"), failure: returnUrl(siteUrl(), o.number, token, "failure"), cancelled: returnUrl(siteUrl(), o.number, token, "cancelled") },
+    o.site,
+  );
+  const checkout = await createCheckout(body, siteUrl());
+  await siteDb.update(S.siteOrders).set({ paymentRef: checkout.id, updatedAt: new Date() }).where(eq(S.siteOrders.id, o.id));
+  return { url: checkout.url };
+}
+
+export type PayState = "paid" | "pending" | "failed" | "closed";
+
+/**
+ * Asks Nomod about the order's latest checkout and records a payment. The return page and the worker both call it;
+ * the redirect alone never marks an order paid. "closed" = cancelled by us, nothing more to pay.
+ */
+async function refreshPayment(o: typeof S.siteOrders.$inferSelect): Promise<PayState> {
+  if (o.paidAt) return "paid";
+  if (o.status === "cancelled") return "closed";
+  if (!o.paymentRef) return "failed";
+  const c = await getCheckout(o.paymentRef);
+  if (c.status === "paid") {
+    if (Number.isFinite(c.amount) && Math.abs(c.amount - Number(o.total)) > 0.01) {
+      console.error(`[store] ${o.number}: Nomod says paid AED ${c.amount}, the order is AED ${o.total}. Not marked paid.`);
+      const note = `Nomod reports AED ${c.amount} paid against a total of AED ${o.total}. Check the payment in Nomod.`;
+      if (o.syncNote !== note) await siteDb.update(S.siteOrders).set({ syncNote: note, updatedAt: new Date() }).where(eq(S.siteOrders.id, o.id));
+      return "pending";
+    }
+    await markPaid(o.id);
+    return "paid";
+  }
+  return c.status === "created" ? "pending" : "failed";
+}
+
+/** Records the payment once (two callers at the same moment send one email), moves the order to Paid, sends the emails. */
+async function markPaid(id: number) {
+  const [o] = await siteDb
+    .update(S.siteOrders)
+    .set({ paidAt: new Date(), status: sql`case when ${S.siteOrders.status} in ('new', 'confirmed') then 'paid' else ${S.siteOrders.status} end`, updatedAt: new Date() })
+    .where(and(eq(S.siteOrders.id, id), isNull(S.siteOrders.paidAt)))
+    .returning();
+  if (!o) return;
+  const store = await getStore();
+  void orderEmails(store, o.number, { ...o, address: o.address as SiteAddress }, o.items, o.deliveryFee, { subtotal: o.subtotal, vat: o.vat, total: o.total }).catch((e) =>
+    console.error("[store] order emails failed:", (e as Error).message),
+  );
+}
+
+/** The return page: where the payment stands now. */
+export async function paymentStatus(number: string, token: string): Promise<{ number: string; total: string; state: PayState }> {
+  const o = await orderByNumber(number, token);
+  const state = await refreshPayment(o).catch((e) => {
+    if (e instanceof NomodError) return "pending" as const; // Nomod unreachable: ask again later rather than say it failed
+    throw e;
+  });
+  return { number: o.number, total: o.total, state };
+}
+
+/** "Try again": a fresh checkout for an order that is not paid yet. */
+export async function retryPayment(number: string, token: string): Promise<{ state: PayState; payUrl?: string }> {
+  const o = await orderByNumber(number, token);
+  const state = await refreshPayment(o).catch(() => "failed" as const);
+  if (state === "paid" || state === "closed") return { state };
+  try {
+    return { state: "pending", payUrl: (await openCheckout(o.id)).url };
+  } catch (e) {
+    console.error(`[store] ${o.number}: could not open the online payment:`, (e as Error).message);
+    throw new StoreProblem("The payment page could not be opened. Please try again in a moment, or call us.", 502);
+  }
+}
+
+/** The worker, every 5 minutes: card orders of the last 3 days whose customer paid but never came back to the site. */
+export async function syncOnlinePayments(): Promise<string[]> {
+  if (!nomodConfigured()) return [];
+  const open = await siteDb
+    .select()
+    .from(S.siteOrders)
+    .where(and(eq(S.siteOrders.payment, "card"), isNull(S.siteOrders.paidAt), ne(S.siteOrders.paymentRef, ""), ne(S.siteOrders.status, "cancelled"), gt(S.siteOrders.createdAt, new Date(Date.now() - 3 * 86400_000))))
+    .limit(50);
+  const paid: string[] = [];
+  for (const o of open) {
+    const state = await refreshPayment(o).catch((e: Error) => {
+      console.error(`[store] ${o.number}: payment check failed:`, e.message);
+      return "pending" as const;
+    });
+    if (state === "paid") paid.push(o.number);
+  }
+  return paid;
+}
+
 const aed = (v: string) => `AED ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-async function orderEmails(store: StoreSettings, number: string, input: CheckoutInput, lines: OrderLine[], fee: string, totals: { subtotal: string; vat: string; total: string }) {
+type MailOrder = Pick<CheckoutInput, "name" | "email" | "phone" | "company" | "delivery" | "address" | "payment" | "notes">;
+
+async function orderEmails(store: StoreSettings, number: string, input: MailOrder, lines: OrderLine[], fee: string, totals: { subtotal: string; vat: string; total: string }) {
   if (!store.mailUserId) return;
   const items = [
     ...lines.map((l) => `${l.qty} × ${l.name} (${l.mpn}): ${aed((Number(l.unitPrice) * l.qty).toFixed(2))}`),
@@ -221,16 +360,16 @@ async function orderEmails(store: StoreSettings, number: string, input: Checkout
   ].join("\n");
   const where = input.delivery === "pickup" ? "Collect from our office" : `${input.address.street}, ${input.address.area}, ${input.address.emirate}`;
   const sums = `Total before VAT: ${aed(totals.subtotal)}\nVAT 5%: ${aed(totals.vat)}\nTotal: ${aed(totals.total)}`;
-  const pay = input.payment === "bank" && store.bankDetails ? `\n\nPlease pay by bank transfer, with ${number} as the reference:\n${store.bankDetails}` : input.payment === "cod" ? "\n\nYou pay on delivery, by cash or card." : "\n\nWe will confirm your order and send you a payment link or invoice.";
+  const pay = input.payment === "card" ? "\n\nPaid online. Thank you." : input.payment === "bank" && store.bankDetails ? `\n\nPlease pay by bank transfer, with ${number} as the reference:\n${store.bankDetails}` : input.payment === "cod" ? "\n\nYou pay on delivery, by cash or card." : "\n\nWe will confirm your order and send you a payment link or invoice.";
   await sendStoreMail(store, {
     to: input.email,
-    subject: `Your Zeronix Tech order ${number}`,
+    subject: input.payment === "card" ? `Payment received: Zeronix Tech order ${number}` : `Your Zeronix Tech order ${number}`,
     text: `Hello ${input.name},\n\nThank you for your order ${number}.\n\n${items}\n\n${sums}\n\nDelivery: ${where}${pay}\n\n${store.deliveryNote}\n\nReply to this email if anything needs changing.`,
   });
   if (store.notifyEmail) {
     await sendStoreMail(store, {
       to: store.notifyEmail,
-      subject: `New web order ${number}: ${aed(totals.total)}`,
+      subject: `New web order ${number}: ${aed(totals.total)}${input.payment === "card" ? " (paid online)" : ""}`,
       text: `${input.name}${input.company ? `, ${input.company}` : ""}\n${input.email} · ${input.phone}\n\n${items}\n\n${sums}\n\nDelivery: ${where}\nPayment: ${input.payment}\n${input.notes ? `\nNotes: ${input.notes}\n` : ""}\nOpen Website › Orders in ZeronixOS.`,
     });
   }

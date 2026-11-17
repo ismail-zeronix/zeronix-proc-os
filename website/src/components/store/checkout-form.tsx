@@ -13,6 +13,7 @@ import { aed, Field, FreeDeliveryBar, input, priceText, Totals, TrustNotes } fro
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
 const PAY_LABEL: Record<Payment, { title: string; text: string }> = {
+  card: { title: "Pay online now", text: "Card, Apple Pay or Google Pay on Nomod's secure payment page." },
   request: { title: "Order request", text: "We confirm your order and send a payment link or invoice." },
   cod: { title: "Cash or card on delivery", text: "Pay the driver when your order arrives." },
   bank: { title: "Bank transfer", text: "Bank details are shown after you order." },
@@ -74,7 +75,14 @@ export function CheckoutForm() {
     setSending(false);
     if (!res?.ok) return setError(data?.error ?? "We could not place the order. Please try again or call us.");
     cart.clear();
-    router.push(`/checkout/done?n=${encodeURIComponent(data.number)}&pay=${data.payment}&total=${data.total}`);
+    // online payment: on to Nomod's page; it sends the customer back to /checkout/done, which checks the payment
+    if (data.payment === "card" && typeof data.payUrl === "string" && /^https?:\/\//.test(data.payUrl)) {
+      setSending(true);
+      window.location.assign(data.payUrl);
+      return;
+    }
+    const q = new URLSearchParams({ n: data.number, pay: data.payment, total: data.total, ...(data.token ? { t: data.token } : {}) });
+    router.push(`/checkout/done?${q}`);
   };
 
   return (
@@ -184,7 +192,7 @@ export function CheckoutForm() {
         <Totals goods={total} delivery={f.delivery === "pickup" ? "pickup" : rules ? fee : undefined} />
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
         <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-full bg-cta px-6 text-base font-semibold text-brand-950 transition-colors hover:bg-cta-strong disabled:opacity-60">
-          {sending ? "Placing your order…" : "Place order"}
+          {payment === "card" ? (sending ? "Opening secure payment…" : "Pay now") : sending ? "Placing your order…" : "Place order"}
         </button>
         <Link href="/cart" className="text-center text-xs font-semibold text-brand-800 hover:text-brand-950">
           Edit cart

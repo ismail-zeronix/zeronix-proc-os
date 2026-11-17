@@ -7,10 +7,11 @@ import { z } from "zod";
 
 export const VAT_RATE = 0.05;
 
-export const PAYMENT_METHODS = ["request", "cod", "bank"] as const;
+export const PAYMENT_METHODS = ["card", "request", "cod", "bank"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+  card: "Pay online now: card, Apple Pay, Google Pay (Nomod)",
   request: "Order request: we confirm and send a payment link or invoice",
   cod: "Cash or card on delivery",
   bank: "Bank transfer",
@@ -54,6 +55,7 @@ export const DELIVERY_DEFAULTS: DeliveryRules = { fee: 0, freeAbove: 0, emirateF
 
 export const STORE_DEFAULTS: StoreSettings = {
   markupPercent: 0,
+  // "card" is left for the owner to switch on once Nomod is connected
   payments: ["request", "cod", "bank"],
   bankDetails: "",
   deliveryNote: "Delivery across the UAE in 2–4 working days.",

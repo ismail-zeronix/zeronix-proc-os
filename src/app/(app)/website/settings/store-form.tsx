@@ -13,7 +13,20 @@ import { EMIRATES, markedUp, PAYMENT_LABEL, PAYMENT_METHODS, type StoreSettings 
 import { saveStoreAction } from "./actions";
 
 /** The shop: markup on imported prices, how customers pay, and which mailbox sends sign-in codes and order emails. */
-export function StoreForm({ store, mailboxes, owners, canEdit }: { store: StoreSettings; mailboxes: { userId: number; email: string; name: string }[]; owners: { id: number; name: string }[]; canEdit: boolean }) {
+export function StoreForm({
+  store,
+  mailboxes,
+  owners,
+  canEdit,
+  online,
+}: {
+  store: StoreSettings;
+  mailboxes: { userId: number; email: string; name: string }[];
+  owners: { id: number; name: string }[];
+  canEdit: boolean;
+  /** Nomod: "live" key, "test" (dummy key, test page) or null (NOMOD_API_KEY not set). */
+  online: "live" | "test" | null;
+}) {
   const router = useRouter();
   const [f, setF] = useState(store);
   const [pending, start] = useTransition();
@@ -45,6 +58,11 @@ export function StoreForm({ store, mailboxes, owners, canEdit }: { store: StoreS
               onCheckedChange={(on) => patch({ payments: on ? PAYMENT_METHODS.filter((x) => x === m || f.payments.includes(x)) : f.payments.filter((x) => x !== m) })}
             />
             {PAYMENT_LABEL[m]}
+            {m === "card" && (
+              <span className={online === "live" ? "text-xs text-emerald-700 dark:text-emerald-400" : "text-xs text-amber-700 dark:text-amber-400"}>
+                {online === "live" ? "Nomod connected" : online === "test" ? "Test mode: dummy key, no real payments" : "Not offered until NOMOD_API_KEY is set on the server"}
+              </span>
+            )}
           </label>
         ))}
       </div>

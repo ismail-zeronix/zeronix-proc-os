@@ -147,7 +147,10 @@ export async function createSalesOrderFromWeb(orderId: number, input: WebToSales
     customerRef: o.number,
     termsDays: input.termsDays,
     deliveryAddress: address,
-    notes: [`${ref}, paid by ${o.payment === "cod" ? "cash or card on delivery" : o.payment === "bank" ? "bank transfer" : "order request (payment link or invoice)"}.`, o.notes && `Customer note: ${o.notes}`, diff ? `Rounding: the Sales total is AED ${(-diff).toFixed(2)} off the web total.` : ""].filter(Boolean).join("\n"),
+    notes: [
+      o.payment === "card"
+        ? `${ref}, ${o.paidAt ? `paid online by Nomod (checkout ${o.paymentRef}). Record the payment against the invoice` : "online payment by Nomod NOT received yet"}.`
+        : `${ref}, paid by ${o.payment === "cod" ? "cash or card on delivery" : o.payment === "bank" ? "bank transfer" : "order request (payment link or invoice)"}.`, o.notes && `Customer note: ${o.notes}`, diff ? `Rounding: the Sales total is AED ${(-diff).toFixed(2)} off the web total.` : ""].filter(Boolean).join("\n"),
   });
   await siteDb
     .update(O)

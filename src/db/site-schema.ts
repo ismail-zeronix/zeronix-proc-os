@@ -449,7 +449,10 @@ export const siteOrders = pgTable(
     trn: text("trn").notNull().default(""),
     delivery: text("delivery", { enum: ["delivery", "pickup"] }).notNull().default("delivery"),
     address: jsonb("address").$type<{ emirate: string; area: string; street: string }>().notNull().default({ emirate: "", area: "", street: "" }),
-    payment: text("payment", { enum: ["request", "cod", "bank"] }).notNull(),
+    payment: text("payment", { enum: ["request", "cod", "bank", "card"] }).notNull(),
+    /** Online payment (payment "card"): the Nomod Hosted Checkout id of the latest attempt, and when it was paid. */
+    paymentRef: text("payment_ref").notNull().default(""),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
     items: jsonb("items").$type<{ productId: number; slug: string; name: string; mpn: string; qty: number; unitPrice: string }[]>().notNull().default([]),
     subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
     vat: numeric("vat", { precision: 12, scale: 2 }).notNull(),

@@ -80,7 +80,18 @@ export default async function OrdersPage({ searchParams }: PageProps<"/website/o
                 {o.delivery === "delivery" && <>Delivery {Number(o.deliveryFee) ? aed(o.deliveryFee) : "free"} · </>}Before VAT {aed(o.subtotal)} · VAT {aed(o.vat)} · <span className="font-semibold text-foreground">Total {aed(o.total)}</span>
               </p>
               <p className="text-xs">
-                <span className="font-medium">{PAYMENT_LABEL[o.payment]}</span> ·{" "}
+                <span className="font-medium">{o.payment === "card" ? "Pay online (Nomod)" : PAYMENT_LABEL[o.payment]}</span>
+                {o.payment === "card" &&
+                  (o.paidAt ? (
+                    <span className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200" title={o.paymentRef}>
+                      Paid online {ago(o.paidAt)}
+                    </span>
+                  ) : (
+                    <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200" title={o.paymentRef || "No checkout opened"}>
+                      Awaiting online payment: do not ship
+                    </span>
+                  ))}{" "}
+                ·{" "}
                 {o.delivery === "pickup" ? "Collect from our office" : [o.address.street, o.address.area, o.address.emirate].filter(Boolean).join(", ")}
               </p>
               {o.notes && <p className="text-xs whitespace-pre-wrap">Customer note: {o.notes}</p>}
