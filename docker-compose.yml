@@ -58,7 +58,7 @@ services:
       SITE_DATABASE_URL: postgres://${SITE_POSTGRES_USER:-zeronix_site}:${SITE_POSTGRES_PASSWORD:-zeronix_site}@site-db:5432/${SITE_POSTGRES_DB:-zeronix_site}
       SITE_FILES_DIR: /app/data/site-media
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
-      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,http://localhost:3300}
+      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,https://souqfeed.com,https://www.souqfeed.com,http://localhost:3300}
       # public website (website/, the "site" profile below)
       SITE_API_KEY: ${SITE_API_KEY:-}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}

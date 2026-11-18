@@ -75,7 +75,7 @@ Search engines, SEO tools, link previews and scripted browsers run the widget's 
 
 ## Portal settings
 
-- **`WEBCHAT_ORIGINS`** (env): the websites allowed to use the chat, comma separated. Default: `https://www.zeronix.ae,https://zeronix.ae`. Outside production, `localhost`, `127.0.0.1`, LAN addresses and pages opened from disk are also allowed, for testing.
+- **`WEBCHAT_ORIGINS`** (env): the websites allowed to use the chat, comma separated. Default: `https://www.zeronix.ae,https://zeronix.ae,https://souqfeed.com,https://www.souqfeed.com`. Outside production, `localhost`, `127.0.0.1`, LAN addresses and pages opened from disk are also allowed, for testing.
 - **Ring for** (admin, at the bottom of the Website tab): *every visitor on the site* (default) or *visitors who send the form*.
 - Who answers: active users with the **CRM** app who are punched in. Do not disturb (or chat sound off) keeps the ring quiet; the card still shows.
 
