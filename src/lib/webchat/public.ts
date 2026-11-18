@@ -7,7 +7,7 @@ import { ipFromHeaders } from "@/lib/client-ip";
  * rate limited. The widget posts JSON as text/plain, which keeps the browser from sending a CORS preflight first.
  */
 
-const DEFAULT_ORIGINS = "https://www.zeronix.ae,https://zeronix.ae";
+const DEFAULT_ORIGINS = "https://www.zeronix.ae,https://zeronix.ae,https://souqfeed.com,https://www.souqfeed.com";
 
 function allowedOrigins(): string[] {
   return (process.env.WEBCHAT_ORIGINS ?? DEFAULT_ORIGINS)
