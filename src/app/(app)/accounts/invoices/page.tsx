@@ -4,6 +4,7 @@ import { DataTable } from "@/components/data-table";
 import { ExportActions } from "@/components/list-actions";
 import { ListPager, SortHead } from "@/components/list-controls";
 import { LIST_PAGE } from "@/components/list-page";
+import { ImportDocsDialog } from "@/components/import-docs/import-dialog";
 import { OpeningInvoiceDialog } from "@/components/opening-ui";
 import { InvoiceStateBadge } from "@/components/order-bits";
 import { ListSearch } from "@/components/list-search";
@@ -49,6 +50,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/account
           }))}
         />
         <OpeningInvoiceDialog />
+        <ImportDocsDialog kind="invoice" />
         <Button size="sm" nativeButton={false} render={<Link href="/accounts/invoices/new" />}>
           <ReceiptText /> New invoice
         </Button>
