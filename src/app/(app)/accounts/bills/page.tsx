@@ -2,6 +2,7 @@ import { FilePlus2, History } from "lucide-react";
 import Link from "next/link";
 import { DataTable } from "@/components/data-table";
 import { ExportActions } from "@/components/list-actions";
+import { ImportDocsDialog } from "@/components/import-docs/import-dialog";
 import { ListPager, SortHead } from "@/components/list-controls";
 import { LIST_PAGE } from "@/components/list-page";
 import { InvoiceStateBadge } from "@/components/order-bits";
@@ -52,6 +53,7 @@ export default async function BillsPage({ searchParams }: PageProps<"/accounts/b
         <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/accounts/bills/new?kind=opening" />} title="Supplier bills still unpaid in Zoho when the portal started">
           <History /> Opening balance
         </Button>
+        <ImportDocsDialog kind="bill" />
         <Button size="sm" nativeButton={false} render={<Link href="/accounts/bills/new" />}>
           <FilePlus2 /> New bill
         </Button>
