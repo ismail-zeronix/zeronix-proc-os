@@ -40,7 +40,7 @@ describe("store", () => {
     expect(checkoutSchema.safeParse({ ...checkout, delivery: "pickup", address: { emirate: "", area: "", street: "" } }).success).toBe(true);
     expect(checkoutSchema.safeParse({ ...checkout, trn: "12345" }).error?.issues[0].message).toBe("A UAE TRN has 15 digits");
     expect(checkoutSchema.safeParse({ ...checkout, trn: "100 2345 6789 0003" }).success).toBe(true);
-    expect(checkoutSchema.safeParse({ ...checkout, payment: "card" }).success).toBe(false);
+    expect(checkoutSchema.safeParse({ ...checkout, payment: "crypto" }).success).toBe(false);
     expect(checkoutSchema.safeParse({ ...checkout, items: [{ slug: "x", qty: 101 }] }).success).toBe(false);
   });
 

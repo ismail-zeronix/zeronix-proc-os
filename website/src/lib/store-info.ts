@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * portal works it out again when the order is placed (src/lib/website/store-core.ts deliveryFee, the same rules).
  */
 
-export type Payment = "request" | "cod" | "bank";
+export type Payment = "card" | "request" | "cod" | "bank";
 
 export interface DeliveryRules {
   fee: number;

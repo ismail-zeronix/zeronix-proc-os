@@ -94,7 +94,7 @@ function brief(brand: SiteBrand, data: Data, full: boolean, today: string): stri
     `- Find products: ${SITE_URL}/search?q={words} (matches name, part number, brand and category), or browse ${SITE_URL}/products/{category}. Product pages: ${SITE_URL}/products/{category}/{product-slug}; each has the price or "price on request", part number (MPN), full specifications, UAE warranty and availability, and schema.org Product data with an Offer when a price is public.`,
     `- Ask for a quote: open ${SITE_URL}/quote, optionally prefilled with ?product={product-slug}, ?category={category-slug} or ?industry={industry-slug}. The form asks for name, company, email, phone, number of users, budget, timeline and notes. A person replies, usually within one working day.`,
     flags.commerce
-      ? `- Buy online: add products to the cart and check out at ${SITE_URL}/checkout, as a guest or with an account (sign-in by a 6-digit code sent by email). Payment options: order request (we confirm and send a payment link or invoice), cash or card on delivery, or bank transfer. There is no online card payment at checkout.`
+      ? `- Buy online: add products to the cart and check out at ${SITE_URL}/checkout, as a guest or with an account (sign-in by a 6-digit code sent by email). Payment options shown at checkout: pay online by card, Apple Pay or Google Pay on a secure Nomod payment page (when offered), order request (we confirm and send a payment link or invoice), cash or card on delivery, or bank transfer.`
       : "- Buying: there is no online checkout yet; every order starts with a quote request, the chat on the site, or a call, WhatsApp or email.",
     "- Always get the user's explicit confirmation before submitting a quote request or placing an order, and only send the personal details the user agreed to share.",
     "- Do not create accounts, place repeated test orders or submit forms automatically.",
@@ -105,7 +105,7 @@ function brief(brand: SiteBrand, data: Data, full: boolean, today: string): stri
     "",
     "1. Pick products on the site or tell us the industry, roles and team size; we shortlist models.",
     "2. We check UAE stock and the right part numbers, then send a quote with volume pricing.",
-    flags.commerce ? "3. Order online (cart and checkout) or accept the quote; pay by bank transfer, cash or card on delivery, or the link we send." : "3. Accept the quote; we confirm payment and delivery.",
+    flags.commerce ? "3. Order online (cart and checkout) or accept the quote; pay online at checkout, by bank transfer, cash or card on delivery, or the link we send." : "3. Accept the quote; we confirm payment and delivery.",
     "4. We deliver across the Emirates with a UAE tax invoice and serial numbers, and can set machines up before delivery.",
     "5. After purchase: warranty cases go through us (send the serial number and the fault) to the manufacturer's on-site engineer or authorised service centre. Faulty-on-arrival products follow the manufacturer's process; other returns are agreed case by case because business products are ordered by part number.",
     "",

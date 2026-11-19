@@ -56,6 +56,8 @@ export const SETTING_DEFAULTS = {
   notify_digest_from: "",
   /** UAE day the morning digests were last sent (so a restart never sends them twice). */
   notify_digest_day: "",
+  /** Newsletter: the same address is not mailed a newsletter again within this many days (0 = no cool-off). */
+  newsletter_cooloff_days: "7",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

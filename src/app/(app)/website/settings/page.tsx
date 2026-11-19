@@ -6,6 +6,7 @@ import { dubaiDay } from "@/lib/website/traffic";
 import { DataForSeoForm } from "./dataforseo-form";
 import { getBrand } from "@/lib/website/settings";
 import { getStore } from "@/lib/website/store";
+import { nomodConfigured, nomodTestMode } from "@/lib/website/nomod";
 import { storeMailboxes } from "@/lib/website/store-mail";
 import { salesPeople } from "@/lib/website/web-to-sales";
 import { BrandForm } from "./brand-form";
@@ -29,7 +30,7 @@ export default async function WebsiteSettingsPage() {
       </section>
       <section className="grid gap-2 rounded-lg border bg-card p-3">
         <h2 className="text-sm font-semibold">Store</h2>
-        <StoreForm store={store} mailboxes={mailboxes} owners={owners} canEdit={user.role === "admin"} />
+        <StoreForm store={store} mailboxes={mailboxes} owners={owners} canEdit={user.role === "admin"} online={nomodConfigured() ? (nomodTestMode() ? "test" : "live") : null} />
       </section>
       <section className="grid gap-2 rounded-lg border bg-card p-3">
         <h2 className="text-sm font-semibold">Google Search Console</h2>

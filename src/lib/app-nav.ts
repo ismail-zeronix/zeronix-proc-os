@@ -1,4 +1,4 @@
-import { Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
+import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -101,6 +101,16 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/prospecting/segments", label: "Segments", icon: Target },
         { href: "/prospecting/do-not-contact", label: "Do not contact", icon: Ban },
         { href: "/prospecting/settings", label: "Settings", icon: SlidersHorizontal },
+      ],
+    },
+  ],
+  newsletter: [
+    {
+      label: "Newsletter",
+      items: [
+        { href: "/newsletter", label: "Newsletters", icon: Megaphone, exact: true, also: ["/newsletter/campaigns"] },
+        { href: "/newsletter/templates", label: "Templates", icon: LayoutTemplate },
+        { href: "/newsletter/audiences", label: "Audiences", icon: UsersRound },
       ],
     },
   ],
