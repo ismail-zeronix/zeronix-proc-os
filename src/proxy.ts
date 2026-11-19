@@ -4,13 +4,15 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/token";
 /**
  * Public access is limited to health, login, one-time first-run setup, and the website chat widget (its script and the
  * /api/widget endpoints, which check the calling site and the visitor's own token themselves), and the public website's
- * API (/api/site/*, which checks the site's key itself). The installed app's files are left out by the matcher below.
+ * API (/api/site/*, which checks the site's key itself), and the newsletter unsubscribe links. The installed app's files are left out by the matcher below.
  */
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   if (pathname === "/api/health" || pathname === "/api/health/db") return NextResponse.next();
   if (pathname.startsWith("/api/widget/") || pathname.startsWith("/widget/")) return NextResponse.next();
   if (pathname.startsWith("/api/site/")) return NextResponse.next();
+  // newsletter unsubscribe: the signed token in the address says whom it is for
+  if (pathname.startsWith("/unsubscribe/") || pathname.startsWith("/api/newsletter/unsubscribe/")) return NextResponse.next();
 
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = pathname === "/login";

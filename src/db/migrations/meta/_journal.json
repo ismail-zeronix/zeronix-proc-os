@@ -449,6 +449,13 @@
       "when": 1794152235023,
       "tag": "0063_session_version",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795019960461,
+      "tag": "0064_newsletter",
+      "breakpoints": true
     }
   ]
 }

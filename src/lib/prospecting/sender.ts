@@ -9,6 +9,7 @@ import { getBrand, getLogo } from "@/lib/brand";
 import { decryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { textToHtml } from "@/lib/mail/compose";
+import { suppress } from "@/lib/newsletter/data";
 import { signatureHtml, signatureText } from "@/lib/signature";
 import { isFreeMail } from "./constants";
 import { guessIndustry } from "./industry";
@@ -113,20 +114,80 @@ export async function writePending(limit = 2): Promise<number> {
 
 // ---------- sending ----------
 
-function friendly(e: unknown): { message: string; recipient: boolean; login: boolean } {
+export function friendly(e: unknown): { message: string; recipient: boolean; login: boolean } {
   const err = e as { responseCode?: number; code?: string; message?: string };
   const login = err.responseCode === 535 || err.code === "EAUTH";
   const recipient = !!err.responseCode && [550, 551, 553].includes(err.responseCode);
   return { message: (err.message ?? "Could not send").slice(0, 300), recipient, login };
 }
 
-/** Today's sent emails per mailbox (failed attempts do not count). */
+/** Today's sent emails per mailbox, cold email and newsletters together (failed attempts do not count). */
 async function sentToday(mailboxId: number): Promise<number> {
+  const day = dubaiToday();
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.outreachMessages)
-    .where(and(eq(schema.outreachMessages.mailboxId, mailboxId), eq(schema.outreachMessages.error, ""), sql`(${schema.outreachMessages.sentAt} AT TIME ZONE 'Asia/Dubai')::date = ${dubaiToday()}::date`));
-  return n;
+    .where(and(eq(schema.outreachMessages.mailboxId, mailboxId), eq(schema.outreachMessages.error, ""), sql`(${schema.outreachMessages.sentAt} AT TIME ZONE 'Asia/Dubai')::date = ${day}::date`));
+  const [{ k }] = await db
+    .select({ k: sql<number>`count(*)::int` })
+    .from(schema.newsletterSends)
+    .where(and(eq(schema.newsletterSends.mailboxId, mailboxId), eq(schema.newsletterSends.status, "sent"), sql`(${schema.newsletterSends.sentAt} AT TIME ZONE 'Asia/Dubai')::date = ${day}::date`));
+  return n + k;
+}
+
+/**
+ * Whether this mailbox may send one more email right now: inside its days and hours, under today's limit (cold email and
+ * newsletters count together) and far enough after its last email that a day's sending is spread out.
+ */
+export async function mailboxReady(m: Mailbox): Promise<boolean> {
+  if (!inWindow(m)) return false;
+  const cap = capOn(m, dubaiToday());
+  if ((await sentToday(m.id)) >= cap) return false;
+  const gapMin = Math.max(3, ((minutes(m.windowEnd) - minutes(m.windowStart)) / Math.max(1, cap)) * 0.6);
+  return !(m.lastSentAt && Date.now() - m.lastSentAt.getTime() < gapMin * 60_000);
+}
+
+/** Mailboxes busy sending right now, so the cold-email and newsletter loops never use one at the same moment. */
+const busy = ((globalThis as unknown as { __mailboxBusy?: Set<number> }).__mailboxBusy ??= new Set<number>());
+
+/** Runs `fn` with the mailbox reserved; returns false (without running) when it is already in use. */
+export async function withMailbox(m: Mailbox, fn: () => Promise<void>): Promise<boolean> {
+  if (busy.has(m.id)) return false;
+  busy.add(m.id);
+  try {
+    await fn();
+    return true;
+  } finally {
+    busy.delete(m.id);
+  }
+}
+
+/** The mailbox's password, or null (and the mailbox is switched off) when the saved one can no longer be read. */
+export async function mailboxPassword(m: Mailbox): Promise<string | null> {
+  try {
+    return decryptSecret(m.passwordEnc);
+  } catch {
+    await db.update(schema.outreachMailboxes).set({ lastTestOk: false, lastError: "The saved password can no longer be read. Enter it again." }).where(eq(schema.outreachMailboxes.id, m.id));
+    return null;
+  }
+}
+
+/** Hands one built message to the mailbox's SMTP server. Throws what nodemailer throws; use friendly() on it. */
+export async function deliver(m: Mailbox, pass: string, raw: Buffer, to: string[]): Promise<void> {
+  const transport = nodemailer.createTransport({
+    host: m.smtpHost,
+    port: m.smtpPort,
+    secure: m.smtpPort === 465,
+    auth: { user: m.username || m.email, pass },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 60_000,
+  });
+  try {
+    await transport.sendMail({ envelope: { from: m.email, to }, raw });
+  } finally {
+    transport.close();
+  }
 }
 
 /** Claims the next email due from this mailbox, so two passes never send it twice. */
@@ -231,26 +292,14 @@ async function sendOne(m: Mailbox, e: Enrollment): Promise<void> {
     .compile()
     .build();
 
-  let pass = "";
-  try {
-    pass = decryptSecret(m.passwordEnc);
-  } catch {
-    await db.update(schema.outreachMailboxes).set({ lastTestOk: false, lastError: "The saved password can no longer be read. Enter it again." }).where(eq(schema.outreachMailboxes.id, m.id));
+  const pass = await mailboxPassword(m);
+  if (pass === null) {
     await db.update(schema.outreachEnrollments).set({ nextSendAt: new Date(Date.now() + RETRY_MS), mailboxId: e.currentStep ? e.mailboxId : null }).where(eq(schema.outreachEnrollments.id, e.id));
     return;
   }
-  const transport = nodemailer.createTransport({
-    host: m.smtpHost,
-    port: m.smtpPort,
-    secure: m.smtpPort === 465,
-    auth: { user: m.username || m.email, pass },
-    connectionTimeout: 20_000,
-    greetingTimeout: 20_000,
-    socketTimeout: 60_000,
-  });
   const log = { enrollmentId: e.id, mailboxId: m.id, step, toEmail: e.toEmail, ccEmails: cc, subject: subject.slice(0, 300), messageId };
   try {
-    await transport.sendMail({ envelope: { from: m.email, to: [e.toEmail, ...cc] }, raw });
+    await deliver(m, pass, raw, [e.toEmail, ...cc]);
   } catch (err) {
     const f = friendly(err);
     await db.insert(schema.outreachMessages).values({ ...log, error: f.message });
@@ -262,8 +311,6 @@ async function sendOne(m: Mailbox, e: Enrollment): Promise<void> {
     // try again later, from any mailbox if the thread has not started
     await db.update(schema.outreachEnrollments).set({ nextSendAt: new Date(Date.now() + RETRY_MS), mailboxId: e.currentStep ? e.mailboxId : null }).where(eq(schema.outreachEnrollments.id, e.id));
     return;
-  } finally {
-    transport.close();
   }
 
   await db.insert(schema.outreachMessages).values(log);
@@ -297,20 +344,20 @@ export async function sendDue(): Promise<number> {
   const mailboxes = await db.select().from(schema.outreachMailboxes).where(and(eq(schema.outreachMailboxes.enabled, true), eq(schema.outreachMailboxes.lastTestOk, true)));
   let sent = 0;
   for (const m of mailboxes) {
-    if (!inWindow(m)) continue;
-    const cap = capOn(m, dubaiToday());
-    if ((await sentToday(m.id)) >= cap) continue;
-    const gapMin = Math.max(3, ((minutes(m.windowEnd) - minutes(m.windowStart)) / Math.max(1, cap)) * 0.6);
-    if (m.lastSentAt && Date.now() - m.lastSentAt.getTime() < gapMin * 60_000) continue;
-    const e = await claimDue(m);
-    if (!e) continue;
-    try {
-      await sendOne(m, e);
-      sent++;
-    } catch (err) {
-      console.error("[outreach] send failed", e.id, err);
-      await db.update(schema.outreachEnrollments).set({ nextSendAt: new Date(Date.now() + RETRY_MS) }).where(eq(schema.outreachEnrollments.id, e.id));
-    }
+    await withMailbox(m, async () => {
+      // re-read: a newsletter may have sent from this mailbox a moment ago
+      const [fresh] = await db.select().from(schema.outreachMailboxes).where(eq(schema.outreachMailboxes.id, m.id));
+      if (!fresh?.enabled || !fresh.lastTestOk || !(await mailboxReady(fresh))) return;
+      const e = await claimDue(fresh);
+      if (!e) return;
+      try {
+        await sendOne(fresh, e);
+        sent++;
+      } catch (err) {
+        console.error("[outreach] send failed", e.id, err);
+        await db.update(schema.outreachEnrollments).set({ nextSendAt: new Date(Date.now() + RETRY_MS) }).where(eq(schema.outreachEnrollments.id, e.id));
+      }
+    });
   }
   return sent;
 }
@@ -352,9 +399,33 @@ export async function checkReplies(m: Mailbox): Promise<number> {
       .from(schema.outreachEnrollments)
       .innerJoin(schema.prospectCompanies, eq(schema.prospectCompanies.id, schema.outreachEnrollments.companyId))
       .where(and(eq(schema.outreachEnrollments.mailboxId, m.id), inArray(schema.outreachEnrollments.status, ["active", "paused", "completed"])));
+    // people this mailbox sent a newsletter to lately: their bounces and "unsubscribe" replies are handled too
+    const news = new Set(
+      (
+        await db
+          .selectDistinct({ email: schema.newsletterSends.email })
+          .from(schema.newsletterSends)
+          .where(and(eq(schema.newsletterSends.mailboxId, m.id), eq(schema.newsletterSends.status, "sent"), sql`${schema.newsletterSends.sentAt} > now() - interval '14 days'`))
+      ).map((r) => r.email),
+    );
     for await (const msg of client.fetch(`${m.lastSeenUid + 1}:*`, { uid: true, envelope: true, source: { maxLength: 60_000 } }, { uid: true })) {
       const from = (msg.envelope?.from?.[0]?.address ?? "").toLowerCase();
       const raw = msg.source?.toString("utf8") ?? "";
+      if (news.size) {
+        if (DAEMON.test(from) || DAEMON.test(msg.envelope?.from?.[0]?.name ?? "")) {
+          const low = raw.toLowerCase();
+          for (const email of news) {
+            if (!low.includes(email)) continue;
+            await suppress(email, "bounce", "Newsletter bounced");
+            await db.update(schema.newsletterContacts).set({ status: "bounced" }).where(eq(schema.newsletterContacts.email, email));
+            found++;
+          }
+        } else if (news.has(from) && UNSUBSCRIBE.test(`${msg.envelope?.subject ?? ""} ${raw.split(/\r?\n\r?\n/).slice(1).join("\n").slice(0, 3000).split(/\n>|On .+ wrote:/)[0]}`)) {
+          await suppress(from, "unsubscribe", "Replied to a newsletter asking to stop");
+          await db.update(schema.newsletterContacts).set({ status: "unsubscribed" }).where(eq(schema.newsletterContacts.email, from));
+          found++;
+        }
+      }
       if (DAEMON.test(from) || DAEMON.test(msg.envelope?.from?.[0]?.name ?? "")) {
         const hit = open.find((o) => raw.toLowerCase().includes(o.to));
         if (hit) {

@@ -1928,6 +1928,97 @@ export const outreachMessages = pgTable(
   (t) => [index("outreach_messages_mailbox_idx").on(t.mailboxId, t.sentAt), index("outreach_messages_enrollment_idx").on(t.enrollmentId)],
 );
 
+/** Newsletter audiences: a named list of people who agreed to hear from us (pasted or uploaded in the Newsletter app). */
+export const newsletterLists = pgTable(
+  "newsletter_lists",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    /** Why these people get our email; printed in the footer ("You are receiving this because ..."). */
+    consentNote: text("consent_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
+);
+
+export const newsletterContacts = pgTable(
+  "newsletter_contacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    listId: integer("list_id")
+      .notNull()
+      .references(() => newsletterLists.id, { onDelete: "cascade" }),
+    /** Lower-case. */
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    company: text("company").notNull().default(""),
+    status: text("status", { enum: ["active", "unsubscribed", "bounced"] }).notNull().default("active"),
+    /** Where the address came from and why we may write to it (met at an event, existing customer, ...). */
+    source: text("source").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("newsletter_contacts_list_email_uq").on(t.listId, t.email), index("newsletter_contacts_email_idx").on(t.email), orgPolicy()],
+);
+
+/** One newsletter going to one list: the chosen template, its filled-in fields and its sending state. */
+export const newsletterCampaigns = pgTable(
+  "newsletter_campaigns",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    templateKey: text("template_key").notNull(),
+    subject: text("subject").notNull(),
+    preheader: text("preheader").notNull().default(""),
+    /** What the person typed into the template's fields (headline, intro, button, picked products, ...). */
+    fields: jsonb("fields").$type<Record<string, unknown>>().notNull().default({}),
+    listId: integer("list_id").references(() => newsletterLists.id, { onDelete: "set null" }),
+    /** draft -> sending (queue built) <-> paused -> done */
+    status: text("status", { enum: ["draft", "sending", "paused", "done"] }).notNull().default("draft"),
+    /** Sending mailboxes used in turn; empty = every mailbox that is switched on. */
+    mailboxIds: integer("mailbox_ids").array().notNull().default(sql`'{}'::int[]`),
+    /** Not before this moment (null = as soon as a mailbox is free). */
+    startAt: timestamp("start_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
+);
+
+/** One email to one person for one campaign: the sending queue and the record of what happened. */
+export const newsletterSends = pgTable(
+  "newsletter_sends",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => newsletterCampaigns.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => newsletterContacts.id, { onDelete: "set null" }),
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    /** queued -> sent / failed; skipped = never sent (unsubscribed, recently mailed, ...) */
+    status: text("status", { enum: ["queued", "sent", "failed", "skipped"] }).notNull().default("queued"),
+    skipReason: text("skip_reason").notNull().default(""),
+    mailboxId: integer("mailbox_id").references(() => outreachMailboxes.id, { onDelete: "set null" }),
+    messageId: text("message_id").notNull().default(""),
+    error: text("error").notNull().default(""),
+    /** Queued sends are picked when this has passed; pushed forward while one is being sent or after an error. */
+    nextSendAt: timestamp("next_send_at", { withTimezone: true }).defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("newsletter_sends_campaign_email_uq").on(t.campaignId, t.email),
+    index("newsletter_sends_queue_idx").on(t.status, t.nextSendAt),
+    index("newsletter_sends_mailbox_idx").on(t.mailboxId, t.sentAt),
+    index("newsletter_sends_email_idx").on(t.email, t.sentAt),
+    orgPolicy(),
+  ],
+);
+
 /** Who gets which sequence from which mailboxes. */
 export const outreachCampaigns = pgTable("outreach_campaigns", {
   id: serial("id").primaryKey(),

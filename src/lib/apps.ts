@@ -6,6 +6,7 @@ import {
   Handshake,
   ListChecks,
   Mail,
+  Megaphone,
   MessageCircle,
   PackageSearch,
   Radar,
@@ -149,6 +150,17 @@ export const APPS = [
     defaultFor: ["admin"],
     status: "live",
     color: "var(--series-5)",
+  },
+  {
+    // ready-made newsletters to pasted lists, sent from the Prospecting mailboxes with a working unsubscribe link
+    key: "newsletter",
+    label: "Newsletter",
+    href: "/newsletter",
+    icon: Megaphone,
+    blurb: "Send newsletters to your lists",
+    defaultFor: ["admin"],
+    status: "live",
+    color: "var(--series-4)",
   },
   {
     // control panel of the public site zeronixtech.com (WEBSITE-PLAN.md): content, catalog, leads, analytics

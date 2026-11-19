@@ -3,6 +3,7 @@ import { startExportScheduler } from "./exports";
 import { startFeedScheduler } from "./feeds";
 import { startMailScheduler } from "./mail";
 import { startNotifyScheduler } from "./notify";
+import { startNewsletterScheduler } from "./newsletter";
 import { startOutreachScheduler } from "./outreach";
 import { startResearchScheduler } from "./prospecting";
 import { startWebsiteScheduler } from "./website";
@@ -21,6 +22,7 @@ export async function startWorker() {
   startAiScheduler();
   startResearchScheduler();
   startOutreachScheduler();
+  startNewsletterScheduler();
   startWebsiteScheduler();
   startNotifyScheduler();
   startExportScheduler();
