@@ -87,7 +87,7 @@ function SortLinks({ active, base, other }: { active: SortId; base: string; othe
             aria-label={s.label}
             aria-current={active === s.id ? "true" : undefined}
             rel="nofollow"
-            className={cn("rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm", active === s.id ? "bg-brand-900 text-white" : "text-ink hover:bg-surface")}
+            className={cn("rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors sm:text-sm", active === s.id ? "bg-brand-900 text-white" : "text-ink hover:bg-surface")}
           >
             {short[s.id]}
           </Link>
@@ -203,7 +203,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
         <section className="container-site py-6 sm:py-8">
           <div className="rounded-frame border border-line/70 bg-white p-5 sm:p-8">
             <div
-              className="prose max-w-3xl prose-headings:font-heading prose-headings:font-medium prose-h2:text-h2 prose-h3:text-lg prose-a:text-brand-700 prose-li:my-0.5"
+              className="prose max-w-3xl prose-headings:font-heading prose-headings:font-semibold prose-h2:text-h2 prose-h3:text-lg prose-a:text-brand-700 prose-li:my-0.5"
               dangerouslySetInnerHTML={{ __html: c.introHtml }}
             />
           </div>

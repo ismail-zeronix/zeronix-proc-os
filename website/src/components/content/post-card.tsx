@@ -32,7 +32,7 @@ export function Byline({ author, date, minutes }: { author: SiteAuthor | null; d
       {author && <AuthorAvatar name={author.name} className="size-8 text-xs" />}
       <span>
         {author && (
-          <Link href={`/blog/author/${author.slug}`} className="font-medium text-ink hover:underline">
+          <Link href={`/blog/author/${author.slug}`} className="font-semibold text-ink hover:underline">
             {author.name}
           </Link>
         )}
@@ -52,7 +52,7 @@ export function PostCard({ post, className }: { post: SitePostSummary; className
           <Tag>{post.industry?.name ?? (post.category || TYPE_LABEL[post.type])}</Tag>
           <ArrowCircle />
         </div>
-        <h3 className="text-lg leading-snug font-semibold">
+        <h3 className="text-[0.9375rem] leading-snug font-semibold sm:text-lg">
           <Link href={post.path} className="after:absolute after:inset-0">
             {post.title}
           </Link>

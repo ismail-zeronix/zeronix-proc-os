@@ -11,7 +11,7 @@ import { FreeDeliveryBar, priceText, Totals, TrustNotes } from "./fields";
 /** Quantity stepper used by the cart and the product buy box. */
 export function QtyStepper({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
   return (
-    <span className="inline-flex h-10 items-center rounded-full border border-line bg-white">
+    <span className="inline-flex h-10 items-center rounded-lg border border-line bg-white">
       <button type="button" onClick={() => onChange(value - 1)} disabled={value <= 1} aria-label={`One less ${label}`} className="grid size-10 place-items-center text-brand-900 disabled:opacity-30">
         <Minus className="size-4" />
       </button>

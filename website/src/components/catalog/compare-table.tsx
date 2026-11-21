@@ -31,7 +31,7 @@ export function CompareTable({ products, groups }: { products: SiteProductSummar
               <div key={r.label} className="grid gap-2 border-t border-line px-2 py-3 text-sm" style={cols}>
                 <div className="px-2 text-muted-ink">{r.label}</div>
                 {r.values.map((v, i) => (
-                  <div key={i} className="px-3 font-medium">
+                  <div key={i} className="px-3 font-semibold">
                     {v}
                   </div>
                 ))}

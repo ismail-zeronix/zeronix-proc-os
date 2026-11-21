@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowCircle } from "@/components/brand/action";
-import { Photo } from "@/components/brand/photo";
+import { ChevronRight } from "lucide-react";
+import { CategoryGlyph } from "@/components/home/category-icons";
 import { CtaStrip, PageHero, quoteLink } from "@/components/catalog/page-parts";
 import { getCategories, getSettings } from "@/lib/api";
-import { imageFor } from "@/lib/images";
 
 export const revalidate = 600;
 
@@ -19,21 +18,24 @@ export default async function ProductsPage() {
   return (
     <>
       <PageHero crumbs={[{ href: "/products", label: "Products" }]} tag="Products" title="Business-grade hardware, in stock in the UAE" lead="Business series from the major brands, with Middle East part numbers, local warranty and corporate pricing." />
-      <section className="container-site py-8 sm:py-10">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {/* categories as icon rows (no photos): a list on phones, a grid from sm */}
+      <section className="container-site py-5 sm:py-8">
+        <ul className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
           {categories.map((c) => (
-            <Link key={c.slug} href={`/products/${c.slug}`} className="group reveal flex h-full flex-col rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift">
-              <Photo src={c.image?.src ?? imageFor(`category-${c.slug}`)} subject={`${c.name}: product shot on a light background`} ratio="1:1" />
-              <div className="flex items-start justify-between gap-3 px-3 pt-4 pb-3">
-                <div>
-                  <h2 className="text-lg font-semibold">{c.name}</h2>
-                  <p className="mt-1 text-sm text-muted-ink">{c.count ? `${c.count} model${c.count === 1 ? "" : "s"}` : "Models on request"}</p>
-                </div>
-                <ArrowCircle />
-              </div>
-            </Link>
+            <li key={c.slug}>
+              <Link href={`/products/${c.slug}`} className="group flex h-full items-center gap-3 rounded-xl border border-line bg-white p-3 transition-colors hover:border-brand-900 sm:gap-4 sm:p-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-brand-900 transition-colors group-hover:bg-brand-900 group-hover:text-white sm:size-14">
+                  <CategoryGlyph icon={c.icon} className="size-6 sm:size-7" />
+                </span>
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <h2 className="text-[0.9375rem] leading-tight font-semibold text-ink sm:text-base">{c.name}</h2>
+                  <span className="text-xs text-muted-ink">{c.count ? `${c.count} model${c.count === 1 ? "" : "s"}` : "Models on request"}</span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-ink transition-transform group-hover:translate-x-0.5 group-hover:text-brand-900" />
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
       <CtaStrip title="Need something not listed?" text="We source the full business range of every major brand. Tell us the model or the job it has to do." quoteHref={quoteLink({})} label={brand.ctaLabel} />
     </>

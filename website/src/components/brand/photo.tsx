@@ -53,7 +53,7 @@ export function Photo({
     >
       <span className="grid max-w-[16rem] justify-items-center gap-2.5">
         <LogoMark className={cn("size-9", tone === "dark" && "[&_rect]:fill-brand-950")} />
-        <span className="line-clamp-2 text-xs leading-snug font-medium">{subject}</span>
+        <span className="line-clamp-2 text-xs leading-snug font-semibold">{subject}</span>
       </span>
     </div>
   );

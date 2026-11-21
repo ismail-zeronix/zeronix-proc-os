@@ -6,6 +6,7 @@ import { siteDb, siteSchema } from "@/db/site";
 import { DELIVERY_DEFAULTS, deliveryFee, orderNumber, orderTotals, STORE_DEFAULTS, type CheckoutInput, type OrderLine, type OrderStatus, type SiteAddress, type StoreSettings } from "./store-core";
 import { nomodCheckoutBody, returnUrl } from "./nomod-core";
 import { createCheckout, getCheckout, NomodError, nomodConfigured } from "./nomod";
+import { loginCodeEmail, MAIL_STATUSES, orderPlacedEmail, orderStatusEmail, staffOrderEmail, type MailOrder, type MailStatus } from "./store-email-core";
 import { sendStoreMail } from "./store-mail";
 
 /**
@@ -90,11 +91,7 @@ export async function sendLoginCode(rawEmail: string): Promise<void> {
   if (n >= 3) throw new StoreProblem("We sent several codes already. Please use the latest one, or try again in 15 minutes.", 429);
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await siteDb.insert(S.siteLoginCodes).values({ email, codeHash: codeHash(email, code), expiresAt: new Date(Date.now() + 10 * 60_000) });
-  await sendStoreMail(store, {
-    to: email,
-    subject: `${code} is your Zeronix Tech sign-in code`,
-    text: `Your sign-in code is ${code}\n\nIt works for 10 minutes. If you did not ask for it, you can ignore this email.`,
-  });
+  await sendStoreMail(store, { to: email, ...loginCodeEmail(code, siteUrl()) });
 }
 
 /** Checks the newest unused code (5 tries); on success the customer exists and a token is returned. */
@@ -226,7 +223,8 @@ export async function placeOrder(
       return { number: order.number, total: totals.total, payment: "card", token, payError: "We saved your order but could not open the payment page." };
     }
   }
-  void orderEmails(store, order.number, input, lines, fee, totals).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
+  const placed: MailOrder = { ...input, number: order.number, email: input.email.toLowerCase(), items: lines, deliveryFee: fee, ...totals };
+  void orderEmails(store, placed).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
   return { number: order.number, total: totals.total, payment: input.payment };
 }
 
@@ -301,9 +299,7 @@ async function markPaid(id: number) {
     .returning();
   if (!o) return;
   const store = await getStore();
-  void orderEmails(store, o.number, { ...o, address: o.address as SiteAddress }, o.items, o.deliveryFee, { subtotal: o.subtotal, vat: o.vat, total: o.total }).catch((e) =>
-    console.error("[store] order emails failed:", (e as Error).message),
-  );
+  void orderEmails(store, mailOrder(o)).catch((e) => console.error("[store] order emails failed:", (e as Error).message));
 }
 
 /** The return page: where the payment stands now. */
@@ -348,30 +344,32 @@ export async function syncOnlinePayments(): Promise<string[]> {
   return paid;
 }
 
-const aed = (v: string) => `AED ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-type MailOrder = Pick<CheckoutInput, "name" | "email" | "phone" | "company" | "delivery" | "address" | "payment" | "notes">;
+/** A site_orders row in the shape the email templates take. */
+const mailOrder = (o: typeof S.siteOrders.$inferSelect): MailOrder => ({ ...o, address: o.address as SiteAddress, tracking: o.tracking });
 
-async function orderEmails(store: StoreSettings, number: string, input: MailOrder, lines: OrderLine[], fee: string, totals: { subtotal: string; vat: string; total: string }) {
+/** The customer's confirmation and the team's notice (branded HTML + plain text, store-email-core.ts). */
+async function orderEmails(store: StoreSettings, o: MailOrder) {
   if (!store.mailUserId) return;
-  const items = [
-    ...lines.map((l) => `${l.qty} × ${l.name} (${l.mpn}): ${aed((Number(l.unitPrice) * l.qty).toFixed(2))}`),
-    ...(input.delivery === "delivery" ? [`Delivery: ${Number(fee) ? aed(fee) : "Free"}`] : []),
-  ].join("\n");
-  const where = input.delivery === "pickup" ? "Collect from our office" : `${input.address.street}, ${input.address.area}, ${input.address.emirate}`;
-  const sums = `Total before VAT: ${aed(totals.subtotal)}\nVAT 5%: ${aed(totals.vat)}\nTotal: ${aed(totals.total)}`;
-  const pay = input.payment === "card" ? "\n\nPaid online. Thank you." : input.payment === "bank" && store.bankDetails ? `\n\nPlease pay by bank transfer, with ${number} as the reference:\n${store.bankDetails}` : input.payment === "cod" ? "\n\nYou pay on delivery, by cash or card." : "\n\nWe will confirm your order and send you a payment link or invoice.";
-  await sendStoreMail(store, {
-    to: input.email,
-    subject: input.payment === "card" ? `Payment received: Zeronix Tech order ${number}` : `Your Zeronix Tech order ${number}`,
-    text: `Hello ${input.name},\n\nThank you for your order ${number}.\n\n${items}\n\n${sums}\n\nDelivery: ${where}${pay}\n\n${store.deliveryNote}\n\nReply to this email if anything needs changing.`,
-  });
-  if (store.notifyEmail) {
-    await sendStoreMail(store, {
-      to: store.notifyEmail,
-      subject: `New web order ${number}: ${aed(totals.total)}${input.payment === "card" ? " (paid online)" : ""}`,
-      text: `${input.name}${input.company ? `, ${input.company}` : ""}\n${input.email} · ${input.phone}\n\n${items}\n\n${sums}\n\nDelivery: ${where}\nPayment: ${input.payment}\n${input.notes ? `\nNotes: ${input.notes}\n` : ""}\nOpen Website › Orders in ZeronixOS.`,
-    });
+  await sendStoreMail(store, { to: o.email, ...orderPlacedEmail(o, store, siteUrl()) });
+  if (store.notifyEmail) await sendStoreMail(store, { to: store.notifyEmail, ...staffOrderEmail(o, siteUrl()) });
+}
+
+/**
+ * Tells the customer their order moved on (confirmed, paid, shipped / ready to collect, delivered, cancelled). Called
+ * when the team changes the status in Website › Orders and when the Sales sync marks it paid or delivered. Never
+ * throws: a mail problem must not undo the status change.
+ */
+export async function sendStatusEmail(id: number, status: string) {
+  if (!MAIL_STATUSES.includes(status)) return;
+  try {
+    const store = await getStore();
+    if (!store.mailUserId) return;
+    const [o] = await siteDb.select().from(S.siteOrders).where(eq(S.siteOrders.id, id));
+    if (!o || !o.email) return;
+    await sendStoreMail(store, { to: o.email, ...orderStatusEmail(mailOrder(o), status as MailStatus, store, siteUrl()) });
+  } catch (e) {
+    console.error(`[store] status email for order ${id} failed:`, (e as Error).message);
   }
 }
 
@@ -392,9 +390,12 @@ export const listOrders = (status: OrderStatus, page = 1, pageSize = 50) =>
     .offset((page - 1) * pageSize);
 
 export async function setOrderStatus(id: number, status: OrderStatus, internalNote?: string) {
+  const [before] = await siteDb.select({ status: S.siteOrders.status }).from(S.siteOrders).where(eq(S.siteOrders.id, id));
   await siteDb
     .update(S.siteOrders)
     .set({ status, ...(internalNote === undefined ? {} : { internalNote }), updatedAt: new Date() })
     .where(eq(S.siteOrders.id, id));
+  // the customer hears about a real change only (saving a note on the same status sends nothing)
+  if (before && before.status !== status) void sendStatusEmail(id, status);
 }
 

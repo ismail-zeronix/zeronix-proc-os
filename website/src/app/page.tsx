@@ -1,8 +1,8 @@
 import { CtaStrip, Faq, quoteLink } from "@/components/catalog/page-parts";
-import { Hero, heroPicks } from "@/components/home/hero";
+import { Benefits, Hero, heroPicks } from "@/components/home/hero";
 import { LazyShelf } from "@/components/home/lazy-shelf";
 import { Brands, BundlesBand, CategoryShelf, CategoryTiles, Featured, HowItWorks, Industries, LatestGuides, ServicesBento, WhyUs } from "@/components/home/sections";
-import type { CategoryCardData } from "@/components/home/category-rail";
+import type { CategoryCardData } from "@/components/home/category-icons";
 import { getCategories, getCategory, getIndustries, getNav, getPosts, getProducts, getSettings } from "@/lib/api";
 import type { SiteCategoriesResponse, SiteCategoryPage, SiteProductSummary } from "@/lib/contract";
 import { formatPrice } from "@/lib/price";
@@ -108,13 +108,24 @@ export default async function HomePage() {
   // the hero shows three products; the featured rail mixes categories and leaves those three out
   const picks = heroPicks(newest.products);
   const featured = featuredMix(pages, picks);
+  // desktop banners: one pictured product per banner category (priced first), not one the phone banners already show
+  const used = new Set(picks.map((p) => p.slug));
+  const bannerProducts = Object.fromEntries(
+    stocked.map((c, i) => {
+      const pictured = (pages[i]?.products ?? []).filter((p) => p.image);
+      const fresh = pictured.filter((p) => !used.has(p.slug));
+      return [c.slug, fresh.find((p) => formatPrice(p.price)) ?? fresh[0] ?? pictured[0]];
+    }),
+  );
 
   return (
-    <>
-      <Hero brand={brand} home={home} picks={picks} />
-      <CategoryTiles cards={cards} />
+    <div className="page-grey bg-page pb-4 sm:pb-6">
+      <Hero brand={brand} home={home} bannerProducts={bannerProducts} />
+      <CategoryTiles cards={cards} ctaLabel={brand.ctaLabel} />
+      <Benefits home={home} />
       <Featured featured={home.featured} products={featured.length >= 4 ? featured : newest.products} />
       {first && <CategoryShelf category={first} products={firstShelf} />}
+      <Brands brands={nav.brands} />
       <ServicesBento services={home.services} />
       {shelf(0, 2)}
       <HowItWorks ctaLabel={brand.ctaLabel} />
@@ -124,9 +135,8 @@ export default async function HomePage() {
       {shelf(4)}
       <LatestGuides posts={guides.posts} />
       <WhyUs brand={brand} home={home} brandCount={nav.brands.length} />
-      <Brands brands={nav.brands} />
       <Faq items={homeFaq(brand.name)} />
       <CtaStrip title={home.ctaBand.title} text={home.ctaBand.text} quoteHref={quoteLink({})} label={brand.ctaLabel} />
-    </>
+    </div>
   );
 }

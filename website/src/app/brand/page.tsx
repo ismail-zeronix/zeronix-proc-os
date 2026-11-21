@@ -8,18 +8,19 @@ import { Photo } from "@/components/brand/photo";
 export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false } };
 
 const COLOURS = [
-  { name: "brand-950", hex: "#081A31", use: "Deepest: footer, text on mint", cls: "bg-brand-950 text-white" },
-  { name: "brand-900", hex: "#0F2747", use: "Dark bands, dark buttons", cls: "bg-brand-900 text-white" },
-  { name: "brand-800", hex: "#18375F", use: "Cards on dark, hover", cls: "bg-brand-800 text-white" },
-  { name: "brand-700", hex: "#1D4F8A", use: "Links, icons on light", cls: "bg-brand-700 text-white" },
-  { name: "cta", hex: "#2BD9A0", use: "Primary CTA fill", cls: "bg-cta text-brand-950" },
-  { name: "highlight", hex: "#5EEBC0", use: "Highlights on dark", cls: "bg-highlight text-brand-950" },
-  { name: "surface", hex: "#E9EFF6", use: "Light cards, image wells", cls: "bg-surface text-brand-950" },
-  { name: "surface-soft", hex: "#F2F5F9", use: "Alternate sections", cls: "bg-surface-soft text-brand-950" },
-  { name: "canvas", hex: "#F7F8FA", use: "Page background", cls: "bg-canvas text-brand-950 border border-line" },
-  { name: "ink", hex: "#0E1A2B", use: "Body text", cls: "bg-ink text-white" },
-  { name: "muted", hex: "#5A6577", use: "Secondary text", cls: "bg-muted-ink text-white" },
-  { name: "line", hex: "#DDE3EC", use: "Borders, dividers", cls: "bg-line text-brand-950" },
+  { name: "cta", hex: "#0f9d58", use: "Header bar, large green fills", cls: "bg-cta text-white" },
+  { name: "brand-900", hex: "#0a8443", use: "Buttons, links, active states", cls: "bg-brand-900 text-white" },
+  { name: "brand-800", hex: "#087236", use: "Hover on green", cls: "bg-brand-800 text-white" },
+  { name: "brand-700", hex: "#0b8f47", use: "Icons and accents", cls: "bg-brand-700 text-white" },
+  { name: "brand-950", hex: "#05532a", use: "Deep green text on tints", cls: "bg-brand-950 text-white" },
+  { name: "highlight", hex: "#d6f5e3", use: "Mint: badges, text on green", cls: "bg-highlight text-brand-950" },
+  { name: "surface", hex: "#e8f5ee", use: "Icon circles, soft cards", cls: "bg-surface text-brand-950" },
+  { name: "surface-soft", hex: "#f5f6f8", use: "Grey wells and steps", cls: "bg-surface-soft text-ink" },
+  { name: "page", hex: "#f2f3f5", use: "Home page background", cls: "bg-page text-ink border border-line" },
+  { name: "canvas", hex: "#ffffff", use: "Panels and pages", cls: "bg-canvas text-ink border border-line" },
+  { name: "ink", hex: "#1d2330", use: "Body text, slate banner", cls: "bg-ink text-white" },
+  { name: "muted", hex: "#666e7a", use: "Secondary text", cls: "bg-muted-ink text-white" },
+  { name: "line", hex: "#e5e7eb", use: "Borders, dividers", cls: "bg-line text-ink" },
 ];
 
 function Block({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
@@ -35,7 +36,7 @@ function Block({ n, title, children }: { n: string; title: string; children: Rea
 export default function BrandPage() {
   return (
     <>
-      {/* hero sample: the Finovate frame with a photo, white headline, mint action and floating UI chips */}
+      {/* hero sample */}
       <section className="frame relative mt-3 bg-brand-900 text-white">
         <div className="relative grid min-h-[34rem] lg:grid-cols-2">
           <div className="relative z-10 flex flex-col justify-center gap-7 p-8 sm:p-12 lg:p-16">
@@ -45,7 +46,7 @@ export default function BrandPage() {
             </h1>
             <p className="max-w-md text-lead text-white/70">Laptops, desktops, workstations and servers for the way your team works. UAE stock, local warranty, corporate pricing.</p>
             <div className="flex flex-wrap gap-3">
-              <Action href="/quote" size="lg">
+              <Action href="/quote" size="lg" variant="light">
                 Get B2B pricing
               </Action>
               <Action href="/#industries" size="lg" variant="onDark" arrow={false}>
@@ -63,8 +64,8 @@ export default function BrandPage() {
 
       <div className="container-site py-6 sm:py-8">
         <Tag>Brand system</Tag>
-        <h1 className="mt-5 max-w-3xl text-h2">The rules every page of zeronixtech.com follows.</h1>
-        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. Light canvas, deep navy bands, mint for action and for highlights on dark. Medium-weight headings, pill controls, rounded frames, real photography.</p>
+        <h1 className="mt-5 max-w-3xl text-h1">The rules every page of zeronixtech.com follows.</h1>
+        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. A bright green store in the noon.com style: green header, grey home page with white panels, slate text, rectangular buttons, icon categories. No lime, no dark-green bands, no gradients.</p>
       </div>
 
       <Block n="01" title="Logo">
@@ -72,10 +73,10 @@ export default function BrandPage() {
           <div className="grid h-40 place-items-center rounded-card bg-white">
             <Logo />
           </div>
-          <div className="grid h-40 place-items-center rounded-card bg-brand-900">
+          <div className="grid h-40 place-items-center rounded-card bg-cta">
             <Logo onDark />
           </div>
-          <div className="grid h-40 place-items-center gap-2 rounded-card bg-cta">
+          <div className="grid h-40 place-items-center gap-2 rounded-card bg-surface">
             <LogoMark className="size-16" />
           </div>
         </div>
@@ -93,18 +94,18 @@ export default function BrandPage() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-sm text-muted-ink">About 60% canvas and white, 25% navy, 10% surface, 5% mint. Mint is a fill or text on navy, never text on light. No purple, glows or gradient text.</p>
+        <p className="mt-6 text-sm text-muted-ink">About 70% white and grey, 20% green, 10% mint and slate. Green text only in the darker brand-900 shade; white text on green fills. No lime, purple, glows or gradients.</p>
       </Block>
 
       <Block n="03" title="Typography">
         <div className="grid gap-8 rounded-card bg-white p-8">
           <div>
             <p className="text-xs text-muted-ink">Display · Manrope 500</p>
-            <p className="font-heading text-display font-medium">Business IT, matched to your industry.</p>
+            <p className="font-heading text-display font-semibold">Business IT, matched to your industry.</p>
           </div>
           <div>
             <p className="text-xs text-muted-ink">H2 · Manrope 500</p>
-            <p className="font-heading text-h2 font-medium">Every team works differently.</p>
+            <p className="font-heading text-h2 font-semibold">Every team works differently.</p>
           </div>
           <div>
             <p className="text-xs text-muted-ink">H3 · Manrope 600</p>
@@ -141,7 +142,7 @@ export default function BrandPage() {
             <IconBadge name="laptop" />
           </div>
           <div className="flex flex-wrap items-center gap-3 rounded-card bg-brand-900 p-8">
-            <Action href="/quote">Get B2B pricing</Action>
+            <Action href="/quote" variant="light">Get B2B pricing</Action>
             <Action href="/products" variant="onDark" arrow={false}>
               All products
             </Action>

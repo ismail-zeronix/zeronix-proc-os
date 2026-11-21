@@ -4,28 +4,31 @@
 @plugin "@tailwindcss/typography";
 
 /*
- * Zeronix Tech brand tokens: BRAND.md is the rulebook, /brand shows them live. Change both together.
- * Theme "Deep navy + mint" (owner, 2026-11-10): the Zeronix OS app colours.
- * Components use ROLE names (brand, cta, highlight, surface, canvas), never a colour name, so a theme is only the
- * --zx-* values below. Roles: brand-950..700 = dark bands, headings, primary buttons, links; cta = the action fill
- * (text on it is brand-950); highlight = emphasis on dark; surface = image wells and soft cards; canvas = page.
+ * Zeronix Tech theme (owner, 2026-11-22): a bright green store in the style of noon.com. Green header bar, grey home
+ * page with white section panels, neutral slate text, NO lime and no dark-green bands. Overrides BRAND.md colours.
+ * Components use ROLE names, never colour names, so a theme is only the --zx-* values below:
+ *   brand-900 = THE green: primary buttons, links, active states (white text on it passes AA)
+ *   brand-800 = its hover (darker) | brand-700 = icons and accents | brand-950 = deep green text on green tints
+ *   cta = the bright header / large-fill green (white text on it only when large or bold) | cta-strong = its hover
+ *   highlight = pale mint (badges, text on green) | surface = green tint (icon circles, wells)
+ *   surface-soft = neutral grey well | page = the grey home background | canvas = white | ink / muted-ink / line
  */
 :root {
-  --zx-brand-950: #081a31;
-  --zx-brand-900: #0f2747;
-  --zx-brand-800: #18375f;
-  --zx-brand-700: #1d4f8a;
-  --zx-cta: #2bd9a0;
-  --zx-cta-strong: #1fc48d;
-  --zx-highlight: #5eebc0;
-  --zx-surface: #e9eff6;
-  --zx-surface-soft: #f2f5f9;
-  --zx-canvas: #f7f8fa;
-  --zx-ink: #0e1a2b;
-  --zx-muted-ink: #5a6577;
-  --zx-line: #dde3ec;
+  --zx-brand-950: #05532a;
+  --zx-brand-900: #0a8443;
+  --zx-brand-800: #087236;
+  --zx-brand-700: #0b8f47;
+  --zx-cta: #0f9d58;
+  --zx-cta-strong: #0d8c4e;
+  --zx-highlight: #d6f5e3;
+  --zx-surface: #e8f5ee;
+  --zx-surface-soft: #f5f6f8;
+  --zx-page: #f2f3f5;
+  --zx-canvas: #ffffff;
+  --zx-ink: #1d2330;
+  --zx-muted-ink: #666e7a;
+  --zx-line: #e5e7eb;
 }
-
 
 @theme inline {
   --font-sans: var(--font-body);
@@ -40,6 +43,7 @@
   --color-highlight: var(--zx-highlight);
   --color-surface: var(--zx-surface);
   --color-surface-soft: var(--zx-surface-soft);
+  --color-page: var(--zx-page);
   --color-canvas: var(--zx-canvas);
   --color-ink: var(--zx-ink);
   --color-muted-ink: var(--zx-muted-ink);
@@ -65,25 +69,37 @@
   --color-input: var(--color-line);
   --color-ring: var(--color-brand-700);
 
-  --radius: 1rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-  --radius-inner: 0.75rem;
-  --radius-card: 1rem;
-  --radius-frame: 1.25rem;
+  --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-inner: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-frame: 1rem;
 
-  --shadow-lift: 0 12px 32px -16px color-mix(in srgb, var(--zx-brand-950) 25%, transparent);
+  --shadow-lift: 0 1px 2px rgb(16 28 22 / 0.04), 0 8px 24px -12px rgb(16 28 22 / 0.18);
 
-  --text-display: clamp(1.75rem, 1.35rem + 1.8vw, 2.75rem);
-  --text-display--line-height: 1.1;
-  --text-display--letter-spacing: -0.03em;
-  --text-h2: clamp(1.25rem, 1.1rem + 0.7vw, 1.75rem);
-  --text-h2--line-height: 1.2;
-  --text-h2--letter-spacing: -0.02em;
+  /*
+   * Type scale: a standard store scale (about 1.2 steps), phone size at 390 px, desktop size from about 1200 px.
+   * Body 16 px, never below for reading text. Headings are semibold (600) with light negative tracking; nothing huge.
+   * Phones use a compact UI scale like current stores (Shopify Horizon, Apple Store): body 15, UI text 13-14.
+   *   display 24 to 40 | h1 22 to 32 | h2 18 to 24 | h3 16 to 18 | lead 15 to 17 | body 15 (phone) / 16
+   */
+  --text-display: clamp(1.5rem, 1.2rem + 1.25vw, 2.5rem);
+  --text-display--line-height: 1.12;
+  --text-display--letter-spacing: -0.025em;
+  --text-h1: clamp(1.375rem, 1.2rem + 0.75vw, 2rem);
+  --text-h1--line-height: 1.18;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: clamp(1.125rem, 1.02rem + 0.45vw, 1.5rem);
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.015em;
+  --text-h3: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.01em;
   --text-lead: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
-  --text-lead--line-height: 1.55;
+  --text-lead--line-height: 1.6;
 }
 
 @layer base {
@@ -93,19 +109,68 @@
   html {
     scroll-behavior: smooth;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
     font-size: 0.9375rem;
-    line-height: 1.55;
+    font-weight: 400;
+    line-height: 1.6;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+  }
+  @media (min-width: 1024px) {
+    body {
+      font-size: 1rem;
+    }
   }
   h1,
   h2,
   h3,
   h4 {
-    @apply font-heading font-medium text-balance;
+    @apply font-heading font-semibold text-balance;
+  }
+  p,
+  li {
+    text-wrap: pretty;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-700;
+  }
+  /* iOS zooms into any field under 16 px when it gets focus: every field is 16 px on touch-size screens */
+  @media (max-width: 1023px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+    /* the 16 px only matters for typed text; the hint stays at the compact UI size */
+    input::placeholder,
+    textarea::placeholder {
+      font-size: 14px;
+    }
+  }
+  /* installed app (PWA): no grey tap flash, no rubber-band pull on the page edge */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* phones: the chat bubble sits above the floating tab bar and the product buy bar */
+  @media (max-width: 1023px) {
+    #zeronix-chat {
+      transform: translateY(calc(-4.75rem - env(safe-area-inset-bottom)));
+    }
+  }
+  /* the grey home page runs to the very bottom (behind the tab bar space) */
+  body:has(.page-grey) {
+    background-color: var(--color-page);
+  }
+  @media (display-mode: standalone) {
+    body {
+      overscroll-behavior-y: none;
+    }
   }
 }
 
@@ -153,3 +218,74 @@
     scroll-behavior: auto;
   }
 }
+
+/*
+ * Long reading text (guides and blog posts, components/content/article.tsx).
+ * 17 to 19 px with 1.65 line height, text kept to about 70 characters a line (36em), headings from the scale above with space
+ * above them larger than below so each belongs to the text that follows. Tables and cards keep the full width.
+ * Not in a layer on purpose: it must win over the typography plugin's defaults.
+ */
+.article-prose {
+  font-size: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.article-prose :is(p, ul, ol, blockquote) {
+  max-width: 36em;
+}
+.article-prose :is(p, li) {
+  hyphens: manual;
+}
+.article-prose > div > :first-child {
+  margin-top: 0;
+}
+.article-prose h2 {
+  max-width: 30ch;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  font-size: var(--text-h2);
+  line-height: var(--text-h2--line-height);
+  letter-spacing: var(--text-h2--letter-spacing);
+}
+.article-prose h3 {
+  max-width: 40ch;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  letter-spacing: var(--text-h3--letter-spacing);
+  font-weight: 600;
+}
+.article-prose :is(ul, ol) {
+  padding-inline-start: 1.35em;
+}
+.article-prose li {
+  margin-block: 0.35em;
+  padding-inline-start: 0.25em;
+}
+.article-prose strong {
+  font-weight: 600;
+}
+.article-prose a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.article-prose a:hover {
+  text-decoration-thickness: 2px;
+}
+.article-prose table {
+  display: block;
+  overflow-x: auto;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.article-prose :is(th, td) {
+  padding: 0.6rem 0.85rem;
+  vertical-align: top;
+}
+.article-prose th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+

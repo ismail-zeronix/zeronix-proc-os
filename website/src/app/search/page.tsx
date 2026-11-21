@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { Breadcrumbs, ProductGrid } from "@/components/catalog/page-parts";
 import { getSearch } from "@/lib/api";
@@ -20,8 +21,16 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   return (
     <div className="container-site grid gap-5 py-4 sm:py-6">
       <Breadcrumbs items={[{ href: "/search", label: "Search" }]} />
+      {/* phones: the header has only a search icon, so the field lives here (desktop has it in the header) */}
+      <form action="/search" role="search" className="lg:hidden">
+        <label className="relative flex h-11 items-center rounded-lg border border-line bg-white focus-within:border-brand-900">
+          <span className="sr-only">Search products</span>
+          <Search className="pointer-events-none absolute left-3 size-[1.125rem] text-muted-ink" />
+          <input type="search" name="q" defaultValue={q} required autoFocus={!q} enterKeyHint="search" placeholder="Search laptops, desktops, part numbers…" className="h-full w-full min-w-0 rounded-lg bg-transparent pr-3 pl-10 text-ink outline-none placeholder:text-muted-ink" />
+        </label>
+      </form>
       <div>
-        <h1 className="text-h2">{q ? `Results for “${q}”` : "Search"}</h1>
+        <h1 className="text-h1">{q ? `Results for “${q}”` : "Search"}</h1>
         {q && (
           <p className="mt-1 text-sm text-muted-ink">
             {products.length} product{products.length === 1 ? "" : "s"}

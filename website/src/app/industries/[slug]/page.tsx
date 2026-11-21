@@ -56,7 +56,7 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
 
       {(x.introHtml || x.painPoints.length > 0) && (
         <section className="container-site grid gap-6 py-8 sm:py-10 lg:grid-cols-[1.2fr_1fr]">
-          {x.introHtml && <div className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: x.introHtml }} />}
+          {x.introHtml && <div className="prose prose-base max-w-none lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: x.introHtml }} />}
           {x.painPoints.length > 0 && (
             <div className="reveal rounded-card bg-white p-6">
               <h2 className="text-xl font-semibold">What slows {x.name.toLowerCase()} teams down</h2>
@@ -84,7 +84,7 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
                   {r.categories.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2 px-1">
                       {r.categories.map((c) => (
-                        <Link key={c.slug} href={`/products/${c.slug}`} className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/80 hover:border-cta hover:text-cta">
+                        <Link key={c.slug} href={`/products/${c.slug}`} className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/80 hover:border-white hover:text-white">
                           {c.name}
                         </Link>
                       ))}

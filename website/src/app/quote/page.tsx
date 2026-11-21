@@ -25,7 +25,7 @@ export default async function QuotePage({ searchParams }: PageProps<"/quote">) {
       <div className="grid content-start gap-6">
         <Breadcrumbs items={[{ href: "/quote", label: brand.ctaLabel }]} />
         <Tag>B2B pricing</Tag>
-        <h1 className="text-h2">{industry ? `B2B pricing for your ${industry.name.toLowerCase()} team` : product ? `B2B pricing for the ${product.name}` : "Get B2B pricing"}</h1>
+        <h1 className="text-h1">{industry ? `B2B pricing for your ${industry.name.toLowerCase()} team` : product ? `B2B pricing for the ${product.name}` : "Get B2B pricing"}</h1>
         <p className="max-w-2xl text-lead text-muted-ink">Tell us what you need and how many. We reply with corporate pricing, availability and delivery time, usually within a working day.</p>
         <QuoteForm
           brand={brand}
@@ -35,11 +35,11 @@ export default async function QuotePage({ searchParams }: PageProps<"/quote">) {
       </div>
       <aside className="grid content-start gap-4">
         <div className="rounded-card bg-brand-900 p-6 text-white">
-          <h2 className="font-heading text-xl font-medium">What happens next</h2>
+          <h2 className="font-heading text-xl font-semibold">What happens next</h2>
           <ol className="mt-5 grid gap-4 text-sm text-white/75">
             {["We check UAE stock and the right part numbers for your team.", "You get a quote with volume pricing and a VAT invoice.", "We deliver and can set the machines up across the Emirates."].map((s, i) => (
               <li key={s} className="flex gap-3">
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-cta font-semibold text-brand-950">{i + 1}</span>
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-cta font-semibold text-white">{i + 1}</span>
                 {s}
               </li>
             ))}

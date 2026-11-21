@@ -1,5 +1,23 @@
 # Zeronix Tech: brand system
 
+> **Theme update, 2026-11-22 (owner): this block overrides the colour, type and shape rules below.**
+> - **Feel:** a bright green store in the style of noon.com. **No lime, no dark-green bands, no gradients.**
+>   Green header bar (cta #0f9d58) with a white logo, white search and white icons; buttons and links in the readable
+>   green (brand-900 #0a8443, white text passes AA); neutral slate text (ink #1d2330); light footer.
+> - **Home page:** light grey page (bg-page) with every section in a white panel (edge to edge on phones, rounded on
+>   desktop). Hero = banner carousel on phones (green brand banner + mint and slate product promos, dots), main banner
+>   + two stacked promos on desktop. "Shop by category" is icon circles on web and phone, never photos.
+> - **Type:** Inter only. Phones use a compact scale (hero 19-24, h2 18, body 15, UI 13-14, product names 13);
+>   desktop display max 40. Headings semibold.
+> - **Shape:** 8-12 px radii, rectangular buttons (rounded-lg). White button variant `light` on green bands.
+> - **Navigation (desktop):** white header (logo left with "Business IT · UAE", wide search with green button, B2B
+>   button, quote list, account, cart) and a category bar under it with a green top line; each item opens a full-width
+>   mega menu. **No side rail.** Desktop home = owner reference: three tall category banners + two stacked service
+>   banners (photos in public/images/hero-banners, words on the calm part of each photo), then a category icon strip. Phones: green header, menu, tab bar.
+>   App icon: green tile, white looping z.
+> - **App:** PWA (manifest.ts, public/sw.js, offline page); status bar green; fields 16 px on phones (no iOS zoom).
+> - Tokens live in `src/app/globals.css` (--zx-*).
+
 The rules every page of zeronixtech.com follows. The layout comes from the owner's references (Finovate, Kollab, a fintech bento); the colours are the Zeronix OS navy and mint. The live version is the style-guide page, **`/brand`** on the site, which is not indexed and not linked. Change a token here and in `src/app/globals.css` together.
 
 ## 1. Positioning and voice
@@ -48,11 +66,13 @@ The rules every page of zeronixtech.com follows. The layout comes from the owner
 
 | Role | Font | Size (desktop / mobile) | Weight / tracking |
 | --- | --- | --- | --- |
-| Display (hero) | Manrope | 64 / 40 px, line height 1.05 | 500, -0.035em |
-| H2 (section) | Manrope | 46 / 32 px, line height 1.1 | 500, -0.025em |
-| H3 (card) | Manrope | 20 / 18 px, line height 1.3 | 600, -0.01em |
-| Lead | Figtree | 19 / 17 px, line height 1.6 | 400 |
-| Body | Figtree | 16 px, line height 1.65 | 400 |
+| Display (hero) | Manrope | 56 / 36 px (fluid), line height 1.08 | 500, -0.03em |
+| H1 (page title) | Manrope | 44 / 30 px (fluid), line height 1.12 | 500, -0.025em |
+| H2 (section) | Manrope | 34 / 24 px (fluid), line height 1.2 | 500, -0.02em |
+| H3 (card, sub-section) | Manrope | 22 / 18 px (fluid), line height 1.3 | 600, -0.01em |
+| Lead | Figtree | 20 / 17 px (fluid), line height 1.55 | 400 |
+| Body | Figtree | 16 px, line height 1.6 | 400 |
+| Reading text (guides, blog) | Figtree | 19 / 17 px (fluid), line height 1.65, line kept to 36em (about 70 characters) | 400, bold 600 |
 | Tag / eyebrow | Figtree | 11 px, uppercase | 600, +0.12em |
 | Numbers (stats, prices) | Manrope | 40–56 px, tabular | 500 |
 

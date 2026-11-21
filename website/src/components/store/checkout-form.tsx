@@ -191,7 +191,7 @@ export function CheckoutForm() {
         {left !== null && rules && <FreeDeliveryBar left={left} threshold={rules.freeAbove} />}
         <Totals goods={total} delivery={f.delivery === "pickup" ? "pickup" : rules ? fee : undefined} />
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-full bg-cta px-6 text-base font-semibold text-brand-950 transition-colors hover:bg-cta-strong disabled:opacity-60">
+        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-lg bg-brand-900 px-6 text-[0.9375rem] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60">
           {payment === "card" ? (sending ? "Opening secure payment…" : "Pay now") : sending ? "Placing your order…" : "Place order"}
         </button>
         <Link href="/cart" className="text-center text-xs font-semibold text-brand-800 hover:text-brand-950">

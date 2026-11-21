@@ -98,6 +98,8 @@ function brief(brand: SiteBrand, data: Data, full: boolean, today: string): stri
       : "- Buying: there is no online checkout yet; every order starts with a quote request, the chat on the site, or a call, WhatsApp or email.",
     "- Always get the user's explicit confirmation before submitting a quote request or placing an order, and only send the personal details the user agreed to share.",
     "- Do not create accounts, place repeated test orders or submit forms automatically.",
+    `- Markdown copies: send \`Accept: text/markdown\` to any product, category, industry, brand, guide or company page, or add \`.md\` to its URL (for example ${SITE_URL}/products.md), to get clean Markdown instead of HTML.`,
+    `- MCP server (no sign-in): ${SITE_URL}/mcp, Streamable HTTP. Tools: search_products, get_product, list_catalog, find_guides, get_company_info, request_quote (sends a quote request; only after the buyer explicitly agrees). Server card: ${SITE_URL}/.well-known/mcp/server-card.json. API catalog: ${SITE_URL}/.well-known/api-catalog. Agent skill: ${SITE_URL}/.well-known/agent-skills/index.json`,
     full ? null : `- The whole catalog with prices, part numbers and key specs is one file: ${SITE_URL}/llms-full.txt`,
     `- Sitemap: ${SITE_URL}/sitemap.xml. Guides and articles feed: ${SITE_URL}/rss.xml.`,
     "",

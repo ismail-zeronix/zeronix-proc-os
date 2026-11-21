@@ -51,7 +51,7 @@ export function TestPayment() {
         <p className="text-sm text-muted-ink">Order {ref}. This page stands in for Nomod&apos;s payment page while the shop uses a dummy key.</p>
       </div>
       <div className="grid gap-2">
-        <button type="button" disabled={busy} onClick={() => finish("paid")} className="h-11 rounded-full bg-cta font-semibold text-brand-950 hover:bg-cta-strong disabled:opacity-60">
+        <button type="button" disabled={busy} onClick={() => finish("paid")} className="h-11 rounded-full bg-cta font-semibold text-white hover:bg-cta-strong disabled:opacity-60">
           Pay successfully
         </button>
         <button type="button" disabled={busy} onClick={() => finish("expired")} className="h-11 rounded-full border border-red-300 font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60">

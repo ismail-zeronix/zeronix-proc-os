@@ -16,7 +16,7 @@ export const STOCK_SCHEMA: Record<Stock, string> = {
 /** "● In stock": a coloured dot and the words (never colour alone). */
 export function StockLabel({ value, className }: { value: Stock; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-ink/80", className)}>
+    <span className={cn("inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-ink/80", className)}>
       <span className={cn("size-1.5 shrink-0 rounded-full", DOT[value])} aria-hidden />
       {LABEL[value]}
     </span>

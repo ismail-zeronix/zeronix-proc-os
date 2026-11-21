@@ -15,7 +15,7 @@ const lift = "transition-shadow duration-200 hover:shadow-lift";
 /** Icon in a circle: mint on light, mint on dark. */
 export function IconBadge({ name, onDark = false, className }: { name: string; onDark?: boolean; className?: string }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-brand-800 text-highlight" : "bg-cta text-brand-950", className)}>
+    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-brand-800 text-highlight" : "bg-cta text-white", className)}>
       <SiteIconView name={name} className="size-[1.125rem]" strokeWidth={1.75} />
     </span>
   );
@@ -30,7 +30,7 @@ export function PhotoCard({ href, title, photo, subject, ratio = "4:5", icon, cl
         {icon && <IconBadge name={icon} className="absolute top-3 left-3" />}
       </div>
       <div className="flex items-center justify-between gap-3 px-3 pt-4 pb-2">
-        <h3 className="text-base font-semibold sm:text-lg">{title}</h3>
+        <h3 className="text-[0.9375rem] font-semibold sm:text-lg">{title}</h3>
         <ArrowCircle />
       </div>
     </Link>
@@ -64,7 +64,7 @@ export function FeatureCard({
         <ArrowCircle />
       </div>
       <div>
-        <h3 className="max-w-xs text-xl leading-snug font-semibold">{title}</h3>
+        <h3 className="max-w-xs text-base leading-snug font-semibold sm:text-xl">{title}</h3>
         {text && <p className="mt-2 text-sm text-muted-ink">{text}</p>}
       </div>
       {subject && <Photo src={photo} subject={subject} ratio="4:3" className={cn("mt-auto", tone === "surface" && "bg-white/60")} />}
@@ -75,14 +75,14 @@ export function FeatureCard({
 /** 3. Accent card: mint fill, navy text, a photo. The one highlight in a group. */
 export function AccentCard({ href, tag, title, photo, subject, className }: { href: string; tag: string; title: string; photo?: string; subject: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-brand-950", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-white", lift, className)}>
       <Photo src={photo} subject={subject} ratio="4:3" className="bg-white/40" />
       <div className="mt-auto flex items-end justify-between gap-4">
         <div>
           <Tag className="border-brand-950/20 bg-transparent text-brand-950/70">{tag}</Tag>
-          <h3 className="mt-3 max-w-xs text-xl leading-snug font-semibold">{title}</h3>
+          <h3 className="mt-3 max-w-xs text-base leading-snug font-semibold sm:text-xl">{title}</h3>
         </div>
-        <ArrowCircle className="border-brand-950 bg-brand-950 text-cta" />
+        <ArrowCircle className="border-brand-900 bg-brand-900 text-white" />
       </div>
     </Link>
   );
@@ -93,7 +93,7 @@ export function DarkCard({ icon, title, text, className }: { icon: string; title
   return (
     <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-brand-800/70 p-6", className)}>
       <IconBadge name={icon} onDark />
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <h3 className="text-base font-semibold text-white sm:text-lg">{title}</h3>
       <p className="text-sm leading-relaxed text-white/65">{text}</p>
     </div>
   );
@@ -105,7 +105,7 @@ export function Stat({ value, label, onDark = false }: { value: string; label: s
   return (
     <div className="flex flex-col-reverse gap-1">
       <dt className={cn("text-sm", onDark ? "text-white/60" : "text-muted-ink")}>{label}</dt>
-      <dd className={cn("font-heading text-4xl font-medium tracking-tight tabular-nums sm:text-5xl", onDark ? "text-white" : "text-ink")}>
+      <dd className={cn("font-heading text-2xl font-semibold tracking-tight tabular-nums sm:text-4xl", onDark ? "text-white" : "text-ink")}>
         {m ? (
           <>
             {m[1]}
@@ -152,9 +152,9 @@ export function ProductCard({
 }) {
   const slug = href.split("/").pop() ?? "";
   return (
-    <div className={cn("group relative flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-shadow duration-200 hover:shadow-lift", className)}>
+    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-white p-2.5 transition-shadow duration-200 hover:shadow-lift", className)}>
       {photo ? (
-        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
+        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-surface-soft [&_img]:object-contain [&_img]:p-3 [&_img]:mix-blend-multiply [&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105" />
       ) : (
         // no catalog picture yet: a calm neutral tile with the brand, never the design-time "photo slot"
         <div className="grid aspect-square place-items-center rounded-inner bg-canvas">
@@ -165,11 +165,11 @@ export function ProductCard({
         </div>
       )}
       <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
-        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">
+        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.6875rem] font-bold tracking-wider text-muted-ink uppercase">
           <span className="shrink-0 text-brand-700">{brand}</span>
-          {mpn && <span className="truncate font-medium tracking-normal normal-case tabular-nums" title={`Part number ${mpn}`}>{mpn}</span>}
+          {mpn && <span className="truncate font-semibold tracking-normal normal-case tabular-nums" title={`Part number ${mpn}`}>{mpn}</span>}
         </span>
-        <h3 className="line-clamp-2 min-h-[2.6em] text-sm leading-snug font-semibold text-ink">
+        <h3 className="line-clamp-2 min-h-[2.6em] text-[0.8125rem] leading-snug font-medium text-ink sm:text-sm">
           <Link href={href} className="after:absolute after:inset-0">
             {name}
           </Link>
@@ -178,7 +178,7 @@ export function ProductCard({
         {specs.length > 0 && (
           <ul className="flex max-h-[2.75rem] flex-wrap gap-1 overflow-hidden" aria-label="Key specifications">
             {specs.slice(0, 3).map((s) => (
-              <li key={s} className="max-w-full truncate rounded-md bg-surface px-1.5 py-0.5 text-[0.6875rem] leading-4 text-brand-900">
+              <li key={s} className="max-w-full truncate rounded bg-surface-soft px-1.5 py-0.5 text-[0.6875rem] leading-4 font-medium text-muted-ink ring-1 ring-line ring-inset">
                 {s}
               </li>
             ))}
@@ -189,8 +189,8 @@ export function ProductCard({
         <div className="flex items-end justify-between gap-2">
           {price ? (
             <p className="leading-tight">
-              <span className="block font-heading text-base font-extrabold tracking-tight whitespace-nowrap text-ink tabular-nums sm:text-lg">{price}</span>
-              <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>
+              <span className="block text-sm font-semibold whitespace-nowrap text-ink tabular-nums sm:text-base">{price}</span>
+              <span className="text-[0.6875rem] font-semibold text-muted-ink">incl. VAT</span>
             </p>
           ) : (
             <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-brand-800 hover:text-brand-950">

@@ -11,12 +11,15 @@ export const revalidate = 600;
  */
 
 const prose =
-  "prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-brand-700 prose-a:underline-offset-2 prose-strong:text-ink prose-table:text-base prose-th:text-left";
+  "prose prose-base max-w-none lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-brand-700 prose-a:underline-offset-2 prose-strong:text-ink prose-table:text-base prose-th:text-left";
 
 export async function generateMetadata({ params }: PageProps<"/[page]">): Promise<Metadata> {
   const p = await getPost((await params).page);
   if (!p || p.type !== "page") return {};
-  return { title: p.seo.title || p.title, description: p.seo.description || p.excerpt, alternates: { canonical: p.path } };
+  // an SEO title that already ends with the brand ("Privacy Policy · Zeronix Tech") must not get the template's brand again
+  const { brand } = await getSettings();
+  const own = p.seo.title;
+  return { title: own ? (own.includes(brand.name) ? { absolute: own } : own) : p.title, description: p.seo.description || p.excerpt, alternates: { canonical: p.path } };
 }
 
 export default async function CompanyPage({ params }: PageProps<"/[page]">) {
@@ -27,7 +30,7 @@ export default async function CompanyPage({ params }: PageProps<"/[page]">) {
     <>
       <article className="container-site grid gap-6 py-6 lg:py-8">
         <Breadcrumbs items={[{ href: p.path, label: p.title }]} />
-        <h1 className="max-w-3xl text-h2">{p.title}</h1>
+        <h1 className="max-w-3xl text-h1">{p.title}</h1>
         {p.excerpt && <p className="max-w-3xl text-lead text-muted-ink">{p.excerpt}</p>}
         <div className={`${prose} max-w-3xl`}>
           {p.blocks.map((b, i) => (b.kind === "html" ? <div key={i} dangerouslySetInnerHTML={{ __html: b.html }} /> : null))}

@@ -162,7 +162,7 @@ DataForSEO fills in real UAE volumes and difficulty: Website › SEO › Ranking
 | Weeks | Site (Claude) | Content (team) | Off-site (owner) |
 |---|---|---|---|
 | 1–2 | Done 2026-11-11 (section 4) | Fill category pages; keyboard and warranty on the top 30 products | GBP, Bing Places, Merchant Center, zeronix.ae links |
-| 3–4 | Act on the first ranking and gap data | Pillar guide "Business laptops in the UAE: 2026 buying guide for companies"; B2B hub "Corporate laptop supplier in Dubai: what to ask" | Yellow Pages, Connect.ae, Pricena, LinkedIn |
+| 3–4 | Act on the first ranking and gap data | Pillar guide "Business laptops in the UAE: 2026 buying guide for companies" (written 2026-11-01). Written 2026-11-20, ready to upload (`content/posts/` and `content/upload/*.zip`, no cover pictures yet): "Corporate laptop supplier in Dubai: 12 questions to ask", "IT equipment for new office setup in Dubai: checklist", "Laptop warranty in the UAE: Middle East vs international", "Arabic keyboard laptops in the UAE: what to check"; and the next batch: "Laptops for engineers in the UAE", "Laptops for schools in the UAE", "Desktop vs laptop for office in the UAE" | Yellow Pages, Connect.ae, Pricena, LinkedIn |
 | 5–8 | Rewrite titles of pages Google shows but nobody clicks (SEO › Opportunities) | One guide and one comparison a week: warranty explained, Arabic/English keyboards, new-office IT checklist, workstations for engineering, servers for SMEs | Reviews after every order; two partner or guest mentions |
 | 9–12 | Only if the data shows demand: Abu Dhabi and Sharjah pages with genuinely local content; Arabic for the top 3 categories | "UAE business laptop price index", monthly from our own prices: original data that journalists and AI assistants cite | Pitch the index to Gulf News, Khaleej Times, tbreak and gdgtme; short YouTube videos for each guide |
 
@@ -196,7 +196,7 @@ DataForSEO fills in real UAE volumes and difficulty: Website › SEO › Ranking
 | schema | Organization/OnlineStore (+ComputerStore when hours or map are set), WebSite, Product+Offer (shipping, returns), FAQ, Breadcrumb, Article, Person, ItemList | Real reviews → `aggregateRating` (never invented) |
 | ecommerce | Product schema has every field claude-seo asks for except reviews (part number, offer, shipping, returns once set) | Merchant Center, reviews |
 | content / E-E-A-T | Bylines, dates, answer-first guides; product copy generated from data | Owner-written summaries for the top 20 sellers |
-| geo, agentic | llms.txt, llms-full.txt, AI crawlers allowed | Monthly AI-visibility check; Markdown page copies later |
+| geo, agentic | llms.txt, llms-full.txt, AI crawlers allowed; Markdown copies, MCP server, agent skill, API catalog, WebMCP (2026-11-19, see `SEO-AGENTIC.md`) | Monthly AI-visibility check; isitagentready.com score |
 | local, maps | Settings fields and schema ready | GBP, reviews, citations (owner) |
 | backlinks | None yet | zeronix.ae links, directories, price-index PR |
 | cluster, content-brief, flow, sxo | Website › SEO plan | Volumes from DataForSEO |

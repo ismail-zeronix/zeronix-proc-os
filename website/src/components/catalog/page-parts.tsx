@@ -84,7 +84,7 @@ export function PageHero({
         <div className="grid content-start gap-3 sm:gap-4">
           <Breadcrumbs items={crumbs} />
           {tag && <Tag>{tag}</Tag>}
-          <h1 className="text-2xl leading-tight font-medium tracking-tight text-ink sm:text-3xl">{title}</h1>
+          <h1 className="text-h1 text-ink">{title}</h1>
           {lead && <p className="max-w-xl text-lead text-muted-ink">{lead}</p>}
           {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
         </div>
@@ -109,7 +109,7 @@ export function PageHero({
 export function ProductTile({ p, label }: { p: SiteProductSummary; label?: string }) {
   return (
     <div className="relative h-full">
-      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-cta px-2 py-0.5 text-[0.6875rem] font-semibold text-brand-950">{label}</span>}
+      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-cta px-2 py-0.5 text-[0.6875rem] font-semibold text-white">{label}</span>}
       <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} mpn={p.mpn} stock={p.availability} />
     </div>
   );
@@ -157,9 +157,9 @@ export function CtaStrip({ title, text, quoteHref, label }: { title: string; tex
       <div className="container-site flex flex-col gap-5 py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
           <h2 className="text-h2 text-white">{title}</h2>
-          <p className="mt-2 text-white/70">{text}</p>
+          <p className="mt-2 text-white/85">{text}</p>
         </div>
-        <Action href={quoteHref} size="lg" track="cta-strip">
+        <Action href={quoteHref} size="lg" variant="light" track="cta-strip">
           {label}
         </Action>
       </div>

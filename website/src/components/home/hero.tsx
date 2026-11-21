@@ -1,141 +1,20 @@
-import { ArrowRight, ArrowUpRight, Check } from "lucide-react";
+import { Cpu, Desktop, Laptop, SecurityCamera, WifiHigh } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Action } from "@/components/brand/action";
 import type { SiteBrand, SiteHome, SiteProductSummary } from "@/lib/contract";
 import { SiteIconView } from "@/lib/icons";
+import { imageFor } from "@/lib/images";
 import { formatPrice } from "@/lib/price";
 import { cn } from "@/lib/utils";
 
 /**
- * Home hero, "the store window": a deep navy frame with the promise on the left and a tidy panel of real products on
- * the right (one large, two small, laid out on a grid: nothing floats or overlaps, so every name and price reads in
- * full). Benefits run along the bottom of the frame as a compact trust bar.
- *
- * Phones get a short version: headline, two buttons side by side, then the products as one swipeable row of compact
- * cards, so the first product is on the first screen. Colour roles stay BRAND.md: navy frame, mint for the one
- * highlight on dark and the main button.
+ * Home hero in the noon.com pattern.
+ * The five photo banners, words on the calm part of each photo. Desktop: the owner's reference layout, three tall
+ * banners and two stacked ones. Phones: the same banners as one swipeable row of full-cover photos (no dots).
  */
 
-/** Last two words of the headline in mint: the brand's one emphasis (never a gradient). */
-function Headline({ text }: { text: string }) {
-  const words = text.trim().split(/\s+/);
-  const cut = Math.max(1, words.length - 2);
-  return (
-    <h1 className="max-w-xl font-heading text-[2rem] leading-[1.05] font-medium tracking-[-0.035em] text-white sm:text-[2.75rem] lg:text-[3.25rem]">
-      {words.slice(0, cut).join(" ")} <span className="text-highlight">{words.slice(cut).join(" ")}</span>
-    </h1>
-  );
-}
-
-const productHref = (p: SiteProductSummary) => `/products/${p.categorySlug}/${p.slug}`;
-
-function Price({ p, className }: { p: SiteProductSummary; className?: string }) {
-  const price = formatPrice(p.price, p.currency);
-  return price ? (
-    <span className={cn("font-heading font-bold tracking-tight text-ink tabular-nums", className)}>{price}</span>
-  ) : (
-    <span className="text-xs font-semibold text-brand-700">Price on request</span>
-  );
-}
-
-/** The lead product: picture on white beside its name, key specs and price. */
-function LeadCard({ p }: { p: SiteProductSummary }) {
-  return (
-    <Link href={productHref(p)} className="group grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-center gap-4 rounded-2xl bg-white p-3 transition-shadow duration-300 hover:shadow-lift" data-track="home-hero-product">
-      <span className="relative block aspect-square overflow-hidden rounded-xl bg-white">
-        {p.image && <Image src={p.image.src} alt={p.image.alt || p.name} fill priority sizes="260px" className="object-contain p-2 transition-transform duration-500 group-hover:scale-[1.04]" />}
-      </span>
-      <span className="grid content-center gap-2 pr-1">
-        <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-brand-700 uppercase">{p.brand || p.category}</span>
-        <span className="line-clamp-3 text-[0.9375rem] leading-snug font-semibold text-ink">{p.name}</span>
-        {p.keySpecs.length > 0 && (
-          <span className="flex max-h-[2.75rem] flex-wrap gap-1 overflow-hidden">
-            {p.keySpecs.slice(0, 3).map((s) => (
-              <span key={s} className="max-w-full truncate rounded-md bg-surface px-1.5 py-0.5 text-[0.6875rem] leading-4 text-brand-900">
-                {s}
-              </span>
-            ))}
-          </span>
-        )}
-        <span className="mt-1 flex items-center justify-between gap-2">
-          <span className="grid leading-tight">
-            <Price p={p} className="text-xl" />
-            {p.price && <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>}
-          </span>
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-900 text-cta transition-transform duration-200 group-hover:rotate-45">
-            <ArrowUpRight className="size-4" />
-          </span>
-        </span>
-      </span>
-    </Link>
-  );
-}
-
-/** A compact product card: small picture, two-line name, price. Used under the lead card and in the phone row. */
-function MiniCard({ p, className }: { p: SiteProductSummary; className?: string }) {
-  return (
-    <Link href={productHref(p)} className={cn("group flex h-full items-center gap-3 rounded-2xl bg-white p-2.5 transition-shadow duration-300 hover:shadow-lift", className)} data-track="home-hero-product">
-      <span className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-white">
-        {p.image && <Image src={p.image.src} alt="" fill sizes="64px" className="object-contain p-1 transition-transform duration-500 group-hover:scale-[1.06]" />}
-      </span>
-      <span className="grid min-w-0 gap-1">
-        <span className="line-clamp-2 text-xs leading-snug font-semibold text-ink">{p.name}</span>
-        <Price p={p} className="text-sm" />
-      </span>
-    </Link>
-  );
-}
-
-/** Desktop: the product panel on the right of the frame. */
-function Showcase({ products }: { products: SiteProductSummary[] }) {
-  const [lead, ...rest] = products;
-  if (!lead) return null;
-  return (
-    <div className="relative hidden overflow-hidden rounded-[1.25rem] bg-brand-900 p-4 lg:grid lg:content-center lg:gap-3">
-      {/* thin rings behind the cards: depth without a glow or a grid (both banned in BRAND.md) */}
-      <svg aria-hidden viewBox="0 0 400 400" className="pointer-events-none absolute -top-1/3 -right-1/3 size-[110%] text-white/[0.05]" fill="none" stroke="currentColor">
-        {[70, 120, 170].map((r) => (
-          <circle key={r} cx="200" cy="200" r={r} strokeWidth="1" />
-        ))}
-      </svg>
-      <div className="relative flex items-center justify-between px-1">
-        <span className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-white/70 uppercase">
-          <span className="size-1.5 rounded-full bg-highlight" /> New in the store
-        </span>
-        <Link href="/products" className="inline-flex items-center gap-1 text-xs font-semibold text-highlight hover:text-white">
-          All products <ArrowRight className="size-3.5" />
-        </Link>
-      </div>
-      <div className="relative">
-        <LeadCard p={lead} />
-      </div>
-      {rest.length > 0 && (
-        <div className="relative grid grid-cols-2 gap-3">
-          {rest.slice(0, 2).map((p) => (
-            <MiniCard key={p.slug} p={p} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Phones and tablets: the same products as one swipeable row inside the frame. */
-function ShowcaseRow({ products }: { products: SiteProductSummary[] }) {
-  if (!products.length) return null;
-  return (
-    <ul className="scroll-row lg:hidden" aria-label="New in the store">
-      {products.map((p) => (
-        <li key={p.slug} className="w-[17rem] sm:w-72">
-          <MiniCard p={p} />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** The three products the hero shows: pictured ones only, priced first (a price is what a store visitor looks for). */
+/** The newest pictured products, priced first: the home page keeps them out of the banners and the featured row. */
 export function heroPicks(products: SiteProductSummary[]) {
   return products
     .filter((p) => p.image)
@@ -143,65 +22,174 @@ export function heroPicks(products: SiteProductSummary[]) {
     .slice(0, 3);
 }
 
-export function Hero({ brand, home, picks }: { brand: SiteBrand; home: SiteHome; picks: SiteProductSummary[] }) {
-  const h = home.hero;
+/** The desktop banners (the owner's reference layout): three tall category banners, two stacked service banners. */
+type Tone = "mint" | "slate" | "cool" | "white";
+interface BannerSpec {
+  key: string;
+  href: string;
+  eyebrow: string;
+  title: string;
+  text: string;
+  cta: string;
+  tone: Tone;
+  /** Shown when there is no photo and no product picture (always for services). */
+  Glyph?: typeof WifiHigh;
+  /** Background photo (public/images/hero-banners). The words sit on its calm area: the top of a tall photo, the
+   *  left of a wide one. */
+  photo?: string;
+  /** Text colour on the photo: "dark" photo = white text. */
+  onPhoto?: "light" | "dark";
+  /** A soft wash behind the words (white, or black on a dark photo) where the calm area of the photo is still busy. */
+  wash?: boolean;
+  /** CSS object-position for the photo crop (desktop); `phoneFocus` for the narrow photo half on phones. */
+  focus?: string;
+  phoneFocus?: string;
+}
+const TALL: BannerSpec[] = [
+  { key: "laptops", href: "/products/laptops", eyebrow: "Business IT", title: "Business laptops. Ready for work.", text: "Reliable, secure and built for modern business.", cta: "Explore laptops", tone: "mint", Glyph: Laptop, photo: "/images/hero-banners/business-laptops.webp", onPhoto: "light", focus: "60% 50%", phoneFocus: "50% 72%" },
+  { key: "gaming", href: "/search?q=gaming", eyebrow: "Gaming", title: "Build your advantage.", text: "High-performance PCs for gamers and creators.", cta: "Gaming PCs", tone: "slate", Glyph: Desktop, photo: "/images/hero-banners/gaming-pcs.webp", onPhoto: "dark", wash: true, focus: "50% 100%", phoneFocus: "60% 45%" },
+  { key: "workstations", href: "/products/workstations", eyebrow: "Professional workstations", title: "Power for big ideas.", text: "Compute, design and simulate without limits.", cta: "Workstations", tone: "cool", Glyph: Cpu, photo: "/images/hero-banners/workstations.webp", onPhoto: "light", focus: "40% 50%", phoneFocus: "60% 82%" },
+];
+const SIDE: BannerSpec[] = [
+  { key: "networking", href: "/services/networking-wifi", eyebrow: "Networking solutions", title: "Stay connected. Stay ahead.", text: "Fast, secure Wi-Fi and network infrastructure.", cta: "Networking", tone: "white", Glyph: WifiHigh, photo: "/images/hero-banners/networking.webp", onPhoto: "light", focus: "0% 50%", phoneFocus: "100% 50%" },
+  { key: "security", href: "/services/cctv-surveillance", eyebrow: "Security & access", title: "Smarter security starts here.", text: "CCTV, access control and attendance systems.", cta: "CCTV & access", tone: "mint", Glyph: SecurityCamera, photo: "/images/hero-banners/security-access.webp", onPhoto: "light", wash: true, focus: "100% 40%", phoneFocus: "100% 50%" },
+];
+const TONE: Record<Tone, string> = { mint: "bg-surface text-ink", slate: "bg-ink text-white", cool: "bg-[#e6edf3] text-ink", white: "bg-white text-ink" };
+
+function CtaChip({ label, dark, className }: { label: string; dark: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-10 w-fit items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-colors",
+        dark ? "border border-white/50 text-white group-hover:bg-white group-hover:text-ink" : "bg-brand-900 text-white group-hover:bg-brand-800",
+        className,
+      )}
+    >
+      {label} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+    </span>
+  );
+}
+
+/**
+ * One banner. A photo dropped in as public/images/banner-<key>.(webp|jpg|png) fills it (keep the left third calm for
+ * the words); until then it is a flat colour with a real product picture (categories) or a large icon (services).
+ */
+function Banner({ b, product, tall }: { b: BannerSpec; product?: SiteProductSummary; tall: boolean }) {
+  const photo = b.photo ?? imageFor(`banner-${b.key}`);
+  const dark = photo ? b.onPhoto === "dark" : b.tone === "slate";
+  const art = product?.image ? (
+    <Image src={product.image.src} alt="" fill sizes={tall ? "320px" : "200px"} className={cn("object-contain transition-transform duration-500 group-hover:scale-[1.04]", tall ? "object-bottom p-2" : "p-3", b.tone !== "slate" && "mix-blend-multiply")} />
+  ) : b.Glyph ? (
+    <span className="absolute inset-0 grid place-items-center">
+      <span className={cn("grid place-items-center rounded-full text-brand-900", tall ? "size-36 xl:size-40" : "size-24 xl:size-28", b.tone === "white" ? "bg-surface" : "bg-white")}>
+        <b.Glyph weight="duotone" className={tall ? "size-16 xl:size-20" : "size-12 xl:size-14"} />
+      </span>
+    </span>
+  ) : null;
+  return (
+    <Link
+      href={b.href}
+      data-track={`home-banner-${b.key}`}
+      className={cn("group relative isolate flex h-full overflow-hidden rounded-xl", TONE[b.tone], b.tone === "white" && "ring-1 ring-line ring-inset", tall ? "flex-col p-6 xl:p-7" : "items-center gap-3 p-5 xl:p-6")}
+    >
+      {photo && <Image src={photo} alt="" fill sizes={tall ? "(min-width: 1280px) 330px, 260px" : "(min-width: 1280px) 440px, 340px"} style={{ objectPosition: b.focus }} className="-z-10 object-cover transition-transform duration-700 group-hover:scale-[1.03]" />}
+      {photo && b.wash && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute -z-10",
+            tall ? "inset-x-0 top-0 h-[55%] bg-linear-to-b" : "inset-y-0 left-0 w-2/3 bg-linear-to-r",
+            dark ? "from-black/80 via-black/55 to-transparent" : "from-white/90 via-white/70 to-transparent",
+          )}
+        />
+      )}
+      <span className={cn("relative z-10 grid content-start", tall ? "gap-2" : "w-[54%] gap-1.5")}>
+        <span className={cn("border-l-2 pl-2 text-[0.625rem] leading-none font-semibold tracking-[0.14em] whitespace-nowrap uppercase xl:text-[0.6875rem]", dark ? "border-highlight text-highlight" : "border-brand-900 text-ink/80")}>{b.eyebrow}</span>
+        <span className={cn("mt-1 font-bold tracking-tight text-balance", tall ? "text-[1.625rem] leading-[1.1] xl:text-[1.875rem]" : "text-lg leading-[1.15] xl:text-xl")}>{b.title}</span>
+        <span className={cn("max-w-[17rem] text-[0.8125rem] leading-snug", tall ? "xl:text-sm" : "line-clamp-2", dark ? "text-white/75" : "text-muted-ink")}>{b.text}</span>
+        {!tall && <CtaChip label={b.cta} dark={dark} className="mt-1.5 h-9" />}
+      </span>
+      {!photo && art && <span className={cn("relative", tall ? "-mx-2 mt-3 -mb-2 flex-1" : "h-full flex-1")}>{art}</span>}
+      {tall && <CtaChip label={b.cta} dark={dark} className="absolute bottom-6 left-6 z-10 xl:bottom-7 xl:left-7" />}
+    </Link>
+  );
+}
+
+/**
+ * Phones: one banner as a full-cover photo with the words over its left side. A soft wash (white, or black on a dark
+ * photo) keeps the words readable on every crop.
+ */
+function PhoneBanner({ b }: { b: BannerSpec }) {
+  const photo = b.photo ?? imageFor(`banner-${b.key}`);
+  const dark = photo ? b.onPhoto === "dark" : b.tone === "slate";
+  return (
+    <Link href={b.href} data-track={`home-banner-${b.key}`} className={cn("group relative isolate flex h-full flex-col justify-between overflow-hidden rounded-xl p-4 sm:p-5", TONE[b.tone], dark ? "text-white" : "text-ink")}>
+      {photo && (
+        <>
+          <Image src={photo} alt="" fill sizes="(min-width: 640px) 64vw, 88vw" style={{ objectPosition: b.phoneFocus ?? b.focus }} className="-z-10 object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+          <span aria-hidden className={cn("absolute inset-y-0 left-0 -z-10 w-[78%] bg-linear-to-r", dark ? "from-black/80 via-black/50 to-transparent" : "from-white/90 via-white/65 to-transparent")} />
+        </>
+      )}
+      <span className="grid max-w-[64%] gap-1.5 sm:max-w-[55%]">
+        <span className={cn("border-l-2 pl-2 text-[0.625rem] leading-tight font-semibold tracking-[0.12em] uppercase", dark ? "border-highlight text-highlight" : "border-brand-900 text-ink/80")}>{b.eyebrow}</span>
+        <span className="text-lg leading-tight font-bold tracking-tight text-balance sm:text-xl">{b.title}</span>
+        <span className={cn("line-clamp-2 text-xs leading-snug", dark ? "text-white/80" : "text-ink/70")}>{b.text}</span>
+      </span>
+      <CtaChip label={b.cta} dark={dark} className="h-9 px-3.5 text-[0.8125rem]" />
+    </Link>
+  );
+}
+
+export function Hero({ brand, home, bannerProducts }: { brand: SiteBrand; home: SiteHome; bannerProducts: Record<string, SiteProductSummary | undefined> }) {
+  const banners = [...TALL, ...SIDE];
+  const slide = "w-[88%] shrink-0 snap-start sm:w-[64%]";
 
   return (
-    <section className="container-site pt-3 sm:pt-4">
-      <div className="relative isolate overflow-hidden rounded-frame bg-brand-950 text-white">
-        <div className={cn("grid gap-5 p-5 sm:gap-6 sm:p-8", picks.length > 0 && "lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-10 lg:p-4 lg:pl-12")}>
-          <div className="grid content-center gap-4 sm:gap-5 lg:py-8">
-            {h.eyebrow && (
-              <p className="inline-flex items-center gap-2 justify-self-start rounded-full border border-white/15 py-1 pr-3 pl-2 text-[0.625rem] font-semibold tracking-[0.1em] text-white/80 uppercase sm:text-[0.6875rem] sm:tracking-[0.12em]">
-                <span className="size-1.5 rounded-full bg-highlight" />
-                {h.eyebrow}
-              </p>
-            )}
-            <Headline text={h.title || brand.tagline} />
-            {h.subtitle && <p className="line-clamp-3 max-w-lg text-[0.9375rem] leading-relaxed text-white/70 sm:line-clamp-none sm:text-base">{h.subtitle}</p>}
-            {/* phones: two equal buttons side by side; from sm the usual pill pair */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              {/* phones: no arrow circle, so both buttons fit side by side down to 320px */}
-              <Action href="/products" size="lg" arrow={false} track="home-hero-shop" className="justify-center px-3 sm:hidden">
-                {h.shopLabel}
-              </Action>
-              <Action href="/products" size="lg" track="home-hero-shop" className="hidden sm:inline-flex">
-                {h.shopLabel}
-              </Action>
-              <Action href="/quote" size="lg" variant="onDark" arrow={false} track="home-hero-quote" className="justify-center px-3 sm:px-5">
-                {brand.ctaLabel}
-              </Action>
-            </div>
-            {h.checks.length > 0 && (
-              <ul className="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-white/65 sm:flex">
-                {h.checks.map((c) => (
-                  <li key={c} className="inline-flex items-center gap-1.5">
-                    <Check className="size-3.5 text-highlight" strokeWidth={2.5} /> {c}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <ShowcaseRow products={picks} />
-          </div>
-          <Showcase products={picks} />
-        </div>
+    <section className="container-site pt-2 sm:pt-3 lg:pt-4">
+      <h1 className="sr-only">{home.hero.title || brand.tagline}</h1>
 
-        {home.benefits.length > 0 && (
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-white/10 px-5 py-3.5 sm:px-8 sm:py-4 lg:grid-cols-4 lg:divide-x lg:divide-white/10 lg:px-6">
-            {home.benefits.map((b) => (
-              <li key={b.title} className="flex items-center gap-2.5 lg:px-6 lg:first:pl-6">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/[0.06] text-highlight sm:size-9">
-                  <SiteIconView name={b.icon} className="size-4 sm:size-[1.125rem]" strokeWidth={1.75} />
-                </span>
-                <span className="grid leading-tight">
-                  <span className="text-xs font-semibold text-white sm:text-sm">{b.title}</span>
-                  {b.text && <span className="hidden text-xs text-white/55 sm:block">{b.text}</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* phones and tablets: the same banners as one swipeable row (the next one peeks in at the edge) */}
+      <div className="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-px-3 px-3 [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">
+        {banners.map((b) => (
+          <div key={b.key} className={cn(slide, "h-56 sm:h-64")}>
+            <PhoneBanner b={b} />
+          </div>
+        ))}
       </div>
+
+      {/* desktop: three tall category banners and two stacked service banners */}
+      <div className="hidden h-[28rem] grid-cols-[1.12fr_1fr_1fr_1.3fr] grid-rows-2 gap-3 lg:grid xl:h-[30rem]">
+        {TALL.map((b) => (
+          <div key={b.key} className="row-span-2">
+            <Banner b={b} product={bannerProducts[b.key]} tall />
+          </div>
+        ))}
+        {SIDE.map((b) => (
+          <Banner key={b.key} b={b} tall={false} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The benefits: small white chips that scroll sideways on phones, one white strip on desktop. */
+export function Benefits({ home }: { home: SiteHome }) {
+  if (!home.benefits.length) return null;
+  return (
+    <section className="container-site mt-2.5 lg:mt-3">
+      <ul className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-line lg:overflow-visible lg:rounded-xl lg:bg-white lg:px-0 [&::-webkit-scrollbar]:hidden">
+        {home.benefits.map((b) => (
+          <li key={b.title} className="flex shrink-0 items-center gap-2 rounded-lg bg-white px-3 py-2 lg:gap-3 lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface text-brand-900 lg:size-9">
+              <SiteIconView name={b.icon} className="size-3.5 lg:size-4.5" strokeWidth={2} />
+            </span>
+            <span className="grid leading-tight">
+              <span className="text-xs font-medium whitespace-nowrap text-ink lg:text-sm lg:font-semibold">{b.title}</span>
+              {b.text && <span className="hidden text-xs text-muted-ink lg:block">{b.text}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

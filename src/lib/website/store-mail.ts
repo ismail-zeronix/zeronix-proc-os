@@ -8,9 +8,10 @@ import type { StoreSettings } from "./store-core";
 
 /**
  * Shop emails (sign-in codes, order confirmations, new-order notices), sent through the mailbox of the portal user
- * chosen in Website › Settings › Store: the same Hostinger SMTP the Mail app uses, plain text, from "Zeronix Tech".
+ * chosen in Website › Settings › Store: the same Hostinger SMTP the Mail app uses, from "Zeronix Tech". The branded
+ * HTML comes from store-email-core.ts, always with a plain-text part.
  */
-export async function sendStoreMail(store: StoreSettings, mail: { to: string; subject: string; text: string }): Promise<void> {
+export async function sendStoreMail(store: StoreSettings, mail: { to: string; subject: string; text: string; html?: string }): Promise<void> {
   if (!store.mailUserId) throw new Error("No store mailbox is set (Website › Settings › Store)");
   const [acc] = await db.select().from(schema.mailAccounts).where(eq(schema.mailAccounts.userId, store.mailUserId));
   if (!acc || !acc.enabled) throw new Error("The store mailbox is not connected or is paused (Mail app)");
@@ -24,7 +25,7 @@ export async function sendStoreMail(store: StoreSettings, mail: { to: string; su
     socketTimeout: 30_000,
   });
   try {
-    await transport.sendMail({ from: { name: "Zeronix Tech", address: acc.imapUser }, to: mail.to, subject: mail.subject, text: mail.text });
+    await transport.sendMail({ from: { name: "Zeronix Tech", address: acc.imapUser }, to: mail.to, subject: mail.subject, text: mail.text, ...(mail.html ? { html: mail.html } : {}) });
   } finally {
     transport.close();
   }

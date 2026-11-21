@@ -15,7 +15,7 @@ export function SpecTable({ groups }: { groups: SiteSpecGroup[] }) {
             {g.rows.map((r) => (
               <div key={r.key} className="grid grid-cols-[minmax(7rem,38%)_minmax(0,1fr)] gap-4 px-4 py-2.5 text-sm even:bg-surface-soft/60">
                 <dt className="text-muted-ink">{r.label}</dt>
-                <dd className="font-medium break-words text-ink">{r.value}</dd>
+                <dd className="font-semibold break-words text-ink">{r.value}</dd>
               </div>
             ))}
           </dl>
