@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 604800,
   },
   experimental: {
+    // set by the Next.js security upgrade (16.4.2 -> 16.4.6)
+    agentUpgrade: "security",
     // Pages already opened stay in the browser's page cache for a minute, so going back and forth is instant.
     staleTimes: { dynamic: 60, static: 300 },
   },
