@@ -6,20 +6,21 @@ import { cn } from "@/lib/utils";
  * nothing jumps when the real cards arrive.
  */
 
-/** Rail columns, shared by ProductRail and its placeholder so both line up card for card. */
+/** Rail columns, shared by ProductRail and its placeholder so both line up card for card. Phones show two and a half
+ *  cards (the half card says "swipe for more"), tablets three and a half, desktop five or six. */
 export const RAIL_ROW =
-  "-mx-3 grid auto-cols-[46%] grid-flow-col gap-2.5 overflow-x-auto overscroll-x-contain scroll-px-3 px-3 pb-1 [scrollbar-width:none] sm:-mx-5 sm:auto-cols-[31%] sm:scroll-px-5 sm:gap-3 sm:px-5 lg:mx-0 lg:auto-cols-[calc((100%-3rem)/5)] lg:scroll-px-0 lg:px-0 xl:auto-cols-[calc((100%-3.75rem)/6)] [&::-webkit-scrollbar]:hidden";
+  "-mx-3 grid auto-cols-[calc((100%-1rem)/2.5)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain scroll-px-3 px-3 pb-1 [scrollbar-width:none] sm:-mx-5 sm:auto-cols-[calc((100%-2.25rem)/3.5)] sm:scroll-px-5 sm:gap-3 sm:px-5 lg:mx-0 lg:auto-cols-[calc((100%-3rem)/5)] lg:scroll-px-0 lg:px-0 xl:auto-cols-[calc((100%-3.75rem)/6)] [&::-webkit-scrollbar]:hidden";
 
 /** Grid columns of ProductGrid (page-parts.tsx). */
-export const GRID_COLS = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5";
+export const GRID_COLS = "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5";
 /** The same grid next to a filter column (category pages on desktop): one column fewer. */
-export const GRID_COLS_FILTERED = "grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4";
+export const GRID_COLS_FILTERED = "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4";
 
 export function ProductCardSkeleton({ className }: { className?: string }) {
   return (
-    <div aria-hidden className={cn("flex h-full flex-col rounded-card border border-line/70 bg-white p-2", className)}>
+    <div aria-hidden className={cn("flex h-full flex-col rounded-card border border-line/70 bg-white p-1.5 sm:p-2.5", className)}>
       <Skeleton className="aspect-square w-full rounded-inner" />
-      <div className="flex flex-1 flex-col gap-2 px-1 pt-3">
+      <div className="flex flex-1 flex-col gap-1.5 px-1 pt-2">
         <Skeleton className="h-2.5 w-1/3 rounded-full" />
         <Skeleton className="h-3 w-11/12 rounded-full" />
         <Skeleton className="h-3 w-2/3 rounded-full" />

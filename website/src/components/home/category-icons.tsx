@@ -52,15 +52,15 @@ export function CategoryIcons({ cards, ctaLabel }: { cards: CategoryCardData[]; 
   return (
     <ul
       aria-label="Product categories"
-      className="-mx-3 grid auto-cols-[calc((100%-4*0.25rem)/5)] grid-flow-col grid-rows-2 gap-x-1 gap-y-3 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:auto-cols-[5.5rem] sm:px-5 lg:mx-0 lg:auto-cols-fr lg:grid-rows-1 lg:gap-x-0 lg:divide-x lg:divide-line lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden"
+      className="-mx-3 grid auto-cols-[calc((100%-4*0.25rem)/5)] grid-flow-col grid-rows-2 gap-x-1 gap-y-2.5 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:auto-cols-[5.5rem] sm:px-5 lg:mx-0 lg:auto-cols-fr lg:grid-rows-1 lg:gap-x-0 lg:divide-x lg:divide-line lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden"
     >
       {tiles.map((t) => (
         <li key={t.href}>
-          <Link href={t.href} className="group flex flex-col items-center gap-1.5 text-center lg:gap-2.5 lg:px-1 lg:py-1.5" data-track="home-category">
-            <span className="grid size-14 place-items-center rounded-full bg-surface text-brand-900 transition-colors duration-200 group-hover:bg-brand-900 group-hover:text-white sm:size-16 lg:size-[4.5rem] lg:rounded-2xl xl:size-20">
-              <t.Glyph weight="duotone" className="size-7 sm:size-8 lg:size-9 xl:size-10" />
+          <Link href={t.href} className="group flex flex-col items-center gap-1 text-center lg:gap-2.5 lg:px-1 lg:py-1.5" data-track="home-category">
+            <span className="grid size-12 place-items-center rounded-full bg-surface text-brand-900 transition-colors duration-200 group-hover:bg-brand-900 group-hover:text-white sm:size-16 lg:size-[4.5rem] lg:rounded-2xl xl:size-20">
+              <t.Glyph weight="duotone" className="size-6 sm:size-8 lg:size-9 xl:size-10" />
             </span>
-            <span className="line-clamp-2 text-[0.6875rem] leading-tight font-medium text-ink group-hover:text-brand-900 sm:text-xs lg:text-[0.8125rem] lg:font-semibold xl:text-sm">{t.label}</span>
+            <span className="line-clamp-2 text-[0.625rem] leading-tight font-medium text-ink group-hover:text-brand-900 sm:text-xs lg:text-[0.8125rem] lg:font-semibold xl:text-sm">{t.label}</span>
           </Link>
         </li>
       ))}

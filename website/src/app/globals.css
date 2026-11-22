@@ -84,21 +84,22 @@
    * Type scale: a standard store scale (about 1.2 steps), phone size at 390 px, desktop size from about 1200 px.
    * Body 16 px, never below for reading text. Headings are semibold (600) with light negative tracking; nothing huge.
    * Phones use a compact UI scale like current stores (Shopify Horizon, Apple Store): body 15, UI text 13-14.
-   *   display 24 to 40 | h1 22 to 32 | h2 18 to 24 | h3 16 to 18 | lead 15 to 17 | body 15 (phone) / 16
+   *   display 21 to 40 | h1 19 to 32 | h2 16 to 24 | h3 15 to 18 | lead 14 to 17 | body 14 (phone) / 16
+   *   (phones compacted 2026-11-22 at the owner's request, Shopify-store density)
    */
-  --text-display: clamp(1.5rem, 1.2rem + 1.25vw, 2.5rem);
+  --text-display: clamp(1.3125rem, 1rem + 1.4vw, 2.5rem);
   --text-display--line-height: 1.12;
   --text-display--letter-spacing: -0.025em;
-  --text-h1: clamp(1.375rem, 1.2rem + 0.75vw, 2rem);
+  --text-h1: clamp(1.1875rem, 0.98rem + 0.95vw, 2rem);
   --text-h1--line-height: 1.18;
   --text-h1--letter-spacing: -0.02em;
-  --text-h2: clamp(1.125rem, 1.02rem + 0.45vw, 1.5rem);
+  --text-h2: clamp(1rem, 0.86rem + 0.55vw, 1.5rem);
   --text-h2--line-height: 1.25;
   --text-h2--letter-spacing: -0.015em;
-  --text-h3: clamp(1rem, 0.96rem + 0.2vw, 1.125rem);
+  --text-h3: clamp(0.9375rem, 0.88rem + 0.25vw, 1.125rem);
   --text-h3--line-height: 1.35;
   --text-h3--letter-spacing: -0.01em;
-  --text-lead: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
+  --text-lead: clamp(0.875rem, 0.82rem + 0.25vw, 1.0625rem);
   --text-lead--line-height: 1.6;
 }
 
@@ -115,9 +116,9 @@
   }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 400;
-    line-height: 1.6;
+    line-height: 1.55;
     font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
     font-optical-sizing: auto;
@@ -191,6 +192,31 @@
   }
 }
 
+/* Loading placeholders (components/ui/skeleton.tsx): a grey block with a light band sweeping across. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+/* in a layer so a bg-* utility on a Skeleton can still change its base colour */
+@layer components {
+  .skeleton-shimmer {
+    background-color: rgb(29 35 48 / 0.06);
+    background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.75) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-shimmer 1.3s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer {
+      animation: none;
+    }
+  }
+}
+
 /* Scroll reveal (add class "reveal"): only where the browser supports scroll timelines and motion is welcome. */
 @keyframes reveal {
   from {
@@ -226,7 +252,7 @@
  * Not in a layer on purpose: it must win over the typography plugin's defaults.
  */
 .article-prose {
-  font-size: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  font-size: clamp(0.9375rem, 0.85rem + 0.45vw, 1.1875rem);
   line-height: 1.65;
   color: var(--color-ink);
 }

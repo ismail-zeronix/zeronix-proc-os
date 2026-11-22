@@ -43,22 +43,25 @@ export function Byline({ author, date, minutes }: { author: SiteAuthor | null; d
   );
 }
 
+/** Phones: a compact row (picture left, words right); from `sm`: a card with the picture on top. */
 export function PostCard({ post, className }: { post: SitePostSummary; className?: string }) {
   return (
-    <article className={cn("group relative flex h-full flex-col rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift", className)}>
-      <Photo src={coverSrc(post)} subject={post.title} ratio="16:9" sizes="(min-width: 1024px) 33vw, 100vw" />
-      <div className="flex flex-1 flex-col gap-3 px-3 pt-4 pb-3">
+    <article className={cn("group relative flex h-full gap-3 rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift sm:flex-col sm:gap-0", className)}>
+      <div className="w-[40%] shrink-0 self-start sm:w-full">
+        <Photo src={coverSrc(post)} subject={post.title} ratio="16:9" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 40vw" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5 pr-1 sm:gap-3 sm:px-3 sm:pt-4 sm:pb-3">
         <div className="flex items-start justify-between gap-3">
-          <Tag>{post.industry?.name ?? (post.category || TYPE_LABEL[post.type])}</Tag>
-          <ArrowCircle />
+          <Tag className="max-w-full truncate">{post.industry?.name ?? (post.category || TYPE_LABEL[post.type])}</Tag>
+          <ArrowCircle className="hidden sm:grid" />
         </div>
-        <h3 className="text-[0.9375rem] leading-snug font-semibold sm:text-lg">
+        <h3 className="line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:line-clamp-none sm:text-lg">
           <Link href={post.path} className="after:absolute after:inset-0">
             {post.title}
           </Link>
         </h3>
-        {post.excerpt && <p className="line-clamp-2 text-sm text-muted-ink">{post.excerpt}</p>}
-        <div className="mt-auto pt-2 text-xs text-muted-ink">
+        {post.excerpt && <p className="hidden text-sm text-muted-ink sm:line-clamp-2">{post.excerpt}</p>}
+        <div className="mt-auto pt-0.5 text-[0.6875rem] text-muted-ink sm:pt-2 sm:text-xs">
           {post.author ? `${post.author.name} · ` : ""}
           {postDate(post.publishedAt)} · {post.readingMinutes} min read
         </div>
@@ -69,7 +72,7 @@ export function PostCard({ post, className }: { post: SitePostSummary; className
 
 export function PostGrid({ posts }: { posts: SitePostSummary[] }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
       {posts.map((p) => (
         <PostCard key={p.slug} post={p} className="reveal" />
       ))}

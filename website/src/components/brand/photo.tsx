@@ -35,7 +35,7 @@ export function Photo({
   if (src) {
     return (
       <div className={box}>
-        <Image src={src} alt={subject} fill sizes={sizes} priority={priority} className="object-cover" />
+        <Image src={src} alt={subject} fill sizes={sizes} preload={priority} quality={60} className="object-cover" />
       </div>
     );
   }

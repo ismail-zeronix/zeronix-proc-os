@@ -152,9 +152,9 @@ export function ProductCard({
 }) {
   const slug = href.split("/").pop() ?? "";
   return (
-    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-white p-2.5 transition-shadow duration-200 hover:shadow-lift", className)}>
+    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-white p-1.5 transition-shadow sm:p-2.5 duration-200 hover:shadow-lift", className)}>
       {photo ? (
-        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-surface-soft [&_img]:object-contain [&_img]:p-3 [&_img]:mix-blend-multiply [&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105" />
+        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 40vw" className="bg-surface-soft [&_img]:object-contain [&_img]:p-2 sm:[&_img]:p-3 [&_img]:mix-blend-multiply [&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105" />
       ) : (
         // no catalog picture yet: a calm neutral tile with the brand, never the design-time "photo slot"
         <div className="grid aspect-square place-items-center rounded-inner bg-canvas">
@@ -164,44 +164,44 @@ export function ProductCard({
           </span>
         </div>
       )}
-      <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
-        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.6875rem] font-bold tracking-wider text-muted-ink uppercase">
+      <div className="flex flex-1 flex-col gap-1 px-1 pt-1.5 sm:pt-2">
+        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.625rem] font-bold tracking-wider sm:text-[0.6875rem] text-muted-ink uppercase">
           <span className="shrink-0 text-brand-700">{brand}</span>
           {mpn && <span className="truncate font-semibold tracking-normal normal-case tabular-nums" title={`Part number ${mpn}`}>{mpn}</span>}
         </span>
-        <h3 className="line-clamp-2 min-h-[2.6em] text-[0.8125rem] leading-snug font-medium text-ink sm:text-sm">
+        <h3 className="line-clamp-2 min-h-[2.6em] text-xs leading-snug font-medium text-ink sm:text-sm">
           <Link href={href} className="after:absolute after:inset-0">
             {name}
           </Link>
         </h3>
         {/* key specs as chips (CPU, RAM, storage); at most two rows so the cards in a row stay level */}
         {specs.length > 0 && (
-          <ul className="flex max-h-[2.75rem] flex-wrap gap-1 overflow-hidden" aria-label="Key specifications">
-            {specs.slice(0, 3).map((s) => (
-              <li key={s} className="max-w-full truncate rounded bg-surface-soft px-1.5 py-0.5 text-[0.6875rem] leading-4 font-medium text-muted-ink ring-1 ring-line ring-inset">
+          <ul className="flex max-h-[2.5rem] flex-wrap gap-1 overflow-hidden sm:max-h-[2.75rem]" aria-label="Key specifications">
+            {specs.slice(0, 3).map((s, i) => (
+              <li key={s} className={cn("max-w-full truncate rounded bg-surface-soft px-1 py-0.5 text-[0.625rem] leading-4 font-medium text-muted-ink ring-1 ring-line ring-inset sm:px-1.5 sm:text-[0.6875rem]", i === 2 && "hidden sm:block")}>
                 {s}
               </li>
             ))}
           </ul>
         )}
-        <div className="mt-auto grid gap-1.5 pt-2">
+        <div className="mt-auto grid gap-1 pt-1.5 sm:gap-1.5 sm:pt-2">
         {buy && stock && <StockLabel value={stock} />}
-        <div className="flex items-end justify-between gap-2">
+        <div className="flex items-end justify-between gap-1.5 sm:gap-2">
           {price ? (
             <p className="leading-tight">
-              <span className="block text-sm font-semibold whitespace-nowrap text-ink tabular-nums sm:text-base">{price}</span>
-              <span className="text-[0.6875rem] font-semibold text-muted-ink">incl. VAT</span>
+              <span className="block text-[0.8125rem] font-bold whitespace-nowrap text-ink tabular-nums sm:text-base sm:font-semibold">{price}</span>
+              <span className="text-[0.625rem] font-medium text-muted-ink sm:text-[0.6875rem] sm:font-semibold">incl. VAT</span>
             </p>
           ) : (
-            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-brand-800 hover:text-brand-950">
+            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-[0.6875rem] leading-tight font-semibold text-brand-800 hover:text-brand-950 sm:text-xs">
               Price on request
               <span className="block font-normal text-muted-ink">Get B2B quote</span>
             </Link>
           )}
           {buy ? (
-            <AddToCart item={{ slug, name, href, image: photo ?? null, price: buy }} className="relative z-10 size-9 w-9" />
+            <AddToCart item={{ slug, name, href, image: photo ?? null, price: buy }} className="relative z-10 size-8 w-8 sm:size-9 sm:w-9" />
           ) : (
-            <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
+            <AddToQuote slug={slug} name={name} className="relative z-10 size-8 w-8 sm:size-9 sm:w-9" />
           )}
         </div>
         </div>

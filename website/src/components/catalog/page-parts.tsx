@@ -24,7 +24,7 @@ export function Breadcrumbs({ items, onDark = false }: { items: Crumb[]; onDark?
   return (
     <>
       <nav aria-label="Breadcrumb">
-        <ol className={cn("flex flex-wrap items-center gap-1 text-sm", onDark ? "text-white/60" : "text-muted-ink")}>
+        <ol className={cn("flex flex-wrap items-center gap-1 text-xs sm:text-sm", onDark ? "text-white/60" : "text-muted-ink")}>
           {all.map((c, i) => (
             <li key={c.href} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="size-3.5 opacity-60" aria-hidden />}
@@ -80,24 +80,24 @@ export function PageHero({
   const withPhoto = Boolean(photo || photoSubject || tiles);
   return (
     <section className="frame mt-2 bg-surface">
-      <div className={cn("container-site grid gap-6 py-6 sm:py-8", withPhoto && "items-center lg:grid-cols-[1.4fr_1fr]")}>
-        <div className="grid content-start gap-3 sm:gap-4">
+      <div className={cn("container-site grid gap-4 py-4 sm:gap-6 sm:py-8", withPhoto && "items-center lg:grid-cols-[1.4fr_1fr]")}>
+        <div className="grid content-start gap-2 sm:gap-4">
           <Breadcrumbs items={crumbs} />
-          {tag && <Tag>{tag}</Tag>}
+          {tag && <Tag className="hidden sm:inline-flex">{tag}</Tag>}
           <h1 className="text-h1 text-ink">{title}</h1>
-          {lead && <p className="max-w-xl text-lead text-muted-ink">{lead}</p>}
-          {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
+          {lead && <p className="line-clamp-2 max-w-xl text-lead text-muted-ink sm:line-clamp-none">{lead}</p>}
+          {actions && <div className="mt-1 flex flex-wrap gap-2 sm:mt-0 sm:gap-3">{actions}</div>}
         </div>
         {tiles ? (
           <div className="hidden grid-cols-4 gap-2 lg:grid">
             {tiles.map((src, i) => (
-              <Photo key={src} src={src} subject={title} ratio="1:1" priority={i === 0} sizes="120px" className="rounded-inner bg-white [&_img]:object-contain [&_img]:p-2" />
+              <Photo key={src} src={src} subject={title} ratio="1:1" sizes="120px" className="rounded-inner bg-white [&_img]:object-contain [&_img]:p-2" />
             ))}
           </div>
         ) : (
           withPhoto && (
             <div className="hidden lg:block">
-              <Photo src={photo} subject={photoSubject ?? title} ratio="21:9" priority sizes="40vw" className="rounded-card" />
+              <Photo src={photo} subject={photoSubject ?? title} ratio="21:9" sizes="40vw" className="rounded-card" />
             </div>
           )
         )}
@@ -129,13 +129,13 @@ export function ProductGrid({ products, labels, cols = GRID_COLS }: { products: 
 export function Faq({ items, title = "Questions we get asked" }: { items: SiteFaqItem[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <section className="container-site grid gap-4 py-8 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
+    <section className="container-site grid gap-3 py-5 sm:gap-4 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
       <h2 className="text-h2">{title}</h2>
       <Accordion className="rounded-card border border-line/70 bg-white px-4 sm:px-5">
         {items.map((f, i) => (
           <AccordionItem key={f.q} value={`q${i}`}>
-            <AccordionTrigger className="py-3.5 text-sm font-semibold sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
-            <AccordionContent className="pb-4 text-muted-ink">{f.a}</AccordionContent>
+            <AccordionTrigger className="py-3 text-[0.8125rem] font-semibold sm:py-3.5 sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
+            <AccordionContent className="pb-3 text-[0.8125rem] text-muted-ink sm:pb-4 sm:text-sm">{f.a}</AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>
@@ -154,10 +154,10 @@ export function Faq({ items, title = "Questions we get asked" }: { items: SiteFa
 export function CtaStrip({ title, text, quoteHref, label }: { title: string; text: string; quoteHref: string; label: string }) {
   return (
     <section className="frame mb-4 bg-brand-900 text-white">
-      <div className="container-site flex flex-col gap-5 py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
+      <div className="container-site flex flex-col gap-3 py-5 sm:gap-5 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
           <h2 className="text-h2 text-white">{title}</h2>
-          <p className="mt-2 text-white/85">{text}</p>
+          <p className="mt-1 text-[0.8125rem] text-white/85 sm:mt-2 sm:text-base">{text}</p>
         </div>
         <Action href={quoteHref} size="lg" variant="light" track="cta-strip">
           {label}

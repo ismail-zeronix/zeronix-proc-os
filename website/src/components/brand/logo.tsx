@@ -25,13 +25,14 @@ export function LogoMark({ className, inverse = false }: { className?: string; i
  * spaced "TECHNOLOGY" that runs the width of the name. `onDark` is the white version (green phone header, coloured
  * bands); the default is for white. `tagline` adds a line after a divider (desktop header).
  */
-export function Logo({ onDark = false, tagline, className }: { onDark?: boolean; tagline?: string; className?: string }) {
+export function Logo({ onDark = false, tagline, size = "md", className }: { onDark?: boolean; tagline?: string; size?: "sm" | "md"; className?: string }) {
+  const sm = size === "sm";
   return (
-    <Link href="/" aria-label="Zeronix Tech home" className={cn("group inline-flex items-center gap-2.5 leading-none", className)}>
-      <LogoMark inverse={onDark} className="size-8 sm:size-9" />
+    <Link href="/" aria-label="Zeronix Tech home" className={cn("group inline-flex items-center leading-none", sm ? "gap-2" : "gap-2.5", className)}>
+      <LogoMark inverse={onDark} className={sm ? "size-7" : "size-8 sm:size-9"} />
       <span className="grid font-sans">
-        <span className={cn("text-[1.25rem] leading-none font-bold tracking-[-0.025em] sm:text-[1.4rem]", onDark ? "text-white" : "text-ink")}>Zeronix</span>
-        <span className={cn("mt-[3px] text-[0.4375rem] leading-none font-semibold tracking-[0.34em] uppercase sm:text-[0.5rem] sm:tracking-[0.36em]", onDark ? "text-white/80" : "text-brand-900")}>Technology</span>
+        <span className={cn("leading-none font-bold tracking-[-0.025em]", sm ? "text-[1.0625rem]" : "text-[1.25rem] sm:text-[1.4rem]", onDark ? "text-white" : "text-brand-900")}>Zeronix</span>
+        <span className={cn("mt-[3px] leading-none font-semibold uppercase", sm ? "text-[0.375rem] tracking-[0.33em]" : "text-[0.4375rem] tracking-[0.34em] sm:text-[0.5rem] sm:tracking-[0.36em]", onDark ? "text-white/80" : "text-muted-ink")}>Technology</span>
       </span>
       {tagline && <span className="ml-1.5 hidden border-l border-line pl-3 text-xs leading-tight font-medium whitespace-nowrap text-muted-ink xl:block">{tagline}</span>}
     </Link>

@@ -76,9 +76,9 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
   return (
     <>
       <section className="frame mt-2 bg-surface">
-        <div className="container-site grid gap-6 py-6 sm:py-8">
+        <div className="container-site grid gap-2.5 py-4 sm:gap-6 sm:py-8">
           <Breadcrumbs items={crumbs} />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <Tag>{TYPE_LABEL[post.type]}</Tag>
             {post.industry && (
               <Link href={`/industries/${post.industry.slug}`}>
@@ -93,12 +93,12 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
       </section>
 
       {cover && (
-        <div className="container-site pt-8">
-          <Photo src={cover} subject={post.cover?.alt ?? post.title} ratio="21:9" priority sizes="(min-width: 1280px) 1240px, 100vw" className="rounded-frame" />
+        <div className="container-site pt-4 sm:pt-8">
+          <Photo src={cover} subject={post.cover?.alt ?? post.title} ratio="21:9" priority sizes="(min-width: 1280px) 1240px, 95vw" className="rounded-frame" />
         </div>
       )}
 
-      <div className="container-site grid grid-cols-[minmax(0,1fr)] gap-6 py-6 sm:py-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="container-site grid grid-cols-[minmax(0,1fr)] gap-4 py-4 sm:gap-6 sm:py-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
         {toc.length > 2 ? (
           <aside className="hidden lg:block">
             <nav aria-label="On this page" className="sticky top-28 grid gap-1 border-l border-line pl-4 text-sm">
@@ -114,7 +114,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
           <div className="hidden lg:block" />
         )}
 
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:gap-6">
           <div className={PROSE}>
             {post.blocks.map((b, i) =>
               b.kind === "html" ? (

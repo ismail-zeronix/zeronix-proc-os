@@ -35,7 +35,7 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="ghost" size="icon" className="-ml-2 text-white hover:bg-white/15 hover:text-white lg:hidden" aria-label="Open the menu" />}>
+      <SheetTrigger render={<Button variant="ghost" size="icon" className="-ml-2 text-ink hover:bg-surface hover:text-brand-900 lg:hidden" aria-label="Open the menu" />}>
         <Menu />
       </SheetTrigger>
       <SheetContent side="right" className="w-full max-w-sm overflow-y-auto bg-white">
