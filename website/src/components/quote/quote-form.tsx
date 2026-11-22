@@ -8,8 +8,8 @@ import { quoteList, useQuoteList } from "@/lib/quote-list";
 import { firstTouch, sessionUtm } from "@/lib/track";
 import { ChatNowButton } from "./chat-now";
 
-const input = "h-12 w-full rounded-2xl border border-line bg-white px-4 text-base outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700";
-const label = "grid gap-2 text-sm font-medium";
+const input = "h-11 w-full rounded-lg border border-line bg-white px-3.5 text-sm outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700";
+const label = "grid gap-2 text-sm font-semibold";
 
 /** The quote form: the quote list (with quantities), then who is asking and what for. Sends to the site's /api/quote. */
 export function QuoteForm({
@@ -81,11 +81,11 @@ export function QuoteForm({
     return (
       <div className="grid justify-items-start gap-5 rounded-card bg-white p-8">
         <CheckCircle2 className="size-10 text-brand-700" />
-        <h2 className="text-2xl font-medium">Thank you, we have your request.</h2>
+        <h2 className="text-xl font-semibold sm:text-2xl">Thank you, we have your request.</h2>
         <p className="max-w-xl text-muted-ink">Our sales team will reply with B2B pricing, usually within a working day. If it is urgent, chat with us now.</p>
         <div className="flex flex-wrap gap-3">
           <ChatNowButton message="Hi, I just sent a B2B pricing request and would like to talk to sales." context={{ industry: prefill.industry, cta: "After quote form" }} />
-          <Link href="/" className="inline-flex h-11 items-center rounded-full border border-line px-5 text-sm font-semibold hover:border-brand-700/40">
+          <Link href="/" className="inline-flex h-11 items-center rounded-lg border border-line px-5 text-sm font-semibold hover:border-brand-700/40">
             Back to the home page
           </Link>
         </div>
@@ -96,7 +96,7 @@ export function QuoteForm({
     <form onSubmit={submit} className="grid gap-6">
       <section className="grid gap-3 rounded-card bg-white p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Models</h2>
+          <h2 className="text-base font-semibold sm:text-lg">Models</h2>
           <Link href="/products" className="text-sm text-brand-700 hover:underline">
             Add more from the catalog
           </Link>
@@ -105,7 +105,7 @@ export function QuoteForm({
           <ul className="grid gap-2">
             {items.map((i) => (
               <li key={i.slug} className="flex items-center gap-3 rounded-2xl bg-surface-soft p-2 pl-4">
-                <span className="min-w-0 flex-1 truncate font-medium">{i.name}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold">{i.name}</span>
                 <div className="flex items-center rounded-full border border-line bg-white">
                   <button type="button" aria-label={`One less ${i.name}`} className="grid size-9 place-items-center" onClick={() => quoteList.setQty(i.slug, i.qty - 1)}>
                     <Minus className="size-3.5" />
@@ -127,7 +127,7 @@ export function QuoteForm({
       </section>
 
       <section className="grid gap-4 rounded-card bg-white p-6 sm:grid-cols-2">
-        <h2 className="text-lg font-semibold sm:col-span-2">Your details</h2>
+        <h2 className="text-base font-semibold sm:col-span-2 sm:text-lg">Your details</h2>
         <label className={label}>
           Name
           <input name="name" required minLength={2} autoComplete="name" className={input} />
@@ -184,16 +184,16 @@ export function QuoteForm({
       {error && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={sending} className="group inline-flex h-13 items-center gap-3 rounded-full bg-cta pr-1.5 pl-6 font-semibold text-brand-950 transition-colors hover:bg-cta-strong disabled:opacity-60">
+        <button type="submit" disabled={sending} className="group inline-flex h-13 items-center gap-3 rounded-full bg-cta pr-1.5 pl-6 font-semibold text-white transition-colors hover:bg-cta-strong disabled:opacity-60">
           {sending ? "Sending…" : "Send request"}
-          <span className="grid size-10 place-items-center rounded-full bg-brand-950 text-cta">
+          <span className="grid size-10 place-items-center rounded-full bg-brand-900 text-white">
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </span>
         </button>
         <span className="text-sm text-muted-ink">or</span>
         <ChatNowButton message={prefill.product ? `Hi, I'm looking for B2B pricing on the ${prefill.product.name}.` : "Hi, I'm looking for B2B pricing."} context={{ industry: prefill.industry, product: prefill.product?.slug ?? "", category: prefill.category, cta: "Quote page" }} />
         {brand.whatsapp && (
-          <a href={`https://wa.me/${brand.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold hover:border-brand-700/40">
+          <a href={`https://wa.me/${brand.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-lg border border-line px-4 text-sm font-semibold hover:border-brand-700/40">
             <MessageCircle className="size-4" /> WhatsApp
           </a>
         )}

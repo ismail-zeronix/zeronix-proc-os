@@ -2,25 +2,20 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Variant = "primary" | "dark" | "outline" | "onDark";
+type Variant = "primary" | "dark" | "outline" | "onDark" | "light";
 
 const PILL: Record<Variant, string> = {
-  primary: "bg-cta text-brand-950 hover:bg-cta-strong",
+  primary: "bg-brand-900 text-white hover:bg-brand-800",
   dark: "bg-brand-900 text-white hover:bg-brand-800",
-  outline: "border border-line bg-white/60 text-ink hover:border-brand-700/40 hover:bg-white",
-  onDark: "border border-white/20 text-white hover:bg-white/10",
+  outline: "border border-ink/15 bg-white text-ink hover:border-ink/40",
+  onDark: "border border-white/30 text-white hover:bg-white/10",
+  /** white button for green bands */
+  light: "bg-white text-brand-900 hover:bg-highlight",
 };
 
-const DOT: Record<Variant, string> = {
-  primary: "bg-brand-950 text-cta",
-  dark: "bg-cta text-brand-950",
-  outline: "bg-brand-900 text-cta",
-  onDark: "bg-white text-brand-950",
-};
 
 /**
- * The brand button (BRAND.md section 6): a pill with the label and a round arrow at the end, like the references'
- * "Free Consultation" button. `arrow={false}` gives the plain pill.
+ * The brand button: a solid, gently rounded store button with a small trailing arrow. `arrow={false}` drops the arrow.
  */
 export function Action({
   href,
@@ -45,18 +40,15 @@ export function Action({
       href={href}
       data-track={track}
       className={cn(
-        "group/action inline-flex items-center gap-3 rounded-full font-semibold whitespace-nowrap transition-colors duration-200",
-        size === "lg" ? "h-12 pr-1.5 pl-5 text-[0.9375rem]" : "h-10 pr-1 pl-4 text-sm",
-        !arrow && (size === "lg" ? "pr-5" : "pr-4"),
+        "group/action inline-flex items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap transition-colors duration-200",
+        size === "lg" ? "h-11 px-5 text-sm lg:h-12 lg:px-6 lg:text-[0.9375rem]" : "h-10 px-4 text-[0.8125rem] sm:text-sm",
         PILL[variant],
         className,
       )}
     >
       {children}
       {arrow && (
-        <span className={cn("grid shrink-0 place-items-center rounded-full transition-transform duration-200 group-hover/action:translate-x-0.5", size === "lg" ? "size-9" : "size-8", DOT[variant])}>
-          <ArrowRight className="size-4" />
-        </span>
+        <ArrowRight aria-hidden className="size-4 shrink-0 transition-transform duration-200 group-hover/action:translate-x-0.5" />
       )}
     </Link>
   );
@@ -69,7 +61,7 @@ export function ArrowCircle({ onDark = false, className }: { onDark?: boolean; c
       aria-hidden
       className={cn(
         "grid size-10 shrink-0 place-items-center rounded-full border transition-all duration-200 group-hover:rotate-45",
-        onDark ? "border-white/20 text-white group-hover:border-cta group-hover:bg-cta group-hover:text-brand-950" : "border-line bg-white text-brand-950 group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-cta",
+        onDark ? "border-white/20 text-white group-hover:border-cta group-hover:bg-cta group-hover:text-white" : "border-line bg-white text-brand-950 group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-white",
         className,
       )}
     >
@@ -83,7 +75,7 @@ export function Tag({ children, onDark = false, className }: { children: React.R
   return (
     <span
       className={cn(
-        "inline-flex h-6 w-fit items-center rounded-full border px-2.5 text-[0.6875rem] leading-none font-semibold tracking-[0.12em] uppercase",
+        "inline-flex h-5.5 w-fit items-center rounded-md border px-2 text-[0.625rem] leading-none font-semibold tracking-[0.08em] uppercase sm:h-6 sm:text-[0.6875rem]",
         onDark ? "border-white/20 text-white/80" : "border-line bg-white/70 text-muted-ink",
         className,
       )}
@@ -118,7 +110,7 @@ export function SectionHeading({
         {title}
         {rule && <span aria-hidden className={cn("ml-4 inline-block h-px w-16 align-middle", onDark ? "bg-white/25" : "bg-line")} />}
       </h2>
-      {lead && <p className={cn("mt-2 text-lead", onDark ? "text-white/70" : "text-muted-ink")}>{lead}</p>}
+      {lead && <p className={cn("mt-1.5 text-sm sm:mt-2 sm:text-lead", onDark ? "text-white/70" : "text-muted-ink")}>{lead}</p>}
     </div>
   );
 }

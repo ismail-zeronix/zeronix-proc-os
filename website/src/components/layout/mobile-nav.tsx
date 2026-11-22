@@ -35,10 +35,10 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="ghost" size="icon" className="-ml-2 lg:hidden" aria-label="Open the menu" />}>
+      <SheetTrigger render={<Button variant="ghost" size="icon" className="-ml-2 text-white hover:bg-white/15 hover:text-white lg:hidden" aria-label="Open the menu" />}>
         <Menu />
       </SheetTrigger>
-      <SheetContent side="right" className="w-full max-w-sm overflow-y-auto bg-canvas">
+      <SheetContent side="right" className="w-full max-w-sm overflow-y-auto bg-white">
         <SheetHeader>
           <SheetTitle>Menu</SheetTitle>
         </SheetHeader>
@@ -63,20 +63,35 @@ export function MobileNav({ nav, services, ctaLabel }: { nav: SiteNavResponse; s
             )}
             {group("brands", "Brands", nav.brands, "/brands")}
           </Accordion>
-          <Link href="/guides" onClick={close} className="py-3 text-base font-medium">
+          <Link href="/guides" onClick={close} className="py-3 text-base font-semibold">
             Guides
           </Link>
-          <Link href="/blog" onClick={close} className="py-3 text-base font-medium">
+          <Link href="/blog" onClick={close} className="py-3 text-base font-semibold">
             Blog
           </Link>
-          <Link href="/about" onClick={close} className="py-3 text-base font-medium">
+          <Link href="/about" onClick={close} className="py-3 text-base font-semibold">
             About
+          </Link>
+          <Link href="/contact" onClick={close} className="py-3 text-base font-semibold">
+            Contact
           </Link>
           <span onClick={close} className="mt-4">
             <Action href="/quote" size="lg" className="w-full justify-between" track="mobile-nav">
               {ctaLabel}
             </Action>
           </span>
+          {/* phones have no footer: its small links live here */}
+          <p className="mt-6 flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-4 text-xs text-muted-ink">
+            <Link href="/delivery-warranty" onClick={close} className="hover:text-brand-900">
+              Delivery and warranty
+            </Link>
+            <Link href="/privacy" onClick={close} className="hover:text-brand-900">
+              Privacy
+            </Link>
+            <Link href="/terms" onClick={close} className="hover:text-brand-900">
+              Terms
+            </Link>
+          </p>
         </nav>
       </SheetContent>
     </Sheet>

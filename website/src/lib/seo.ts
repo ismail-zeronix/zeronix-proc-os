@@ -15,12 +15,12 @@ export const profileLinks = (brand: SiteBrand) => (brand.profiles ?? "").split(/
  */
 export const AI_CRAWLERS = {
   search: ["Googlebot", "Bingbot", "OAI-SearchBot", "Claude-SearchBot", "PerplexityBot", "Applebot", "DuckAssistBot", "YandexBot"],
-  training: ["GPTBot", "ClaudeBot", "Google-Extended", "Applebot-Extended", "meta-externalagent", "Amazonbot", "CCBot", "cohere-ai"],
-  user: ["ChatGPT-User", "Claude-User", "Perplexity-User", "MistralAI-User"],
+  training: ["GPTBot", "ClaudeBot", "anthropic-ai", "Google-Extended", "GoogleOther", "Applebot-Extended", "meta-externalagent", "FacebookBot", "Amazonbot", "Bytespider", "CCBot", "cohere-ai", "Diffbot"],
+  user: ["ChatGPT-User", "Claude-User", "Perplexity-User", "MistralAI-User", "Meta-ExternalFetcher"],
 };
 
-/** Pages with no value in search: carts, accounts, internal search results, the hidden style guide. */
-export const PRIVATE_PATHS = ["/api/", "/cart", "/checkout", "/account", "/search", "/brand$"];
+/** Pages with no value in search: carts, accounts, internal search results, the hidden style guide, Markdown copies (agents reach those by Accept header or .md). */
+export const PRIVATE_PATHS = ["/api/", "/cart", "/checkout", "/account", "/search", "/brand$", "/md/"];
 
 const DAYS: Record<string, string> = { Mo: "Mon", Tu: "Tue", We: "Wed", Th: "Thu", Fr: "Fri", Sa: "Sat", Su: "Sun" };
 

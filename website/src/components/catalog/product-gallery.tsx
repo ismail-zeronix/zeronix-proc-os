@@ -71,7 +71,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
             <button type="button" onClick={() => go(1)} className={cn(arrow, "right-2")} aria-label="Next picture">
               <ChevronRight className="size-5" />
             </button>
-            <span className="absolute right-3 bottom-3 rounded-full bg-brand-950/70 px-2 py-0.5 text-[0.6875rem] font-semibold text-white tabular-nums">
+            <span className="absolute right-3 bottom-3 rounded-full bg-black/60 px-2 py-0.5 text-[0.6875rem] font-semibold text-white tabular-nums">
               {i + 1} / {n}
             </span>
           </>
@@ -96,7 +96,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
       )}
 
       {zoom && (
-        <div role="dialog" aria-modal="true" aria-label={`${name} pictures`} className="fixed inset-0 z-60 grid bg-brand-950/95" onClick={() => setZoom(false)} {...swipe}>
+        <div role="dialog" aria-modal="true" aria-label={`${name} pictures`} className="fixed inset-0 z-60 grid bg-black/90" onClick={() => setZoom(false)} {...swipe}>
           <div className="relative m-3 sm:m-10" onClick={(e) => e.stopPropagation()}>
             <Image src={images[i].src} alt={images[i].alt || name} fill sizes="100vw" className="rounded-card bg-white object-contain p-4" />
           </div>

@@ -77,7 +77,7 @@ export function OrderDone() {
     return (
       <div className="mx-auto grid w-full max-w-lg justify-items-center gap-4 rounded-card border border-line/70 bg-white p-6 text-center">
         {busy ? <LoaderCircle className="size-12 animate-spin text-brand-700" strokeWidth={1.5} /> : <CircleAlert className="size-12 text-amber-600" strokeWidth={1.5} />}
-        <h1 className="text-2xl font-semibold text-ink">
+        <h1 className="text-xl font-semibold text-ink sm:text-2xl">
           {busy ? "Checking your payment…" : state === "pending" ? "Payment not finished yet" : state === "closed" ? "This order was cancelled" : state === "invalid" ? "We could not find this payment" : "Payment did not go through"}
         </h1>
         {number && (
@@ -95,7 +95,7 @@ export function OrderDone() {
               type="button"
               onClick={retry}
               disabled={retrying}
-              className="inline-flex h-12 items-center justify-center rounded-full bg-cta px-6 text-base font-semibold text-brand-950 transition-colors hover:bg-cta-strong disabled:opacity-60"
+              className="inline-flex h-12 items-center justify-center rounded-lg bg-brand-900 px-6 text-[0.9375rem] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
             >
               {retrying ? "Opening secure payment…" : "Try payment again"}
             </button>
@@ -118,7 +118,7 @@ export function OrderDone() {
   return (
     <div className="mx-auto grid w-full max-w-lg justify-items-center gap-4 rounded-card border border-line/70 bg-white p-6 text-center">
       <CircleCheck className="size-12 text-brand-700" strokeWidth={1.5} />
-      <h1 className="text-2xl font-semibold text-ink">{pay === "card" ? "Payment received, thank you" : "Thank you for your order"}</h1>
+      <h1 className="text-xl font-semibold text-ink sm:text-2xl">{pay === "card" ? "Payment received, thank you" : "Thank you for your order"}</h1>
       {number && (
         <p className="text-sm text-muted-ink">
           Order <span className="font-semibold text-ink">{number}</span>

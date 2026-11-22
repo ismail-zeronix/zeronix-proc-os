@@ -8,24 +8,23 @@ import type { SiteBrand, SitePostPage } from "@/lib/contract";
 import { SITE_URL } from "@/lib/defaults";
 import { AuthorAvatar, Byline, coverSrc, PostGrid, TYPE_LABEL } from "./post-card";
 
-const PROSE =
-  "prose prose-lg max-w-none prose-headings:scroll-mt-28 prose-headings:font-heading prose-headings:font-medium prose-headings:tracking-tight prose-a:text-brand-700 prose-a:underline-offset-2 prose-strong:text-ink prose-img:rounded-card prose-table:text-base prose-th:text-left";
+const PROSE = "article-prose prose max-w-none prose-headings:scroll-mt-28 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700 prose-strong:text-ink prose-img:rounded-card prose-th:text-left";
 
 /** Ranked picks: rank, label, the product card, and why it is on the list. */
 function Picks({ post }: { post: SitePostPage }) {
   return (
     <section id="picks" className="scroll-mt-28">
-      <h2 className="font-heading text-3xl font-medium tracking-tight">Our picks</h2>
+      <h2 className="font-heading text-h2 font-semibold">Our picks</h2>
       <ol className="mt-8 grid gap-5">
         {post.picks.map((p, i) => (
           <li key={p.slug} className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-card bg-white p-3 md:grid-cols-[18rem_minmax(0,1fr)]">
             <ProductTile p={p} />
             <div className="grid content-start gap-4 p-2 md:p-4">
               <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center rounded-full bg-brand-900 font-heading font-semibold text-cta">{i + 1}</span>
+                <span className="grid size-10 place-items-center rounded-full bg-brand-900 font-heading font-semibold text-white">{i + 1}</span>
                 {p.label && <Tag>{p.label}</Tag>}
               </div>
-              <h3 className="text-2xl font-medium">{p.name}</h3>
+              <h3 className="text-h3 font-semibold">{p.name}</h3>
               {p.verdict && <p className="text-muted-ink">{p.verdict}</p>}
               <div className="grid gap-4 sm:grid-cols-2">
                 {p.pros.length > 0 && (
@@ -58,8 +57,8 @@ function Picks({ post }: { post: SitePostPage }) {
 function InlineCta({ text, href, label }: { text: string; href: string; label: string }) {
   return (
     <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-brand-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
-      <p className="font-heading text-xl font-medium">{text || "Want B2B pricing on these models?"}</p>
-      <Action href={href}>
+      <p className="font-heading text-base font-semibold sm:text-xl">{text || "Want B2B pricing on these models?"}</p>
+      <Action href={href} variant="light">
         {label}
       </Action>
     </div>
@@ -87,7 +86,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
               </Link>
             )}
           </div>
-          <h1 className="max-w-4xl text-2xl leading-tight font-medium tracking-tight text-ink sm:text-[2rem]">{post.title}</h1>
+          <h1 className="max-w-4xl text-h1 text-ink">{post.title}</h1>
           {post.excerpt && <p className="max-w-3xl text-lead text-muted-ink">{post.excerpt}</p>}
           <Byline author={post.author} date={post.publishedAt} minutes={post.readingMinutes} />
         </div>
@@ -138,7 +137,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
 
           {post.picks.length >= 2 && !compareInline && (
             <section>
-              <h2 className="font-heading text-3xl font-medium tracking-tight">Side by side</h2>
+              <h2 className="font-heading text-h2 font-semibold">Side by side</h2>
               <div className="mt-8">
                 <CompareTable products={post.picks} groups={post.compare} />
               </div>

@@ -1,12 +1,11 @@
 "use client";
 
-import { ReceiptText, ShieldCheck, Truck } from "lucide-react";
+import { ReceiptText, ShieldCheck, ShoppingCart, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { cart, type CartItem } from "@/lib/cart";
 import { useStoreInfo } from "@/lib/store-info";
-import { cn } from "@/lib/utils";
 import { StockLabel, type Stock } from "./stock";
 import { AddToCart } from "./cart-buttons";
 import { QtyStepper } from "./cart-view";
@@ -20,7 +19,8 @@ const TRUST = [
 
 /**
  * Product page for products sold online: price with VAT, quantity, Add to cart and Buy now, the trust row and the B2B
- * way out. On phones a slim bar with the price and Add to cart stays at the bottom once the box has scrolled away.
+ * way out. On phones the buttons live in a bar fixed to the bottom of the screen (price, Add to cart, Buy now), the
+ * app-store pattern; the page hides the tab bar so the two never stack.
  */
 export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">; quoteHref: string; stock?: Stock }) {
   const router = useRouter();
@@ -28,53 +28,29 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
   const rules = store?.delivery;
   const [qty, setQty] = useState(1);
   const price = Number(item.price);
-  const box = useRef<HTMLDivElement>(null);
-  const [away, setAway] = useState(false);
-
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    // only once the box is above the screen (scrolled past), not while it is still below it. A scroll check rather than
-    // an IntersectionObserver: a jump straight past the box (a fling, a #specs link) never crosses it, so no callback.
-    let frame = 0;
-    const check = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setAway(el.getBoundingClientRect().bottom < 0));
-    };
-    check();
-    window.addEventListener("scroll", check, { passive: true });
-    window.addEventListener("resize", check, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", check);
-      window.removeEventListener("resize", check);
-    };
-  }, []);
+  const buyNow = () => {
+    cart.add(item, qty);
+    router.push("/checkout");
+  };
 
   return (
     <>
-      <div ref={box} className="grid gap-4 rounded-card border border-line/70 bg-white p-4 sm:p-5">
+      <div className="grid gap-4 rounded-card border border-line/70 bg-white p-4 sm:p-5">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-heading text-3xl font-semibold tracking-tight text-ink tabular-nums">{priceText(item.price)}</p>
+            <p className="font-heading text-2xl font-semibold tracking-tight text-ink tabular-nums sm:text-3xl">{priceText(item.price)}</p>
             {stock && <StockLabel value={stock} className="rounded-full bg-surface-soft px-2.5 py-1 text-xs" />}
           </div>
           <p className="text-xs text-muted-ink">
             Incl. 5% VAT ({aed(price - price / 1.05)}) · tax invoice with every order
           </p>
         </div>
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
+        {/* phones: quantity only (the buttons are in the bottom bar); from sm: quantity and both buttons */}
+        <div className="flex items-center gap-3 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] sm:gap-2">
+          <span className="text-sm text-muted-ink sm:hidden">Quantity</span>
           <QtyStepper value={qty} onChange={(n) => setQty(Math.max(1, Math.min(100, n)))} label={item.name} />
-          <AddToCart item={item} qty={qty} label className="h-11 whitespace-nowrap" />
-          <button
-            type="button"
-            onClick={() => {
-              cart.add(item, qty);
-              router.push("/checkout");
-            }}
-            className="col-span-2 inline-flex h-11 items-center justify-center rounded-full bg-brand-900 px-5 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-brand-800 sm:col-span-1"
-            data-track="buy-now"
-          >
+          <AddToCart item={item} qty={qty} label className="hidden h-11 whitespace-nowrap sm:inline-flex" />
+          <button type="button" onClick={buyNow} className="hidden h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-brand-800 sm:inline-flex" data-track="buy-now">
             Buy now
           </button>
         </div>
@@ -104,20 +80,17 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
         </Link>
       </div>
 
-      {/* phones: price + Add to cart at the bottom once the box is off screen; room on the right for the chat button */}
-      <div
-        inert={!away}
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 py-2.5 pr-20 pl-3 backdrop-blur transition-[translate,visibility] duration-200 lg:hidden",
-          away ? "visible translate-y-0" : "pointer-events-none invisible translate-y-full",
-        )}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 leading-tight">
-            <span className="block truncate text-xs text-muted-ink">{item.name}</span>
-            <span className="text-base font-bold text-ink tabular-nums">{priceText(item.price)}</span>
+      {/* phones: the buy bar, always at the bottom of the screen */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 px-3 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 leading-tight">
+            <span className="block text-base font-bold text-ink tabular-nums">{priceText(item.price)}</span>
+            <span className="block text-[0.6875rem] text-muted-ink">{qty > 1 ? `${qty} × incl. VAT` : "Incl. VAT"}</span>
           </p>
-          <AddToCart item={item} qty={qty} label className="h-10 px-4 whitespace-nowrap" />
+          <AddToCart item={item} qty={qty} className="size-11 border border-brand-900 bg-white text-brand-900 hover:bg-surface" />
+          <button type="button" onClick={buyNow} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-900 px-6 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-brand-800" data-track="buy-now-bar">
+            <ShoppingCart className="size-4" /> Buy now
+          </button>
         </div>
       </div>
     </>

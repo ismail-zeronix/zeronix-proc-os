@@ -32,14 +32,14 @@ export default async function ContactPage() {
       <div className="grid content-start gap-6">
         <Breadcrumbs items={[{ href: "/contact", label: "Contact" }]} />
         <Tag>Contact</Tag>
-        <h1 className="text-h2">Talk to our business sales team</h1>
+        <h1 className="text-h1">Talk to our business sales team</h1>
         <p className="max-w-2xl text-lead text-muted-ink">Tell us what your team does and what you need. We reply with advice and B2B pricing, usually within a working day.</p>
         <QuoteForm brand={brand} industries={nav.industries.map((i) => ({ slug: i.slug, name: i.name }))} prefill={{ industry: "", product: null, category: "" }} />
       </div>
       <aside className="grid content-start gap-3">
         {lines.map((l) => (
           <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="flex items-start gap-3 rounded-card bg-white p-5 transition-colors hover:bg-surface-soft">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-900 text-cta">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-900 text-white">
               <l.icon className="size-4" />
             </span>
             <span className="grid gap-0.5">

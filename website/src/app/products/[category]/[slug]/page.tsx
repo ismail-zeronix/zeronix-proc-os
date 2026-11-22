@@ -77,7 +77,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             <div className="-mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-ink">
               {p.mpn && (
                 <span>
-                  Part no. <span className="font-medium text-ink tabular-nums">{p.mpn}</span>
+                  Part no. <span className="font-semibold text-ink tabular-nums">{p.mpn}</span>
                 </span>
               )}
               {p.specGroups.length > 0 && (
@@ -99,7 +99,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
               <ul className="grid gap-2.5">
                 {p.highlights.map((h) => (
                   <li key={h} className="flex gap-3">
-                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-cta text-brand-950">
+                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-cta text-white">
                       <Check className="size-3" strokeWidth={3} />
                     </span>
                     {h}
@@ -112,10 +112,10 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             ) : (
             <div className="rounded-card bg-brand-900 p-6 text-white">
               <p className="text-sm text-white/60">Price</p>
-              <p className="mt-1 font-heading text-2xl font-medium">B2B price on request</p>
+              <p className="mt-1 font-heading text-2xl font-semibold">B2B price on request</p>
               <p className="mt-1 text-sm text-white/60">Volume pricing for your quantity, with a VAT invoice.</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Action href={quote}>Get B2B price</Action>
+                <Action href={quote} variant="light">Get B2B price</Action>
                 <AddToQuote slug={p.slug} name={p.name} label className="border-white/20 text-white hover:border-cta" />
                 {p.related[0] && (
                   <Action href={`/compare/${p.slug}-vs-${p.related[0].slug}`} variant="onDark" arrow={false}>
@@ -124,6 +124,14 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
                 )}
               </div>
               <ChatNowButton message={`Hi, I'm looking for B2B pricing on the ${p.name}.`} context={{ product: p.slug, category: p.categorySlug, cta: "Product page" }} className="mt-3 bg-white/10 hover:bg-white/15" />
+              {/* phones: the quote actions in a bar fixed to the bottom of the screen (the tab bar is hidden here) */}
+              <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-line bg-white/95 px-3 pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] text-ink backdrop-blur-xl sm:hidden">
+                <p className="min-w-0 flex-1 text-sm leading-tight font-semibold">Price on request</p>
+                <AddToQuote slug={p.slug} name={p.name} className="size-11 border-brand-900 text-brand-900" />
+                <Action href={quote} variant="dark" className="h-11 px-5">
+                  Get B2B price
+                </Action>
+              </div>
             </div>
             )}
             {sold && p.related[0] && (
@@ -143,7 +151,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
                   <div key={f.label} className="rounded-card border border-line/70 bg-white p-4">
                     <f.icon className="size-5 text-brand-700" strokeWidth={1.75} />
                     <dt className="mt-3 text-xs text-muted-ink">{f.label}</dt>
-                    <dd className="text-sm font-medium">{f.value}</dd>
+                    <dd className="text-sm font-semibold">{f.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -173,7 +181,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       {(p.summaryHtml || p.pros.length > 0 || p.cons.length > 0) && (
         <section className="bg-surface-soft py-8 sm:py-10">
           <div className="container-site grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-            {p.summaryHtml ? <div className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:font-medium prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
+            {p.summaryHtml ? <div className="prose prose-base max-w-none lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
             <div className="grid content-start gap-4">
               {p.pros.length > 0 && (
                 <div className="rounded-card bg-white p-6">

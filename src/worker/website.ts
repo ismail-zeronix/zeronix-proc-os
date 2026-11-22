@@ -5,7 +5,7 @@ import { dailySearchImport } from "@/lib/website/gsc";
 import { runPictureQueue } from "@/lib/website/picture-queue";
 import { publishDuePosts } from "@/lib/website/posts";
 import { syncFromSales } from "@/lib/website/web-sales-sync";
-import { syncOnlinePayments } from "@/lib/website/store";
+import { sendStatusEmail, syncOnlinePayments } from "@/lib/website/store";
 import { dubaiDay } from "@/lib/website/traffic";
 
 const TICK_MS = 60_000;
@@ -41,6 +41,7 @@ async function tick() {
       g.__websiteSalesAt = Date.now();
       const moved = await syncFromSales();
       if (moved.length) console.log(`[website] from Sales: ${moved.map((m) => `${m.number} ${m.status}`).join(", ")}`);
+      for (const m of moved) await sendStatusEmail(m.id, m.status); // the customer hears it is paid / delivered
       // card orders paid at Nomod whose customer never came back to the return page
       const paid = await syncOnlinePayments();
       if (paid.length) console.log(`[website] paid online: ${paid.join(", ")}`);

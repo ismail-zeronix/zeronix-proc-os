@@ -1,9 +1,12 @@
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { WebMcp } from "@/components/agent/web-mcp";
 import { Tracker } from "@/components/analytics/tracker";
 import { Footer } from "@/components/layout/footer";
+import { BottomBar } from "@/components/layout/bottom-bar";
 import { Header } from "@/components/layout/header";
+import { SwRegister } from "@/components/layout/sw-register";
 import { getNav, getSettings } from "@/lib/api";
 import { SITE_URL } from "@/lib/defaults";
 import { flags } from "@/lib/flags";
@@ -11,9 +14,9 @@ import { JsonLd } from "@/components/catalog/page-parts";
 import { siteJsonLd } from "@/lib/seo";
 import "./globals.css";
 
-// BRAND.md section 3. Self-hosted (next/font/google fails in the server's Docker build); variable fonts, SIL OFL.
-const body = localFont({ src: "./fonts/Figtree-latin-wght.woff2", variable: "--font-body", weight: "300 900", display: "swap" });
-const display = localFont({ src: "./fonts/Manrope-latin-wght.woff2", variable: "--font-display", weight: "200 800", display: "swap" });
+// One family for everything (Inter, self-hosted: next/font/google fails in the server's Docker build); variable, SIL OFL.
+const body = localFont({ src: "./fonts/Inter-latin-wght.woff2", variable: "--font-body", weight: "100 900", display: "swap" });
+const display = localFont({ src: "./fonts/Inter-latin-wght.woff2", variable: "--font-display", weight: "100 900", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
   const { brand } = await getSettings();
@@ -22,6 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${brand.name} · ${brand.tagline}`, template: `%s · ${brand.name}` },
     description: brand.subline,
     applicationName: brand.name,
+    // added to the home screen it opens like an app (manifest.ts); iOS reads these instead of the manifest
+    appleWebApp: { capable: true, title: "Zeronix", statusBarStyle: "default" },
     publisher: brand.name,
     category: "technology",
     formatDetection: { telephone: false, email: false, address: false },
@@ -45,7 +50,9 @@ const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
 const GTM_ID = process.env.GTM_ID || "GTM-PJ5JPS9P";
 
 export const viewport: Viewport = {
-  themeColor: "#f7f8fa",
+  themeColor: "#0f9d58",
+  // the app runs edge to edge on notched phones; the header and the tab bar pad themselves with the safe areas
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -53,8 +60,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
       {flags.indexing && GTM_ID && <GoogleTagManager gtmId={GTM_ID} />}
-      <body className="flex min-h-dvh flex-col font-sans">
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-cta focus:px-3 focus:py-2 focus:text-brand-950">
+      <body className="flex min-h-dvh flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] font-sans lg:pb-0">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-cta focus:px-3 focus:py-2 focus:text-white">
           Skip to content
         </a>
         <Header brand={brand} home={home} nav={nav} />
@@ -62,14 +69,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <Footer brand={brand} nav={nav} services={home.services} />
+        <BottomBar />
+        <SwRegister />
         <JsonLd data={siteJsonLd(brand)} />
         <Tracker />
+        <WebMcp />
         {/* the portal's chat widget (the portal's widget/README.md), in the brand colours; chats are tagged with this site */}
         {process.env.PORTAL_PUBLIC_URL && (
           <script
             src={`${process.env.PORTAL_PUBLIC_URL.replace(/\/$/, "")}/widget/zeronix-chat.js`}
-            data-color="#0F2747"
-            data-dark="#081A31"
+            data-color="#0a8443"
+            data-dark="#087236"
             data-title={`${brand.name} sales`}
             data-greeting={`Hi 👋 Welcome to ${brand.name}. Tell us what your team does, or which models you are looking at, and we will send B2B pricing.`}
             data-quick={`${brand.ctaLabel}|Which laptop suits my team?|Talk to a sales person`}
