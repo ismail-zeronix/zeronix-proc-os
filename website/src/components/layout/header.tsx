@@ -120,7 +120,8 @@ async function menuEntries(nav: SiteNavResponse, home: SiteHome, ctaLabel: strin
 }
 
 /**
- * Store header. Phones: one green bar (menu, logo, then search and quote list icons); the search field itself is on
+ * Store header. Phones: one white bar (menu, a small green logo, then search and quote list icons; owner 2026-11-22: no
+ * green bar on phones); the search field itself is on
  * /search, and cart and account live in the app tab bar. Desktop: a white bar (logo, wide search, business enquiries,
  * quote list, account, cart) and the category bar with mega menus under it.
  */
@@ -129,12 +130,12 @@ export async function Header({ brand, home, nav }: { brand: SiteBrand; home: Sit
   return (
     <>
       <TopBar brand={brand} links={home.topLinks} />
-      <header className="sticky top-0 z-30 bg-cta text-white lg:bg-white lg:text-ink lg:shadow-[0_1px_0_var(--color-line)]">
-        <div className="container-site flex h-14 items-center gap-1 sm:h-16 lg:hidden">
+      <header className="sticky top-0 z-30 bg-white text-ink shadow-[0_1px_0_var(--color-line)]">
+        <div className="container-site flex h-12 items-center gap-1 sm:h-14 lg:hidden">
           <MobileNav nav={nav} services={home.services} ctaLabel={brand.ctaLabel} />
-          <Logo onDark className="ml-0.5" />
+          <Logo size="sm" className="ml-0.5" />
           <div className="ml-auto flex items-center">
-            <Link href="/search" aria-label="Search products" className="grid size-10 place-items-center rounded-lg text-white transition-colors hover:bg-white/15">
+            <Link href="/search" aria-label="Search products" className="grid size-10 place-items-center rounded-lg text-ink transition-colors hover:bg-surface hover:text-brand-900">
               <Search className="size-5" strokeWidth={2} />
             </Link>
             <QuoteListLink />

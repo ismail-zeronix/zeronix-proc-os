@@ -33,10 +33,10 @@ export function AddToQuote({ slug, name, className, label = false }: { slug: str
 export function QuoteListLink({ withLabel = false }: { withLabel?: boolean }) {
   const n = useQuoteList().reduce((s, i) => s + i.qty, 0);
   return (
-    <Link href="/quote" aria-label={n ? `Quote list, ${n} item${n === 1 ? "" : "s"}` : "Quote list"} className="relative inline-flex h-10 items-center gap-2 rounded-lg px-2.5 text-white transition-colors hover:bg-white/15 lg:text-ink lg:hover:bg-surface lg:hover:text-brand-900">
+    <Link href="/quote" aria-label={n ? `Quote list, ${n} item${n === 1 ? "" : "s"}` : "Quote list"} className="relative inline-flex h-10 items-center gap-2 rounded-lg px-2.5 text-ink transition-colors hover:bg-surface hover:text-brand-900">
       <span className="relative">
         <ClipboardList className="size-5" />
-        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-white px-1 text-[10px] leading-[1.125rem] font-bold text-brand-900 lg:bg-brand-900 lg:text-white">{n}</span>}
+        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-brand-900 px-1 text-[10px] leading-[1.125rem] font-bold text-white">{n}</span>}
       </span>
       {withLabel && <span className="hidden text-sm font-medium xl:inline">Quote list</span>}
     </Link>

@@ -19,8 +19,8 @@ import { ShelfHeading } from "./shelf-heading";
  */
 export function Panel({ children, id, className }: { children: React.ReactNode; id?: string; className?: string }) {
   return (
-    <section id={id} className={cn("container-site mt-2 scroll-mt-28 sm:mt-3", className)}>
-      <div className="-mx-3 bg-white px-3 py-4 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">{children}</div>
+    <section id={id} className={cn("container-site mt-1.5 scroll-mt-28 sm:mt-3", className)}>
+      <div className="-mx-3 bg-white px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">{children}</div>
     </section>
   );
 }
@@ -68,7 +68,7 @@ export function Industries({ industries }: { industries: SiteIndustryCard[] }) {
       <ShelfHeading title="Shop by industry" lead="IT matched to the way each kind of business works." href="/industries" linkLabel="View all" />
       <ul className="scroll-row lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-3 lg:overflow-visible lg:px-0">
         {industries.slice(0, 6).map((x) => (
-          <li key={x.slug} className="w-32 sm:w-44 lg:w-auto">
+          <li key={x.slug} className="w-28 sm:w-40 lg:w-auto">
             <Link href={`/industries/${x.slug}`} className="group block">
               <span className="block overflow-hidden rounded-lg">
                 <Photo src={x.image?.src ?? imageFor(`industry-${x.slug}`)} subject={`${x.name}: ${x.summary}`} ratio="4:3" sizes="(min-width: 1024px) 200px, 140px" />
@@ -86,8 +86,8 @@ export function Industries({ industries }: { industries: SiteIndustryCard[] }) {
 export function BundlesBand({ bundles }: { bundles: SiteHome["bundles"] }) {
   if (!bundles.title) return null;
   return (
-    <section className="container-site mt-2 sm:mt-3">
-      <div className="flex flex-col gap-3 rounded-xl bg-brand-900 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5">
+    <section className="container-site mt-1.5 sm:mt-3">
+      <div className="flex flex-col gap-2.5 rounded-xl bg-brand-900 px-4 py-3.5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5">
         <div className="min-w-0">
           <h2 className="text-base font-semibold sm:text-xl">{bundles.title}</h2>
           {bundles.text && <p className="mt-0.5 text-sm text-white/85">{bundles.text}</p>}
@@ -116,10 +116,10 @@ export function ServicesBento({ services }: { services: SiteHome["services"] }) 
         {services.map((s, i) => {
           const photo = imageFor(`service-${s.href.split("/").pop()}`);
           return (
-            <RiseItem key={s.href} index={i % 4} className="w-[72%] sm:w-[46%] lg:w-auto">
+            <RiseItem key={s.href} index={i % 4} className="w-[62%] sm:w-[40%] lg:w-auto">
               <Link href={s.href} aria-label={s.label} className="group relative block aspect-video overflow-hidden rounded-lg bg-brand-900 transition-shadow duration-300 hover:shadow-lift">
                 {photo ? (
-                  <Image src={photo} alt={`${s.label} for UAE businesses`} fill sizes="(min-width: 1024px) 25vw, 72vw" className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" />
+                  <Image src={photo} alt={`${s.label} for UAE businesses`} fill sizes="(min-width: 1024px) 25vw, 62vw" quality={60} className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" />
                 ) : (
                   <span className="absolute inset-0 flex flex-col justify-between p-4 text-white sm:p-5">
                     <span className="max-w-[70%] font-heading text-[0.9375rem] leading-tight font-semibold sm:text-lg">{s.label}</span>
@@ -157,7 +157,7 @@ export function HowItWorks({ ctaLabel }: { ctaLabel: string }) {
         </div>
         <ol className="grid gap-2.5 sm:grid-cols-3 sm:gap-3">
           {steps.map((s, i) => (
-            <li key={s.title} className="flex gap-3 rounded-lg bg-surface-soft p-3.5 sm:grid sm:content-start sm:gap-2 sm:p-4">
+            <li key={s.title} className="flex gap-2.5 rounded-lg bg-surface-soft p-3 sm:grid sm:content-start sm:gap-2 sm:p-4">
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-900 text-sm font-semibold text-white">{i + 1}</span>
               <span className="grid gap-0.5">
                 <span className="text-sm font-semibold text-ink">{s.title}</span>
@@ -194,7 +194,7 @@ export function WhyUs({ brand, home, brandCount = 0 }: { brand: SiteBrand; home:
       {home.reasons.length > 0 && (
         <ul className="mt-3 grid gap-2.5 sm:mt-4 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
           {home.reasons.map((r) => (
-            <li key={r.title} className="flex gap-3 rounded-lg bg-surface-soft p-3.5">
+            <li key={r.title} className="flex gap-2.5 rounded-lg bg-surface-soft p-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-brand-900">
                 <SiteIconView name={r.icon} className="size-4" strokeWidth={2} />
               </span>
@@ -229,7 +229,7 @@ export function Brands({ brands }: { brands: SiteNavLink[] }) {
       <ul className="scroll-row lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
         {brands.map((b) => (
           <li key={b.slug}>
-            <Link href={`/brands/${b.slug}`} className="grid h-12 min-w-24 place-items-center rounded-lg border border-line px-4 font-heading text-[0.9375rem] font-semibold tracking-tight text-ink transition-colors hover:border-brand-900 hover:text-brand-900 sm:h-14 sm:min-w-32 sm:text-base">
+            <Link href={`/brands/${b.slug}`} className="grid h-10 min-w-20 place-items-center rounded-lg border border-line px-3 font-heading text-sm font-semibold tracking-tight text-ink transition-colors hover:border-brand-900 hover:text-brand-900 sm:h-14 sm:min-w-32 sm:text-base">
               {b.name}
             </Link>
           </li>

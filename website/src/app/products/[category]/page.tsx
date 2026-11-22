@@ -147,18 +147,18 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           </Action>
         }
       />
-      <section className={cn("container-site grid items-start gap-4 py-5 sm:py-6", hasFilters && "lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-6")}>
+      <section className={cn("container-site grid items-start gap-3 py-3 sm:gap-4 sm:py-6", hasFilters && "lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-6")}>
         {hasFilters && (
           <aside aria-label="Filters" className="sticky top-32 hidden max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-card border border-line/70 bg-white p-3 lg:block">
             {filterPanel}
           </aside>
         )}
-        <div className="grid min-w-0 gap-4">
+        <div className="grid min-w-0 gap-3 sm:gap-4">
           {matching.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 pb-2.5 sm:pb-3">
               <div className="flex items-center gap-3">
                 {hasFilters && <FilterSheet active={activeCount}>{filterPanel}</FilterSheet>}
-                <p className="text-sm text-muted-ink">
+                <p className="text-xs text-muted-ink sm:text-sm">
                   {pages > 1 ? `${(page - 1) * PER_PAGE + 1}–${(page - 1) * PER_PAGE + shown.length} of ${matching.length}` : `${matching.length}`} {matching.length === 1 ? "model" : "models"}
                 </p>
               </div>
@@ -200,17 +200,17 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
       </section>
 
       {landing && c.introHtml && (
-        <section className="container-site py-6 sm:py-8">
-          <div className="rounded-frame border border-line/70 bg-white p-5 sm:p-8">
+        <section className="container-site py-4 sm:py-8">
+          <div className="rounded-frame border border-line/70 bg-white p-4 sm:p-8">
             <div
-              className="prose max-w-3xl prose-headings:font-heading prose-headings:font-semibold prose-h2:text-h2 prose-h3:text-lg prose-a:text-brand-700 prose-li:my-0.5"
+              className="prose prose-sm max-w-3xl sm:prose-base prose-headings:font-heading prose-headings:font-semibold prose-h2:text-h2 prose-h3:text-lg prose-a:text-brand-700 prose-li:my-0.5"
               dangerouslySetInnerHTML={{ __html: c.introHtml }}
             />
           </div>
         </section>
       )}
       {landing && ((c.guides?.length ?? 0) > 0 || c.industries.length > 0) && (
-        <nav aria-label="Guides and industries" className="container-site grid gap-3 py-6 text-sm sm:py-8">
+        <nav aria-label="Guides and industries" className="container-site grid gap-2.5 py-4 text-xs sm:gap-3 sm:py-8 sm:text-sm">
           {(c.guides?.length ?? 0) > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 font-semibold text-ink">Buying guides:</span>

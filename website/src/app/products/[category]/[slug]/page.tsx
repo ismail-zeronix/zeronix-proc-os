@@ -54,7 +54,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
 
   return (
     <>
-      <section className="container-site pt-5 pb-10 sm:pt-6 sm:pb-12">
+      <section className="container-site pt-3 pb-6 sm:pt-6 sm:pb-12">
         <Breadcrumbs
           items={[
             { href: "/products", label: "Products" },
@@ -62,19 +62,19 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             { href: `/products/${p.categorySlug}/${p.slug}`, label: p.name },
           ]}
         />
-        <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-8">
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 sm:mt-5 sm:gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-8">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start">
             <ProductGallery images={p.images} name={p.name} />
           </div>
 
           {/* desktop: the details and buy box stay in view while the gallery column scrolls */}
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5 lg:sticky lg:top-28 lg:self-start">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-3.5 sm:gap-5 lg:sticky lg:top-28 lg:self-start">
             <div className="flex flex-wrap gap-2">
               {p.brand && <Tag>{p.brand}</Tag>}
               <Tag>{p.category}</Tag>
             </div>
             <h1 className="text-h2 break-words text-ink">{p.name}</h1>
-            <div className="-mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-ink">
+            <div className="-mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-ink sm:-mt-2 sm:text-sm">
               {p.mpn && (
                 <span>
                   Part no. <span className="font-semibold text-ink tabular-nums">{p.mpn}</span>
@@ -87,18 +87,18 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
               )}
             </div>
             {p.keySpecs.length > 0 && (
-              <ul className="flex flex-wrap gap-2">
+              <ul className="flex flex-wrap gap-1.5 sm:gap-2">
                 {p.keySpecs.map((s) => (
-                  <li key={s} className="rounded-full bg-surface px-3 py-1.5 text-sm text-brand-900">
+                  <li key={s} className="max-w-full truncate rounded-full bg-surface px-2.5 py-1 text-xs text-brand-900 sm:px-3 sm:py-1.5 sm:text-sm">
                     {s}
                   </li>
                 ))}
               </ul>
             )}
             {p.highlights.length > 0 && (
-              <ul className="grid gap-2.5">
+              <ul className="grid gap-2 text-[0.8125rem] sm:gap-2.5 sm:text-base">
                 {p.highlights.map((h) => (
-                  <li key={h} className="flex gap-3">
+                  <li key={h} className="flex gap-2.5 sm:gap-3">
                     <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-cta text-white">
                       <Check className="size-3" strokeWidth={3} />
                     </span>
@@ -110,11 +110,11 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             {sold && p.price ? (
               <BuyBox item={{ slug: p.slug, name: p.name, href: `/products/${p.categorySlug}/${p.slug}`, image: p.images[0]?.src ?? null, price: p.price }} quoteHref={quote} stock={p.availability} />
             ) : (
-            <div className="rounded-card bg-brand-900 p-6 text-white">
-              <p className="text-sm text-white/60">Price</p>
-              <p className="mt-1 font-heading text-2xl font-semibold">B2B price on request</p>
-              <p className="mt-1 text-sm text-white/60">Volume pricing for your quantity, with a VAT invoice.</p>
-              <div className="mt-5 flex flex-wrap gap-3">
+            <div className="rounded-card bg-brand-900 p-4 text-white sm:p-6">
+              <p className="text-xs text-white/60 sm:text-sm">Price</p>
+              <p className="mt-0.5 font-heading text-lg font-semibold sm:mt-1 sm:text-2xl">B2B price on request</p>
+              <p className="mt-1 text-xs text-white/60 sm:text-sm">Volume pricing for your quantity, with a VAT invoice.</p>
+              <div className="mt-3.5 flex flex-wrap gap-2 sm:mt-5 sm:gap-3">
                 <Action href={quote} variant="light">Get B2B price</Action>
                 <AddToQuote slug={p.slug} name={p.name} label className="border-white/20 text-white hover:border-cta" />
                 {p.related[0] && (
@@ -146,12 +146,12 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
               </Link>
             )}
             {facts.length > 0 && (
-              <dl className="grid gap-3 sm:grid-cols-3">
+              <dl className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                 {facts.map((f) => (
-                  <div key={f.label} className="rounded-card border border-line/70 bg-white p-4">
-                    <f.icon className="size-5 text-brand-700" strokeWidth={1.75} />
-                    <dt className="mt-3 text-xs text-muted-ink">{f.label}</dt>
-                    <dd className="text-sm font-semibold">{f.value}</dd>
+                  <div key={f.label} className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 rounded-card border border-line/70 bg-white p-3 sm:block sm:p-4">
+                    <f.icon className="row-span-2 mt-0.5 size-4.5 text-brand-700 sm:size-5" strokeWidth={1.75} />
+                    <dt className="text-[0.6875rem] text-muted-ink sm:mt-3 sm:text-xs">{f.label}</dt>
+                    <dd className="text-[0.8125rem] font-semibold sm:text-sm">{f.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -161,11 +161,11 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       </section>
 
       {p.bestFor.length > 0 && (
-        <section className="container-site pb-10 sm:pb-12">
-          <h2 className="text-xl font-semibold">Best for</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="container-site pb-6 sm:pb-12">
+          <h2 className="text-h2 font-semibold">Best for</h2>
+          <div className="mt-3 grid gap-2 sm:mt-5 sm:gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {p.bestFor.map((b) => (
-              <Link key={`${b.industrySlug}${b.role}`} href={`/industries/${b.industrySlug}`} className="group flex items-center justify-between gap-4 rounded-card bg-white p-5 transition-shadow hover:shadow-lift">
+              <Link key={`${b.industrySlug}${b.role}`} href={`/industries/${b.industrySlug}`} className="group flex items-center justify-between gap-4 rounded-card bg-white p-3.5 transition-shadow hover:shadow-lift sm:p-5">
                 <span className="grid">
                   {b.label && <span className="text-xs font-semibold tracking-[0.12em] text-brand-700 uppercase">{b.label}</span>}
                   <span className="font-semibold">{b.industry}</span>
@@ -179,14 +179,14 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       )}
 
       {(p.summaryHtml || p.pros.length > 0 || p.cons.length > 0) && (
-        <section className="bg-surface-soft py-8 sm:py-10">
-          <div className="container-site grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-            {p.summaryHtml ? <div className="prose prose-base max-w-none lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
+        <section className="bg-surface-soft py-5 sm:py-10">
+          <div className="container-site grid gap-4 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
+            {p.summaryHtml ? <div className="prose prose-sm max-w-none sm:prose-base lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
             <div className="grid content-start gap-4">
               {p.pros.length > 0 && (
-                <div className="rounded-card bg-white p-6">
+                <div className="rounded-card bg-white p-4 sm:p-6">
                   <h2 className="font-semibold">Why we like it</h2>
-                  <ul className="mt-4 grid gap-2.5">
+                  <ul className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5">
                     {p.pros.map((x) => (
                       <li key={x} className="flex gap-3 text-sm">
                         <Check className="mt-0.5 size-4 shrink-0 text-brand-700" /> {x}
@@ -196,9 +196,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
                 </div>
               )}
               {p.cons.length > 0 && (
-                <div className="rounded-card bg-white p-6">
+                <div className="rounded-card bg-white p-4 sm:p-6">
                   <h2 className="font-semibold">Worth knowing</h2>
-                  <ul className="mt-4 grid gap-2.5">
+                  <ul className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5">
                     {p.cons.map((x) => (
                       <li key={x} className="flex gap-3 text-sm">
                         <Minus className="mt-0.5 size-4 shrink-0 text-muted-ink" /> {x}
@@ -213,14 +213,14 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       )}
 
       {about.length > 0 && (
-        <section className="bg-surface-soft py-8 sm:py-10">
+        <section className="bg-surface-soft py-5 sm:py-10">
           <div className="container-site">
             <h2 className="text-h2">About the {shortName(p)}</h2>
-            <div className="mt-5 grid gap-x-8 gap-y-5 md:grid-cols-2">
+            <div className="mt-3 grid gap-x-8 gap-y-3.5 sm:mt-5 sm:gap-y-5 md:grid-cols-2">
               {about.map((b) => (
                 <div key={b.heading}>
                   <h3 className="font-semibold text-ink">{b.heading}</h3>
-                  <p className="mt-1.5 leading-relaxed text-muted-ink">{b.text}</p>
+                  <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-ink sm:mt-1.5 sm:text-base">{b.text}</p>
                 </div>
               ))}
             </div>
@@ -228,7 +228,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
         </section>
       )}
 
-      <nav aria-label="Related pages" className="container-site flex flex-wrap items-center gap-2 pt-8 text-sm">
+      <nav aria-label="Related pages" className="container-site flex flex-wrap items-center gap-1.5 pt-5 text-xs sm:gap-2 sm:pt-8 sm:text-sm">
           <span className="mr-1 font-semibold text-ink">{p.guides?.length ? "Read before buying:" : "See also:"}</span>
           {p.guides?.map((g) => (
             <Link key={g.path} href={g.path} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
@@ -245,9 +245,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
           )}
         </nav>
 
-      <section id="specs" className="container-site scroll-mt-32 py-8 sm:py-10">
+      <section id="specs" className="container-site scroll-mt-32 py-5 sm:py-10">
         <SectionHeading tag="Specifications" title="Full specifications" />
-        <div className="mt-5">
+        <div className="mt-3 sm:mt-5">
           <SpecTable groups={p.specGroups} />
         </div>
         {p.sourceUrl && (
@@ -264,12 +264,12 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       <Faq items={faq} title={`${shortName(p)}: questions we get asked`} />
 
       {p.related.length > 0 && (
-        <section className="container-site pb-12 sm:pb-14">
+        <section className="container-site pb-6 sm:pb-14">
           <SectionHeading tag="Related" title={`More ${p.category.toLowerCase()}`} />
-          <div className="mt-5">
+          <div className="mt-3 sm:mt-5">
             <ProductGrid products={p.related} />
           </div>
-          <div className="mt-8 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-2 sm:mt-8">
             {p.related.slice(0, 3).map((r) => (
               <Link key={r.slug} href={`/compare/${p.slug}-vs-${r.slug}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm hover:border-brand-700/40">
                 <ArrowLeftRight className="size-3.5 shrink-0 text-brand-700" />

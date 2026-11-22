@@ -60,8 +60,8 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5">
       <div className="relative rounded-frame border border-line/70 bg-white" {...swipe}>
-        <button type="button" onClick={() => setZoom(true)} className="relative block aspect-square w-full cursor-zoom-in lg:aspect-[5/4]" aria-label="View larger">
-          <Image src={images[i].src} alt={images[i].alt || name} fill priority={i === 0} sizes="(min-width: 1024px) 45vw, 100vw" className="object-contain p-4 sm:p-6" />
+        <button type="button" onClick={() => setZoom(true)} className="relative block aspect-[6/5] w-full cursor-zoom-in sm:aspect-square lg:aspect-[5/4]" aria-label="View larger">
+          <Image src={images[i].src} alt={images[i].alt || name} fill preload={i === 0} sizes="(min-width: 1024px) 45vw, 90vw" className="object-contain p-3 sm:p-6" />
         </button>
         {n > 1 && (
           <>
@@ -86,7 +86,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
                 onClick={() => setI(k)}
                 aria-label={`Picture ${k + 1}`}
                 aria-current={k === i}
-                className={cn("relative block size-16 overflow-hidden rounded-inner border-2 bg-white sm:size-18", k === i ? "border-brand-900" : "border-line/70 hover:border-brand-700")}
+                className={cn("relative block size-13 overflow-hidden rounded-inner border-2 bg-white sm:size-18", k === i ? "border-brand-900" : "border-line/70 hover:border-brand-700")}
               >
                 <Image src={img.src} alt="" fill sizes="72px" className="object-contain p-1" />
               </button>

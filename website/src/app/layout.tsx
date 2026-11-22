@@ -1,6 +1,6 @@
-import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import { WebMcp } from "@/components/agent/web-mcp";
 import { Tracker } from "@/components/analytics/tracker";
 import { Footer } from "@/components/layout/footer";
@@ -50,7 +50,7 @@ const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
 const GTM_ID = process.env.GTM_ID || "GTM-PJ5JPS9P";
 
 export const viewport: Viewport = {
-  themeColor: "#0f9d58",
+  themeColor: "#ffffff",
   // the app runs edge to edge on notched phones; the header and the tab bar pad themselves with the safe areas
   viewportFit: "cover",
 };
@@ -59,7 +59,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const [{ brand, home }, nav] = await Promise.all([getSettings(), getNav()]);
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
-      {flags.indexing && GTM_ID && <GoogleTagManager gtmId={GTM_ID} />}
       <body className="flex min-h-dvh flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] font-sans lg:pb-0">
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-cta focus:px-3 focus:py-2 focus:text-white">
           Skip to content
@@ -76,7 +75,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <WebMcp />
         {/* the portal's chat widget (the portal's widget/README.md), in the brand colours; chats are tagged with this site */}
         {process.env.PORTAL_PUBLIC_URL && (
-          <script
+          <Script
+            strategy="lazyOnload"
             src={`${process.env.PORTAL_PUBLIC_URL.replace(/\/$/, "")}/widget/zeronix-chat.js`}
             data-color="#0a8443"
             data-dark="#087236"
@@ -85,11 +85,24 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             data-quick={`${brand.ctaLabel}|Which laptop suits my team?|Talk to a sales person`}
             data-popup-delay="45"
             data-popup-scroll="70"
-            defer
           />
         )}
+        {/* Google Tag Manager and Google Analytics 4 are ~360 KB of script: they load once the page has finished loading
+            (lazyOnload), never in the way of the first screen. Same ids and tags as before. */}
+        {flags.indexing && GTM_ID && (
+          <Script id="gtm" strategy="lazyOnload">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
+          </Script>
+        )}
+        {flags.indexing && GA_ID && (
+          <>
+            <Script id="ga" strategy="lazyOnload">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${GA_ID}');`}
+            </Script>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
+          </>
+        )}
       </body>
-      {flags.indexing && GA_ID && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

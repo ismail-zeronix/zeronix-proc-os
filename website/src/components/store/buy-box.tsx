@@ -35,10 +35,10 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
 
   return (
     <>
-      <div className="grid gap-4 rounded-card border border-line/70 bg-white p-4 sm:p-5">
+      <div className="grid gap-3 rounded-card border border-line/70 bg-white p-3.5 sm:gap-4 sm:p-5">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-heading text-2xl font-semibold tracking-tight text-ink tabular-nums sm:text-3xl">{priceText(item.price)}</p>
+            <p className="font-heading text-xl font-semibold tracking-tight text-ink tabular-nums sm:text-3xl">{priceText(item.price)}</p>
             {stock && <StockLabel value={stock} className="rounded-full bg-surface-soft px-2.5 py-1 text-xs" />}
           </div>
           <p className="text-xs text-muted-ink">
@@ -54,7 +54,7 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
             Buy now
           </button>
         </div>
-        <ul className="grid grid-cols-3 gap-2 border-t border-line/70 pt-4">
+        <ul className="grid grid-cols-3 gap-2 border-t border-line/70 pt-3 sm:pt-4">
           {TRUST.map((t) => (
             <li key={t.text} className="flex flex-col items-center gap-1.5 text-center text-[0.6875rem] leading-tight text-muted-ink sm:flex-row sm:text-left sm:text-xs">
               <t.icon className="size-4 shrink-0 text-brand-700" strokeWidth={1.75} />

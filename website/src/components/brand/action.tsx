@@ -41,7 +41,7 @@ export function Action({
       data-track={track}
       className={cn(
         "group/action inline-flex items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap transition-colors duration-200",
-        size === "lg" ? "h-11 px-5 text-sm lg:h-12 lg:px-6 lg:text-[0.9375rem]" : "h-10 px-4 text-[0.8125rem] sm:text-sm",
+        size === "lg" ? "h-10 px-4 text-[0.8125rem] sm:h-11 sm:px-5 sm:text-sm lg:h-12 lg:px-6 lg:text-[0.9375rem]" : "h-9 px-3.5 text-[0.8125rem] sm:h-10 sm:px-4 sm:text-sm",
         PILL[variant],
         className,
       )}

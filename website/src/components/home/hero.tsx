@@ -119,40 +119,42 @@ function Banner({ b, product, tall }: { b: BannerSpec; product?: SiteProductSumm
  * Phones: one banner as a full-cover photo with the words over its left side. A soft wash (white, or black on a dark
  * photo) keeps the words readable on every crop.
  */
-function PhoneBanner({ b }: { b: BannerSpec }) {
+function PhoneBanner({ b, first = false }: { b: BannerSpec; first?: boolean }) {
   const photo = b.photo ?? imageFor(`banner-${b.key}`);
   const dark = photo ? b.onPhoto === "dark" : b.tone === "slate";
   return (
-    <Link href={b.href} data-track={`home-banner-${b.key}`} className={cn("group relative isolate flex h-full flex-col justify-between overflow-hidden rounded-xl p-4 sm:p-5", TONE[b.tone], dark ? "text-white" : "text-ink")}>
+    <Link href={b.href} data-track={`home-banner-${b.key}`} className={cn("group relative isolate flex h-full flex-col justify-between overflow-hidden rounded-xl p-3.5 sm:p-5", TONE[b.tone], dark ? "text-white" : "text-ink")}>
       {photo && (
         <>
-          <Image src={photo} alt="" fill sizes="(min-width: 640px) 64vw, 88vw" style={{ objectPosition: b.phoneFocus ?? b.focus }} className="-z-10 object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+          {/* the first banner is the first thing a phone shows: fetched straight away, ahead of everything below it */}
+          <Image src={photo} alt="" fill sizes="(min-width: 640px) 64vw, 90vw" quality={60} loading={first ? "eager" : "lazy"} fetchPriority={first ? "high" : "auto"} style={{ objectPosition: b.phoneFocus ?? b.focus }} className="-z-10 object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
           <span aria-hidden className={cn("absolute inset-y-0 left-0 -z-10 w-[78%] bg-linear-to-r", dark ? "from-black/80 via-black/50 to-transparent" : "from-white/90 via-white/65 to-transparent")} />
         </>
       )}
-      <span className="grid max-w-[64%] gap-1.5 sm:max-w-[55%]">
+      <span className="grid max-w-[62%] gap-1 sm:max-w-[55%] sm:gap-1.5">
         <span className={cn("border-l-2 pl-2 text-[0.625rem] leading-tight font-semibold tracking-[0.12em] uppercase", dark ? "border-highlight text-highlight" : "border-brand-900 text-ink/80")}>{b.eyebrow}</span>
-        <span className="text-lg leading-tight font-bold tracking-tight text-balance sm:text-xl">{b.title}</span>
-        <span className={cn("line-clamp-2 text-xs leading-snug", dark ? "text-white/80" : "text-ink/70")}>{b.text}</span>
+        <span className="text-base leading-tight font-bold tracking-tight text-balance sm:text-xl">{b.title}</span>
+        <span className={cn("line-clamp-1 text-[0.6875rem] leading-snug sm:line-clamp-2 sm:text-xs", dark ? "text-white/80" : "text-ink/70")}>{b.text}</span>
       </span>
-      <CtaChip label={b.cta} dark={dark} className="h-9 px-3.5 text-[0.8125rem]" />
+      <CtaChip label={b.cta} dark={dark} className="h-8 px-3 text-xs sm:h-9 sm:px-3.5 sm:text-[0.8125rem]" />
     </Link>
   );
 }
 
 export function Hero({ brand, home, bannerProducts }: { brand: SiteBrand; home: SiteHome; bannerProducts: Record<string, SiteProductSummary | undefined> }) {
   const banners = [...TALL, ...SIDE];
-  const slide = "w-[88%] shrink-0 snap-start sm:w-[64%]";
+  // phones: a 16:9 banner (about 190 px tall at 390 px wide) with the next one peeking in; tablets: fixed height
+  const slide = "aspect-[16/9] w-[90%] shrink-0 snap-start sm:aspect-auto sm:h-64 sm:w-[64%]";
 
   return (
     <section className="container-site pt-2 sm:pt-3 lg:pt-4">
       <h1 className="sr-only">{home.hero.title || brand.tagline}</h1>
 
       {/* phones and tablets: the same banners as one swipeable row (the next one peeks in at the edge) */}
-      <div className="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-px-3 px-3 [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">
-        {banners.map((b) => (
-          <div key={b.key} className={cn(slide, "h-56 sm:h-64")}>
-            <PhoneBanner b={b} />
+      <div className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-3 px-3 [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">
+        {banners.map((b, i) => (
+          <div key={b.key} className={slide}>
+            <PhoneBanner b={b} first={i === 0} />
           </div>
         ))}
       </div>
@@ -176,15 +178,15 @@ export function Hero({ brand, home, bannerProducts }: { brand: SiteBrand; home: 
 export function Benefits({ home }: { home: SiteHome }) {
   if (!home.benefits.length) return null;
   return (
-    <section className="container-site mt-2.5 lg:mt-3">
+    <section className="container-site mt-2 lg:mt-3">
       <ul className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-line lg:overflow-visible lg:rounded-xl lg:bg-white lg:px-0 [&::-webkit-scrollbar]:hidden">
         {home.benefits.map((b) => (
-          <li key={b.title} className="flex shrink-0 items-center gap-2 rounded-lg bg-white px-3 py-2 lg:gap-3 lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-surface text-brand-900 lg:size-9">
+          <li key={b.title} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 lg:gap-3 lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface text-brand-900 lg:size-9">
               <SiteIconView name={b.icon} className="size-3.5 lg:size-4.5" strokeWidth={2} />
             </span>
             <span className="grid leading-tight">
-              <span className="text-xs font-medium whitespace-nowrap text-ink lg:text-sm lg:font-semibold">{b.title}</span>
+              <span className="text-[0.6875rem] font-medium whitespace-nowrap text-ink lg:text-sm lg:font-semibold">{b.title}</span>
               {b.text && <span className="hidden text-xs text-muted-ink lg:block">{b.text}</span>}
             </span>
           </li>
