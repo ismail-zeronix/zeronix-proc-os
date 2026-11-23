@@ -13,6 +13,8 @@ export async function proxy(req: NextRequest) {
   if (pathname.startsWith("/api/site/")) return NextResponse.next();
   // newsletter unsubscribe: the signed token in the address says whom it is for
   if (pathname.startsWith("/unsubscribe/") || pathname.startsWith("/api/newsletter/unsubscribe/")) return NextResponse.next();
+  // the Claude connector: its sign-in metadata, registration and token endpoints, and /api/mcp, which checks its own bearer token
+  if (pathname.startsWith("/.well-known/oauth-") || pathname.startsWith("/api/oauth/") || pathname === "/api/mcp") return NextResponse.next();
 
   const user = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const isLogin = pathname === "/login";
@@ -23,7 +25,8 @@ export async function proxy(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const url = new URL("/login", req.url);
-    if (pathname !== "/") url.searchParams.set("next", pathname);
+    // keep the query too: the Claude sign-in page (/oauth/authorize?client_id=...) needs all of it after login
+    if (pathname !== "/") url.searchParams.set("next", pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
 

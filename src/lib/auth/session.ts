@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -9,7 +10,20 @@ import { dubaiToday } from "@/lib/dates";
 import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 import { UserError } from "@/lib/user-error";
 
+/**
+ * The Claude connector (/api/mcp) runs the normal server actions as the admin who connected it: the same checks,
+ * timeline entries and notifications as clicking in the portal. Only server code can set this (runAsClaude); a browser
+ * has no way to reach it. Claude needs no punch-in: the admin approves each change in the Claude chat instead.
+ */
+const claudeActor = new AsyncLocalStorage<SessionUser>();
+
+export function runAsClaude<T>(user: SessionUser, fn: () => Promise<T>): Promise<T> {
+  return claudeActor.run(user, fn);
+}
+
 export async function getSession(): Promise<SessionUser | null> {
+  const claude = claudeActor.getStore();
+  if (claude) return claude;
   const jar = await cookies();
   return verifySession(jar.get(SESSION_COOKIE)?.value);
 }
@@ -97,6 +111,7 @@ export async function requireAccountant(): Promise<Access> {
  * Only a session opened today counts. Cached per request.
  */
 export const isPunchedIn = cache(async (userId: number): Promise<boolean> => {
+  if (claudeActor.getStore()?.id === userId) return true;
   const [open] = await db
     .select({ id: schema.attendancePunches.id })
     .from(schema.attendancePunches)
