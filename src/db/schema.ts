@@ -2375,3 +2375,52 @@ export const journalLines = pgTable(
     orgPolicy(),
   ],
 );
+
+/**
+ * Claude connector (MCP at /api/mcp, lib/mcp/*). An app that registered itself through OAuth dynamic client
+ * registration: Claude on the web/desktop/phone registers once per connection, Claude Code with a loopback address.
+ * Registration happens before anyone signs in, so a client belongs to the default organisation.
+ */
+export const mcpClients = pgTable(
+  "mcp_clients",
+  {
+    id: serial("id").primaryKey(),
+    /** The organisation it was registered at (Zeronix today; registration comes before any sign-in). */
+    organizationId: orgId(),
+    /** The public client_id handed back to the app (random, 32 hex characters). */
+    clientId: text("client_id").notNull().unique(),
+    name: text("name").notNull().default(""),
+    redirectUris: text("redirect_uris").array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+    () => [orgPolicy()],
+);
+
+/**
+ * One Claude connection: an admin allowed an app to read (and maybe change) data as them. "pending" between the consent
+ * page and the code exchange; "active" after; revokedAt set by Admin › Claude or by a refresh token used twice.
+ */
+export const mcpGrants = pgTable(
+  "mcp_grants",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpClients.clientId, { onDelete: "cascade" }),
+    /** "read" or "read write". */
+    scope: text("scope").notNull(),
+    status: text("status", { enum: ["pending", "active"] }).notNull().default("pending"),
+    /** users.session_version when they allowed it: a password change or "Sign out everywhere" also ends the connection. */
+    userSv: integer("user_sv").notNull().default(1),
+    /** sha256 of the current refresh token; it changes on every refresh. */
+    refreshHash: text("refresh_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("mcp_grants_user_idx").on(t.userId), uniqueIndex("mcp_grants_refresh_uq").on(t.refreshHash), orgPolicy()],
+);
