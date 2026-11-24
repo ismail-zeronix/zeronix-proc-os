@@ -7,13 +7,13 @@ import { addItem, createQuote } from "@/app/(app)/sales/quote-actions";
 import { createTask } from "@/app/(app)/tasks/actions";
 import { audit } from "@/lib/audit";
 import { runAsClaude } from "@/lib/auth/session";
-import { ACTIVITY_TYPES, SOURCES, STAGES } from "@/lib/sales";
+import { ACTIVITY_TYPES, OUTCOME_KEYS, SOURCES, STAGES } from "@/lib/sales";
 import { UserError } from "@/lib/user-error";
 import { link } from "./read-tools";
-import { defineTool, type McpCtx, type McpTool } from "./tool";
+import { app, defineTool, type McpCtx, type McpTool } from "./tool";
 
 /**
- * The changes Claude may make. Each one runs the portal's own server action as the connected admin (runAsClaude), so the
+ * The changes Claude may make. Each one runs the portal's own server action as the connected person (runAsClaude), so the
  * same checks, timeline entries and notifications apply as when they click it themselves; then it is written to the
  * audit trail as "claude.<tool>" (Admin › Claude shows these). No tool deletes, posts money or emails anyone.
  */
@@ -21,9 +21,9 @@ import { defineTool, type McpCtx, type McpTool } from "./tool";
 const VIA = " (via Claude)";
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 
-/** Runs `fn` as the connected admin, then records it in the audit trail. */
-async function asAdmin<T>(c: McpCtx, entry: { action: string; entity: string; summary: string }, fn: () => Promise<T>, entityId?: (r: T) => number | null | undefined): Promise<T> {
-  const user = { id: c.auth.userId, name: c.auth.name, email: c.auth.email, role: "admin" as const, sv: c.auth.sv };
+/** Runs `fn` as the connected person, then records it in the audit trail. */
+async function asUser<T>(c: McpCtx, entry: { action: string; entity: string; summary: string }, fn: () => Promise<T>, entityId?: (r: T) => number | null | undefined): Promise<T> {
+  const user = { id: c.auth.userId, name: c.auth.name, email: c.auth.email, role: c.auth.role, sv: c.auth.sv };
   const result = await runAsClaude(user, fn);
   await audit(db, { userId: c.auth.userId, action: `claude.${entry.action}`, entity: entry.entity, entityId: entityId?.(result) ?? null, summary: `via Claude: ${entry.summary}`, after: result ?? null, orgId: c.auth.orgId });
   return result;
@@ -33,17 +33,18 @@ const createTaskTool = defineTool({
   name: "create_task",
   title: "Create a task",
   write: true,
-  description: "Create a task or follow-up for someone (default: the connected admin), optionally on a deal. Ask the user before calling.",
+  needs: app("tasks"),
+  description: "Create a task or follow-up for someone (default: the connected person), optionally on a deal. Ask the user before calling.",
   input: z.object({
     title: z.string().trim().min(1).max(200),
     notes: z.string().max(2000).default(""),
     due_date: day.optional().describe("YYYY-MM-DD"),
     priority: z.enum(["normal", "high"]).default("normal"),
-    assignee_id: z.number().int().optional().describe("User id from the team tool; default is the connected admin"),
+    assignee_id: z.number().int().optional().describe("User id from the team tool; default is the connected person"),
     deal_id: z.number().int().optional(),
   }),
   async run(a, c) {
-    await asAdmin(c, { action: "create_task", entity: "task", summary: `task "${a.title}"${a.due_date ? ` due ${a.due_date}` : ""}` }, () =>
+    await asUser(c, { action: "create_task", entity: "task", summary: `task "${a.title}"${a.due_date ? ` due ${a.due_date}` : ""}` }, () =>
       createTask({ title: a.title, notes: a.notes ? `${a.notes}${VIA}` : `Added${VIA}`, dueDate: a.due_date ?? "", priority: a.priority, assignedTo: a.assignee_id, related: a.deal_id ? { type: "deal", id: a.deal_id } : undefined }),
     );
     const [t] = await db
@@ -61,25 +62,27 @@ const addNote = defineTool({
   name: "add_note",
   title: "Add a note or log a call",
   write: true,
+  needs: app("crm", "sales", "projects"),
   description:
-    "Add an entry to a deal's timeline (note, call, whatsapp, email, meeting) with an optional follow-up date (creates a follow-up task for the deal owner), or a note on a customer. Logging contact on a 'new' deal moves it to 'contacted'. Ask the user before calling.",
+    "Add an entry to a deal's timeline (note, call, whatsapp, email, meeting), or a note on a customer. A call needs an outcome. Contact (call, whatsapp, email, meeting) on an open deal needs follow_up_date, which becomes the deal's next follow-up, unless the deal already has a later one or the outcome is not_interested / wrong_number. Logging contact on a 'new' deal moves it to 'contacted'. Ask the user before calling.",
   input: z.object({
     deal_id: z.number().int().optional(),
     customer_id: z.number().int().optional().describe("For a customer note when there is no deal"),
     type: z.enum(ACTIVITY_TYPES.map((t) => t.key) as [string, ...string[]]).default("note"),
     text: z.string().trim().min(1).max(4000),
+    outcome: z.enum(OUTCOME_KEYS).optional().describe("How a call or WhatsApp went; required for a call"),
     follow_up_date: day.optional().describe("YYYY-MM-DD; deals only"),
   }),
   async run(a, c) {
     if (a.deal_id) {
       const dealId = a.deal_id;
-      await asAdmin(c, { action: "add_note", entity: "deal", summary: `${a.type} on deal ${dealId}` }, () => logActivity(dealId, { type: a.type, body: `${a.text}${VIA}`, followUp: a.follow_up_date }), () => dealId);
+      await asUser(c, { action: "add_note", entity: "deal", summary: `${a.type} on deal ${dealId}` }, () => logActivity(dealId, { type: a.type, body: `${a.text}${VIA}`, outcome: a.outcome, followUp: a.follow_up_date }), () => dealId);
       return { done: true, link: link.deal(c, dealId) };
     }
     if (a.customer_id) {
       const companyId = a.customer_id;
       if (a.follow_up_date) throw new UserError("A follow-up date needs a deal. Use create_task for a customer without a deal.");
-      await asAdmin(c, { action: "add_note", entity: "company", summary: `note on customer ${companyId}` }, () => addCompanyNote(companyId, `${a.text}${VIA}`), () => companyId);
+      await asUser(c, { action: "add_note", entity: "company", summary: `note on customer ${companyId}` }, () => addCompanyNote(companyId, `${a.text}${VIA}`), () => companyId);
       return { done: true, link: link.customer(c, companyId) };
     }
     throw new UserError("Give a deal_id or a customer_id.");
@@ -92,6 +95,7 @@ const updateDealTool = defineTool({
   name: "update_deal",
   title: "Update a deal",
   write: true,
+  needs: app("crm", "projects"),
   description:
     "Change a deal's stage, value (AED before VAT), expected close date or next follow-up. Lost needs lost_reason. Won needs the winning quote_id or agreed_terms (when nothing was quoted in the portal); it accepts that quote like the 'Mark as won' button. Ask the user before calling.",
   input: z.object({
@@ -121,12 +125,12 @@ const updateDealTool = defineTool({
       changes.push(`follow-up ${a.follow_up_at || "cleared"}`);
     }
     if (!changes.length && !a.stage) throw new UserError("Nothing to change: give a stage or a field.");
-    if (changes.length) await asAdmin(c, { action: "update_deal", entity: "deal", summary: `deal ${id}: ${changes.join(", ")}` }, () => updateDeal(id, patch), () => id);
+    if (changes.length) await asUser(c, { action: "update_deal", entity: "deal", summary: `deal ${id}: ${changes.join(", ")}` }, () => updateDeal(id, patch), () => id);
     if (a.stage === "won") {
-      await asAdmin(c, { action: "update_deal", entity: "deal", summary: `deal ${id} marked won` }, () => markDealWon(id, { quoteId: a.quote_id ?? null, terms: a.agreed_terms ? `${a.agreed_terms}${VIA}` : "" }), () => id);
+      await asUser(c, { action: "update_deal", entity: "deal", summary: `deal ${id} marked won` }, () => markDealWon(id, { quoteId: a.quote_id ?? null, terms: a.agreed_terms ? `${a.agreed_terms}${VIA}` : "" }), () => id);
     } else if (a.stage) {
       const stage = a.stage;
-      await asAdmin(c, { action: "update_deal", entity: "deal", summary: `deal ${id} moved to ${stage}` }, () => moveDeal(id, stage, a.lost_reason ?? ""), () => id);
+      await asUser(c, { action: "update_deal", entity: "deal", summary: `deal ${id} moved to ${stage}` }, () => moveDeal(id, stage, a.lost_reason ?? ""), () => id);
     }
     const [d] = await db.select({ stage: schema.deals.stage, valueAed: schema.deals.valueAed, expectedClose: schema.deals.expectedClose }).from(schema.deals).where(eq(schema.deals.id, id));
     return { done: true, deal: d, link: link.deal(c, id) };
@@ -137,6 +141,7 @@ const createLead = defineTool({
   name: "create_lead",
   title: "Create a lead (deal)",
   write: true,
+  needs: app("crm"),
   description:
     "Add a new deal at 'new' for an existing customer (customer_id) or a new one (customer_name; an existing customer with the same name is reused), with an optional contact person. Creates the 'contact them today' task for the owner. Ask the user before calling.",
   input: z.object({
@@ -150,11 +155,11 @@ const createLead = defineTool({
     requirement: z.string().trim().max(4000).default("").describe("What they need: items, quantities, deadline"),
     source: z.enum(SOURCES).optional(),
     value_aed: z.number().min(0).optional(),
-    owner_ids: z.array(z.number().int()).max(10).optional().describe("Salespeople on the deal, main owner first (team tool); default the admin"),
+    owner_ids: z.array(z.number().int()).max(10).optional().describe("Salespeople on the deal, main owner first (team tool); default the connected person"),
     emirate: z.string().max(40).default(""),
   }),
   async run(a, c) {
-    const r = await asAdmin(
+    const r = await asUser(
       c,
       { action: "create_lead", entity: "deal", summary: `lead for ${a.customer_name || `customer ${a.customer_id}`}` },
       () =>
@@ -182,6 +187,7 @@ const createCustomer = defineTool({
   name: "create_customer",
   title: "Create a customer",
   write: true,
+  needs: app("crm", "sales"),
   description: "Add a customer (company) without a deal, optionally with one contact person. Refuses a name that already exists. Ask the user before calling.",
   input: z.object({
     name: z.string().trim().min(2).max(160),
@@ -198,7 +204,7 @@ const createCustomer = defineTool({
     contact_job_title: z.string().trim().max(80).default(""),
   }),
   async run(a, c) {
-    const id = await asAdmin(
+    const id = await asUser(
       c,
       { action: "create_customer", entity: "company", summary: `customer "${a.name}"` },
       async () => {
@@ -216,6 +222,7 @@ const createDraftQuote = defineTool({
   name: "create_draft_quote",
   title: "Create a draft quote",
   write: true,
+  needs: app("sales", "projects"),
   description:
     "Add lines to a deal (prices in AED before VAT) and make a DRAFT quote from all of the deal's lines. The quote is not sent: the user reviews and sends it from the portal. Fails if the deal already has an open or accepted quote. Ask the user before calling, and never invent prices: use prices the user gave or from products_and_prices.",
   input: z.object({
@@ -229,7 +236,7 @@ const createDraftQuote = defineTool({
   }),
   async run(a, c) {
     const id = a.deal_id;
-    const q = await asAdmin(
+    const q = await asUser(
       c,
       { action: "create_draft_quote", entity: "quote", summary: `draft quote on deal ${id} (${a.lines.length} new line${a.lines.length === 1 ? "" : "s"})` },
       async () => {

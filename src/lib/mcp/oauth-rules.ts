@@ -8,6 +8,13 @@ import { createHash, randomBytes } from "node:crypto";
 /** Where Claude on the web, desktop and phone apps comes back after sign-in. */
 export const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 
+/**
+ * Who may connect Claude: admins and sales staff (since 2026-11-24). What Claude sees is still that person's own view:
+ * their apps and their data scope ("Own deals" or "All data"), worked out again on every call.
+ */
+export const CLAUDE_ROLES = ["admin", "sales"] as const;
+export const claudeAllowed = (role: string) => (CLAUDE_ROLES as readonly string[]).includes(role);
+
 export const SCOPES = ["read", "write"] as const;
 export type Scope = (typeof SCOPES)[number];
 

@@ -97,10 +97,16 @@ export const salesOverview = cache(async (userId: number, team: boolean, range: 
       FROM deals d JOIN users u ON u.id = d.owner_id WHERE ${scope}
       GROUP BY u.id, u.name ORDER BY open_v DESC, won_v DESC LIMIT 8`),
     db.execute<{ id: number; title: string; due: string; deal_id: number; deal_title: string; assignee: string }>(sql`
-      SELECT t.id, t.title, t.due_date::text AS due, d.id AS deal_id, d.title AS deal_title, u.name AS assignee
-      FROM tasks t JOIN deals d ON d.id = t.related_id JOIN users u ON u.id = t.assigned_to
-      WHERE t.related_type = 'deal' AND t.status = 'open' AND t.due_date < ${today}::date AND ${scope}
-      ORDER BY t.due_date LIMIT 50`),
+      SELECT * FROM (
+        SELECT t.id, t.title, t.due_date::text AS due, d.id AS deal_id, d.title AS deal_title, u.name AS assignee
+        FROM tasks t JOIN deals d ON d.id = t.related_id JOIN users u ON u.id = t.assigned_to
+        WHERE t.related_type = 'deal' AND t.status = 'open' AND t.due_date < ${today}::date AND ${scope}
+        UNION ALL
+        -- the deal's own next follow-up time, set when a call or message is logged (negative id: not a task)
+        SELECT -d.id, 'Follow-up time passed', (d.follow_up_at AT TIME ZONE 'Asia/Dubai')::date::text, d.id, d.title, coalesce(u.name, '')
+        FROM deals d LEFT JOIN users u ON u.id = d.owner_id
+        WHERE d.follow_up_at < now() AND d.stage NOT IN ('won','lost') AND ${scope}
+      ) x ORDER BY due LIMIT 50`),
     db.execute<{ id: number; title: string; company: string; idle: number; stage: string }>(sql`
       SELECT d.id, d.title, c.name AS company, d.stage,
         floor(extract(epoch FROM (now() - greatest(d.created_at, coalesce((SELECT max(a.at) FROM activities a WHERE a.deal_id = d.id), d.created_at)))) / 86400)::int AS idle

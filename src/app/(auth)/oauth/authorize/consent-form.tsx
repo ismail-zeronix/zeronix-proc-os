@@ -39,7 +39,7 @@ export function ConsentForm(props: { userName: string; appName: string; host: st
               <Checkbox checked disabled className="mt-0.5" />
               <span className="grid gap-0.5">
                 <span className="font-medium">Read</span>
-                <span className="text-muted-foreground">Deals, customers, quotes, orders, invoices, bills, reports, stock, tasks and payroll.</span>
+                <span className="text-muted-foreground">What you can see in the portal: your deals, customers, quotes, orders, tasks and prices, and money and reports if you have Accounts.</span>
               </span>
             </label>
             <label className="flex cursor-pointer items-start gap-2">
@@ -61,7 +61,7 @@ export function ConsentForm(props: { userName: string; appName: string; host: st
               Allow
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">You can disconnect it any time in Admin › Claude.</p>
+          <p className="text-xs text-muted-foreground">Changes are saved in your name. An admin can disconnect it any time in Admin › Claude; changing your password disconnects it too.</p>
         </form>
       </CardContent>
     </Card>

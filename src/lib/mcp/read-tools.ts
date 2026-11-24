@@ -16,7 +16,8 @@ import { teamOpen } from "@/lib/notifications/digest";
 import { webOrderCounts, webOrdersSnapshot } from "@/lib/website/web-orders-snapshot";
 import { ORDER_STATUSES } from "@/lib/website/store-core";
 import { UserError } from "@/lib/user-error";
-import { defineTool, type McpCtx, type McpTool } from "./tool";
+import type { AppKey } from "@/lib/apps";
+import { app, defineTool, finance, type McpCtx, type McpTool } from "./tool";
 
 /** Links back into the portal, so Claude can hand the user something to click. */
 export const link = {
@@ -68,22 +69,27 @@ const businessOverview = defineTool({
   name: "business_overview",
   title: "Business overview",
   description:
-    "Start here. Today's picture of the business: open pipeline by stage, deals that went quiet, overdue tasks, open high/critical alerts by person, money customers owe (ageing), bills due to suppliers, this month's collections and the web shop's orders. Use it to suggest what to do today.",
+    "Start here. Today's picture of the business as this person sees it in the portal: open pipeline by stage, deals that went quiet, overdue tasks; for admins also the team's open high/critical alerts; with the Accounts app also money customers owe (ageing), bills due and this month's collections; with the Website app the web shop's orders. Use it to suggest what to do today.",
   input: z.object({}),
   async run(_a, c) {
     const today = dubaiToday();
+    const { auth } = c;
+    const admin = auth.role === "admin";
+    const none = Promise.resolve(null);
     const [pulse, tasks, alerts, owed, due, badges, web] = await Promise.all([
-      salesPulse(c.auth.userId, true),
-      listTasks({}),
-      teamOpen(),
-      receivables(),
-      payables(),
-      accountsBadges(),
-      webOrderCounts(),
+      salesPulse(auth.userId, auth.seesAll),
+      // admins see everyone's tasks (like the Tasks page); everybody else their own
+      listTasks({ userId: admin ? undefined : auth.userId }),
+      admin ? teamOpen() : none,
+      auth.finance ? receivables() : none,
+      auth.finance ? payables() : none,
+      auth.finance ? accountsBadges() : none,
+      auth.apps.includes("website") ? webOrderCounts() : none,
     ]);
     const overdueTasks = tasks.open.filter((t) => t.dueDate && t.dueDate < today);
     return {
       today,
+      seenAs: { name: auth.name, scope: auth.seesAll ? "all records" : "only the deals this person is on" },
       pipeline: {
         openDeals: pulse.openCount,
         openValueAed: pulse.openValue,
@@ -98,7 +104,7 @@ const businessOverview = defineTool({
         overdue: overdueTasks.length,
         oldestOverdue: overdueTasks.slice(0, 10).map((t) => ({ id: t.id, title: t.title, due: t.dueDate, person: t.assigneeName, about: t.relatedTitle })),
       },
-      alerts: {
+      alerts: alerts && {
         open: alerts.length,
         critical: alerts.filter((a) => a.priority === "critical").length,
         byPerson: Object.entries(
@@ -112,7 +118,7 @@ const businessOverview = defineTool({
           .slice(0, 15)
           .map((a) => ({ priority: a.priority, title: a.title, person: a.userName, since: a.createdAt.toISOString().slice(0, 10), link: a.link ? `${c.base}${a.link}` : undefined })),
       },
-      customersOwe: {
+      customersOwe: owed && {
         totalAed: owed.owed,
         overdueAed: owed.overdue,
         dueNext7DaysAed: owed.dueSoon,
@@ -120,7 +126,7 @@ const businessOverview = defineTool({
         ageing: owed.buckets,
         mostOverdue: owed.open.filter((i) => i.state.daysOverdue > 0).slice(0, 10).map((i) => invoiceLine(c, i)),
       },
-      weOweSuppliers: {
+      weOweSuppliers: due && {
         totalAed: due.owed,
         overdueAed: due.overdue,
         dueNext7DaysAed: due.dueSoon,
@@ -136,11 +142,19 @@ const businessOverview = defineTool({
 const find = defineTool({
   name: "find",
   title: "Find a record",
-  description: "Look up customers, deals, quotes and invoices by name, title or number (e.g. 'Emirates Steel', 'ZQ-00123', 'INV-00456'). Returns ids and links for the other tools.",
+  description: "Look up customers, deals, quotes and invoices (invoices with the Accounts app only) by name, title or number (e.g. 'Emirates Steel', 'ZQ-00123', 'INV-00456'). Returns ids and links for the other tools.",
+  needs: app("crm", "sales", "projects"),
   input: z.object({ query: z.string().trim().min(2).max(100).describe("A name, deal title, or quote/invoice/order number") }),
   async run({ query }, c) {
     const q = query.toLowerCase();
-    const [customers, deals, quotes, invoices] = await Promise.all([searchCompanies(c.viewer, query, 8), listDeals(c.viewer, { q: query, limit: 10 }), listQuotes(c.viewer, 500), listInvoices()]);
+    const has = (k: AppKey) => c.auth.apps.includes(k);
+    const [customers, deals, quotes, invoices] = await Promise.all([
+      searchCompanies(c.viewer, query, 8),
+      has("crm") || has("projects") ? listDeals(c.viewer, { q: query, limit: 10 }) : [],
+      has("sales") || has("projects") ? listQuotes(c.viewer, 500) : [],
+      // the invoice list is not split by salesperson: Accounts only, as in the portal
+      c.auth.finance ? listInvoices() : [],
+    ]);
     return {
       customers: customers.map((x) => ({ ...x, link: link.customer(c, x.id) })),
       deals: deals.map((d) => dealLine(c, d)),
@@ -160,6 +174,7 @@ const listDealsTool = defineTool({
   name: "list_deals",
   title: "List deals",
   description: "Deals in the CRM pipeline, newest stage change first. Filter by stage, salesperson or text; 'quiet_days' keeps only deals with no activity for that many days.",
+  needs: app("crm", "projects"),
   input: z.object({
     stage: z.enum(STAGE_KEYS).optional().describe("new, contacted, requirement (qualified), sourcing (pricing), quoted, negotiation, won, lost"),
     open_only: z.boolean().default(true).describe("Leave out won and lost deals (ignored when stage is given)"),
@@ -184,6 +199,7 @@ const getDealTool = defineTool({
   name: "get_deal",
   title: "Deal details",
   description: "One deal with its requirement, timeline (calls, notes, stage changes), open tasks, line items and quotes.",
+  needs: app("crm", "projects"),
   input: z.object({ deal_id: z.number().int() }),
   async run({ deal_id }, c) {
     const d = await getDeal(deal_id, c.viewer);
@@ -207,12 +223,14 @@ const getDealTool = defineTool({
 const getCustomer = defineTool({
   name: "get_customer",
   title: "Customer details",
-  description: "One customer (company): details, contacts, deals, recent timeline, open invoices and balance owed.",
+  description: "One customer (company): details, contacts, deals, recent timeline, balance owed, and (with the Accounts app) the open invoices.",
+  needs: app("crm", "sales"),
   input: z.object({ customer_id: z.number().int() }),
   async run({ customer_id }, c) {
     const co = await getCompany(customer_id, c.viewer);
     if (!co) throw new UserError(`There is no customer ${customer_id}.`);
-    const [open, balance] = await Promise.all([openInvoices(customer_id), companyBalance(customer_id)]);
+    // as on the customer page: everyone who sees the customer sees the balance, the invoice list is for Accounts
+    const [open, balance] = await Promise.all([c.auth.finance ? openInvoices(customer_id) : undefined, companyBalance(customer_id)]);
     return {
       id: co.id,
       name: co.name,
@@ -236,6 +254,7 @@ const listQuotesTool = defineTool({
   name: "list_quotes",
   title: "List quotes",
   description: "Quotes, newest first, with status (draft, sent, accepted, expired...), customer and totals. Filter by status or text.",
+  needs: app("sales", "projects"),
   input: z.object({ status: z.string().max(20).optional().describe("e.g. draft, sent, accepted, expired"), query: z.string().max(100).optional(), limit: limit() }),
   async run(a, c) {
     const q = a.query?.toLowerCase();
@@ -265,6 +284,7 @@ const listOrdersTool = defineTool({
   name: "list_orders",
   title: "List sales orders",
   description: "Sales orders (confirmed sales, including web shop orders turned into sales orders), newest first, with delivery and invoice state.",
+  needs: app("sales"),
   input: z.object({ status: z.string().max(20).optional(), customer_id: z.number().int().optional(), limit: limit() }),
   async run(a, c) {
     const rows = (await listOrders(c.viewer, { companyId: a.customer_id, limit: 500 })).filter((o) => !a.status || o.status === a.status);
@@ -291,6 +311,7 @@ const webOrders = defineTool({
   name: "web_orders",
   title: "Web shop orders",
   description: "Orders placed on the zeronixtech.com shop, by status (new, confirmed, paid, shipped, delivered, cancelled), with counts per status.",
+  needs: app("website"),
   input: z.object({ status: z.enum(ORDER_STATUSES).default("new"), limit: limit() }),
   async run(a, c) {
     const snap = await webOrdersSnapshot(a.status, a.limit);
@@ -303,6 +324,7 @@ const moneyOwed = defineTool({
   name: "money_owed",
   title: "Money customers owe",
   description: "Unpaid customer invoices, most overdue first, with ageing totals. Use it for collection follow-ups.",
+  needs: finance,
   input: z.object({ min_days_overdue: z.number().int().min(0).default(0), customer_id: z.number().int().optional(), limit: limit() }),
   async run(a, c) {
     const r = await receivables();
@@ -325,6 +347,7 @@ const billsDue = defineTool({
   name: "bills_due",
   title: "Bills we owe",
   description: "Unpaid supplier bills, most overdue first, ageing totals, and balances per supplier.",
+  needs: finance,
   input: z.object({ limit: limit() }),
   async run(a, c) {
     const [p, suppliers] = await Promise.all([payables(), supplierBalances()]);
@@ -357,6 +380,7 @@ const runReport = defineTool({
   title: "Run a report",
   description:
     "Accounts reports: pl (profit and loss), bs (balance sheet), cf (cash flow), tb (trial balance), aged-ar / aged-ap (ageing), sales, purchases, vat-return (VAT 201), vat, cash, profit (per sale), project-profit, expenses, uninvoiced, pnl (quick profit from documents, works before the ledger is switched on). Pick a period or give from/to dates.",
+  needs: finance,
   input: z.object({
     report: z.enum(REPORTS),
     period: z.enum(PERIODS).default("this-month"),
@@ -386,11 +410,12 @@ const runReport = defineTool({
 const listTasksTool = defineTool({
   name: "list_tasks",
   title: "List tasks",
-  description: "Open tasks and follow-ups (everyone's, or one person's), soonest due first, plus how many are overdue.",
-  input: z.object({ person_id: z.number().int().optional().describe("User id from the team tool"), overdue_only: z.boolean().default(false), limit: limit(50) }),
+  description: "Open tasks and follow-ups, soonest due first, plus how many are overdue. Admins see everyone's (or one person's with person_id); everybody else sees their own.",
+  needs: app("tasks"),
+  input: z.object({ person_id: z.number().int().optional().describe("Admins only: user id from the team tool"), overdue_only: z.boolean().default(false), limit: limit(50) }),
   async run(a, c) {
     const today = dubaiToday();
-    const { open } = await listTasks({ userId: a.person_id });
+    const { open } = await listTasks({ userId: c.auth.role === "admin" ? a.person_id : c.auth.userId });
     const rows = a.overdue_only ? open.filter((t) => t.dueDate && t.dueDate < today) : open;
     return {
       open: open.length,
@@ -415,9 +440,14 @@ const products = defineTool({
   title: "Products, supplier prices and stock notes",
   description:
     "Search supplier price lists (procurement) for a product: best price in AED, which suppliers offer it, stock notes and how fresh the prices are. Without a query, returns the procurement overview (suppliers, price lists, recent changes).",
+  // the quote builder's "Find price" searches the same price lists, so Sales and Projects get it too
+  needs: app("procurement", "sales", "projects"),
   input: z.object({ query: z.string().max(100).optional().describe("Brand, model or part number, e.g. 'Dell Latitude 5450' or 'i7 16GB'"), in_stock_only: z.boolean().default(false), limit: limit(15) }),
-  async run(a) {
-    if (!a.query?.trim()) return { overview: await procurementOverview() };
+  async run(a, c) {
+    if (!a.query?.trim()) {
+      if (!c.auth.apps.includes("procurement")) throw new UserError("Give a product to search for (brand, model or part number).");
+      return { overview: await procurementOverview() };
+    }
     const r = await searchOffers({ q: a.query, readyOnly: a.in_stock_only, latestOnly: true, limit: a.limit });
     return {
       total: r.total,

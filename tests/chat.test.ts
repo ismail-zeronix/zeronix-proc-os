@@ -352,7 +352,7 @@ describe.skipIf(!live)("mention cards (needs the dev database)", () => {
 
   it("sends a deal card from the timeline to everyone mentioned, locked for those who cannot see the deal", async () => {
     await as(ali);
-    await S.logActivity(dealId, { type: "call", body: `Customer wants 8 cameras ${mentionToken(bina, "Bina")} ${mentionToken(carl, "Carl")} please check stock` });
+    await S.logActivity(dealId, { type: "call", outcome: "interested", followUp: "2030-01-15", body: `Customer wants 8 cameras ${mentionToken(bina, "Bina")} ${mentionToken(carl, "Carl")} please check stock` });
     const [forBina] = await feed(bina);
     expect(forBina).toMatchObject({ kind: "card", userId: ali, card: { type: "deal", id: dealId, event: "call" } });
     expect((await feed(carl))[0].card).toMatchObject({ type: "deal", id: dealId });

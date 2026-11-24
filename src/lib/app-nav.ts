@@ -1,4 +1,4 @@
-import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
+import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -188,6 +188,11 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/accounts/chart", label: "Chart of accounts", icon: ListTree },
         { href: "/accounts/closing-stock", label: "Closing stock", icon: Boxes },
       ],
+    },
+    {
+      label: "People",
+      need: "accountant",
+      items: [{ href: "/accounts/payroll", label: "Payroll", icon: Banknote }],
     },
     {
       label: "Reports",

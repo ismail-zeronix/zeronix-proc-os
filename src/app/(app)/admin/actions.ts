@@ -12,6 +12,7 @@ import { clearFailures } from "@/lib/auth/lockout";
 import { assertAccountant, requireAdmin } from "@/lib/auth/session";
 import { parseLogoDataUrl } from "@/lib/logo";
 import { type BrandStyle, normalizeStyle, safeColor } from "@/lib/signature";
+import { setSalary } from "@/lib/payroll-write";
 import { getSettings, setSetting } from "@/lib/settings";
 import { abortCurrentRead, runAiCycle, unloadModel } from "@/worker/ai";
 import { parseInput, UserError } from "@/lib/user-error";
@@ -21,6 +22,8 @@ const userSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["admin", "sales"]),
+  /** Monthly salary in AED (Accounts › Payroll). Optional: 0 means not set yet. */
+  salary: z.number().min(0, "Salary cannot be below zero").max(1e9).default(0),
 });
 
 export async function createUser(input: z.input<typeof userSchema>) {
@@ -37,6 +40,7 @@ export async function createUser(input: z.input<typeof userSchema>) {
       passwordHash: await bcrypt.hash(d.password, 10),
     })
     .returning({ id: schema.users.id });
+  if (d.salary > 0) await setSalary(created.id, Math.round(d.salary * 100) / 100, me.id);
   await audit(db, { userId: me.id, action: "user.create", entity: "user", entityId: created.id, summary: `${d.email} added as ${d.role}`, after: { name: d.name, email: d.email, role: d.role } });
   revalidatePath("/admin", "layout");
 }

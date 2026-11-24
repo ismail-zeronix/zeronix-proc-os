@@ -44,7 +44,8 @@ export default async function AdminClaudePage() {
           <li>Ask, for example: &ldquo;What needs my attention today?&rdquo; or &ldquo;Who owes us money over 60 days?&rdquo;</li>
         </ol>
         <p className="text-xs text-muted-foreground">
-          Admins only. Claude sees what the admin sees. Changes are limited to tasks, notes, deal updates, new leads and customers, and draft quotes; Claude never deletes,
+          Admins and sales staff can connect. Claude sees what that person sees in the portal (their apps, Own deals or All data); sales staff must be punched in for
+          Claude to make changes. Changes are limited to tasks, notes, deal updates, new leads and customers, and draft quotes; Claude never deletes,
           posts money or emails customers, and asks in the chat before each change.
         </p>
       </section>

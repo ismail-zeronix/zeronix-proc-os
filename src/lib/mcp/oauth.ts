@@ -3,14 +3,16 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { jwtVerify, SignJWT } from "jose";
 import { db, schema } from "@/db";
-import { hasWrite, newSecret, pkceMatches, redirectMatches, sha256 } from "./oauth-rules";
+import { allowedApps, type AppKey } from "@/lib/apps";
+import { claudeAllowed, hasWrite, newSecret, pkceMatches, redirectMatches, sha256 } from "./oauth-rules";
 
 /**
  * Sign-in for the Claude connector (OAuth 2.1 with PKCE and dynamic client registration), as Claude expects it:
  * https://claude.com/docs/connectors/building/authentication.
  *
  * - Access tokens: 1-hour JWTs. Every MCP call also re-reads the connection and the user (see verifyAccess), so revoking,
- *   deactivating, demoting or "Sign out everywhere" stops Claude at once.
+ *   deactivating, taking the role away or "Sign out everywhere" stops Claude at once, and a change of apps or data
+ *   scope applies from the next call.
  * - Codes: 5-minute JWTs that work once (the connection moves from pending to active).
  * - Refresh tokens: random, stored as a hash, replaced on every use.
  * Tokens are signed with a key derived from AUTH_SECRET, never the session key itself, so a token can never pass as a
@@ -75,7 +77,7 @@ export async function checkAuthorizeRequest(clientId: string, redirectUri: strin
 
 /* ---------- consent → code ---------- */
 
-/** The admin pressed Allow: a pending connection, and a code that turns it into tokens once. */
+/** The user pressed Allow: a pending connection, and a code that turns it into tokens once. */
 export async function issueCode(p: { userId: number; userSv: number; clientId: string; scope: string; redirectUri: string; codeChallenge: string }) {
   // connections that were allowed but never finished (Claude closed, network...) are cleared after a day
   await db.delete(schema.mcpGrants).where(and(eq(schema.mcpGrants.status, "pending"), lt(schema.mcpGrants.createdAt, sql`now() - interval '1 day'`)));
@@ -109,14 +111,14 @@ export interface TokenResponse {
   scope: string;
 }
 
-/** The connection's user must still be an active admin with the same session version. */
+/** The connection's user must still be active, in a role that may use Claude, with the same session version. */
 async function grantOwnerOk(grantUserId: number, userSv: number) {
   const [u] = await db
     .select({ role: schema.users.role, isActive: schema.users.isActive, sv: schema.users.sessionVersion })
     .from(schema.users)
     .where(eq(schema.users.id, grantUserId))
     .limit(1);
-  return !!u && u.isActive && u.role === "admin" && u.sv === userSv;
+  return !!u && u.isActive && claudeAllowed(u.role) && u.sv === userSv;
 }
 
 export async function exchangeCode(p: { code: string; clientId: string; redirectUri: string; codeVerifier: string }): Promise<TokenResponse> {
@@ -142,7 +144,7 @@ export async function exchangeCode(p: { code: string; clientId: string; redirect
   }
   if (!(await grantOwnerOk(g.userId, g.userSv))) {
     await db.update(schema.mcpGrants).set({ revokedAt: new Date() }).where(eq(schema.mcpGrants.id, g.id));
-    throw new OAuthError("invalid_grant", "Only an active admin can connect Claude");
+    throw new OAuthError("invalid_grant", "This account cannot connect Claude");
   }
   return { access_token: await accessToken(g.id, g.userId, g.scope), token_type: "Bearer", expires_in: ACCESS_SECONDS, refresh_token: refresh, scope: g.scope };
 }
@@ -166,7 +168,7 @@ export async function refreshTokens(p: { refreshToken: string; clientId: string 
   if (!g) throw new OAuthError("invalid_grant", "The refresh token is invalid, expired or revoked");
   if (!(await grantOwnerOk(g.userId, g.userSv))) {
     await db.update(schema.mcpGrants).set({ revokedAt: new Date() }).where(eq(schema.mcpGrants.id, g.id));
-    throw new OAuthError("invalid_grant", "Only an active admin can use Claude");
+    throw new OAuthError("invalid_grant", "This account cannot use Claude");
   }
   return { access_token: await accessToken(g.id, g.userId, g.scope), token_type: "Bearer", expires_in: ACCESS_SECONDS, refresh_token: next, scope: g.scope };
 }
@@ -182,6 +184,13 @@ export interface McpAuth {
   /** users.session_version, so the portal's own checks accept Claude as this user (lib/auth/session.ts runAsClaude). */
   sv: number;
   write: boolean;
+  role: "admin" | "sales";
+  /** The apps this person may open in the portal; tools of other apps are not offered. */
+  apps: AppKey[];
+  /** Admins and "All data" users see every sales record; everybody else only the deals they are on. */
+  seesAll: boolean;
+  /** Has the Accounts app: money owed, bills, reports and every invoice. */
+  finance: boolean;
 }
 
 /** The bearer token of an MCP call, checked against the database. Null = 401 (Claude then refreshes or signs in again). */
@@ -208,6 +217,8 @@ export async function verifyAccess(authorization: string | null): Promise<McpAut
       email: schema.users.email,
       role: schema.users.role,
       isActive: schema.users.isActive,
+      apps: schema.users.apps,
+      dataScope: schema.users.dataScope,
       sv: schema.users.sessionVersion,
       orgId: schema.users.organizationId,
     })
@@ -216,12 +227,26 @@ export async function verifyAccess(authorization: string | null): Promise<McpAut
     .where(eq(schema.mcpGrants.id, Number(t.gid)))
     .limit(1);
   if (!row || row.status !== "active" || row.revokedAt || String(row.userId) !== t.sub) return null;
-  if (!row.isActive || row.role !== "admin" || row.sv !== row.userSv) return null;
+  if (!row.isActive || !claudeAllowed(row.role) || row.sv !== row.userSv) return null;
   // "last used" for Admin › Claude, written at most every few minutes
   if (!row.lastUsedAt || Date.now() - row.lastUsedAt.getTime() > 5 * 60_000) {
     await db.update(schema.mcpGrants).set({ lastUsedAt: new Date() }).where(eq(schema.mcpGrants.id, row.grantId));
   }
-  return { grantId: row.grantId, userId: row.userId, name: row.name, email: row.email, orgId: row.orgId, sv: row.sv, write: hasWrite(row.scope) };
+  // the same access the portal works out for this person (lib/auth/session.ts loadAccess)
+  const apps = allowedApps({ role: row.role, apps: row.apps });
+  return {
+    grantId: row.grantId,
+    userId: row.userId,
+    name: row.name,
+    email: row.email,
+    orgId: row.orgId,
+    sv: row.sv,
+    write: hasWrite(row.scope),
+    role: row.role,
+    apps,
+    seesAll: row.role === "admin" || row.dataScope === "all",
+    finance: apps.includes("accounts"),
+  };
 }
 
 /* ---------- Admin › Claude ---------- */

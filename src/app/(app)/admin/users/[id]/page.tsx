@@ -11,7 +11,9 @@ import { db, schema } from "@/db";
 import { allowedApps, APPS } from "@/lib/apps";
 import { dubaiMinutes, formatDuration, formatHm } from "@/lib/attendance";
 import { monthAttendance, punchState } from "@/lib/attendance-data";
+import Link from "next/link";
 import { requireApp } from "@/lib/auth/session";
+import { money } from "@/lib/quotation";
 
 export const metadata = { title: "User · Admin · Zeronix" };
 
@@ -38,6 +40,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
     .from(schema.users)
     .where(eq(schema.users.id, userId));
   if (!u) notFound();
+  const [pay] = await db.select({ base: schema.employeePay.baseSalary }).from(schema.employeePay).where(eq(schema.employeePay.userId, userId));
   const { month } = pickMonth(sp.month);
   const [punch, data] = await Promise.all([punchState(userId), monthAttendance(userId, month)]);
   const apps = allowedApps({ role: u.role, apps: u.apps });
@@ -104,6 +107,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
             <Field label="Phone" value={[u.phone, u.mobile].filter(Boolean).join(" · ") || "-"} />
             <Field label="Status" value={u.isActive ? "Active" : "Disabled"} />
             <Field label="Sales data" value={u.role === "admin" || u.dataScope === "all" ? "All data" : "Own deals only"} />
+            <Field label="Monthly salary" value={<Link href="/accounts/payroll" className="hover:underline">{pay?.base ? money(pay.base) : "Not set"}</Link>} />
             <Field label="Accountant" value={u.role === "admin" || u.isAccountant ? "Yes" : "No"} />
             <Field
               label="Joined"

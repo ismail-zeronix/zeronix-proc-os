@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { audit } from "@/lib/audit";
 import { loadAccess } from "@/lib/auth/session";
 import { checkAuthorizeRequest, issueCode } from "@/lib/mcp/oauth";
-import { parseScope, scopeText } from "@/lib/mcp/oauth-rules";
+import { claudeAllowed, parseScope, scopeText } from "@/lib/mcp/oauth-rules";
 
 function backTo(redirectUri: string, params: Record<string, string>): string {
   const u = new URL(redirectUri);
@@ -28,7 +28,7 @@ export async function decideClaude(_prev: { error: string } | undefined, form: F
   if (form.get("decision") !== "allow") redirect(backTo(redirectUri, { error: "access_denied", state }));
 
   const access = await loadAccess();
-  if (!access || access.user.role !== "admin") return { error: "Only admins can connect Claude." };
+  if (!access || !claudeAllowed(access.user.role)) return { error: "Your account cannot connect Claude." };
   if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) return { error: "This sign-in link is not valid. Start again from Claude." };
 
   const scope = scopeText(parseScope(form.get("write") === "on" ? "read write" : "read"));

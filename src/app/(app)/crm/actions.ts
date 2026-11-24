@@ -17,7 +17,25 @@ import { isEmail } from "@/lib/mail/compose";
 import { ensureProject } from "@/lib/projects-data";
 import { salesUsers } from "@/lib/sales-data";
 import { duplicateCompany } from "@/lib/sales-data";
-import { ACTIVITY_TYPES, CHECKS, customerGaps, isOpen, isStage, normName, stageLabel, type CustomerGap, type StageKey } from "@/lib/sales";
+import {
+  ACTIVITY_TYPES,
+  CHECKS,
+  CONTACT_TYPES,
+  customerGaps,
+  isOpen,
+  isStage,
+  NO_NEXT_STEP_OUTCOMES,
+  normName,
+  OUTCOME_KEYS,
+  OUTCOME_TYPES,
+  outcomeLabel,
+  stageLabel,
+  type CallOutcome,
+  type CustomerGap,
+  type StageKey,
+} from "@/lib/sales";
+import { workHours } from "@/lib/attendance-data";
+import { dayToFollowUp } from "@/lib/next-step";
 import { addDays } from "@/lib/quotation";
 import { parseInput, UserError } from "@/lib/user-error";
 
@@ -452,29 +470,64 @@ export async function moveDeal(dealId: number, stage: string, lostReason = "") {
 
 const logSchema = z.object({
   type: z.enum(ACTIVITY_TYPES.map((t) => t.key) as [string, ...string[]]),
-  body: z.string().trim().min(1, "Write what happened").max(4000),
+  body: z.string().trim().max(4000).default(""),
+  /** How the call or message went; required for a call. */
+  outcome: z.enum(OUTCOME_KEYS).optional(),
+  /** The next follow-up: an exact time (from the quick chips) or a day (that morning). */
+  followUpAt: z.string().datetime({ offset: true }).optional(),
   followUp: day.optional(),
+  contactId: id.nullish(),
 });
 
-/** Adds a call / message / email / meeting / note to the timeline; optionally books a follow-up task. */
+/**
+ * Adds a call / message / email / meeting / note to the timeline. Contact with the customer on an open deal must set
+ * the next step (deals.follow_up_at, alerted by the deal_follow_up rule), unless the deal already has a later one or the
+ * outcome ends it (not interested, wrong number). That one date is the deal's follow-up: no separate task is made.
+ */
 export async function logActivity(dealId: number, input: z.input<typeof logSchema>) {
   const me = await assertApp("crm");
   await assertDeal(dealId);
   const d = parseInput(logSchema, input);
   const [deal] = await db
-    .select({ title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, ownerId: schema.deals.ownerId, followUpAt: schema.deals.followUpAt })
+    .select({ title: schema.deals.title, stage: schema.deals.stage, companyId: schema.deals.companyId, contactId: schema.deals.contactId, followUpAt: schema.deals.followUpAt })
     .from(schema.deals)
     .where(eq(schema.deals.id, dealId));
   if (!deal) throw new UserError("That deal no longer exists.");
+
+  const takesOutcome = (OUTCOME_TYPES as readonly string[]).includes(d.type);
+  const outcome: CallOutcome | null = takesOutcome ? (d.outcome ?? null) : null;
+  if (d.type === "call" && !outcome) throw new UserError("Pick how the call went.");
+  if (!d.body && !outcome) throw new UserError("Write what happened.");
+  // an empty note with an outcome reads as the outcome everywhere the body is shown
+  const body = d.body || `${outcomeLabel(outcome)}.`;
+
+  const now = Date.now();
+  const contact = (CONTACT_TYPES as readonly string[]).includes(d.type);
+  let next: Date | null = null;
+  if (d.followUpAt) next = new Date(d.followUpAt);
+  else if (d.followUp) next = dayToFollowUp(d.followUp, await workHours());
+  if (next && next.getTime() < now - 5 * 60_000) throw new UserError("The next follow-up must be in the future.");
+  // talking to the customer on (or after) the planned follow-up day counts as the follow-up done
+  const clearsOld = contact && !!deal.followUpAt && deal.followUpAt.getTime() <= now + 12 * 3600_000;
+  const keepsLater = !!deal.followUpAt && !clearsOld;
+  const ends = outcome != null && NO_NEXT_STEP_OUTCOMES.includes(outcome);
+  if (contact && isOpen(deal.stage) && !next && !keepsLater && !ends) {
+    throw new UserError("Set the next step: when will you follow up with them?");
+  }
+
+  let contactId = deal.contactId;
+  if (d.contactId) {
+    const [c] = await db.select({ companyId: schema.contacts.companyId }).from(schema.contacts).where(eq(schema.contacts.id, d.contactId));
+    if (c?.companyId === deal.companyId) contactId = d.contactId;
+  }
+
   const activityId = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(schema.activities)
-      .values({ type: d.type, body: d.body, dealId, companyId: deal.companyId, userId: me.id })
+      .values({ type: d.type, body, outcome, dealId, companyId: deal.companyId, contactId, userId: me.id })
       .returning({ id: schema.activities.id });
-    // talking to the customer on (or after) the planned follow-up day counts as the follow-up done
-    if (d.type !== "note" && deal.followUpAt && deal.followUpAt.getTime() <= Date.now() + 12 * 3600_000) {
-      await tx.update(schema.deals).set({ followUpAt: null }).where(eq(schema.deals.id, dealId));
-    }
+    if (next) await tx.update(schema.deals).set({ followUpAt: next }).where(eq(schema.deals.id, dealId));
+    else if (clearsOld) await tx.update(schema.deals).set({ followUpAt: null }).where(eq(schema.deals.id, dealId));
     // talking to a customer about a brand-new deal means it has been contacted
     if (deal.stage === "new" && d.type !== "note") {
       await tx.update(schema.deals).set({ stage: "contacted", stageChangedAt: new Date() }).where(eq(schema.deals.id, dealId));
@@ -486,20 +539,37 @@ export async function logActivity(dealId: number, input: z.input<typeof logSchem
         userId: me.id,
       });
     }
-    if (d.followUp) {
-      await tx.insert(schema.tasks).values({
-        title: `Follow up: ${deal.title}`.slice(0, 200),
-        dueDate: d.followUp,
-        assignedTo: deal.ownerId ?? me.id,
-        createdBy: me.id,
-        relatedType: "deal",
-        relatedId: dealId,
-      });
-    }
     return row.id;
   });
   // people @mentioned in the entry get a card for the deal in their chat Activity
-  await notifyMentions({ authorId: me.id, body: d.body, event: d.type, record: { type: "deal", id: dealId }, source: "activity", sourceId: activityId });
+  if (d.body) await notifyMentions({ authorId: me.id, body: d.body, event: d.type, record: { type: "deal", id: dealId }, source: "activity", sourceId: activityId });
+  refresh();
+  return { followUpAt: next?.toISOString() ?? (keepsLater ? deal.followUpAt!.toISOString() : null) };
+}
+
+const moveSchema = z.object({
+  followUpAt: z.string().datetime({ offset: true }),
+  reason: z.string().trim().min(3, "Say why it moves (a few words)").max(300),
+});
+
+/**
+ * "Not today": moves the deal's follow-up without contacting the customer. The reason goes on the timeline, so the
+ * team (and the owner's day view) can see every postponement.
+ */
+export async function moveFollowUp(dealId: number, input: z.input<typeof moveSchema>) {
+  const me = await assertApp("crm");
+  await assertDeal(dealId);
+  const d = parseInput(moveSchema, input);
+  const at = new Date(d.followUpAt);
+  if (at.getTime() < Date.now()) throw new UserError("The new follow-up must be in the future.");
+  const [deal] = await db.select({ companyId: schema.deals.companyId, stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, dealId));
+  if (!deal) throw new UserError("That deal no longer exists.");
+  if (!isOpen(deal.stage)) throw new UserError("The deal is closed.");
+  const when = at.toLocaleString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  await db.transaction(async (tx) => {
+    await tx.update(schema.deals).set({ followUpAt: at }).where(eq(schema.deals.id, dealId));
+    await tx.insert(schema.activities).values({ type: "note", body: `Follow-up moved to ${when}: ${d.reason}`, dealId, companyId: deal.companyId, userId: me.id });
+  });
   refresh();
 }
 

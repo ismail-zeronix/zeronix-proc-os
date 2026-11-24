@@ -39,7 +39,8 @@ import { requireApp } from "@/lib/auth/session";
 import { viewerOf } from "@/lib/auth/visibility";
 import { dayLabel, dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
-import { aed, daysSince, isLeadStage, stageLabel } from "@/lib/sales";
+import { aed, daysSince, isLeadStage, isOpen, outcomeLabel, REACHED_OUTCOMES, stageLabel, type CallOutcome } from "@/lib/sales";
+import { workHours } from "@/lib/attendance-data";
 import { contactsOfCompany, dealActivities, dealTasks, getDeal, salesUsers } from "@/lib/sales-data";
 import { listOrders } from "@/lib/orders-data";
 import { isPast } from "@/lib/notifications/types";
@@ -78,7 +79,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
   const deal = await getDeal(id, viewerOf(access));
   if (!deal) notFound();
 
-  const [activities, tasks, contacts, users, company, contact, quotes, orders, project, types] = await Promise.all([
+  const [activities, tasks, contacts, users, company, contact, quotes, orders, project, types, hours] = await Promise.all([
     dealActivities(id),
     dealTasks(id),
     contactsOfCompany(deal.companyId),
@@ -89,6 +90,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
     listOrders(viewerOf(access), { dealId: id }),
     projectOfDeal(id),
     projectTypes(),
+    workHours(),
   ]);
   const lines = quotes[0] ? await quoteLines(quotes[0].id) : [];
   const today = dubaiToday();
@@ -147,13 +149,21 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
         <span className={meta} title="Expected close">
           <CalendarClock /> {deal.expectedClose ? `Closes ${dayLabel(deal.expectedClose)}` : "No close date"}
         </span>
-        <span className={`${meta} ${nextTask?.dueDate && nextTask.dueDate < today ? "text-red-700 dark:text-red-400" : ""}`} title={nextTask ? `Next follow-up: ${nextTask.title}` : "No follow-up booked"}>
-          <CalendarCheck /> {nextTask ? `Next: ${nextTask.dueDate ? dayLabel(nextTask.dueDate) : "no date"}` : "No follow-up"}
-        </span>
-        {deal.followUpAt && (
-          <span className={`${meta} ${isPast(deal.followUpAt) ?"font-medium text-red-700 dark:text-red-400" : ""}`} title="Next follow-up time (change it in Details)">
+        {nextTask && (
+          <span className={`${meta} ${nextTask.dueDate && nextTask.dueDate < today ? "text-red-700 dark:text-red-400" : ""}`} title={`Next task: ${nextTask.title}`}>
+            <CalendarCheck /> Task {nextTask.dueDate ? dayLabel(nextTask.dueDate) : "no date"}
+          </span>
+        )}
+        {deal.followUpAt ? (
+          <span className={`${meta} ${isPast(deal.followUpAt) ? "font-medium text-red-700 dark:text-red-400" : ""}`} title="Next follow-up time: set when a call or message is logged (or in Details)">
             <AlarmClock /> Follow up {deal.followUpAt.toLocaleString("en-GB", { timeZone: "Asia/Dubai", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
           </span>
+        ) : (
+          isOpen(deal.stage) && (
+            <span className={`${meta} font-medium text-amber-700 dark:text-amber-400`} title="Log a call or message and pick the next follow-up">
+              <AlarmClock /> No next follow-up
+            </span>
+          )
         )}
         {deal.source && (
           <span className={meta}>
@@ -195,7 +205,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="timeline" className="grid gap-3 pt-1">
-              <ActivityForm dealId={deal.id} canAssign={seesAll} assigneeIds={deal.assignees.map((a) => a.id)} />
+              <ActivityForm dealId={deal.id} canAssign={seesAll} assigneeIds={deal.assignees.map((a) => a.id)} stage={deal.stage} followUpAt={deal.followUpAt?.toISOString() ?? null} hours={hours} />
               <ol className="grid max-h-[calc(100svh-var(--mobile-nav-h)-26rem)] min-h-40 gap-2.5 overflow-y-auto border-t pt-3">
                 {activities.map((a) => {
                   const Icon = ICON[a.type] ?? StickyNote;
@@ -207,11 +217,22 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
                       <div className="min-w-0">
                         <div className="text-xs text-muted-foreground">
                           <span className="font-medium text-foreground">{LABEL[a.type] ?? a.type}</span>
+                          {a.outcome && (
+                            <span
+                              className={`ml-1.5 rounded-full px-1.5 py-px text-[11px] font-medium ${
+                                REACHED_OUTCOMES.includes(a.outcome as CallOutcome) ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                              }`}
+                            >
+                              {outcomeLabel(a.outcome)}
+                            </span>
+                          )}
                           {a.userName && ` · ${a.userName}`} · {ago(a.at)}
                         </div>
-                        <div className="text-sm whitespace-pre-line">
-                          <MentionText body={a.body} me={user.id} />
-                        </div>
+                        {a.body !== `${outcomeLabel(a.outcome)}.` && (
+                          <div className="text-sm whitespace-pre-line">
+                            <MentionText body={a.body} me={user.id} />
+                          </div>
+                        )}
                         {docsIn(a.body).length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {docsIn(a.body).map((d) => (
@@ -254,13 +275,13 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
           <section className="rounded-xl border bg-card p-3">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-sm font-medium">
-                Follow-ups <span className="font-normal text-muted-foreground">({openTasks.length})</span>
+                Tasks <span className="font-normal text-muted-foreground">({openTasks.length})</span>
               </h2>
               <TaskDialog
                 related={{ type: "deal", id: deal.id }}
                 people={user.role === "admin" ? users : undefined}
                 trigger={
-                  <Button variant="ghost" size="icon-sm" aria-label="Add a follow-up" title="Add a follow-up">
+                  <Button variant="ghost" size="icon-sm" aria-label="Add a task" title="Add a task">
                     <Plus />
                   </Button>
                 }
@@ -270,7 +291,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
               {openTasks.map((t) => (
                 <TaskItem key={t.id} task={t} hideRelated showAssignee={t.assignedTo !== user.id} />
               ))}
-              {!openTasks.length && <p className="px-2 py-1 text-xs text-muted-foreground">None booked. Add one so this deal does not go quiet.</p>}
+              {!openTasks.length && <p className="px-2 py-1 text-xs text-muted-foreground">No tasks. The next follow-up is set when you log a call or message.</p>}
             </div>
           </section>
 
