@@ -25,7 +25,7 @@ export function PrintPage({
   children: React.ReactNode;
 }) {
   return (
-    <div className="zx-print min-h-screen bg-neutral-100 px-3 py-4 print:min-h-0 print:bg-white print:p-0">
+    <div className="zx-print min-h-screen bg-muted px-3 py-4 print:min-h-0 print:bg-white print:p-0">
       <style>{pageCss(landscape)}</style>
       <PrintBar dealHref={back} number={number} pdfHref={pdfHref} options={options} />
       {/* on screen the sheet is at least one A4 tall (794 x 1123 px at 96 dpi), or one A4 wide when it lies on its side */}
