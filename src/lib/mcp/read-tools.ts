@@ -4,6 +4,7 @@ import { accountsBadges, companyBalance, listInvoices, openInvoices, receivables
 import { dubaiToday } from "@/lib/dates";
 import { listOrders } from "@/lib/orders-data";
 import { procurementOverview } from "@/lib/procurement-overview";
+import { stockStatus } from "@/lib/procurement/intake";
 import { payables, supplierBalances } from "@/lib/purchases-data";
 import { dealItemsOf, listQuotes, quotesOfDeal } from "@/lib/quotes-data";
 import { parseReportParams } from "@/lib/report-centre";
@@ -475,4 +476,16 @@ const team = defineTool({
   },
 });
 
-export const readTools: McpTool[] = [businessOverview, find, listDealsTool, getDealTool, getCustomer, listQuotesTool, listOrdersTool, webOrders, moneyOwed, billsDue, runReport, listTasksTool, products, team];
+const stockStatusTool = defineTool({
+  name: "supplier_stock_status",
+  title: "When supplier chats were last pushed",
+  description:
+    "Before reading WhatsApp for push_supplier_stock: when each supplier chat or group was last pushed (lastMessageAt, so read only newer messages), what waits in the Procurement Inbox, and the suppliers we know with their WhatsApp numbers and names.",
+  needs: app("procurement"),
+  input: z.object({ chat: z.string().max(120).optional().describe("One WhatsApp group or chat name; leave out for all") }),
+  async run(a, c) {
+    return { ...(await stockStatus(a.chat)), inbox: `${c.base}/procurement/inbox` };
+  },
+});
+
+export const readTools: McpTool[] = [businessOverview, find, listDealsTool, getDealTool, getCustomer, listQuotesTool, listOrdersTool, webOrders, moneyOwed, billsDue, runReport, listTasksTool, products, stockStatusTool, team];

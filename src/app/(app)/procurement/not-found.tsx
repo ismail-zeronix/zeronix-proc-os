@@ -13,11 +13,11 @@ export default function NotFound() {
           <p className="text-sm text-muted-foreground">It may have been deleted, or the link is wrong.</p>
         </div>
         <div className="flex gap-2">
-          <Button nativeButton={false} render={<Link href="/procurement/compare" />}>
-            Compare prices
+          <Button nativeButton={false} render={<Link href="/procurement" />}>
+            Search prices
           </Button>
-          <Button variant="outline" nativeButton={false} render={<Link href="/procurement" />}>
-            Overview
+          <Button variant="outline" nativeButton={false} render={<Link href="/procurement/inbox" />}>
+            Inbox
           </Button>
         </div>
       </CardContent>

@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ChatCard } from "@/lib/chat/types";
 import type { WebClientInfo, WebGeo, WebPageVisit, WebSiteEvent } from "@/lib/webchat/types";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import type { SellerSnapshot } from "@/lib/seller-types";
 
 /**
@@ -137,6 +137,29 @@ export const supplierFeeds = pgTable("supplier_feeds", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * How a supplier shows up in WhatsApp: their phone numbers and the names they appear under. Claude's pushes are matched
+ * to a supplier through these (phone first), so one supplier writing from two numbers, or two suppliers with similar
+ * names, never get mixed up. Learned when someone picks the supplier for an unknown sender in the Procurement Inbox.
+ */
+export const supplierHandles = pgTable(
+  "supplier_handles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["phone", "name"] }).notNull(),
+    /** As written, e.g. "+971 50 123 4567" or "Ali Computers JLT". */
+    value: text("value").notNull(),
+    /** lib/parse/clean.ts normalizePhone / normalizeName. */
+    valueNorm: text("value_norm").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("supplier_handles_uq").on(t.organizationId, t.kind, t.valueNorm), index("supplier_handles_supplier_idx").on(t.supplierId), orgPolicy()],
+);
+
 export const priceLists = pgTable(
   "price_lists",
   {
@@ -144,10 +167,21 @@ export const priceLists = pgTable(
     supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
     rawText: text("raw_text").notNull(),
-    /** How the list arrived: pasted WhatsApp text, an uploaded Excel sheet, or a supplier's live feed link. */
-    source: text("source", { enum: ["paste", "excel", "feed"] }).notNull().default("paste"),
+    /**
+     * How the list arrived: a WhatsApp message pushed by Claude, an uploaded Excel sheet, or a supplier's live feed link.
+     * "paste" = the old in-app AI reading (removed 2026-11; older lists keep it).
+     */
+    source: text("source", { enum: ["paste", "excel", "feed", "whatsapp"] }).notNull().default("whatsapp"),
     /** Original file name for Excel imports; the feed link for live-feed syncs. */
     sourceName: text("source_name").notNull().default(""),
+    /** WhatsApp group or chat the message came from, and the sender as shown there. */
+    chat: text("chat").notNull().default(""),
+    sender: text("sender").notNull().default(""),
+    /** sha1 of the message text: the same broadcast sent again is recognised (lib/procurement/intake.ts). */
+    fingerprint: text("fingerprint").notNull().default(""),
+    /** How often the same message was pushed, and when last: a repeat keeps its prices fresh. */
+    seenCount: integer("seen_count").notNull().default(1),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     status: text("status", { enum: ["queued", "parsing", "review", "saved", "failed"] })
       .notNull()
       .default("queued"),
@@ -164,7 +198,33 @@ export const priceLists = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     savedAt: timestamp("saved_at", { withTimezone: true }),
   },
-  (t) => [index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt)],
+  (t) => [
+    index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt),
+    uniqueIndex("price_lists_fingerprint_uq").on(t.supplierId, t.fingerprint).where(sql`${t.fingerprint} <> ''`),
+  ],
+);
+
+/**
+ * A WhatsApp message Claude pushed from a sender we do not know yet. It waits in the Procurement Inbox until someone
+ * says which supplier it is (or adds them); then it goes through the normal intake and the sender is remembered.
+ */
+export const stockInbox = pgTable(
+  "stock_inbox",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    chat: text("chat").notNull().default(""),
+    senderName: text("sender_name").notNull().default(""),
+    senderPhone: text("sender_phone").notNull().default(""),
+    messageAt: timestamp("message_at", { withTimezone: true }).notNull(),
+    messageText: text("message_text").notNull(),
+    /** The lines Claude read, as pushed (lib/procurement/intake.ts PushedItem). */
+    items: jsonb("items").$type<unknown[]>().notNull(),
+    priceBasis: text("price_basis").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
 );
 
 export const products = pgTable(
@@ -242,21 +302,6 @@ export const offers = pgTable(
     index("offers_supplier_idx").on(t.supplierId, t.receivedAt),
     index("offers_search_trgm").using("gin", t.searchNorm.op("gin_trgm_ops")),
   ],
-);
-
-/** Reviewed corrections reused as few-shot examples for the same supplier. */
-export const parseCorrections = pgTable(
-  "parse_corrections",
-  {
-    id: serial("id").primaryKey(),
-    supplierId: integer("supplier_id")
-      .notNull()
-      .references(() => suppliers.id, { onDelete: "cascade" }),
-    input: text("input").notNull(),
-    output: text("output").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("parse_corrections_supplier_idx").on(t.supplierId, t.createdAt)],
 );
 
 export const settings = pgTable("settings", {

@@ -63,7 +63,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <BackButton fallback="/procurement/compare" />
+        <BackButton fallback="/procurement" />
         <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{productLabel(product)}</h1>
         <Badge variant="outline" className="capitalize">{product.category}</Badge>
         <span className="ml-auto flex items-center gap-1.5">
@@ -72,7 +72,7 @@ export default async function ProductPage({ params }: PageProps<"/procurement/pr
             variant="outline"
             size="icon-sm"
             nativeButton={false}
-            render={<Link href={`/procurement/compare?q=${encodeURIComponent(product.partNumber || product.modelName)}`} />}
+            render={<Link href={`/procurement?q=${encodeURIComponent(product.partNumber || product.modelName)}`} />}
             aria-label="Similar products"
             title="Similar products"
           >

@@ -13,7 +13,7 @@ const LEGACY_NO_ORG = new Set([
   "chat_prefs", "chat_reactions", "company_owners", "contacts", "deal_assignees", "deal_items", "deals", "error_log", "files",
   "login_failures", "mail_accounts", "mail_messages", "mail_sent_log", "notifications", "offers", "outreach_campaigns",
   "outreach_enrollments", "outreach_mailboxes", "outreach_messages", "outreach_sequence_steps", "outreach_sequences",
-  "outreach_suppression", "parse_corrections", "price_lists", "product_aliases", "products", "project_task_templates",
+  "outreach_suppression", "price_lists", "product_aliases", "products", "project_task_templates",
   "project_types", "projects", "proposal_snapshots", "proposal_templates", "proposals", "prospect_activities", "prospect_ai_models",
   "prospect_ai_providers", "prospect_companies", "prospect_people", "prospect_research_runs", "prospect_segments", "prospect_signals",
   "prospect_sources", "quote_items", "sales_order_items", "settings", "supplier_feeds", "tasks", "terms_library", "web_chat_messages",

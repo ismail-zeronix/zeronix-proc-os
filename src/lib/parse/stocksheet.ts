@@ -4,11 +4,11 @@
  * the sheet is structured, so rules are exact and instant, which matters because it is re-read every few
  * minutes on a machine with little RAM.
  */
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import { parseCsv } from "./csv";
 import { detectBrand } from "./excel";
 import { matchKey } from "./match";
-import { normalizeBrand, normalizePartNumber } from "./postfix";
+import { normalizeBrand, normalizePartNumber } from "./clean";
 
 type Category = OfferDraft["category"];
 

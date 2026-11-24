@@ -1,7 +1,7 @@
 import type { Article } from "./types";
 
 // Drafted from general industry knowledge, not from a live price list. Model numbers and generations move every few
-// months: before quoting a model to a customer, check it in Procurement > Compare or on the vendor's site.
+// months: before quoting a model to a customer, check it in Procurement > Search or on the vendor's site.
 const REVIEWED = "2026-10-21";
 
 export const HARDWARE: Article[] = [

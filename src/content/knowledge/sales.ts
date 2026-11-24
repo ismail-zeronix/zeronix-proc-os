@@ -207,7 +207,7 @@ export const SALES: Article[] = [
           "First hour: replies to waiting customers and quotations that are due.",
           "Prospecting block (60 to 90 minutes): calls and messages to new and existing leads. Set a number, for example 15 calls.",
           "Midday: follow-ups on open quotations. Anything older than three days without a reply gets a call.",
-          "Afternoon: sourcing prices (Procurement > Compare), preparing quotes, updating deals.",
+          "Afternoon: sourcing prices (Procurement > Search), preparing quotes, updating deals.",
           "End of day (10 minutes): update the deals, log notes, add tomorrow's follow-up tasks.",
         ],
       },

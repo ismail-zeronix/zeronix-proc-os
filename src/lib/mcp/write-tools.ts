@@ -8,6 +8,7 @@ import { createTask } from "@/app/(app)/tasks/actions";
 import { audit } from "@/lib/audit";
 import { runAsClaude } from "@/lib/auth/session";
 import { ACTIVITY_TYPES, OUTCOME_KEYS, SOURCES, STAGES } from "@/lib/sales";
+import { ingestMessages, pushedMessageSchema } from "@/lib/procurement/intake";
 import { UserError } from "@/lib/user-error";
 import { link } from "./read-tools";
 import { app, defineTool, type McpCtx, type McpTool } from "./tool";
@@ -250,4 +251,35 @@ const createDraftQuote = defineTool({
   },
 });
 
-export const writeTools: McpTool[] = [createTaskTool, addNote, updateDealTool, createLead, createCustomer, createDraftQuote];
+const pushStock = defineTool({
+  name: "push_supplier_stock",
+  title: "Push supplier stock from WhatsApp",
+  write: true,
+  needs: app("procurement"),
+  description: [
+    "Files supplier stock messages you read in WhatsApp (groups or personal chats) into Procurement, where the team searches prices.",
+    "The user asking you to push or read their supplier stock is the go-ahead: no need to confirm each message.",
+    "First call supplier_stock_status and read only messages newer than lastMessageAt of that chat.",
+    "Send each WhatsApp message that offers products as one entry (up to 20 per call), with the sender exactly as WhatsApp shows them and their number when visible.",
+    "Split it into one item per product or configuration. Copy values as written; do not invent prices, specs or part numbers (price null when none is given).",
+    "ram_gb is a number (16 for '16GB'). Put the product's original text in line. Skip greetings, 'contact us' lines and messages with no products.",
+    "Our server cleans brands and part numbers, finds the supplier (by phone, then name), recognises a message pushed before, and saves clear lines.",
+    "Unknown senders and unclear lines wait in the Procurement Inbox for a person. Report the per-message results to the user, with the inbox link when something waits.",
+  ].join(" "),
+  input: z.object({ messages: z.array(pushedMessageSchema).min(1).max(20) }),
+  async run(a, c) {
+    const user = { id: c.auth.userId, name: c.auth.name, email: c.auth.email, role: c.auth.role, sv: c.auth.sv };
+    const results = await runAsClaude(user, () => ingestMessages(c.auth.userId, a.messages));
+    const sum = (k: "saved" | "newProducts" | "priceChanges" | "needCheck") => results.reduce((s, r) => s + r[k], 0);
+    const totals = { messages: results.length, saved: sum("saved"), newProducts: sum("newProducts"), priceChanges: sum("priceChanges"), needCheck: sum("needCheck"), repeats: results.filter((r) => r.status === "repeat").length, unknownSenders: results.filter((r) => r.status === "unknown_sender").length };
+    await audit(db, { userId: c.auth.userId, action: "claude.push_supplier_stock", entity: "price_list", summary: `via Claude: ${totals.messages} WhatsApp message(s), ${totals.saved} lines saved, ${totals.needCheck} to check`, after: totals, orgId: c.auth.orgId });
+    return {
+      totals,
+      results: results.map((r) => ({ ...r, link: r.priceListId ? `${c.base}/procurement/import/${r.priceListId}` : undefined })),
+      inbox: totals.needCheck ? `${c.base}/procurement/inbox` : undefined,
+      search: `${c.base}/procurement`,
+    };
+  },
+});
+
+export const writeTools: McpTool[] = [createTaskTool, addNote, updateDealTool, createLead, createCustomer, createDraftQuote, pushStock];

@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ClipboardPaste, Download, ExternalLink, History, ListFilter, PackageCheck, Search, Trophy, X } from "lucide-react";
+import { BadgeCheck, Download, ExternalLink, FileSpreadsheet, History, ListFilter, PackageCheck, Search, Send, Trophy, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/copy-button";
 import { SupplierTypeBadge } from "@/components/supplier-type-badge";
 import { Trend } from "@/components/trend";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { ago, money } from "@/lib/format";
 import type { ProductHit } from "@/lib/search";
 import { SUPPLIER_TYPES } from "@/lib/supplier-types";
 import { cn } from "@/lib/utils";
+import { SharePriceDialog } from "./share-price";
 
 interface Meta {
   suppliers: { id: number; name: string; type: string }[];
@@ -45,11 +47,22 @@ const DAYS = [
   ["90", "Last 90 days"],
 ] as const;
 
-export function CompareClient() {
+/** Procurement's home: every supplier price in one search, and "Share price" for the ticked products. */
+export function SearchClient() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
   const [q, setQ] = useState(sp.get("q") ?? "");
+  // ticked products, kept while the search changes, so a customer's list can be built from several searches
+  const [picked, setPicked] = useState<Map<number, ProductHit>>(new Map());
+  const [sharing, setSharing] = useState(false);
+  const toggle = (p: ProductHit) =>
+    setPicked((m) => {
+      const next = new Map(m);
+      if (next.has(p.id)) next.delete(p.id);
+      else next.set(p.id, p);
+      return next;
+    });
   // set when "Clear all" empties the box itself, so the typing effect below does not write the old filters back
   const clearing = useRef(false);
 
@@ -163,8 +176,8 @@ export function CompareClient() {
         <ExportButton variant="outline" size="icon-sm" url={`/api/export?${qs.toString()}`} label="Price comparison (CSV)" disabled={!results.data?.total} aria-label="Export CSV" title="Export CSV">
           <Download />
         </ExportButton>
-        <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href="/procurement/import" />} aria-label="Paste a price list" title="Paste a price list">
-          <ClipboardPaste />
+        <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href="/procurement/import" />} aria-label="Upload an Excel price list" title="Upload an Excel price list">
+          <FileSpreadsheet />
         </Button>
       </div>
 
@@ -200,9 +213,9 @@ export function CompareClient() {
       {empty ? (
         <div className="rounded-xl border bg-card py-12 text-center">
           <p className="font-medium">No prices yet</p>
-          <p className="mb-4 text-sm text-muted-foreground">Paste a supplier WhatsApp price list to get started.</p>
-          <Button nativeButton={false} render={<Link href="/procurement/import" />}>
-            <ClipboardPaste /> Paste price list
+          <p className="mb-4 text-sm text-muted-foreground">Ask Claude to push your suppliers&apos; WhatsApp stock (see “How stock comes in”), or upload a distributor&apos;s Excel sheet.</p>
+          <Button variant="outline" nativeButton={false} render={<Link href="/procurement/import" />}>
+            <FileSpreadsheet /> Upload Excel
           </Button>
         </div>
       ) : results.isLoading ? (
@@ -218,8 +231,23 @@ export function CompareClient() {
           </Button>
         </div>
       ) : (
-        <ResultsTable products={results.data?.products ?? []} staleDays={results.data?.staleDays ?? 14} fetching={results.isFetching} />
+        <ResultsTable products={results.data?.products ?? []} staleDays={results.data?.staleDays ?? 14} fetching={results.isFetching} picked={picked} onToggle={toggle} />
       )}
+
+      {picked.size > 0 && (
+        <div className="sticky bottom-(--mobile-nav-h) z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-background/95 px-3 py-2 backdrop-blur">
+          <span className="text-sm font-medium">
+            {picked.size} product{picked.size === 1 ? "" : "s"} ticked
+          </span>
+          <button type="button" className="text-xs text-muted-foreground underline hover:text-foreground" onClick={() => setPicked(new Map())}>
+            Clear
+          </button>
+          <Button size="sm" className="ml-auto" onClick={() => setSharing(true)}>
+            <Send /> Share price
+          </Button>
+        </div>
+      )}
+      <SharePriceDialog products={[...picked.values()]} open={sharing} onOpenChange={setSharing} />
     </div>
   );
 }
@@ -259,7 +287,7 @@ function Toggle({ on, onChange, icon, label, title }: { on: boolean; onChange: (
  * Every product in ONE table: a sticky header once, then for each product a heading row with its best price
  * followed by one row per supplier offer. The table scrolls inside its panel, so the page itself does not.
  */
-function ResultsTable({ products, staleDays, fetching }: { products: ProductHit[]; staleDays: number; fetching: boolean }) {
+function ResultsTable({ products, staleDays, fetching, picked, onToggle }: { products: ProductHit[]; staleDays: number; fetching: boolean; picked: Map<number, ProductHit>; onToggle: (p: ProductHit) => void }) {
   return (
     <div className={cn("max-h-[calc(100svh-var(--mobile-nav-h)-9.5rem)] overflow-auto rounded-xl border bg-card transition-opacity", fetching && "opacity-70")}>
       <table className="w-full table-fixed text-sm sm:table-auto">
@@ -274,14 +302,14 @@ function ResultsTable({ products, staleDays, fetching }: { products: ProductHit[
           </tr>
         </thead>
         {products.map((p) => (
-          <ProductGroup key={p.id} p={p} staleDays={staleDays} />
+          <ProductGroup key={p.id} p={p} staleDays={staleDays} picked={picked.has(p.id)} onToggle={() => onToggle(p)} />
         ))}
       </table>
     </div>
   );
 }
 
-function ProductGroup({ p, staleDays }: { p: ProductHit; staleDays: number }) {
+function ProductGroup({ p, staleDays, picked, onToggle }: { p: ProductHit; staleDays: number; picked: boolean; onToggle: () => void }) {
   const suppliers = new Set(p.offers.map((o) => o.supplierId)).size;
   const saving = p.bestPrice != null && p.worstPrice != null ? p.worstPrice - p.bestPrice : 0;
   return (
@@ -290,6 +318,7 @@ function ProductGroup({ p, staleDays }: { p: ProductHit; staleDays: number }) {
       <tr className="hidden bg-muted/50 sm:table-row">
         <td colSpan={6} className="px-3 py-1.5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Checkbox checked={picked} onCheckedChange={onToggle} aria-label={`Tick ${p.label} to share its price`} />
             <div className="min-w-0 flex-1">
               <ProductTitle p={p} suppliers={suppliers} />
             </div>
@@ -299,7 +328,12 @@ function ProductGroup({ p, staleDays }: { p: ProductHit; staleDays: number }) {
       </tr>
       <tr className="bg-muted/50 sm:hidden">
         <td colSpan={2} className="px-3 py-1.5">
-          <ProductTitle p={p} suppliers={suppliers} />
+          <div className="flex items-start gap-2">
+            <Checkbox checked={picked} onCheckedChange={onToggle} aria-label={`Tick ${p.label} to share its price`} className="mt-1" />
+            <div className="min-w-0 flex-1">
+              <ProductTitle p={p} suppliers={suppliers} />
+            </div>
+          </div>
           <div className="mt-1">
             <BestPrice p={p} saving={saving} staleDays={staleDays} align="start" />
           </div>

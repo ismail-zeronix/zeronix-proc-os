@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 
 interface ReviewState {
   /** In-progress review edits per price list id (kept in localStorage until saved). */
@@ -38,29 +38,5 @@ export const useReviewStore = create<ReviewState>()(
         }),
     }),
     { name: "zp-review-drafts", storage: createJSONStorage(() => localStorage) },
-  ),
-);
-
-/** Paste form state survives navigation so a half-pasted list is not lost. */
-interface PasteState {
-  rawText: string;
-  supplierId: string;
-  newSupplierName: string;
-  receivedAt: string;
-  set: (p: Partial<Omit<PasteState, "set" | "reset">>) => void;
-  reset: () => void;
-}
-
-export const usePasteStore = create<PasteState>()(
-  persist(
-    (set) => ({
-      rawText: "",
-      supplierId: "",
-      newSupplierName: "",
-      receivedAt: "",
-      set: (p) => set(p),
-      reset: () => set({ rawText: "", supplierId: "", newSupplierName: "", receivedAt: "" }),
-    }),
-    { name: "zp-paste", storage: createJSONStorage(() => sessionStorage) },
   ),
 );

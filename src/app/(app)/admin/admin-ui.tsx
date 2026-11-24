@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, KeyRound, LayoutGrid, Plus, UserCheck, UserPlus, UserX, XCircle } from "lucide-react";
+import { KeyRound, LayoutGrid, Plus, UserCheck, UserPlus, UserX } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -36,77 +36,19 @@ function useAction() {
   return [pending, run] as const;
 }
 
-export function AdminSettings({
-  settings,
-  models,
-  engines,
-  health,
-}: {
-  settings: { llm_model: string; llm_provider_id: string; stale_days: string; fx_usd: string };
-  models: string[];
-  /** AI services saved in Prospecting → Settings. */
-  engines: { id: number; label: string; enabled: boolean }[];
-  health: { ok: boolean; detail: string };
-}) {
-  const [engine, setEngine] = useState(settings.llm_provider_id);
-  const [model, setModel] = useState(settings.llm_model);
+/** Price comparison (Procurement): when an offer counts as old, and the USD rate used to rank USD prices. */
+export function AdminSettings({ settings }: { settings: { stale_days: string; fx_usd: string } }) {
   const [stale, setStale] = useState(settings.stale_days);
   const [fx, setFx] = useState(settings.fx_usd);
   const [pending, run] = useAction();
-  const options = models.includes(model) ? models : [model, ...models];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI & comparison</CardTitle>
-        <CardDescription className="flex items-center gap-2">
-          {health.ok ? (
-            <CheckCircle2 className="size-4 text-emerald-600" />
-          ) : (
-            <XCircle className="size-4 text-destructive" />
-          )}
-          {health.detail}
-        </CardDescription>
+        <CardTitle>Price comparison</CardTitle>
+        <CardDescription>How supplier prices are ranked in Procurement and in the quote builder&apos;s Find price.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-[1fr_200px_200px_auto] md:items-start">
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label>Reads pasted price lists with</Label>
-            <NativeSelect value={engine} onChange={(e) => setEngine(e.target.value)}>
-              <NativeSelectOption value="">Local model (Ollama)</NativeSelectOption>
-              {engines.map((p) => (
-                <NativeSelectOption key={p.id} value={String(p.id)}>
-                  {p.label}
-                  {p.enabled ? "" : " (switched off)"}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <p className="text-xs text-muted-foreground">
-              AI services and keys are added in{" "}
-              <Link href="/prospecting/settings" className="underline">
-                Prospecting → Settings
-              </Link>
-              . OpenRouter free models read a list in a few seconds and share that key&apos;s 50 free requests a day; a
-              list waits in the queue when they run out.
-            </p>
-          </div>
-          {engine === "" && (
-            <div className="grid gap-1.5">
-              <Label>Local model (Ollama)</Label>
-              <NativeSelect value={model} onChange={(e) => setModel(e.target.value)}>
-                {options.map((m) => (
-                  <NativeSelectOption key={m} value={m}>
-                    {m}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <p className="text-xs text-muted-foreground">
-                qwen3.5:4b gives the best accuracy on CPU (~3.4 GB RAM). qwen3.5:2b is ~20% faster but less accurate.
-                Pull other models with <code>ollama pull &lt;name&gt;</code>.
-              </p>
-            </div>
-          )}
-        </div>
+      <CardContent className="grid gap-4 md:grid-cols-[200px_200px_auto] md:items-start">
         <div className="grid gap-1.5">
           <Label>Offer is “old” after (days)</Label>
           <Input type="number" min={1} max={365} value={stale} onChange={(e) => setStale(e.target.value)} />
@@ -119,13 +61,7 @@ export function AdminSettings({
             Lets USD distributor prices rank against AED prices. Other currencies are only compared with themselves.
           </p>
         </div>
-        <Button
-          className="md:mt-[1.375rem]"
-          pending={pending}
-          onClick={() =>
-            run(() => saveSettings({ llm_model: model, llm_provider_id: engine, stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")
-          }
-        >
+        <Button className="md:mt-[1.375rem]" pending={pending} onClick={() => run(() => saveSettings({ stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")}>
           Save
         </Button>
       </CardContent>

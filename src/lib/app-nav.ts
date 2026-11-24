@@ -1,4 +1,4 @@
-import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
+import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -125,18 +125,13 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
   ],
   procurement: [
     {
-      label: "Work",
+      label: "Procurement",
+      hideLabel: true,
       items: [
-        { href: "/procurement", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/procurement/compare", label: "Compare prices", icon: Search, also: ["/procurement/products"] },
-        { href: "/procurement/price-lists", label: "Price lists", icon: History, badge: "review", also: ["/procurement/import"] },
-      ],
-    },
-    {
-      label: "Track",
-      items: [
-        { href: "/procurement/alerts", label: "Price alerts", icon: Bell, badge: "alerts" },
+        { href: "/procurement", label: "Search", icon: Search, exact: true, also: ["/procurement/products"] },
+        { href: "/procurement/inbox", label: "Inbox", icon: Inbox, badge: "inbox" },
         { href: "/procurement/suppliers", label: "Suppliers", icon: Truck },
+        { href: "/procurement/price-lists", label: "Received", icon: History, also: ["/procurement/import"] },
       ],
     },
   ],
@@ -215,7 +210,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
     {
       label: "System",
       items: [
-        { href: "/admin/ai", label: "AI & feeds", icon: Bot, badge: "queue" },
+        { href: "/admin/feeds", label: "Supplier feeds", icon: Bot },
         { href: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
         { href: "/admin/claude", label: "Claude", icon: Sparkles },
         { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
@@ -233,7 +228,7 @@ export function navFor(app: AppKey, perms: NavPerms = {}): NavGroup[] {
 export const BADGE_LABELS: Record<string, string> = {
   review: "waiting for review",
   alerts: "new this week",
-  queue: "price lists waiting for AI",
+  inbox: "supplier messages waiting for a check",
   overdue: "invoices overdue",
   toInvoice: "delivered sales orders waiting for an invoice",
   billsDue: "supplier bills due this week or overdue",

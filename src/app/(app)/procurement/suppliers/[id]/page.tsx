@@ -1,5 +1,5 @@
-import { desc, eq, sql } from "drizzle-orm";
-import { ClipboardPaste, MapPin, Phone, Search, Trophy } from "lucide-react";
+import { asc, desc, eq, ne, sql } from "drizzle-orm";
+import { MapPin, Phone, Search, Trophy } from "lucide-react";
 import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
@@ -18,9 +18,10 @@ import { supplierOffers } from "@/lib/supplier-stats";
 import { cn } from "@/lib/utils";
 import { FeedBadge, FeedCard } from "../feed-card";
 import { SupplierDialog } from "../supplier-ui";
+import { SupplierWhatsApp } from "../whatsapp-ui";
 import { PhoneCards } from "@/components/phone-cards";
 
-const STATUS = { queued: "Queued", parsing: "Reading", review: "Needs review", saved: "Saved", failed: "Failed" } as const;
+const STATUS = { queued: "Not read", parsing: "Not read", review: "Needs a check", saved: "Saved", failed: "Not read" } as const;
 const th = "px-3 py-1.5 font-medium";
 
 export default async function SupplierPage({ params }: PageProps<"/procurement/suppliers/[id]">) {
@@ -33,7 +34,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
 
   const session = await getSession();
   const [feedRow] = await db.select().from(schema.supplierFeeds).where(eq(schema.supplierFeeds.supplierId, id));
-  const [offers, lists] = await Promise.all([
+  const [offers, lists, handles, others] = await Promise.all([
     supplierOffers(id, staleDays),
     db
       .select({
@@ -42,12 +43,21 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
         receivedAt: schema.priceLists.receivedAt,
         // explicit table name: a bare "id" would be read as offers.id inside the subquery
         offers: sql<number>`(SELECT count(*)::int FROM offers o WHERE o.price_list_id = price_lists.id)`,
-        reused: schema.priceLists.reusedBlocks,
+        source: schema.priceLists.source,
+        sourceName: schema.priceLists.sourceName,
+        chat: schema.priceLists.chat,
+        seenCount: schema.priceLists.seenCount,
       })
       .from(schema.priceLists)
       .where(eq(schema.priceLists.supplierId, id))
       .orderBy(desc(schema.priceLists.receivedAt))
       .limit(15),
+    db
+      .select({ id: schema.supplierHandles.id, kind: schema.supplierHandles.kind, value: schema.supplierHandles.value })
+      .from(schema.supplierHandles)
+      .where(eq(schema.supplierHandles.supplierId, id))
+      .orderBy(asc(schema.supplierHandles.kind), asc(schema.supplierHandles.value)),
+    db.select({ id: schema.suppliers.id, name: schema.suppliers.name }).from(schema.suppliers).where(ne(schema.suppliers.id, id)).orderBy(asc(schema.suppliers.name)),
   ]);
 
   const fresh = offers.filter((o) => !o.stale);
@@ -79,11 +89,8 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
         {!supplier.isActive && <Badge variant="outline">inactive</Badge>}
         <span className="ml-auto flex items-center gap-1.5">
           <SupplierDialog supplier={{ ...supplier, lists: lists.length, lastList: null, products: offers.length }} />
-          <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href={`/procurement/compare?supplier=${id}`} />} aria-label="See on Compare" title="See on Compare">
+          <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href={`/procurement?supplier=${id}`} />} aria-label="Their prices in Search" title="Their prices in Search">
             <Search />
-          </Button>
-          <Button size="icon-sm" nativeButton={false} render={<Link href="/procurement/import" />} aria-label="Paste their list" title="Paste their list">
-            <ClipboardPaste />
           </Button>
         </span>
       </div>
@@ -122,6 +129,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
           <TabsList>
             <TabsTrigger value="offers">Current offers ({offers.length})</TabsTrigger>
             <TabsTrigger value="lists">Price lists ({lists.length})</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp ({handles.length})</TabsTrigger>
             {(feed || isAdmin) && (
               <TabsTrigger value="feed">
                 Live feed <FeedBadge feed={feed} />
@@ -208,7 +216,7 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
                     <th className={cn(th, "text-left")}>List</th>
                     <th className={cn(th, "text-left")}>Status</th>
                     <th className={cn(th, "text-right")}>Offers</th>
-                    <th className={cn(th, "text-right")}>Skipped AI</th>
+                    <th className={cn(th, "text-left")}>From</th>
                     <th className={cn(th, "text-right")}>Received</th>
                   </tr>
                 </thead>
@@ -224,7 +232,9 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
                         <Badge variant={l.status === "failed" ? "destructive" : l.status === "review" ? "default" : "outline"}>{STATUS[l.status]}</Badge>
                       </td>
                       <td className="px-3 py-1 text-right tabular-nums">{l.offers || ""}</td>
-                      <td className="px-3 py-1 text-right text-xs tabular-nums text-muted-foreground">{l.reused ? `${l.reused} items` : ""}</td>
+                      <td className="max-w-[260px] truncate px-3 py-1 text-xs text-muted-foreground">
+                        {l.source === "whatsapp" ? `WhatsApp${l.chat ? `: ${l.chat}` : ""}${l.seenCount > 1 ? ` · sent ${l.seenCount}×` : ""}` : l.source === "excel" ? `Excel: ${l.sourceName}` : l.source === "feed" ? "Live feed" : "Pasted"}
+                      </td>
                       <td className="px-3 py-1 text-right text-xs whitespace-nowrap">{ago(l.receivedAt)}</td>
                     </tr>
                   ))}
@@ -238,6 +248,10 @@ export default async function SupplierPage({ params }: PageProps<"/procurement/s
                 </tbody>
               </table></PhoneCards>
             </div>
+          </TabsContent>
+
+          <TabsContent value="whatsapp" className="pt-2">
+            <SupplierWhatsApp supplierId={id} supplierName={supplier.name} handles={handles} others={others} />
           </TabsContent>
 
           {(feed || isAdmin) && (

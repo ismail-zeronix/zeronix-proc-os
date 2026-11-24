@@ -14,7 +14,6 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "try-parse": "tsx scripts/try-parse.ts",
     "typecheck": "tsc --noEmit",
     "try-excel": "tsx scripts/try-excel.ts",
     "try-feed": "tsx scripts/try-feed.ts"
