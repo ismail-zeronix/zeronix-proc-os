@@ -415,7 +415,7 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
 
 function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1]; pending: boolean }) {
   const [open, setOpen] = useState(false);
-  const blank = { name: "", email: "", password: "", role: "sales" as "admin" | "sales" };
+  const blank = { name: "", email: "", password: "", role: "sales" as "admin" | "sales", salary: "" };
   const [form, setForm] = useState(blank);
   const valid = !!form.name && !!form.email && form.password.length >= 8;
   return (
@@ -434,7 +434,7 @@ function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1];
             e.preventDefault();
             if (!valid) return;
             run(async () => {
-              await createUser(form);
+              await createUser({ ...form, salary: Number(form.salary) || 0 });
               setForm(blank);
               setOpen(false);
             }, "User created");
@@ -466,6 +466,16 @@ function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1];
                 <NativeSelectOption value="admin">Admin</NativeSelectOption>
               </NativeSelect>
             </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="nu-salary">Monthly salary (AED)</Label>
+            <Input
+              id="nu-salary"
+              inputMode="decimal"
+              value={form.salary}
+              onChange={(e) => setForm({ ...form, salary: e.target.value.replace(/[^\d.]/g, "") })}
+              placeholder="Used for payslips in Accounts › Payroll. Leave empty if not paid by the company."
+            />
           </div>
           <DialogFooter>
             <Button type="submit" pending={pending} disabled={!valid}>

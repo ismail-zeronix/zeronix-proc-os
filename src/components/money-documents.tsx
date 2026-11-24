@@ -5,7 +5,7 @@ import { aedInWords } from "@/lib/words";
 
 const safeColor = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : "#2a78d6");
 
-function Head({ brand, title, number, meta }: { brand: QuoteBrand; title: string; number: string; meta: [string, string][] }) {
+export function Head({ brand, title, number, meta }: { brand: QuoteBrand; title: string; number: string; meta: [string, string][] }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 pb-4" style={{ borderColor: safeColor(brand.color) }}>
       <div>

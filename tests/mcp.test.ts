@@ -155,8 +155,13 @@ describe.skipIf(!live)("Claude connector: tokens and tools (needs the test datab
     expect((await O.verifyAccess(`Bearer ${t2.access_token}`))?.write).toBe(true);
   });
 
-  it("never lets a non-admin connect, and a session cookie is not an access token", async () => {
+  it("lets sales staff connect but not a deactivated user, and a session cookie is not an access token", async () => {
+    const ok = await (await connect(seller, "read")).tokens();
+    expect(await O.verifyAccess(`Bearer ${ok.access_token}`)).toMatchObject({ userId: seller, role: "sales", seesAll: false, finance: false });
+    await db.update(schema.users).set({ isActive: false }).where(eq(schema.users.id, seller));
+    expect(await O.verifyAccess(`Bearer ${ok.access_token}`)).toBeNull();
     await expect((await connect(seller, "read")).tokens()).rejects.toMatchObject({ code: "invalid_grant" });
+    await db.update(schema.users).set({ isActive: true }).where(eq(schema.users.id, seller));
     const { signSession } = await import("@/lib/auth/token");
     const cookie = await signSession({ id: admin, name: "x", email: "x@example.test", role: "admin", sv: 1 });
     expect(await O.verifyAccess(`Bearer ${cookie}`)).toBeNull();
@@ -188,7 +193,7 @@ describe.skipIf(!live)("Claude connector: tokens and tools (needs the test datab
     const dealId = Number(lead.structuredContent?.dealId);
     expect(dealId).toBeGreaterThan(0);
 
-    await tool("add_note").call({ deal_id: dealId, type: "call", text: "Spoke to Sara", follow_up_date: "2030-01-15" }, ctx);
+    await tool("add_note").call({ deal_id: dealId, type: "call", outcome: "connected", text: "Spoke to Sara", follow_up_date: "2030-01-15" }, ctx);
     const [deal] = await db.select({ stage: schema.deals.stage }).from(schema.deals).where(eq(schema.deals.id, dealId));
     expect(deal.stage).toBe("contacted");
 
@@ -207,5 +212,34 @@ describe.skipIf(!live)("Claude connector: tokens and tools (needs the test datab
 
     const timeline = await db.select({ body: schema.activities.body }).from(schema.activities).where(eq(schema.activities.dealId, dealId));
     expect(timeline.some((a) => a.body.includes("(via Claude)"))).toBe(true);
+  });
+
+  it("gives a salesperson only their own view: their apps, their deals, and punch-in for changes", async () => {
+    const adminAuth = (await O.verifyAccess(`Bearer ${(await (await connect(admin, "read write")).tokens()).access_token}`))!;
+    const adminCtx = { auth: adminAuth, viewer: { id: admin, seesAll: true }, base: "https://portal.test" };
+    const tool = (n: string) => tools.find((x) => x.name === n)!;
+    const adminDeal = Number((await tool("create_lead").call({ customer_name: `${tag} Admin Co`, requirement: "servers" }, adminCtx)).structuredContent?.dealId);
+
+    const auth = (await O.verifyAccess(`Bearer ${(await (await connect(seller, "read write")).tokens()).access_token}`))!;
+    const ctx = { auth, viewer: { id: seller, seesAll: auth.seesAll }, base: "https://portal.test" };
+    const offered = tools.filter((t) => t.allowed(auth)).map((t) => t.name);
+    expect(offered).toEqual(expect.arrayContaining(["business_overview", "list_deals", "create_lead", "create_draft_quote"]));
+    for (const money of ["money_owed", "bills_due", "run_report", "web_orders"]) expect(offered).not.toContain(money);
+
+    // the admin's deal is not theirs
+    const deals = await tool("list_deals").call({ query: tag, open_only: false }, ctx);
+    expect((deals.structuredContent?.deals as { id: number }[] | undefined)?.map((d) => d.id) ?? []).not.toContain(adminDeal);
+    await expect(tool("get_deal").call({ deal_id: adminDeal }, ctx)).rejects.toThrow(/no deal/);
+    const overview = await tool("business_overview").call({}, ctx);
+    expect(overview.structuredContent).not.toHaveProperty("customersOwe");
+    expect(overview.structuredContent).not.toHaveProperty("alerts");
+
+    // changes need a punch-in, as in the portal
+    await expect(tool("create_task").call({ title: `${tag} seller task` }, ctx)).rejects.toThrow(/Punch in/);
+    const { dubaiToday } = await import("@/lib/dates");
+    await db.insert(schema.attendancePunches).values({ userId: seller, day: dubaiToday() });
+    const task = await tool("create_task").call({ title: `${tag} seller task` }, ctx);
+    expect(task.structuredContent?.assignedTo).toBe(`${tag}-seller`);
+    await expect(tool("add_note").call({ deal_id: adminDeal, text: "not mine" }, ctx)).rejects.toThrow();
   });
 });

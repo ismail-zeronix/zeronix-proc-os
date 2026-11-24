@@ -1,7 +1,7 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAccess } from "@/lib/auth/session";
 import { checkAuthorizeRequest } from "@/lib/mcp/oauth";
-import { isLoopback, parseScope } from "@/lib/mcp/oauth-rules";
+import { claudeAllowed, isLoopback, parseScope } from "@/lib/mcp/oauth-rules";
 import { ConsentForm } from "./consent-form";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ function Problem({ title, text }: { title: string; text: string }) {
 }
 
 /**
- * The OAuth consent page of the Claude connector. Claude sends the admin here (after the normal sign-in); Allow sends
+ * The OAuth consent page of the Claude connector. Claude sends the admin or salesperson here (after the normal sign-in); Allow sends
  * them back to Claude with a one-time code. A bad app or return address is shown here and never redirected anywhere.
  */
 export default async function AuthorizePage({ searchParams }: { searchParams: Promise<Params> }) {
@@ -40,7 +40,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   if (p.response_type !== "code" || p.code_challenge_method !== "S256" || !p.code_challenge) {
     return <Problem title="Link not valid" text="Claude sent an incomplete sign-in request. Remove the connector in Claude and add it again." />;
   }
-  if (access.user.role !== "admin") return <Problem title="Admins only" text="Only admins can connect Claude to Zeronix OS. Ask an admin if you need it." />;
+  if (!claudeAllowed(access.user.role)) return <Problem title="Not available" text="Your account cannot connect Claude to Zeronix OS. Ask an admin if you need it." />;
 
   return (
     <Shell>

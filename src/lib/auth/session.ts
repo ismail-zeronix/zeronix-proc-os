@@ -11,9 +11,10 @@ import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 import { UserError } from "@/lib/user-error";
 
 /**
- * The Claude connector (/api/mcp) runs the normal server actions as the admin who connected it: the same checks,
+ * The Claude connector (/api/mcp) runs the normal server actions as the person who connected it: the same checks,
  * timeline entries and notifications as clicking in the portal. Only server code can set this (runAsClaude); a browser
- * has no way to reach it. Claude needs no punch-in: the admin approves each change in the Claude chat instead.
+ * has no way to reach it. Admins need no punch-in for Claude's changes (they approve each one in the chat); sales staff
+ * must be punched in, exactly as in the portal.
  */
 const claudeActor = new AsyncLocalStorage<SessionUser>();
 
@@ -111,7 +112,8 @@ export async function requireAccountant(): Promise<Access> {
  * Only a session opened today counts. Cached per request.
  */
 export const isPunchedIn = cache(async (userId: number): Promise<boolean> => {
-  if (claudeActor.getStore()?.id === userId) return true;
+  const claude = claudeActor.getStore();
+  if (claude?.id === userId && claude.role === "admin") return true;
   const [open] = await db
     .select({ id: schema.attendancePunches.id })
     .from(schema.attendancePunches)

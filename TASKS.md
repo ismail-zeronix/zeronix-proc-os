@@ -286,6 +286,15 @@ Owner decisions (2026-11-05): one database with `organization_id` + row-level se
 - [ ] A6 Month-end checklist, lock date, year-end close, overdue invoice/bill alerts (12.5)
 - [ ] T Multi-tenancy on (non-owner DB role + FORCE RLS, settings/brand per org, members, org switcher); G India GST adapter; L1–L5 stock, fixed assets, budgets, corporate tax, UAE e-invoicing
 
+## Phase 19: Sales routine, My Day, team KPIs, Outreach (plan: ~/.claude/plans/ok-as-you-are-robust-journal-of-a28cc370-d142-4783-92db-e226a034c0ac.md)
+Owner 2026-11-24: salesmen sit idle, home only reports, follow-ups slip, no daily visibility. Decisions: merge Prospecting + Newsletter into Outreach; firm routine (EOD report needed to punch out); team default targets + per-person override; weekly newsletter.
+- [x] [2026-11-24] R.1 Call outcomes + one follow-up place: activities.outcome / contact_id, prospect_activities.outcome (migration 0067); outcome chips (required for a call), next-step chips (In 2 hours / Tomorrow / In 2 days / Next week / date, working days only, lib/next-step.ts, components/quick-log.tsx); contact on an open deal must set deals.follow_up_at unless a later one exists or the outcome ends it; no more "Follow up:" tasks; CRM overdue list and deal "next due" read follow_up_at; MCP add_note takes outcome. Local demo data: scripts/demo-sales.ts (localhost only, --remove)
+- [x] [2026-11-24] R.2 My Day home: salesmen open on My day, admins on Overview, a toggle for both (?view=day|overview). Now-line from the routine blocks (lib/routine.ts), target strip with pace colours (default targets until R.3), one To-do list (lib/my-day.ts): overdue / today follow-ups, new leads, quotes with no answer 2+ days, deals with no next step, call list = prospects owned by the user not called in 14 days. Inline Log (deal: type, outcome, next step; prospect: outcome, not interested = disqualified), Later = move follow-up with a reason noted on the timeline (crm moveFollowUp, home my-day-actions logProspectCall)
+- [ ] R.3 Targets (team default + per user), start-of-day sheet at punch-in, end-of-day report required at punch-out, nudges (behind target, idle, no EOD)
+- [ ] R.4 Team Today /crm/team + week/month KPIs + evening owner email
+- [ ] R.5 Outreach app: Prospecting + Newsletter in one, 5 menu items, plain words, prospect owners, Replies + Convert to lead (P.7), Call mode
+- [ ] R.6 zeronixtech.com/connect opt-in (weekly newsletter) linked from every outreach email; checkbox on quote/contact forms
+
 ## Later
 - [ ] L.2 / L.3 moved to Phase 16 (Prospecting)
 - [ ] L.4 Link emails to contacts/deals automatically and log them as activities; create a task from an email

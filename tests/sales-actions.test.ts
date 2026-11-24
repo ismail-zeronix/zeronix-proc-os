@@ -114,21 +114,49 @@ describe.skipIf(!live)("sales actions (needs the dev database)", () => {
     await expect(A.createDeal({ requirement: "x" })).rejects.toThrow(/company/i);
   });
 
-  it("moves a brand-new deal to Contacted when a call is logged, and books the follow-up", async () => {
+  it("moves a brand-new deal to Contacted when a call is logged, and sets the deal's next follow-up", async () => {
     await as(seller, "seller");
     const { id } = await A.createDeal({ companyName: `${tag} Beta`, contactName: "Sara", requirement: "monitors" });
-    await A.logActivity(id, { type: "call", body: "Spoke to Sara, needs 10 monitors", followUp: "2030-01-15" });
+    await A.logActivity(id, { type: "call", outcome: "interested", body: "Spoke to Sara, needs 10 monitors", followUp: "2030-01-15" });
     const [deal] = await db.select().from(schema.deals).where(eq(schema.deals.id, id));
     expect(deal.stage).toBe("contacted");
+    // that morning in the UAE (work start + 30 minutes)
+    expect(deal.followUpAt && new Date(deal.followUpAt.getTime() + 4 * 3600_000).toISOString().slice(0, 10)).toBe("2030-01-15");
     const acts = await db.select().from(schema.activities).where(eq(schema.activities.dealId, id));
     expect(acts.map((a) => a.type).sort()).toEqual(["call", "created", "stage"]);
+    const call = acts.find((a) => a.type === "call")!;
+    expect(call).toMatchObject({ outcome: "interested", contactId: deal.contactId });
+    // the follow-up lives on the deal only: no extra "Follow up" task
     const tasks = await db.select().from(schema.tasks).where(eq(schema.tasks.relatedId, id));
-    expect(tasks.some((t) => t.dueDate === "2030-01-15" && t.title.startsWith("Follow up"))).toBe(true);
-    // a note does not count as contacting the customer
+    expect(tasks.some((t) => t.title.startsWith("Follow up"))).toBe(false);
+    // a note does not count as contacting the customer, and needs no next step
     const { id: id2 } = await A.createDeal({ companyName: `${tag} Gamma`, requirement: "x" });
     await A.logActivity(id2, { type: "note", body: "internal note" });
     const [d2] = await db.select().from(schema.deals).where(eq(schema.deals.id, id2));
     expect(d2.stage).toBe("new");
+  });
+
+  it("asks how a call went and when to follow up, except when the deal has a later follow-up or is over", async () => {
+    await as(seller, "seller");
+    const { id } = await A.createDeal({ companyName: `${tag} Outcome`, contactName: "Omar", requirement: "switches" });
+    await expect(A.logActivity(id, { type: "call", body: "rang" })).rejects.toThrow(/how the call went/i);
+    await expect(A.logActivity(id, { type: "call", outcome: "no_answer" })).rejects.toThrow(/next step/i);
+    await expect(A.logActivity(id, { type: "email", body: "sent the brochure" })).rejects.toThrow(/next step/i);
+    await expect(A.logActivity(id, { type: "call", outcome: "no_answer", followUpAt: "2001-01-01T08:00:00Z" })).rejects.toThrow(/future/i);
+    // an outcome alone is enough text; the body reads as the outcome
+    const later = new Date(Date.now() + 3 * 86400_000).toISOString();
+    expect(await A.logActivity(id, { type: "call", outcome: "no_answer", followUpAt: later })).toEqual({ followUpAt: later });
+    const [act] = await db.select().from(schema.activities).where(and(eq(schema.activities.dealId, id), eq(schema.activities.type, "call")));
+    expect(act).toMatchObject({ body: "No answer.", outcome: "no_answer" });
+    // the deal already has a follow-up 3 days away, so the next call may leave it as it is
+    await A.logActivity(id, { type: "whatsapp", body: "sent specs" });
+    let [d] = await db.select({ followUpAt: schema.deals.followUpAt }).from(schema.deals).where(eq(schema.deals.id, id));
+    expect(d.followUpAt?.toISOString()).toBe(later);
+    // not interested ends it: no next step needed
+    await db.update(schema.deals).set({ followUpAt: null }).where(eq(schema.deals.id, id));
+    await A.logActivity(id, { type: "call", outcome: "not_interested", body: "bought elsewhere" });
+    [d] = await db.select({ followUpAt: schema.deals.followUpAt }).from(schema.deals).where(eq(schema.deals.id, id));
+    expect(d.followUpAt).toBeNull();
   });
 
   it("needs a reason to mark a deal lost, records closing, and clears it when reopened", async () => {

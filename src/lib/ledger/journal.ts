@@ -53,6 +53,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   vat_settlement: "VAT settlement",
   vat_payment: "VAT paid to the FTA",
   advance_refund: "Advance refunded",
+  payslip: "Salary paid",
+  employee_advance: "Employee advance",
 };
 export const sourceLabel = (t: string) => SOURCE_LABELS[t] ?? t;
 
@@ -82,6 +84,8 @@ export function sourceHref(type: string, id: number | null): string | null {
       return `/accounts/bills/${id}`;
     case "supplier_payment":
       return `/print/payment-voucher/${id}`;
+    case "payslip":
+      return `/accounts/payroll/${id}`;
     default:
       return null;
   }

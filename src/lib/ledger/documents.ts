@@ -26,7 +26,7 @@ export async function ledgerStart(tx: Tx, orgId: number): Promise<string | null>
   return s?.cutover ?? null;
 }
 
-const posts = (start: string | null, date: string) => !!start && date >= start;
+export const posts = (start: string | null, date: string) => !!start && date >= start;
 
 /** The live opening entry (posted from Zoho and not reversed), if any. */
 export async function openingEntry(tx: Tx, orgId: number) {
@@ -82,7 +82,7 @@ async function firstOpenDay(tx: Tx, orgId: number, day: string): Promise<string>
   return s?.lockDate && day <= s.lockDate ? addDays(s.lockDate, 1) : day;
 }
 
-async function liveEntry(tx: Tx, orgId: number, sourceType: string, sourceId: number, purpose = "post") {
+export async function liveEntry(tx: Tx, orgId: number, sourceType: string, sourceId: number, purpose = "post") {
   const e = schema.journalEntries;
   const rev = alias(schema.journalEntries, "rev");
   const [row] = await tx

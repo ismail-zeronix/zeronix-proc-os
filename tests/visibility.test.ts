@@ -149,7 +149,7 @@ describe.skipIf(!live)("record visibility (needs the dev database)", () => {
     expect(await QD.getQuote(quote.id, own(sara))).not.toBeNull();
     // and she can work on it
     await as(sara);
-    await A.logActivity(id, { type: "call", body: "Called the buyer" });
+    await A.logActivity(id, { type: "call", outcome: "connected", followUp: "2030-01-15", body: "Called the buyer" });
     await Q.addItem(id, { description: "Cable", qty: 2, unitPriceAed: 20 });
 
     // taking her off hides it again

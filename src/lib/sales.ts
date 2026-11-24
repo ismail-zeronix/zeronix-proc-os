@@ -73,6 +73,37 @@ export const ACTIVITY_TYPES = [
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number]["key"] | "stage" | "created";
 
+/** Activity types that are real contact with the customer (a note is not). */
+export const CONTACT_TYPES = ["call", "whatsapp", "email", "meeting"] as const;
+/** Activity types that record how it went. A call must have one; a WhatsApp may. */
+export const OUTCOME_TYPES = ["call", "whatsapp"] as const;
+
+/**
+ * How a call (deal or cold call) or message went. `reached` = a person answered: "calls" counts every call,
+ * "connected" counts the reached ones. Order is the order of the chips.
+ */
+export const CALL_OUTCOMES = [
+  { key: "connected", label: "Talked", reached: true },
+  { key: "interested", label: "Interested", reached: true },
+  { key: "quote_requested", label: "Wants a quote", reached: true },
+  { key: "meeting_set", label: "Meeting set", reached: true },
+  { key: "call_back", label: "Call back later", reached: true },
+  { key: "not_interested", label: "Not interested", reached: true },
+  { key: "no_answer", label: "No answer", reached: false },
+  { key: "busy", label: "Busy / cut", reached: false },
+  { key: "wrong_number", label: "Wrong number", reached: false },
+] as const;
+
+export type CallOutcome = (typeof CALL_OUTCOMES)[number]["key"];
+export const OUTCOME_KEYS = CALL_OUTCOMES.map((o) => o.key) as [CallOutcome, ...CallOutcome[]];
+export const REACHED_OUTCOMES: CallOutcome[] = CALL_OUTCOMES.filter((o) => o.reached).map((o) => o.key);
+/** After these an open deal does not need a next step (it is over, or the number is useless). */
+export const NO_NEXT_STEP_OUTCOMES: CallOutcome[] = ["not_interested", "wrong_number"];
+
+export function outcomeLabel(key: string | null | undefined): string {
+  return CALL_OUTCOMES.find((o) => o.key === key)?.label ?? "";
+}
+
 /** The genuine-lead checklist. The first four are need / authority / budget / timing; then ways to verify the company. */
 export const CHECKS = [
   { key: "need", group: "ask", label: "Clear need", help: "They told us what, how many and what for" },

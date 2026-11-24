@@ -495,12 +495,20 @@ export const activities = pgTable(
     /** call, whatsapp, email, meeting, note, stage, created */
     type: text("type").notNull(),
     body: text("body").notNull().default(""),
+    /** How a call or message went (CALL_OUTCOMES in lib/sales.ts); counted for the salesman's day and the KPIs. */
+    outcome: text("outcome"),
     dealId: integer("deal_id").references(() => deals.id, { onDelete: "cascade" }),
     companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** The person spoken to; defaults to the deal's main contact. */
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at)],
+  (t) => [
+    index("activities_deal_idx").on(t.dealId, t.at),
+    index("activities_company_idx").on(t.companyId, t.at),
+    index("activities_user_idx").on(t.userId, t.at),
+  ],
 );
 
 /** Everyone working on a deal, in display order. The first one is also stored as deals.owner_id (the main owner). */
@@ -1719,12 +1727,14 @@ export const prospectActivities = pgTable(
       .notNull()
       .references(() => prospectCompanies.id, { onDelete: "cascade" }),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
-    /** note / status / created / import / research / converted */
+    /** note / status / created / import / research / converted / call */
     kind: text("kind").notNull(),
     body: text("body").notNull().default(""),
+    /** For a call: how it went (CALL_OUTCOMES in lib/sales.ts), so cold calls count in the salesman's day. */
+    outcome: text("outcome"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt)],
+  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt), index("prospect_activities_user_idx").on(t.userId, t.createdAt)],
 );
 
 /** Never email these: an address or a whole domain. Checked when a prospect is queued and again just before sending. */
@@ -2374,6 +2384,143 @@ export const journalLines = pgTable(
     check("journal_lines_one_side", sql`debit >= 0 AND credit >= 0 AND (debit = 0) <> (credit = 0)`),
     orgPolicy(),
   ],
+);
+
+// ---------- Payroll (Accounts › Payroll) ----------
+
+/** What a person is paid each month. One row per user; only admins and accountants can read it. */
+export const employeePay = pgTable(
+  "employee_pay",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** Monthly base salary in AED. */
+    baseSalary: numeric("base_salary", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("employee_pay_user_uq").on(t.userId), orgPolicy()],
+);
+
+/**
+ * The kinds of line a payslip can have, set up by the accountant (Bonus, Overtime, Absence...). `systemKey` marks the two
+ * the portal treats specially: "advance_recovery" (pays back an advance) and "absence" (suggested from attendance).
+ */
+export const payItemTypes = pgTable(
+  "pay_item_types",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["earning", "deduction"] }).notNull(),
+    systemKey: text("system_key"),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("pay_item_types_name_uq").on(t.organizationId, t.name), orgPolicy()],
+);
+
+/**
+ * One person's pay for one month. A draft can be edited; "paid" posts to the ledger (salary cost, advance taken back,
+ * money out of the bank) and locks it; a wrong one is voided with a reason, never deleted.
+ */
+export const payslips = pgTable(
+  "payslips",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    /** PSL-2026-0001 */
+    number: text("number").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** YYYY-MM the pay is for. */
+    month: text("month").notNull(),
+    /** The name as it was when the slip was made, so a later rename does not change a paid slip. */
+    employeeName: text("employee_name").notNull(),
+    jobTitle: text("job_title").notNull().default(""),
+    baseSalary: numeric("base_salary", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    status: text("status", { enum: ["draft", "paid", "void"] }).notNull().default("draft"),
+    /** Money in the slip's totals, saved when it is marked paid. */
+    gross: numeric("gross", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    deductions: numeric("deductions", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    net: numeric("net", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    /** Days in, late, days away, hours: what attendance said when the slip was made or last refreshed. */
+    attendance: jsonb("attendance").$type<PayslipAttendance>(),
+    notes: text("notes").notNull().default(""),
+    paidOn: date("paid_on"),
+    method: text("method"),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    reference: text("reference").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("payslips_number_uq").on(t.organizationId, t.number),
+    // one live slip per person per month (a voided one makes room for a new one)
+    uniqueIndex("payslips_user_month_uq").on(t.userId, t.month).where(sql`status <> 'void'`),
+    index("payslips_month_idx").on(t.organizationId, t.month),
+    orgPolicy(),
+  ],
+);
+
+export interface PayslipAttendance {
+  daysIn: number;
+  late: number;
+  absent: number;
+  medical: number;
+  other: number;
+  hours: number;
+}
+
+export const payslipLines = pgTable(
+  "payslip_lines",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    payslipId: integer("payslip_id")
+      .notNull()
+      .references(() => payslips.id, { onDelete: "cascade" }),
+    typeId: integer("type_id").references(() => payItemTypes.id),
+    /** The type's name when the line was made. */
+    label: text("label").notNull(),
+    kind: text("kind", { enum: ["earning", "deduction"] }).notNull(),
+    systemKey: text("system_key"),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("payslip_lines_slip_idx").on(t.payslipId), orgPolicy()],
+);
+
+/** Money paid to an employee ahead of salary. What is not yet taken back is the employee's advance balance. */
+export const employeeAdvances = pgTable(
+  "employee_advances",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    /** ADV-2026-0001 */
+    number: text("number").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    employeeName: text("employee_name").notNull(),
+    paidOn: date("paid_on").notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    method: text("method").notNull(),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    reference: text("reference").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("employee_advances_number_uq").on(t.organizationId, t.number), index("employee_advances_user_idx").on(t.userId), orgPolicy()],
 );
 
 /**

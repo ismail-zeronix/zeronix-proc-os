@@ -6,7 +6,7 @@ import type { McpCtx } from "@/lib/mcp/tool";
 import { allow } from "@/lib/webchat/public";
 
 /**
- * The Claude connector (MCP, Streamable HTTP, stateless JSON). Admins sign in through OAuth (lib/mcp/oauth.ts); every
+ * The Claude connector (MCP, Streamable HTTP, stateless JSON). Admins and sales staff sign in through OAuth (lib/mcp/oauth.ts); every
  * call is checked against their connection, and write tools need the "write" permission they ticked when connecting.
  */
 export const dynamic = "force-dynamic";
@@ -34,8 +34,10 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, { status: 400 });
   }
-  const ctx: McpCtx = { auth, viewer: { id: auth.userId, seesAll: true }, base: portalBase(req.url) };
-  const server = { tools: mcpTools, canWrite: auth.write, run: (name: string, args: Record<string, unknown>) => mcpTools.find((t) => t.name === name)!.call(args, ctx) };
+  // what this person sees in the portal is what Claude sees: their own data scope, and only the tools of their apps
+  const ctx: McpCtx = { auth, viewer: { id: auth.userId, seesAll: auth.seesAll }, base: portalBase(req.url) };
+  const tools = mcpTools.filter((t) => t.allowed(auth));
+  const server = { tools, canWrite: auth.write, run: (name: string, args: Record<string, unknown>) => tools.find((t) => t.name === name)!.call(args, ctx) };
 
   if (Array.isArray(body)) {
     const answers = (await Promise.all(body.slice(0, 10).map((m) => handleRpc(m as RpcMessage, server)))).filter(Boolean);

@@ -30,6 +30,7 @@ export interface RpcServer {
 export const INSTRUCTIONS = [
   "You are connected to Zeronix OS, the business system of Zeronix (IT hardware trading and projects, Dubai, UAE).",
   "Start with business_overview when asked how things are going or what to do; use find to look up a customer, deal, quote or invoice by name or number.",
+  "You see what the connected person sees in the portal: a salesperson only their own deals and the apps they have, so totals may cover only their part of the business; say so when it matters.",
   "All money is AED. Invoice and bill amounts include 5% UAE VAT unless a field says otherwise.",
   "When you suggest actions, name the records (customer, deal title, quote/invoice number) and include the link from the data, so the user can open them.",
   "Tools that change data (create_task, add_note, update_deal, create_lead, create_customer, create_draft_quote) need the user's go-ahead in the chat before each call. Never claim a change was made unless the tool said so.",
@@ -73,7 +74,7 @@ export async function handleRpc(msg: RpcMessage, server: RpcServer) {
       const tool = server.tools.find((t) => t.name === name);
       if (!tool) return fail(msg.id, -32602, `Unknown tool: ${name}`);
       if (tool.write && !server.canWrite) {
-        return ok(msg.id, { content: [{ type: "text", text: "This connection is read only. An admin can reconnect Claude with Write ticked." }], isError: true });
+        return ok(msg.id, { content: [{ type: "text", text: "This connection is read only. Disconnect and connect Claude again with Write ticked." }], isError: true });
       }
       const args = msg.params?.arguments && typeof msg.params.arguments === "object" ? (msg.params.arguments as Record<string, unknown>) : {};
       try {
