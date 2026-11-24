@@ -25,7 +25,7 @@ export function PrintBar({ dealHref, number, pdfHref, options }: { dealHref: str
       {pdfHref ? (
         <>
           {/* the server-made PDF has the running header, page numbers and a full-page cover */}
-          <span className="flex-1 truncate text-sm text-neutral-600">{number}</span>
+          <span className="flex-1 truncate text-sm text-muted-foreground">{number}</span>
           {options}
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer /> Print
@@ -36,7 +36,7 @@ export function PrintBar({ dealHref, number, pdfHref, options }: { dealHref: str
         </>
       ) : (
         <>
-          <span className="flex-1 truncate text-sm text-neutral-600">{number}: choose “Save as PDF” in the print window to get a file.</span>
+          <span className="flex-1 truncate text-sm text-muted-foreground">{number}: choose “Save as PDF” in the print window to get a file.</span>
           {options}
           <Button size="sm" onClick={() => window.print()}>
             <Printer /> Print / PDF
