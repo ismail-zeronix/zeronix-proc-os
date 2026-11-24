@@ -1,35 +1,6 @@
 import "server-only";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-
-export async function ollamaModels(): Promise<string[]> {
-  try {
-    const res = await fetch(`${process.env.OLLAMA_URL ?? "http://localhost:11434"}/api/tags`, {
-      signal: AbortSignal.timeout(4000),
-      cache: "no-store",
-    });
-    const data = (await res.json()) as { models?: { name: string; size: number }[] };
-    return (data.models ?? []).map((m) => m.name).sort();
-  } catch {
-    return [];
-  }
-}
-
-/** AI services saved in Prospecting → Settings that can read price lists (search services and Ollama left out). */
-export async function hostedEngines(): Promise<{ id: number; label: string; enabled: boolean }[]> {
-  const rows = await db
-    .select({ id: schema.prospectAiProviders.id, label: schema.prospectAiProviders.label, provider: schema.prospectAiProviders.provider, enabled: schema.prospectAiProviders.enabled })
-    .from(schema.prospectAiProviders)
-    .orderBy(asc(schema.prospectAiProviders.id));
-  return rows.filter((r) => r.provider !== "tavily" && r.provider !== "ollama").map(({ id, label, enabled }) => ({ id, label, enabled }));
-}
-
-/** When a started AI looks at the queue next (ISO), or null when stopped or already due. */
-export function nextLook(s: { ai_running: string; ai_last_run_at: string; ai_interval_minutes: string }, now = Date.now()): string | null {
-  const last = Date.parse(s.ai_last_run_at);
-  const at = last + (Number(s.ai_interval_minutes) || 5) * 60_000;
-  return s.ai_running === "true" && Number.isFinite(last) && at > now ? new Date(at).toISOString() : null;
-}
 
 export function listUsers() {
   return db
@@ -47,14 +18,6 @@ export function listUsers() {
     })
     .from(schema.users)
     .orderBy(asc(schema.users.name));
-}
-
-export function queueCounts() {
-  return db
-    .select({ status: schema.priceLists.status, n: sql<number>`count(*)::int` })
-    .from(schema.priceLists)
-    .where(sql`${schema.priceLists.status} IN ('queued', 'parsing')`)
-    .groupBy(schema.priceLists.status);
 }
 
 export function listFeeds() {

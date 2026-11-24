@@ -5,13 +5,11 @@ import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
 import { getBrand } from "@/lib/brand";
-import { getPriceListLlm } from "@/lib/llm";
 import { getSettings } from "@/lib/settings";
 import { db, schema } from "@/db";
 import { AdminSettings, WorkHoursSettings } from "../admin-ui";
 import { BrandCard } from "../brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
-import { hostedEngines, ollamaModels } from "../data";
 import { NotifySettings } from "../notify-ui";
 import { ruleConfigs, RULES } from "@/lib/notifications/rules";
 
@@ -20,9 +18,8 @@ export const metadata = { title: "Settings · Admin · Zeronix" };
 
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const me = (await requireApp("admin")).user;
-  const [{ tab }, settings, models, engines, { version, ...brand }] = await Promise.all([searchParams, getSettings(), ollamaModels(), hostedEngines(), getBrand()]);
-  const [health, types, templates, mailboxes] = await Promise.all([
-    getPriceListLlm().then((llm) => llm.health()),
+  const [{ tab }, settings, { version, ...brand }] = await Promise.all([searchParams, getSettings(), getBrand()]);
+  const [types, templates, mailboxes] = await Promise.all([
     db.select().from(schema.projectTypes).orderBy(asc(schema.projectTypes.position), asc(schema.projectTypes.label)),
     db.select().from(schema.projectTaskTemplates),
     db
@@ -72,9 +69,9 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
           },
           {
             key: "comparison",
-            label: "AI & comparison",
+            label: "Price comparison",
             icon: <Scale />,
-            content: <AdminSettings settings={settings} models={models} engines={engines} health={health} />,
+            content: <AdminSettings settings={settings} />,
           },
           {
             key: "notifications",

@@ -14,7 +14,6 @@ import { parseLogoDataUrl } from "@/lib/logo";
 import { type BrandStyle, normalizeStyle, safeColor } from "@/lib/signature";
 import { setSalary } from "@/lib/payroll-write";
 import { getSettings, setSetting } from "@/lib/settings";
-import { abortCurrentRead, runAiCycle, unloadModel } from "@/worker/ai";
 import { parseInput, UserError } from "@/lib/user-error";
 
 const userSchema = z.object({
@@ -127,9 +126,6 @@ export async function saveBrand(input: z.input<typeof brandSchema> & { logo?: st
 }
 
 const settingsSchema = z.object({
-  llm_model: z.string().trim().min(1).max(100),
-  /** "" = local Ollama, else a Prospecting AI provider id. */
-  llm_provider_id: z.string().regex(/^\d*$/).default(""),
   stale_days: z.coerce.number().int().min(1).max(365),
   fx_usd: z.coerce.number().min(1).max(10),
 });
@@ -137,8 +133,6 @@ const settingsSchema = z.object({
 export async function saveSettings(input: z.input<typeof settingsSchema>) {
   await requireAdmin();
   const d = parseInput(settingsSchema, input);
-  await setSetting("llm_model", d.llm_model);
-  await setSetting("llm_provider_id", d.llm_provider_id);
   await setSetting("stale_days", String(d.stale_days));
   await setSetting("fx_usd", String(d.fx_usd));
   revalidatePath("/", "layout");
@@ -202,42 +196,6 @@ export async function saveWorkHours(input: z.input<typeof workHoursSchema>) {
   await setSetting("work_break_end", d.work_break_end);
   await setSetting("work_off_days", [...new Set(d.work_off_days)].sort().join(","));
   revalidatePath("/", "layout");
-}
-
-// ---------- AI reading: start / stop / interval ----------
-
-/** Starts AI reading: waiting lists are read now, then again on every interval until Stop. */
-export async function startAi() {
-  await requireAdmin();
-  await setSetting("ai_running", "true");
-  await setSetting("ai_last_run_at", "");
-  void runAiCycle().catch((e) => console.error("[ai] cycle failed", e));
-  revalidatePath("/admin", "layout");
-}
-
-/** Stops AI reading. A list being read goes back to the queue after its current step, and the model is unloaded. */
-export async function stopAi() {
-  await requireAdmin();
-  await setSetting("ai_running", "false");
-  await setSetting("ai_stop_at", new Date().toISOString());
-  // cancel the batch that is generating, then free the model
-  abortCurrentRead();
-  void unloadModel();
-  revalidatePath("/admin", "layout");
-}
-
-/** One pass over the waiting lists right now, whether or not AI reading is started. */
-export async function runAiNow() {
-  await requireAdmin();
-  void runAiCycle({ manual: true }).catch((e) => console.error("[ai] cycle failed", e));
-  revalidatePath("/admin", "layout");
-}
-
-export async function setAiInterval(minutes: number) {
-  await requireAdmin();
-  const m = parseInput(z.coerce.number().int().min(1).max(1440), minutes);
-  await setSetting("ai_interval_minutes", String(m));
-  revalidatePath("/admin", "layout");
 }
 
 // ---------- live feeds: interval and pause / resume ----------

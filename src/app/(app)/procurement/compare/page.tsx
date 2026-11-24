@@ -1,14 +1,8 @@
-import { Suspense } from "react";
-import { requireApp } from "@/lib/auth/session";
-import { CompareClient } from "./compare-client";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Compare prices · Zeronix" };
-
-export default async function ComparePage() {
-  await requireApp("procurement");
-  return (
-    <Suspense>
-      <CompareClient />
-    </Suspense>
-  );
+/** The old Compare page is Procurement's home now; old links and bookmarks keep their search. */
+export default async function ComparePage({ searchParams }: PageProps<"/procurement/compare">) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(await searchParams)) if (typeof v === "string") sp.set(k, v);
+  redirect(`/procurement${sp.size ? `?${sp}` : ""}`);
 }

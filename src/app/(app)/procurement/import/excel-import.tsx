@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CURRENCIES } from "@/lib/currency";
-import { CATEGORIES } from "@/lib/llm/schema";
+import { CATEGORIES } from "@/lib/offer-draft";
 import type { WorkbookResult } from "@/lib/parse/excel";
 import { SUPPLIER_TYPES, supplierType } from "@/lib/supplier-types";
 import { cn } from "@/lib/utils";

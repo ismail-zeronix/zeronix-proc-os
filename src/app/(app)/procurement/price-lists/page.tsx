@@ -1,5 +1,5 @@
 import { and, desc, eq, ilike, sql, type SQL } from "drizzle-orm";
-import { ClipboardPaste, Search } from "lucide-react";
+import { FileSpreadsheet, Search } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,22 +10,22 @@ import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Price lists · Zeronix" };
+export const metadata = { title: "Received · Procurement · Zeronix" };
 
 const PAGE = 40;
 
 const STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-  queued: { label: "Queued", variant: "secondary" },
-  parsing: { label: "Reading", variant: "secondary" },
-  review: { label: "Needs review", variant: "default" },
+  queued: { label: "Not read", variant: "secondary" },
+  parsing: { label: "Not read", variant: "secondary" },
+  review: { label: "Needs a check", variant: "default" },
   saved: { label: "Saved", variant: "outline" },
-  failed: { label: "Failed", variant: "destructive" },
+  failed: { label: "Not read", variant: "destructive" },
 };
 
 const TABS = [
   { key: "", label: "All" },
-  { key: "review", label: "Needs review" },
-  { key: "failed", label: "Failed" },
+  { key: "review", label: "Needs a check" },
+  { key: "failed", label: "Not read" },
   { key: "saved", label: "Saved" },
 ] as const;
 
@@ -50,9 +50,10 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
         id: schema.priceLists.id,
         status: schema.priceLists.status,
         receivedAt: schema.priceLists.receivedAt,
-        progressDone: schema.priceLists.progressDone,
-        progressTotal: schema.priceLists.progressTotal,
-        reused: schema.priceLists.reusedBlocks,
+        source: schema.priceLists.source,
+        sourceName: schema.priceLists.sourceName,
+        chat: schema.priceLists.chat,
+        seenCount: schema.priceLists.seenCount,
         supplierId: schema.priceLists.supplierId,
         supplier: schema.suppliers.name,
         by: schema.users.name,
@@ -88,7 +89,7 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 className="text-sm font-semibold">Price lists</h1>
+        <h1 className="text-sm font-semibold">Received</h1>
         <div className="inline-flex shrink-0 rounded-lg border bg-muted/50 p-0.5" role="group" aria-label="Status">
           {TABS.map((t) => (
             <Link
@@ -126,8 +127,8 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
             </Button>
           )}
         </form>
-        <Button size="sm" nativeButton={false} render={<Link href="/procurement/import" />} title="Paste or upload a supplier price list">
-          <ClipboardPaste /> Add price list
+        <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/import" />} title="Upload a distributor's Excel price list">
+          <FileSpreadsheet /> Upload Excel
         </Button>
       </div>
 
@@ -140,7 +141,7 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
               <TableHead>Status</TableHead>
               <TableHead className="hidden md:table-cell">Message</TableHead>
               <TableHead className="text-right">Offers</TableHead>
-              <TableHead className="hidden lg:table-cell">Pasted by</TableHead>
+              <TableHead className="hidden lg:table-cell">From</TableHead>
               <TableHead className="text-right">Received</TableHead>
             </TableRow>
           </TableHeader>
@@ -160,11 +161,10 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
                 <TableCell className="py-1.5">
                   <Badge variant={STATUS[r.status].variant}>
                     {STATUS[r.status].label}
-                    {r.status === "parsing" && r.progressTotal ? ` ${r.progressDone}/${r.progressTotal}` : ""}
                   </Badge>
-                  {r.reused > 0 && (
-                    <span className="ml-1.5 text-xs text-muted-foreground" title="Items copied from earlier reviewed lists, no AI needed">
-                      {r.reused} known
+                  {r.seenCount > 1 && (
+                    <span className="ml-1.5 text-xs text-muted-foreground" title="The same message was pushed again; its prices count as given again">
+                      sent {r.seenCount}×
                     </span>
                   )}
                 </TableCell>
@@ -174,7 +174,9 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
                   </Link>
                 </TableCell>
                 <TableCell className="py-1.5 text-right tabular-nums">{r.offers || ""}</TableCell>
-                <TableCell className="hidden py-1.5 text-sm lg:table-cell">{r.by}</TableCell>
+                <TableCell className="hidden max-w-[220px] truncate py-1.5 text-xs text-muted-foreground lg:table-cell">
+                  {r.source === "whatsapp" ? `WhatsApp${r.chat ? `: ${r.chat}` : ""}` : r.source === "excel" ? `Excel${r.by ? ` · ${r.by}` : ""}` : r.source === "feed" ? "Live feed" : `Pasted${r.by ? ` · ${r.by}` : ""}`}
+                </TableCell>
                 <TableCell className="py-1.5 text-right text-xs whitespace-nowrap">{ago(r.receivedAt)}</TableCell>
               </TableRow>
             ))}
@@ -187,7 +189,7 @@ export default async function PriceListsPage({ searchParams }: PageProps<"/procu
                     </>
                   ) : (
                     <>
-                      Nothing pasted yet. <Link href="/procurement/import" className="underline">Paste a price list</Link>.
+                      Nothing received yet. Ask Claude to push your suppliers&apos; WhatsApp stock, or <Link href="/procurement/import" className="underline">upload an Excel sheet</Link>.
                     </>
                   )}
                 </TableCell>

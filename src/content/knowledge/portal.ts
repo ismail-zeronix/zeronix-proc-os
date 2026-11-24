@@ -46,7 +46,7 @@ export const PORTAL: Article[] = [
             ["CRM", "Leads, deals (the pipeline), companies and contacts: everything before the customer says yes"],
             ["Sales", "Customers (companies whose deal is won), quotes and orders"],
             ["Accounts", "The accounts team: invoices, payments, supplier bills, expenses and reports"],
-            ["Procurement", "Supplier price lists and Compare prices"],
+            ["Procurement", "Every supplier's prices in one search, Share price, and the Inbox for supplier stock to check"],
             ["Projects", "Project deals: BOQ, proposal, checklist"],
           ],
         },
@@ -241,6 +241,43 @@ export const PORTAL: Article[] = [
           ],
         },
       },
+    ],
+  },
+  {
+    slug: "portal-supplier-stock",
+    section: "portal",
+    title: "Supplier stock from WhatsApp (Procurement)",
+    summary: "Claude reads the suppliers' WhatsApp messages and files them in Procurement; you search prices and share them with customers.",
+    tags: ["procurement", "supplier", "whatsapp", "stock", "price list", "claude", "inbox", "share price", "broadcast"],
+    reviewed: "2026-11-24",
+    blocks: [
+      { h: "How stock comes in" },
+      {
+        ol: [
+          "In Chrome, open WhatsApp Web. Ask Claude (with the Zeronix OS connector) to push the new stock messages of a group or chat. Procurement → Search → How stock comes in has a prompt to copy.",
+          "Claude checks when that chat was last pushed, reads only newer messages, and sends one line per product.",
+          "Clear lines are saved at once and show in Search. Claude tells you what was saved, what is new, which prices changed and what needs a check.",
+          "Distributors' Excel sheets: the upload button next to the search box.",
+        ],
+      },
+      { h: "How suppliers are told apart" },
+      {
+        ul: [
+          "By their WhatsApp number first, then by the name WhatsApp shows. A supplier's numbers and names are on the supplier's page, WhatsApp tab.",
+          "A message from someone we do not know waits in the Inbox: choose the supplier (or add a new one) once, and everything from them goes in by itself from then on.",
+          "The same broadcast sent again is not saved twice; its prices just count as given again that day.",
+          "Added a supplier twice? Supplier page → WhatsApp → Merge into another supplier (not when Accounts has bills for it).",
+        ],
+      },
+      { h: "Sending prices to a customer" },
+      {
+        ol: [
+          "Search for the products in Procurement and tick them.",
+          "Press Share price, type your price for each one (the best supplier price shows as a reminder), and copy the message into WhatsApp.",
+          "The message never contains supplier names or supplier prices.",
+        ],
+      },
+      { tip: "Lines without a brand or a model, or that look like a product we already have, wait in the Inbox. Check them there so Search stays clean." },
     ],
   },
 ];

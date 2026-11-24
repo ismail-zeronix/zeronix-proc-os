@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { BackButton } from "@/components/back-button";
 import { useRouter } from "next/navigation";
@@ -10,9 +10,9 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import { useReviewStore } from "@/stores/import-store";
-import { deletePriceList, reparsePriceList, savePriceList } from "../actions";
+import { deletePriceList, savePriceList } from "../actions";
 import { ReviewGrid } from "./review-grid";
 import { errorText } from "@/lib/user-error";
 
@@ -23,10 +23,10 @@ export interface PriceListDto {
   status: "queued" | "parsing" | "review" | "saved" | "failed";
   progressDone: number;
   progressTotal: number;
-  reusedBlocks: number;
-  /** Has an admin started AI reading? When not, queued lists wait. */
-  aiRunning?: boolean;
-  source: "paste" | "excel" | "feed";
+  source: "paste" | "excel" | "feed" | "whatsapp";
+  /** WhatsApp group or chat and the sender as shown there (Claude's pushes). */
+  chat: string;
+  sender: string;
   sourceName: string;
   error: string | null;
   model: string | null;
@@ -47,7 +47,6 @@ export function ReviewClient({ id }: { id: number }) {
       if (!res.ok) throw new Error(res.status === 404 ? "Price list not found" : `HTTP ${res.status}`);
       return res.json();
     },
-    refetchInterval: (q) => (q.state.data && ["queued", "parsing"].includes(q.state.data.status) ? 2500 : false),
   });
 
   const drafts = useReviewStore((s) => s.drafts[id]);
@@ -72,19 +71,16 @@ export function ReviewClient({ id }: { id: number }) {
       <StatusBadge status={data.status} />
       <span className="min-w-0 truncate text-xs text-muted-foreground">
         Received {new Date(data.receivedAt).toLocaleString()} · list #{data.id}
-        {data.source === "excel" ? ` · Excel: ${data.sourceName}` : data.source === "feed" ? " · Live feed" : data.model ? ` · read by ${data.model}` : ""}
-        {data.source === "paste" && data.parseMs ? ` in ${Math.round(data.parseMs / 1000)}s` : ""}
-        {data.reusedBlocks > 0 ? ` · ${data.reusedBlocks} item${data.reusedBlocks === 1 ? "" : "s"} already known, AI skipped` : ""}
+        {data.source === "excel"
+          ? ` · Excel: ${data.sourceName}`
+          : data.source === "feed"
+            ? " · Live feed"
+            : data.source === "whatsapp"
+              ? ` · WhatsApp${data.chat ? `: ${data.chat}` : ""}${data.sender && data.sender !== data.chat ? ` (${data.sender})` : ""}`
+              : ""}
       </span>
     </div>
   );
-
-  const reparse = () =>
-    start(async () => {
-      removeLocal(id);
-      await reparsePriceList(id);
-      await qc.invalidateQueries({ queryKey: ["price-list", id] });
-    });
 
   const remove = () =>
     start(async () => {
@@ -98,39 +94,6 @@ export function ReviewClient({ id }: { id: number }) {
       }
     });
 
-  if (data.status === "queued" || data.status === "parsing") {
-    const pct = data.progressTotal ? Math.round((data.progressDone / data.progressTotal) * 100) : 0;
-    return (
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
-        {header}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Loader2 className="size-4 animate-spin" />
-              {data.status === "queued" ? "Waiting in queue…" : "AI is reading the message…"}
-            </CardTitle>
-            <CardDescription>
-              {data.status === "queued" && data.aiRunning === false
-                ? "AI reading is stopped, so this list waits. An admin can start it from the Admin page. You can leave this page and come back from Price lists."
-                : "Runs on the local model in the background. You can leave this page and come back from Price lists. A long list can take several minutes on a CPU-only server."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {data.progressDone} / {data.progressTotal || "?"} blocks
-            </p>
-            <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
-              {data.rawText}
-            </pre>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (data.status === "failed") {
     return (
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
@@ -138,14 +101,11 @@ export function ReviewClient({ id }: { id: number }) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="size-4" /> Reading failed
+              <AlertTriangle className="size-4" /> Not read
             </CardTitle>
             <CardDescription className="break-words">{data.error}</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
-            <Button onClick={reparse} pending={pending}>
-              <RotateCcw /> Try again
-            </Button>
             <Button variant="destructive" onClick={remove} pending={pending}>
               <Trash2 /> Delete
             </Button>
@@ -162,14 +122,12 @@ export function ReviewClient({ id }: { id: number }) {
         {header}
         <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2">
           <span className="flex items-center gap-2 text-sm font-medium">
-            <CheckCircle2 className="size-4 text-emerald-600" /> Saved {saved.length} offers
+            <CheckCircle2 className="size-4 text-emerald-600" /> Saved {saved.length} {saved.length === 1 ? "offer" : "offers"}
           </span>
-          <span className="text-xs text-muted-foreground">They are on Compare now.</span>
+          <span className="text-xs text-muted-foreground">They show in Search now.</span>
           <span className="ml-auto flex flex-wrap gap-1.5">
-            <Button size="sm" nativeButton={false} render={<Link href="/procurement/compare" />}>Compare prices</Button>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/alerts" />}>Price changes</Button>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/price-lists?status=review" />}>Next to review</Button>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/import" />}>Paste another</Button>
+            <Button size="sm" nativeButton={false} render={<Link href="/procurement" />}>Search</Button>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/procurement/inbox" />}>Inbox</Button>
           </span>
         </div>
         <ReviewGrid id={id} rows={data.drafts} readOnly />
@@ -183,9 +141,7 @@ export function ReviewClient({ id }: { id: number }) {
         const rows = drafts ?? data.drafts;
         const res = await savePriceList(id, rows);
         removeLocal(id);
-        toast.success(
-          `Saved ${res.saved} offers${res.learned ? `. Learned from ${res.learned} correction${res.learned > 1 ? "s" : ""}` : ""}`,
-        );
+        toast.success(`Saved ${res.saved} ${res.saved === 1 ? "offer" : "offers"}`);
         await qc.invalidateQueries({ queryKey: ["price-list", id] });
         router.refresh();
       } catch (e) {
@@ -206,11 +162,8 @@ export function ReviewClient({ id }: { id: number }) {
             <Button variant="ghost" onClick={remove} pending={pending}>
               <Trash2 /> Delete
             </Button>
-            <Button variant="outline" onClick={reparse} pending={pending}>
-              <RotateCcw /> Re-read with AI
-            </Button>
             <Button onClick={save} pending={pending} disabled={!rows.some((r) => r.include)}>
-              <CheckCircle2 /> Save {rows.filter((r) => r.include).length} offers
+              <CheckCircle2 /> Save {rows.filter((r) => r.include).length} {rows.filter((r) => r.include).length === 1 ? "offer" : "offers"}
             </Button>
           </>
         }
@@ -221,9 +174,9 @@ export function ReviewClient({ id }: { id: number }) {
 
 function StatusBadge({ status }: { status: PriceListDto["status"] }) {
   const map = {
-    queued: ["Queued", "secondary"],
-    parsing: ["Reading", "secondary"],
-    review: ["Needs review", "default"],
+    queued: ["Not read", "secondary"],
+    parsing: ["Not read", "secondary"],
+    review: ["Needs a check", "default"],
     saved: ["Saved", "outline"],
     failed: ["Failed", "destructive"],
   } as const;

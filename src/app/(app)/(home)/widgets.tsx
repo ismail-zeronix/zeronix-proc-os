@@ -27,14 +27,9 @@ export async function ThisWeekProcurement() {
   const rises = moves.length - drops;
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
-      <Kpi
-        label="Price lists to review"
-        value={counts.review}
-        hint={counts.failed ? `${counts.failed} failed` : `${counts.reading} being read`}
-        href="/procurement/price-lists?status=review"
-      />
-      <Kpi label="Price drops" value={drops} hint="in the last 7 days" href="/procurement/alerts" />
-      <Kpi label="Price rises" value={rises} hint="in the last 7 days" href="/procurement/alerts" />
+      <Kpi label="Supplier stock to check" value={counts.review} hint="in the Procurement inbox" href="/procurement/inbox" />
+      <Kpi label="Price drops" value={drops} hint="in the last 7 days" href="/procurement?sort=recent" />
+      <Kpi label="Price rises" value={rises} hint="in the last 7 days" href="/procurement?sort=recent" />
       <Kpi
         label="Suppliers gone quiet"
         value={quiet.length}
@@ -190,7 +185,7 @@ export async function PriceMovesCard() {
           {best.length ? `${best.length} drop${best.length === 1 ? " is" : "s are"} now the cheapest in the market.` : "Against each supplier's previous quote."}
         </CardDescription>
         <CardAction>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/procurement/alerts" />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/procurement?sort=recent" />}>
             All <ArrowRight />
           </Button>
         </CardAction>

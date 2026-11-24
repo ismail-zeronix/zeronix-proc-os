@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import { parseStockSheet } from "@/lib/parse/stocksheet";
 import { searchNormFor, upsertProductFor } from "@/lib/products";
 import { readFeed } from "./fetch";

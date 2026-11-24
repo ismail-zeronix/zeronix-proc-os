@@ -4,8 +4,8 @@
  * structured, so rules are exact, instant and repeatable. Pure functions on a grid of cells so they
  * can be tested without a file; `readWorkbook` (server only) turns an .xlsx into that grid.
  */
-import type { OfferDraft } from "@/lib/llm/schema";
-import { normalizePartNumber } from "./postfix";
+import type { OfferDraft } from "@/lib/offer-draft";
+import { normalizePartNumber } from "./clean";
 
 export type Cell = string | number | null;
 export interface SheetGrid {

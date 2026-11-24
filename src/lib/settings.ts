@@ -5,20 +5,9 @@ import { DEFAULT_MARGIN_PCT, DEFAULT_TERMS, DEFAULT_VALID_DAYS, DEFAULT_VAT_PCT 
 import { DEFAULT_QUOTE_EMAIL_BODY, DEFAULT_QUOTE_EMAIL_SUBJECT } from "@/lib/quote-email";
 
 export const SETTING_DEFAULTS = {
-  llm_model: process.env.LLM_MODEL ?? "qwen3.5:4b",
-  /** Reads pasted price lists: empty = the local Ollama model, else the id of an AI service from Prospecting → Settings. */
-  llm_provider_id: "",
   stale_days: "14",
   /** AED per 1 USD. The dirham is pegged at 3.6725; change it only if you price on a different rate. */
   fx_usd: "3.6725",
-  /** "true" while an admin has started AI reading; pasted lists wait in the queue otherwise. */
-  ai_running: "false",
-  /** How often (minutes) a running AI checks the queue for waiting lists. */
-  ai_interval_minutes: "5",
-  /** ISO time of the last queue check; empty = check on the next tick. */
-  ai_last_run_at: "",
-  /** ISO time an admin pressed Stop; a list being read when this is newer than its start is put back in the queue. */
-  ai_stop_at: "",
   /** Quotes: margin added on top of cost when a price is picked, how long a quote stays valid, VAT, terms, and our tax number. */
   quote_margin_pct: String(DEFAULT_MARGIN_PCT),
   quote_valid_days: String(DEFAULT_VALID_DAYS),

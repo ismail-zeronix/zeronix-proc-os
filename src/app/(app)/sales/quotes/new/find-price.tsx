@@ -140,7 +140,7 @@ export function FindPrice({
             </Label>
             <Input id="fp-margin" className="w-20" inputMode="decimal" value={margin} onChange={(e) => setMargin(e.target.value)} />
           </div>
-          <Button variant="ghost" size="icon" nativeButton={false} render={<Link href={`/procurement/compare?q=${encodeURIComponent(q)}`} target="_blank" />} aria-label="Open in Compare" title="Open in Compare (new tab)">
+          <Button variant="ghost" size="icon" nativeButton={false} render={<Link href={`/procurement?q=${encodeURIComponent(q)}`} target="_blank" />} aria-label="Open in Procurement" title="Open in Procurement (new tab)">
             <ExternalLink />
           </Button>
         </div>

@@ -477,6 +477,20 @@
       "when": 1795475768565,
       "tag": "0067_call_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795540195668,
+      "tag": "0068_procurement_intake",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795540200162,
+      "tag": "0069_remove_ai_reading",
+      "breakpoints": true
     }
   ]
 }

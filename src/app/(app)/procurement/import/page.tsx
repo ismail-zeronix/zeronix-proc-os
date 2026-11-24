@@ -4,11 +4,10 @@ import { requireApp } from "@/lib/auth/session";
 import { getFx } from "@/lib/fx";
 import { ImportTabs } from "./import-tabs";
 
-export const metadata = { title: "Add price list · Zeronix" };
+export const metadata = { title: "Upload Excel price list · Zeronix" };
 
-export default async function ImportPage({ searchParams }: PageProps<"/procurement/import">) {
+export default async function ImportPage() {
   await requireApp("procurement");
-  const sp = await searchParams;
   const [suppliers, fx] = await Promise.all([
     db
       .select({
@@ -22,5 +21,5 @@ export default async function ImportPage({ searchParams }: PageProps<"/procureme
       .orderBy(asc(schema.suppliers.name)),
     getFx(),
   ]);
-  return <ImportTabs suppliers={suppliers} fxUsd={fx.usd} initialMode={sp.mode === "excel" ? "excel" : "paste"} />;
+  return <ImportTabs suppliers={suppliers} fxUsd={fx.usd} />;
 }
