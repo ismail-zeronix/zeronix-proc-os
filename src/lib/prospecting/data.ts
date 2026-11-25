@@ -3,6 +3,7 @@ import { and, asc, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
 import { allowedApps } from "@/lib/apps";
+import { mineOrPool } from "./access";
 import type { StatusKey } from "./constants";
 
 const owner = alias(schema.users, "owner");
@@ -14,6 +15,8 @@ export interface ProspectFilter {
   segment?: string;
   ownerId?: number;
   sourceId?: number;
+  /** A salesman: only their own prospects and the unassigned pool (lib/prospecting/access.ts). */
+  scopeUserId?: number;
   /** 1-based page of `pageSize` rows. */
   page?: number;
   pageSize?: number;
@@ -47,6 +50,7 @@ function prospectWhere(f: ProspectFilter) {
     f.segment ? eq(schema.prospectCompanies.segmentKey, f.segment) : undefined,
     f.ownerId ? eq(schema.prospectCompanies.ownerId, f.ownerId) : undefined,
     f.sourceId ? eq(schema.prospectCompanies.sourceId, f.sourceId) : undefined,
+    f.scopeUserId ? mineOrPool(f.scopeUserId) : undefined,
     term
       ? or(
           ilike(schema.prospectCompanies.name, like(term)),
@@ -58,7 +62,7 @@ function prospectWhere(f: ProspectFilter) {
   );
 }
 
-/** One page of the prospect list, best score first, with the total. Everyone with the app sees every prospect. */
+/** One page of the prospect list, best score first, with the total. Salesmen pass scopeUserId (own + unassigned). */
 export async function listProspects(f: ProspectFilter = {}): Promise<{ rows: ProspectRow[]; total: number }> {
   const size = f.pageSize ?? 50;
   const where = prospectWhere(f);

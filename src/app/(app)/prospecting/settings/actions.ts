@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
+import { assertOutreachFull } from "@/lib/prospecting/access";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { isEmail } from "@/lib/mail/compose";
@@ -16,7 +17,7 @@ import { DAYS, HARD_MAX_PER_DAY, isTime } from "@/lib/prospecting/sending";
 import { parseInput } from "@/lib/user-error";
 
 async function assertAdmin() {
-  const me = await assertApp("prospecting");
+  const me = await assertOutreachFull();
   if (me.role !== "admin") throw new Problem("Only an admin can change Prospecting settings.");
   return me;
 }

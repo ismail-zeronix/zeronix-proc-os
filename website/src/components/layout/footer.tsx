@@ -25,7 +25,7 @@ function Column({ title, links }: { title: string; links: { href: string; label:
   );
 }
 
-const contact = "inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-medium text-ink transition-colors hover:border-brand-900 hover:text-brand-900";
+const contact = "inline-flex h-10 items-center gap-2 rounded-lg border border-line bg-panel px-4 text-sm font-medium text-ink transition-colors hover:border-brand-900 hover:text-brand-900";
 
 /**
  * Full-width navy footer: brand and contact row, link columns, the emirates we deliver to, then the address, hours and
@@ -36,7 +36,7 @@ const contact = "inline-flex h-10 items-center gap-2 rounded-lg border border-li
 export function Footer({ brand, nav, services }: { brand: SiteBrand; nav: SiteNavResponse; services: SiteIconLink[] }) {
   const wa = brand.whatsapp.replace(/\D/g, "");
   return (
-    <footer className="relative hidden border-t border-line bg-white text-ink lg:block">
+    <footer className="relative hidden border-t border-line bg-panel text-ink lg:block">
       <div className="relative container-site">
         <div className="flex flex-col gap-5 border-b border-line py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid max-w-md gap-3">

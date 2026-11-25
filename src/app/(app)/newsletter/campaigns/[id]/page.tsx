@@ -14,7 +14,7 @@ import { CampaignEditor } from "../../campaign-editor";
 import { DeleteNewsletterButton, DuplicateButton, PauseButton } from "../../campaign-controls";
 import { editorContext } from "../../editor-data";
 
-export const metadata = { title: "Newsletter · Zeronix Newsletter" };
+export const metadata = { title: "Newsletter · Zeronix Outreach" };
 
 const FILTERS = [
   { key: "all", label: "All" },

@@ -5,15 +5,15 @@ import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UrlTabs } from "@/components/url-tabs";
-import { requireApp } from "@/lib/auth/session";
 import { dubaiToday } from "@/lib/dates";
 import { ago } from "@/lib/format";
 import { AI_USES, aiProvider, isSearchService } from "@/lib/prospecting/ai";
 import { listAiModels, listAiProviders, listMailboxes, type AiModelRow, type AiProviderRow, type MailboxRow } from "@/lib/prospecting/data";
 import { DAYS, capOn, weeksToTarget } from "@/lib/prospecting/sending";
 import { AiActions, AiDialog, FreeModelList, MailboxActions, MailboxDialog } from "./settings-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Settings · Zeronix Prospecting" };
+export const metadata = { title: "Settings · Zeronix Outreach" };
 
 function TestState({ at, ok, error }: { at: Date | null; ok: boolean; error: string }) {
   if (!at) return <span className="text-xs text-muted-foreground">Not tested yet</span>;
@@ -255,7 +255,7 @@ function AiProviders({ rows, models, admin }: { rows: AiProviderRow[]; models: A
 }
 
 export default async function ProspectingSettingsPage({ searchParams }: PageProps<"/prospecting/settings">) {
-  const { user } = await requireApp("prospecting");
+  const { user } = await requireOutreachFull();
   const admin = user.role === "admin";
   const [mailboxes, ai, models, sp] = await Promise.all([listMailboxes(), listAiProviders(), listAiModels(), searchParams]);
   const on = mailboxes.filter((m) => m.enabled).length;

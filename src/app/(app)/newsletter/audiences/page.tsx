@@ -9,7 +9,7 @@ import { ago } from "@/lib/format";
 import { listLists } from "@/lib/newsletter/data";
 import { ListDialog } from "../audience-ui";
 
-export const metadata = { title: "Audiences · Zeronix Newsletter" };
+export const metadata = { title: "Audiences · Zeronix Outreach" };
 
 export default async function AudiencesPage() {
   await requireApp("newsletter");

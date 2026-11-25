@@ -41,7 +41,7 @@ export function TestPayment() {
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-md gap-4 rounded-card border-2 border-dashed border-amber-400 bg-white p-6">
+    <div className="mx-auto grid w-full max-w-md gap-4 rounded-card border-2 border-dashed border-amber-400 bg-panel p-6">
       <div className="flex items-center gap-2 text-amber-700">
         <FlaskConical className="size-5" />
         <span className="text-xs font-semibold tracking-wide uppercase">Test mode: no real payment</span>
@@ -51,7 +51,7 @@ export function TestPayment() {
         <p className="text-sm text-muted-ink">Order {ref}. This page stands in for Nomod&apos;s payment page while the shop uses a dummy key.</p>
       </div>
       <div className="grid gap-2">
-        <button type="button" disabled={busy} onClick={() => finish("paid")} className="h-11 rounded-full bg-cta font-semibold text-white hover:bg-cta-strong disabled:opacity-60">
+        <button type="button" disabled={busy} onClick={() => finish("paid")} className="h-11 rounded-full bg-cta font-semibold text-on-brand hover:bg-cta-strong disabled:opacity-60">
           Pay successfully
         </button>
         <button type="button" disabled={busy} onClick={() => finish("expired")} className="h-11 rounded-full border border-red-300 font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60">

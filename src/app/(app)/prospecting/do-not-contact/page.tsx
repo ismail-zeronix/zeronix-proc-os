@@ -2,15 +2,15 @@ import { Empty } from "@/components/stat-tile";
 import { PageToolbar } from "@/components/page-toolbar";
 import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { listSuppression } from "@/lib/prospecting/data";
 import { RemoveSuppressionButton, SuppressionForm } from "../setup-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Do not contact · Zeronix Prospecting" };
+export const metadata = { title: "Do not contact · Zeronix Outreach" };
 
 export default async function DoNotContactPage({ searchParams }: PageProps<"/prospecting/do-not-contact">) {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const sp = await searchParams;
   const page = pageParam(sp.page);
   const { rows, total } = await listSuppression(page, PAGE_SIZE);

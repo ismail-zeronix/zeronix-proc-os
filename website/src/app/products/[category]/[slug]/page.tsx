@@ -10,7 +10,9 @@ import { Breadcrumbs, CtaStrip, Faq, JsonLd, ProductGrid, quoteLink } from "@/co
 import { SpecTable } from "@/components/catalog/spec-table";
 import { AddToQuote } from "@/components/quote/quote-buttons";
 import { ChatNowButton } from "@/components/quote/chat-now";
+import { BuildPerformance } from "@/components/gaming/build-performance";
 import { getProduct, getSettings } from "@/lib/api";
+import { buildBySlug } from "@/lib/gaming";
 import { SITE_URL } from "@/lib/defaults";
 import { aboutModel, productDescription, productFaq, productTitle, shortName } from "@/lib/product-copy";
 
@@ -43,7 +45,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
   const quote = quoteLink({ product: p.slug });
   const url = `${SITE_URL}/products/${p.categorySlug}/${p.slug}`;
   const sold = p.priceMode === "public" && Boolean(p.price);
-  const about = p.summaryHtml ? [] : aboutModel(p);
+  const tier = buildBySlug(p.slug);
+  // the business "who it suits" copy does not fit a gaming build; its performance panel says it better
+  const about = p.summaryHtml || tier ? [] : aboutModel(p);
   const faq = productFaq(p);
   const store = p.store;
   const facts = [
@@ -68,7 +72,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
           </div>
 
           {/* desktop: the details and buy box stay in view while the gallery column scrolls */}
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-3.5 sm:gap-5 lg:sticky lg:top-28 lg:self-start">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-3.5 sm:gap-5 lg:sticky lg:top-16 lg:self-start">
             <div className="flex flex-wrap gap-2">
               {p.brand && <Tag>{p.brand}</Tag>}
               <Tag>{p.category}</Tag>
@@ -99,7 +103,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
               <ul className="grid gap-2 text-[0.8125rem] sm:gap-2.5 sm:text-base">
                 {p.highlights.map((h) => (
                   <li key={h} className="flex gap-2.5 sm:gap-3">
-                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-cta text-white">
+                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-cta text-on-brand">
                       <Check className="size-3" strokeWidth={3} />
                     </span>
                     {h}
@@ -110,7 +114,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             {sold && p.price ? (
               <BuyBox item={{ slug: p.slug, name: p.name, href: `/products/${p.categorySlug}/${p.slug}`, image: p.images[0]?.src ?? null, price: p.price }} quoteHref={quote} stock={p.availability} />
             ) : (
-            <div className="rounded-card bg-brand-900 p-4 text-white sm:p-6">
+            <div className="rounded-card bg-band p-4 text-white sm:p-6">
               <p className="text-xs text-white/60 sm:text-sm">Price</p>
               <p className="mt-0.5 font-heading text-lg font-semibold sm:mt-1 sm:text-2xl">B2B price on request</p>
               <p className="mt-1 text-xs text-white/60 sm:text-sm">Volume pricing for your quantity, with a VAT invoice.</p>
@@ -135,7 +139,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             </div>
             )}
             {sold && p.related[0] && (
-              <Link href={`/compare/${p.slug}-vs-${p.related[0].slug}`} className="group flex items-center gap-3 rounded-card border border-line/70 bg-white px-4 py-3 text-sm transition-colors hover:border-brand-700/40">
+              <Link href={`/compare/${p.slug}-vs-${p.related[0].slug}`} className="group flex items-center gap-3 rounded-card border border-line/70 bg-panel px-4 py-3 text-sm transition-colors hover:border-brand-700/40">
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-brand-800">
                   <ArrowLeftRight className="size-4" />
                 </span>
@@ -148,7 +152,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             {facts.length > 0 && (
               <dl className="grid gap-2 sm:grid-cols-3 sm:gap-3">
                 {facts.map((f) => (
-                  <div key={f.label} className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 rounded-card border border-line/70 bg-white p-3 sm:block sm:p-4">
+                  <div key={f.label} className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 rounded-card border border-line/70 bg-panel p-3 sm:block sm:p-4">
                     <f.icon className="row-span-2 mt-0.5 size-4.5 text-brand-700 sm:size-5" strokeWidth={1.75} />
                     <dt className="text-[0.6875rem] text-muted-ink sm:mt-3 sm:text-xs">{f.label}</dt>
                     <dd className="text-[0.8125rem] font-semibold sm:text-sm">{f.value}</dd>
@@ -160,12 +164,15 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
         </div>
       </section>
 
+      {/* Zeronix Custom PCs: estimated FPS per game and the part bars (lib/gaming.ts) */}
+      {tier && <BuildPerformance tier={tier} />}
+
       {p.bestFor.length > 0 && (
         <section className="container-site pb-6 sm:pb-12">
           <h2 className="text-h2 font-semibold">Best for</h2>
           <div className="mt-3 grid gap-2 sm:mt-5 sm:gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {p.bestFor.map((b) => (
-              <Link key={`${b.industrySlug}${b.role}`} href={`/industries/${b.industrySlug}`} className="group flex items-center justify-between gap-4 rounded-card bg-white p-3.5 transition-shadow hover:shadow-lift sm:p-5">
+              <Link key={`${b.industrySlug}${b.role}`} href={`/industries/${b.industrySlug}`} className="group flex items-center justify-between gap-4 rounded-card bg-panel p-3.5 transition-shadow hover:shadow-lift sm:p-5">
                 <span className="grid">
                   {b.label && <span className="text-xs font-semibold tracking-[0.12em] text-brand-700 uppercase">{b.label}</span>}
                   <span className="font-semibold">{b.industry}</span>
@@ -184,7 +191,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
             {p.summaryHtml ? <div className="prose prose-sm max-w-none sm:prose-base lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: p.summaryHtml }} /> : <div />}
             <div className="grid content-start gap-4">
               {p.pros.length > 0 && (
-                <div className="rounded-card bg-white p-4 sm:p-6">
+                <div className="rounded-card bg-panel p-4 sm:p-6">
                   <h2 className="font-semibold">Why we like it</h2>
                   <ul className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5">
                     {p.pros.map((x) => (
@@ -196,7 +203,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
                 </div>
               )}
               {p.cons.length > 0 && (
-                <div className="rounded-card bg-white p-4 sm:p-6">
+                <div className="rounded-card bg-panel p-4 sm:p-6">
                   <h2 className="font-semibold">Worth knowing</h2>
                   <ul className="mt-3 grid gap-2 sm:mt-4 sm:gap-2.5">
                     {p.cons.map((x) => (
@@ -231,15 +238,15 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
       <nav aria-label="Related pages" className="container-site flex flex-wrap items-center gap-1.5 pt-5 text-xs sm:gap-2 sm:pt-8 sm:text-sm">
           <span className="mr-1 font-semibold text-ink">{p.guides?.length ? "Read before buying:" : "See also:"}</span>
           {p.guides?.map((g) => (
-            <Link key={g.path} href={g.path} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
+            <Link key={g.path} href={g.path} className="rounded-full border border-line bg-panel px-3.5 py-1.5 hover:border-brand-700/40">
               {g.title}
             </Link>
           ))}
-          <Link href={`/products/${p.categorySlug}`} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
+          <Link href={`/products/${p.categorySlug}`} className="rounded-full border border-line bg-panel px-3.5 py-1.5 hover:border-brand-700/40">
             All {p.category.toLowerCase()}
           </Link>
           {p.brandSlug && (
-            <Link href={`/brands/${p.brandSlug}`} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
+            <Link href={`/brands/${p.brandSlug}`} className="rounded-full border border-line bg-panel px-3.5 py-1.5 hover:border-brand-700/40">
               {p.brand} in the UAE
             </Link>
           )}
@@ -271,7 +278,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
           </div>
           <div className="mt-5 flex flex-wrap gap-2 sm:mt-8">
             {p.related.slice(0, 3).map((r) => (
-              <Link key={r.slug} href={`/compare/${p.slug}-vs-${r.slug}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm hover:border-brand-700/40">
+              <Link key={r.slug} href={`/compare/${p.slug}-vs-${r.slug}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-panel px-4 py-2 text-sm hover:border-brand-700/40">
                 <ArrowLeftRight className="size-3.5 shrink-0 text-brand-700" />
                 <span className="truncate">Compare with {r.name}</span>
               </Link>
@@ -280,7 +287,11 @@ export default async function ProductPage({ params }: PageProps<"/products/[cate
         </section>
       )}
 
-      <CtaStrip title={`Need the ${p.name} for your team?`} text="Tell us how many and where. We reply with B2B pricing and delivery time, usually within a working day." quoteHref={quote} label={brand.ctaLabel} />
+      {tier ? (
+        <CtaStrip title={`Want the ${tier.name} with different parts?`} text="Every Zeronix PC is built to order. Tell us the graphics card, memory or case you want and we send the new price." quoteHref={quote} label={brand.ctaLabel} />
+      ) : (
+        <CtaStrip title={`Need the ${p.name} for your team?`} text="Tell us how many and where. We reply with B2B pricing and delivery time, usually within a working day." quoteHref={quote} label={brand.ctaLabel} />
+      )}
 
       <JsonLd
         data={{

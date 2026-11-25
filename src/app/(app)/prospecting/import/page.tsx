@@ -1,12 +1,12 @@
 import { PageToolbar } from "@/components/page-toolbar";
-import { requireApp } from "@/lib/auth/session";
 import { listSegments, listSources } from "@/lib/prospecting/data";
 import { ImportFlow } from "./import-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Import · Zeronix Prospecting" };
+export const metadata = { title: "Import · Zeronix Outreach" };
 
 export default async function ImportPage() {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const [segments, sources] = await Promise.all([listSegments(), listSources()]);
   return (
     <div className="grid gap-3">

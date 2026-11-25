@@ -30,6 +30,10 @@ export const quoteSchema = z.object({
   landingPath: text(300).default(""),
   firstReferrer: text(500).default(""),
   visitorKey: text(64),
+  /** The unticked "weekly product news" box (Phase 6): true = they asked for the newsletter. */
+  newsletter: z.boolean().default(false),
+  /** The signed ?r= from a cold email's /connect link (lib/connect-token.ts); "" for everyone else. */
+  ref: text(80).default(""),
 });
 
 export type QuoteInput = z.infer<typeof quoteSchema>;

@@ -17,11 +17,11 @@ function Picks({ post }: { post: SitePostPage }) {
       <h2 className="font-heading text-h2 font-semibold">Our picks</h2>
       <ol className="mt-8 grid gap-5">
         {post.picks.map((p, i) => (
-          <li key={p.slug} className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-card bg-white p-3 md:grid-cols-[18rem_minmax(0,1fr)]">
+          <li key={p.slug} className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-card bg-panel p-3 md:grid-cols-[18rem_minmax(0,1fr)]">
             <ProductTile p={p} />
             <div className="grid content-start gap-4 p-2 md:p-4">
               <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center rounded-full bg-brand-900 font-heading font-semibold text-white">{i + 1}</span>
+                <span className="grid size-10 place-items-center rounded-full bg-brand-900 font-heading font-semibold text-on-brand">{i + 1}</span>
                 {p.label && <Tag>{p.label}</Tag>}
               </div>
               <h3 className="text-h3 font-semibold">{p.name}</h3>
@@ -56,7 +56,7 @@ function Picks({ post }: { post: SitePostPage }) {
 
 function InlineCta({ text, href, label }: { text: string; href: string; label: string }) {
   return (
-    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-brand-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between">
+    <div className="not-prose my-10 flex flex-col gap-5 rounded-card bg-band p-6 text-white sm:flex-row sm:items-center sm:justify-between">
       <p className="font-heading text-base font-semibold sm:text-xl">{text || "Want B2B pricing on these models?"}</p>
       <Action href={href} variant="light">
         {label}
@@ -101,7 +101,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
       <div className="container-site grid grid-cols-[minmax(0,1fr)] gap-4 py-4 sm:gap-6 sm:py-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
         {toc.length > 2 ? (
           <aside className="hidden lg:block">
-            <nav aria-label="On this page" className="sticky top-28 grid gap-1 border-l border-line pl-4 text-sm">
+            <nav aria-label="On this page" className="sticky top-16 grid gap-1 border-l border-line pl-4 text-sm">
               <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-muted-ink uppercase">On this page</p>
               {toc.map((t) => (
                 <a key={t.id} href={`#${t.id}`} className="py-1 text-muted-ink hover:text-brand-700">
@@ -145,7 +145,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
           )}
 
           {post.author && (
-            <section className="flex items-center gap-4 rounded-card bg-white p-6">
+            <section className="flex items-center gap-4 rounded-card bg-panel p-6">
               <AuthorAvatar name={post.author.name} className="size-14 text-lg" />
               <div>
                 <p className="text-xs font-semibold tracking-[0.12em] text-muted-ink uppercase">Written by</p>

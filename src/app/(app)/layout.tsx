@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}
       {routine && <CheckInPrompt me={user.id} name={user.name} />}
       {children}
-      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} perms={{ accountant, seesAll }} />
+      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} perms={{ accountant, seesAll, outreachFull: seesAll }} />
     </>
   );
 }

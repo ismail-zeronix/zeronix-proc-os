@@ -101,3 +101,10 @@ export function websiteHref(site: string): string {
   if (!s) return "";
   return /^https?:\/\//i.test(s) ? s : `https://${s}`;
 }
+
+/** The score in plain words: Hot (7+), Warm (4+), Cold. */
+export function scoreBand(score: number): { label: "Hot" | "Warm" | "Cold"; tone: string } {
+  if (score >= 7) return { label: "Hot", tone: "text-red-600 dark:text-red-400" };
+  if (score >= 4) return { label: "Warm", tone: "text-amber-600 dark:text-amber-400" };
+  return { label: "Cold", tone: "text-sky-700 dark:text-sky-400" };
+}

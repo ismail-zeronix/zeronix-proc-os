@@ -88,7 +88,7 @@ export function CheckoutForm() {
   return (
     <form onSubmit={submit} className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="grid gap-4">
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-semibold text-ink">Your details</h2>
             {signedIn ? (
@@ -118,7 +118,7 @@ export function CheckoutForm() {
           </div>
         </section>
 
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <h2 className="text-base font-semibold text-ink">Delivery</h2>
           <div className="grid grid-cols-2 gap-2">
             {(["delivery", "pickup"] as const).map((d) => (
@@ -155,7 +155,7 @@ export function CheckoutForm() {
           {store?.deliveryNote && <p className="text-xs text-muted-ink">{store.deliveryNote}</p>}
         </section>
 
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <h2 className="text-base font-semibold text-ink">Payment</h2>
           <div className="grid gap-2">
             {(store?.payments ?? ["request"]).map((p) => (
@@ -175,12 +175,12 @@ export function CheckoutForm() {
         </section>
       </div>
 
-      <aside className="grid gap-3 rounded-card border border-line/70 bg-white p-4 lg:sticky lg:top-32">
+      <aside className="grid gap-3 rounded-card border border-line/70 bg-panel p-4 lg:sticky lg:top-16">
         <h2 className="text-base font-semibold text-ink">Your order</h2>
         <ul className="grid gap-2">
           {items.map((i) => (
             <li key={i.slug} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-2 text-sm">
-              <span className="relative size-12 overflow-hidden rounded-inner border border-line/60 bg-white">{i.image && <Image src={i.image} alt="" fill sizes="48px" className="object-contain p-0.5" />}</span>
+              <span className="relative size-12 overflow-hidden rounded-inner border border-line/60 bg-panel">{i.image && <Image src={i.image} alt="" fill sizes="48px" className="object-contain p-0.5" />}</span>
               <span className="line-clamp-2 leading-snug">
                 <span className="font-semibold tabular-nums">{i.qty} ×</span> {i.name}
               </span>
@@ -191,7 +191,7 @@ export function CheckoutForm() {
         {left !== null && rules && <FreeDeliveryBar left={left} threshold={rules.freeAbove} />}
         <Totals goods={total} delivery={f.delivery === "pickup" ? "pickup" : rules ? fee : undefined} />
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-lg bg-brand-900 px-6 text-[0.9375rem] font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60">
+        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-lg bg-brand-900 px-6 text-[0.9375rem] font-semibold text-on-brand transition-colors hover:bg-brand-800 disabled:opacity-60">
           {payment === "card" ? (sending ? "Opening secure payment…" : "Pay now") : sending ? "Placing your order…" : "Place order"}
         </button>
         <Link href="/cart" className="text-center text-xs font-semibold text-brand-800 hover:text-brand-950">

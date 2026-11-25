@@ -27,7 +27,7 @@ export function AddToCart({ item, qty = 1, label = false, className }: { item: O
       data-track="add-to-cart"
       className={cn(
         "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg font-semibold transition-colors",
-        label ? "bg-brand-900 px-5 text-sm text-white hover:bg-brand-800" : "w-10 bg-brand-900 text-white hover:bg-brand-800",
+        label ? "bg-brand-900 px-5 text-sm text-on-brand hover:bg-brand-800" : "w-10 bg-brand-900 text-on-brand hover:bg-brand-800",
         className,
       )}
     >
@@ -37,16 +37,16 @@ export function AddToCart({ item, qty = 1, label = false, className }: { item: O
   );
 }
 
-/** The cart in the header with the number of items. */
-export function CartLink() {
+/** The cart in the header with the number of items. `compact` = the icon only (the pinned category bar). */
+export function CartLink({ compact = false }: { compact?: boolean }) {
   const n = useCart().reduce((s, i) => s + i.qty, 0);
   return (
     <Link href="/cart" aria-label={n ? `Cart, ${n} item${n === 1 ? "" : "s"}` : "Cart"} className="relative inline-flex h-10 items-center gap-3 rounded-lg px-2.5 text-ink transition-colors hover:bg-surface hover:text-brand-900">
       <span className="relative">
         <ShoppingCart className="size-5" />
-        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-brand-900 px-1 text-[10px] leading-4.5 font-bold text-white">{n}</span>}
+        {n > 0 && <span className="absolute -top-2 -right-2.5 grid min-w-4.5 place-items-center rounded-full bg-brand-900 px-1 text-[10px] leading-4.5 font-bold text-on-brand">{n}</span>}
       </span>
-      <span className="hidden text-sm font-medium xl:inline">Cart</span>
+      {!compact && <span className="hidden text-sm font-medium xl:inline">Cart</span>}
     </Link>
   );
 }

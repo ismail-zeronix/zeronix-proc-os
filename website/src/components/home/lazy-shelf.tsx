@@ -41,7 +41,7 @@ export function LazyShelf({ category, limit = 12 }: { category: Pick<SiteNavLink
   if (state.status === "done" && state.products.length < MIN_SHELF) return null;
   return (
     <section ref={box} className="container-site mt-1.5 sm:mt-3" aria-busy={state.status !== "done"}>
-      <div className="-mx-3 bg-white px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">
+      <div className="-mx-3 bg-panel px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">
       <ShelfHeading title={category.name} lead={category.summary} href={`/products/${category.slug}`} linkLabel="View all" />
       {state.status === "done" ? (
         <div className="animate-in duration-500 fade-in">

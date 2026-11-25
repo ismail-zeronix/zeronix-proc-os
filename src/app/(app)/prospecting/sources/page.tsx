@@ -4,14 +4,14 @@ import { PageToolbar } from "@/components/page-toolbar";
 import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requireApp } from "@/lib/auth/session";
 import { listSegments, listSources } from "@/lib/prospecting/data";
 import { ACCESS_LABELS, SourceDialog } from "../setup-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Sources · Zeronix Prospecting" };
+export const metadata = { title: "Sources · Zeronix Outreach" };
 
 export default async function SourcesPage({ searchParams }: PageProps<"/prospecting/sources">) {
-  const { user } = await requireApp("prospecting");
+  const { user } = await requireOutreachFull();
   const admin = user.role === "admin";
   const sp = await searchParams;
   const page = pageParam(sp.page);

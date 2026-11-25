@@ -152,3 +152,18 @@ export function schedule(start: string, delays: number[]): string[] {
   }
   return out;
 }
+
+/**
+ * The new part of a reply, for the Replies list: the text above the quoted email ("On … wrote:", "From:", "> …",
+ * "-----Original Message-----"), blank lines squeezed, cut to `max` characters.
+ */
+export function replySnippet(text: string, max = 400): string {
+  const lines: string[] = [];
+  for (const line of text.replace(/\r\n/g, "\n").split("\n")) {
+    const t = line.trim();
+    if (/^>/.test(t) || /^On .+wrote:?$/i.test(t) || /^-{2,}\s*Original Message/i.test(t) || /^From:\s/i.test(t) || /^Sent from my /i.test(t)) break;
+    lines.push(t);
+  }
+  const out = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return out.length > max ? `${out.slice(0, max - 1).trimEnd()}…` : out;
+}

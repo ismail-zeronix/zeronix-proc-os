@@ -9,7 +9,7 @@ export function SpecTable({ groups }: { groups: SiteSpecGroup[] }) {
   return (
     <div className="gap-4 lg:columns-2">
       {groups.map((g) => (
-        <section key={g.label} className="mb-4 break-inside-avoid overflow-hidden rounded-card border border-line/70 bg-white">
+        <section key={g.label} className="mb-4 break-inside-avoid overflow-hidden rounded-card border border-line/70 bg-panel">
           <h3 className="border-b border-line/70 bg-surface-soft px-4 py-2.5 text-xs font-semibold tracking-[0.12em] text-brand-900 uppercase">{g.label}</h3>
           <dl>
             {g.rows.map((r) => (

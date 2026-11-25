@@ -20,7 +20,7 @@ import { ShelfHeading } from "./shelf-heading";
 export function Panel({ children, id, className }: { children: React.ReactNode; id?: string; className?: string }) {
   return (
     <section id={id} className={cn("container-site mt-1.5 scroll-mt-28 sm:mt-3", className)}>
-      <div className="-mx-3 bg-white px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">{children}</div>
+      <div className="-mx-3 bg-panel px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5">{children}</div>
     </section>
   );
 }
@@ -87,7 +87,7 @@ export function BundlesBand({ bundles }: { bundles: SiteHome["bundles"] }) {
   if (!bundles.title) return null;
   return (
     <section className="container-site mt-1.5 sm:mt-3">
-      <div className="flex flex-col gap-2.5 rounded-xl bg-brand-900 px-4 py-3.5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5">
+      <div className="flex flex-col gap-2.5 rounded-xl bg-band px-4 py-3.5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-5">
         <div className="min-w-0">
           <h2 className="text-base font-semibold sm:text-xl">{bundles.title}</h2>
           {bundles.text && <p className="mt-0.5 text-sm text-white/85">{bundles.text}</p>}
@@ -117,7 +117,7 @@ export function ServicesBento({ services }: { services: SiteHome["services"] }) 
           const photo = imageFor(`service-${s.href.split("/").pop()}`);
           return (
             <RiseItem key={s.href} index={i % 4} className="w-[62%] sm:w-[40%] lg:w-auto">
-              <Link href={s.href} aria-label={s.label} className="group relative block aspect-video overflow-hidden rounded-lg bg-brand-900 transition-shadow duration-300 hover:shadow-lift">
+              <Link href={s.href} aria-label={s.label} className="group relative block aspect-video overflow-hidden rounded-lg bg-band transition-shadow duration-300 hover:shadow-lift">
                 {photo ? (
                   <Image src={photo} alt={`${s.label} for UAE businesses`} fill sizes="(min-width: 1024px) 25vw, 62vw" quality={60} className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" />
                 ) : (
@@ -126,7 +126,7 @@ export function ServicesBento({ services }: { services: SiteHome["services"] }) 
                     <SiteIconView name={s.icon} className="size-9 self-end text-highlight" strokeWidth={1.5} />
                   </span>
                 )}
-                <span className="absolute right-2.5 bottom-2.5 grid size-8 place-items-center rounded-full bg-white text-brand-900 opacity-0 shadow-lift transition-all duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
+                <span className="absolute right-2.5 bottom-2.5 grid size-8 place-items-center rounded-full bg-panel text-brand-900 opacity-0 shadow-lift transition-all duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
                   <ArrowUpRight className="size-4" />
                 </span>
               </Link>
@@ -158,7 +158,7 @@ export function HowItWorks({ ctaLabel }: { ctaLabel: string }) {
         <ol className="grid gap-2.5 sm:grid-cols-3 sm:gap-3">
           {steps.map((s, i) => (
             <li key={s.title} className="flex gap-2.5 rounded-lg bg-surface-soft p-3 sm:grid sm:content-start sm:gap-2 sm:p-4">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-900 text-sm font-semibold text-white">{i + 1}</span>
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-900 text-sm font-semibold text-on-brand">{i + 1}</span>
               <span className="grid gap-0.5">
                 <span className="text-sm font-semibold text-ink">{s.title}</span>
                 <span className="text-[0.8125rem] text-muted-ink sm:text-sm">{s.text}</span>

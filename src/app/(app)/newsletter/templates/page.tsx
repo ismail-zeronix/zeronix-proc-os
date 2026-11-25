@@ -4,7 +4,7 @@ import { newsBrand } from "@/lib/newsletter/brand";
 import { TEMPLATES } from "@/lib/newsletter/templates";
 import { Gallery } from "./gallery";
 
-export const metadata = { title: "Templates · Zeronix Newsletter" };
+export const metadata = { title: "Templates · Zeronix Outreach" };
 
 export default async function TemplatesPage() {
   await requireApp("newsletter");

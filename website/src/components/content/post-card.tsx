@@ -46,7 +46,7 @@ export function Byline({ author, date, minutes }: { author: SiteAuthor | null; d
 /** Phones: a compact row (picture left, words right); from `sm`: a card with the picture on top. */
 export function PostCard({ post, className }: { post: SitePostSummary; className?: string }) {
   return (
-    <article className={cn("group relative flex h-full gap-3 rounded-card bg-white p-2 transition-shadow duration-200 hover:shadow-lift sm:flex-col sm:gap-0", className)}>
+    <article className={cn("group relative flex h-full gap-3 rounded-card bg-panel p-2 transition-shadow duration-200 hover:shadow-lift sm:flex-col sm:gap-0", className)}>
       <div className="w-[40%] shrink-0 self-start sm:w-full">
         <Photo src={coverSrc(post)} subject={post.title} ratio="16:9" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 40vw" />
       </div>

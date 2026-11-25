@@ -15,7 +15,7 @@ const lift = "transition-shadow duration-200 hover:shadow-lift";
 /** Icon in a circle: mint on light, mint on dark. */
 export function IconBadge({ name, onDark = false, className }: { name: string; onDark?: boolean; className?: string }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-brand-800 text-highlight" : "bg-cta text-white", className)}>
+    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-band-soft text-highlight" : "bg-cta text-on-brand", className)}>
       <SiteIconView name={name} className="size-[1.125rem]" strokeWidth={1.75} />
     </span>
   );
@@ -24,7 +24,7 @@ export function IconBadge({ name, onDark = false, className }: { name: string; o
 /** 1. Photo card: tall photo in an inner frame, title row with the arrow. Industries, guides, people. */
 export function PhotoCard({ href, title, photo, subject, ratio = "4:5", icon, className }: { href: string; title: string; photo?: string; subject: string; ratio?: PhotoRatio; icon?: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex flex-col rounded-card bg-white p-2", lift, className)}>
+    <Link href={href} className={cn("group flex flex-col rounded-card bg-panel p-2", lift, className)}>
       <div className="relative">
         <Photo src={photo} subject={subject} ratio={ratio} />
         {icon && <IconBadge name={icon} className="absolute top-3 left-3" />}
@@ -58,7 +58,7 @@ export function FeatureCard({
   className?: string;
 }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "surface" ? "bg-surface" : "bg-white", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "surface" ? "bg-surface" : "bg-panel", lift, className)}>
       <div className="flex items-start justify-between gap-4">
         <Tag>{tag}</Tag>
         <ArrowCircle />
@@ -75,14 +75,14 @@ export function FeatureCard({
 /** 3. Accent card: mint fill, navy text, a photo. The one highlight in a group. */
 export function AccentCard({ href, tag, title, photo, subject, className }: { href: string; tag: string; title: string; photo?: string; subject: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-white", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-on-brand", lift, className)}>
       <Photo src={photo} subject={subject} ratio="4:3" className="bg-white/40" />
       <div className="mt-auto flex items-end justify-between gap-4">
         <div>
           <Tag className="border-brand-950/20 bg-transparent text-brand-950/70">{tag}</Tag>
           <h3 className="mt-3 max-w-xs text-base leading-snug font-semibold sm:text-xl">{title}</h3>
         </div>
-        <ArrowCircle className="border-brand-900 bg-brand-900 text-white" />
+        <ArrowCircle className="border-brand-900 bg-brand-900 text-on-brand" />
       </div>
     </Link>
   );
@@ -91,7 +91,7 @@ export function AccentCard({ href, tag, title, photo, subject, className }: { hr
 /** 4. Dark card: on a navy band. Mint icon, white title, softer text. */
 export function DarkCard({ icon, title, text, className }: { icon: string; title: string; text: string; className?: string }) {
   return (
-    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-brand-800/70 p-6", className)}>
+    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-band-soft/70 p-6", className)}>
       <IconBadge name={icon} onDark />
       <h3 className="text-base font-semibold text-white sm:text-lg">{title}</h3>
       <p className="text-sm leading-relaxed text-white/65">{text}</p>
@@ -152,7 +152,7 @@ export function ProductCard({
 }) {
   const slug = href.split("/").pop() ?? "";
   return (
-    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-white p-1.5 transition-shadow sm:p-2.5 duration-200 hover:shadow-lift", className)}>
+    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-panel p-1.5 transition-shadow sm:p-2.5 duration-200 hover:shadow-lift", className)}>
       {photo ? (
         <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 40vw" className="bg-surface-soft [&_img]:object-contain [&_img]:p-2 sm:[&_img]:p-3 [&_img]:mix-blend-multiply [&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105" />
       ) : (

@@ -53,7 +53,7 @@ export function SocialLinks({ profiles, brandName }: { profiles: string[]; brand
                 rel="noopener me"
                 aria-label={`${brandName} on ${l.name}`}
                 title={l.name}
-                className="grid size-10 place-items-center rounded-full border border-line bg-white text-muted-ink transition-colors hover:border-brand-900 hover:bg-brand-900 hover:text-white"
+                className="grid size-10 place-items-center rounded-full border border-line bg-panel text-muted-ink transition-colors hover:border-brand-900 hover:bg-brand-900 hover:text-on-brand"
               >
                 <SocialIcon network={l.key} className="size-4" />
               </a>
@@ -66,7 +66,7 @@ export function SocialLinks({ profiles, brandName }: { profiles: string[]; brand
           href={trust.href}
           target="_blank"
           rel="noopener me"
-          className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm text-ink transition-colors hover:border-[#00b67a]"
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm text-ink transition-colors hover:border-[#00b67a]"
         >
           <SocialIcon network="trustpilot" className="size-4 text-[#00b67a]" />
           Read our reviews on <span className="font-semibold">Trustpilot</span>

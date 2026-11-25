@@ -49,7 +49,7 @@ function FilterGroup({ title, name, items, active, base, other }: { title: strin
   if (items.length < 2) return null;
   const href = (v?: string) => listHref(base, { ...other, [name]: v });
   const row = "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors";
-  const dot = (on: boolean) => <span className={cn("grid size-4 shrink-0 place-items-center rounded-full border", on ? "border-brand-900 bg-brand-900" : "border-line bg-white")}>{on && <span className="size-1.5 rounded-full bg-white" />}</span>;
+  const dot = (on: boolean) => <span className={cn("grid size-4 shrink-0 place-items-center rounded-full border", on ? "border-brand-900 bg-brand-900" : "border-line bg-panel")}>{on && <span className="size-1.5 rounded-full bg-panel" />}</span>;
   return (
     <section className="grid gap-1">
       <h2 className="px-2 text-xs font-semibold tracking-[0.12em] text-muted-ink uppercase">{title}</h2>
@@ -79,7 +79,7 @@ function SortLinks({ active, base, other }: { active: SortId; base: string; othe
   return (
     <nav aria-label="Sort" className="flex items-center gap-2 text-sm">
       <span className="hidden text-muted-ink sm:inline">Sort</span>
-      <div className="inline-flex rounded-full border border-line bg-white p-0.5">
+      <div className="inline-flex rounded-full border border-line bg-panel p-0.5">
         {SORTS.map((s) => (
           <Link
             key={s.id || "recommended"}
@@ -87,7 +87,7 @@ function SortLinks({ active, base, other }: { active: SortId; base: string; othe
             aria-label={s.label}
             aria-current={active === s.id ? "true" : undefined}
             rel="nofollow"
-            className={cn("rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors sm:text-sm", active === s.id ? "bg-brand-900 text-white" : "text-ink hover:bg-surface")}
+            className={cn("rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors sm:text-sm", active === s.id ? "bg-brand-900 text-on-brand" : "text-ink hover:bg-surface")}
           >
             {short[s.id]}
           </Link>
@@ -149,7 +149,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
       />
       <section className={cn("container-site grid items-start gap-3 py-3 sm:gap-4 sm:py-6", hasFilters && "lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-6")}>
         {hasFilters && (
-          <aside aria-label="Filters" className="sticky top-32 hidden max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-card border border-line/70 bg-white p-3 lg:block">
+          <aside aria-label="Filters" className="sticky top-16 hidden max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-card border border-line/70 bg-panel p-3 lg:block">
             {filterPanel}
           </aside>
         )}
@@ -168,12 +168,12 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           {activeCount > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               {activeBrand && (
-                <Link href={listHref(base, { industry: industryFilter, sort: filters.sort })} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-900 pr-2.5 pl-3.5 text-white hover:bg-brand-800" aria-label={`Remove filter ${activeBrand}`}>
+                <Link href={listHref(base, { industry: industryFilter, sort: filters.sort })} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-900 pr-2.5 pl-3.5 text-on-brand hover:bg-brand-800" aria-label={`Remove filter ${activeBrand}`}>
                   {activeBrand} <X className="size-3.5" />
                 </Link>
               )}
               {activeIndustry && (
-                <Link href={listHref(base, { brand: brandFilter, sort: filters.sort })} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-900 pr-2.5 pl-3.5 text-white hover:bg-brand-800" aria-label={`Remove filter ${activeIndustry}`}>
+                <Link href={listHref(base, { brand: brandFilter, sort: filters.sort })} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-900 pr-2.5 pl-3.5 text-on-brand hover:bg-brand-800" aria-label={`Remove filter ${activeIndustry}`}>
                   {activeIndustry} <X className="size-3.5" />
                 </Link>
               )}
@@ -185,7 +185,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           {shown.length ? (
             <ProductGrid products={shown} cols={cols} />
           ) : (
-            <div className="rounded-card bg-white p-10 text-center">
+            <div className="rounded-card bg-panel p-10 text-center">
               <h2 className="text-xl font-semibold">{c.products.length ? "Nothing matches these filters" : "Models are being added"}</h2>
               <p className="mx-auto mt-2 max-w-md text-muted-ink">Tell us what you need and we will send options with B2B pricing.</p>
               <div className="mt-6 flex justify-center">
@@ -201,7 +201,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
 
       {landing && c.introHtml && (
         <section className="container-site py-4 sm:py-8">
-          <div className="rounded-frame border border-line/70 bg-white p-4 sm:p-8">
+          <div className="rounded-frame border border-line/70 bg-panel p-4 sm:p-8">
             <div
               className="prose prose-sm max-w-3xl sm:prose-base prose-headings:font-heading prose-headings:font-semibold prose-h2:text-h2 prose-h3:text-lg prose-a:text-brand-700 prose-li:my-0.5"
               dangerouslySetInnerHTML={{ __html: c.introHtml }}
@@ -215,7 +215,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 font-semibold text-ink">Buying guides:</span>
               {c.guides!.map((g) => (
-                <Link key={g.path} href={g.path} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
+                <Link key={g.path} href={g.path} className="rounded-full border border-line bg-panel px-3.5 py-1.5 hover:border-brand-700/40">
                   {g.title}
                 </Link>
               ))}
@@ -225,7 +225,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 font-semibold text-ink">{c.name} by industry:</span>
               {c.industries.map((x) => (
-                <Link key={x.slug} href={`/industries/${x.slug}`} className="rounded-full border border-line bg-white px-3.5 py-1.5 hover:border-brand-700/40">
+                <Link key={x.slug} href={`/industries/${x.slug}`} className="rounded-full border border-line bg-panel px-3.5 py-1.5 hover:border-brand-700/40">
                   {x.name}
                 </Link>
               ))}

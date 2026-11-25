@@ -35,7 +35,7 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
 
   return (
     <>
-      <div className="grid gap-3 rounded-card border border-line/70 bg-white p-3.5 sm:gap-4 sm:p-5">
+      <div className="grid gap-3 rounded-card border border-line/70 bg-panel p-3.5 sm:gap-4 sm:p-5">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-heading text-xl font-semibold tracking-tight text-ink tabular-nums sm:text-3xl">{priceText(item.price)}</p>
@@ -50,7 +50,7 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
           <span className="text-sm text-muted-ink sm:hidden">Quantity</span>
           <QtyStepper value={qty} onChange={(n) => setQty(Math.max(1, Math.min(100, n)))} label={item.name} />
           <AddToCart item={item} qty={qty} label className="hidden h-11 whitespace-nowrap sm:inline-flex" />
-          <button type="button" onClick={buyNow} className="hidden h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-brand-800 sm:inline-flex" data-track="buy-now">
+          <button type="button" onClick={buyNow} className="hidden h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold whitespace-nowrap text-on-brand transition-colors hover:bg-brand-800 sm:inline-flex" data-track="buy-now">
             Buy now
           </button>
         </div>
@@ -87,8 +87,8 @@ export function BuyBox({ item, quoteHref, stock }: { item: Omit<CartItem, "qty">
             <span className="block text-base font-bold text-ink tabular-nums">{priceText(item.price)}</span>
             <span className="block text-[0.6875rem] text-muted-ink">{qty > 1 ? `${qty} × incl. VAT` : "Incl. VAT"}</span>
           </p>
-          <AddToCart item={item} qty={qty} className="size-11 border border-brand-900 bg-white text-brand-900 hover:bg-surface" />
-          <button type="button" onClick={buyNow} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-900 px-6 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-brand-800" data-track="buy-now-bar">
+          <AddToCart item={item} qty={qty} className="size-11 border border-brand-900 bg-panel text-brand-900 hover:bg-surface" />
+          <button type="button" onClick={buyNow} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-900 px-6 text-sm font-semibold whitespace-nowrap text-on-brand transition-colors hover:bg-brand-800" data-track="buy-now-bar">
             <ShoppingCart className="size-4" /> Buy now
           </button>
         </div>

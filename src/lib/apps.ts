@@ -33,6 +33,8 @@ export interface AppDef {
   color: string;
   /** Every active user has it; not one of the apps an admin switches per user. */
   always?: boolean;
+  /** Lives inside another app (no tile, not in the switcher) but is still switched on per user, e.g. Newsletter in Outreach. */
+  inside?: string;
 }
 
 /** Single source of truth for the portal's apps. Add an app = add a row here + a folder under src/app/(app)/. */
@@ -142,25 +144,28 @@ export const APPS = [
     color: "var(--series-2)",
   },
   {
+    // Outreach (Phase 5 of the sales routine): finding customers, cold calls, cold email and newsletters in one app.
+    // The key stays "prospecting" so saved access lists and links keep working. Salesmen work their own prospects.
     key: "prospecting",
-    label: "Prospecting",
+    label: "Outreach",
     href: "/prospecting",
     icon: Radar,
-    blurb: "Find companies, research, cold email",
-    defaultFor: ["admin"],
+    blurb: "Find customers, cold calls, email and newsletters",
+    defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-5)",
   },
   {
     // ready-made newsletters to pasted lists, sent from the Prospecting mailboxes with a working unsubscribe link
     key: "newsletter",
-    label: "Newsletter",
+    label: "Newsletters",
     href: "/newsletter",
     icon: Megaphone,
-    blurb: "Send newsletters to your lists",
+    blurb: "Send newsletters to your lists (inside Outreach)",
     defaultFor: ["admin"],
     status: "live",
     color: "var(--series-4)",
+    inside: "prospecting",
   },
   {
     // control panel of the public site zeronixtech.com (WEBSITE-PLAN.md): content, catalog, leads, analytics
@@ -209,7 +214,7 @@ export function allowedApps(user: AccessUser): AppKey[] {
 /** Apps to show as tiles / in the switcher: live ones the user may open, plus "coming soon" ones for admins only. */
 export function visibleApps(user: AccessUser): AppDef[] {
   const allowed = new Set<string>(allowedApps(user));
-  return APPS.filter((a) => allowed.has(a.key) && (a.status === "live" || user.role === "admin"));
+  return APPS.filter((a) => allowed.has(a.key) && !("inside" in a) && (a.status === "live" || user.role === "admin"));
 }
 
 export const canOpen =(user: AccessUser, key: AppKey) => allowedApps(user).includes(key);

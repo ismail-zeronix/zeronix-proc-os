@@ -1,17 +1,17 @@
 import { eq } from "drizzle-orm";
 import { BackButton } from "@/components/back-button";
 import { db, schema } from "@/db";
-import { requireApp } from "@/lib/auth/session";
 import { getBrand } from "@/lib/brand";
 import { industryCounts, sendingCapacity, writingBacklog } from "@/lib/prospecting/campaign-builder";
 import { canWrite } from "@/lib/prospecting/writer";
 import { CampaignChat } from "./campaign-chat";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "New campaign · Zeronix Prospecting" };
+export const metadata = { title: "New campaign · Zeronix Outreach" };
 
 /** Builds an email campaign as a short chat: industry, how many, what we offer, an example email, follow-ups, when. */
 export default async function NewCampaignPage() {
-  const { user } = await requireApp("prospecting");
+  const { user } = await requireOutreachFull();
   const [industries, segments, capacity, backlog, ai, brand, [profile]] = await Promise.all([
     industryCounts(),
     db.select({ label: schema.prospectSegments.label, offer: schema.prospectSegments.offer }).from(schema.prospectSegments).where(eq(schema.prospectSegments.active, true)),

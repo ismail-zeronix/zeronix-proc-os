@@ -18,7 +18,7 @@ export const GRID_COLS_FILTERED = "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-
 
 export function ProductCardSkeleton({ className }: { className?: string }) {
   return (
-    <div aria-hidden className={cn("flex h-full flex-col rounded-card border border-line/70 bg-white p-1.5 sm:p-2.5", className)}>
+    <div aria-hidden className={cn("flex h-full flex-col rounded-card border border-line/70 bg-panel p-1.5 sm:p-2.5", className)}>
       <Skeleton className="aspect-square w-full rounded-inner" />
       <div className="flex flex-1 flex-col gap-1.5 px-1 pt-2">
         <Skeleton className="h-2.5 w-1/3 rounded-full" />

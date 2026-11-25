@@ -58,7 +58,7 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
         <section className="container-site grid gap-6 py-8 sm:py-10 lg:grid-cols-[1.2fr_1fr]">
           {x.introHtml && <div className="prose prose-base max-w-none lg:prose-lg prose-h2:text-h2 prose-h3:text-h3 prose-headings:font-heading prose-headings:font-semibold prose-a:text-brand-700" dangerouslySetInnerHTML={{ __html: x.introHtml }} />}
           {x.painPoints.length > 0 && (
-            <div className="reveal rounded-card bg-white p-6">
+            <div className="reveal rounded-card bg-panel p-6">
               <h2 className="text-xl font-semibold">What slows {x.name.toLowerCase()} teams down</h2>
               <ul className="mt-5 grid gap-3">
                 {x.painPoints.map((p) => (
@@ -74,7 +74,7 @@ export default async function IndustryPage({ params }: PageProps<"/industries/[s
       )}
 
       {x.roles.length > 0 && (
-        <section className="frame bg-brand-900 py-8 sm:py-10">
+        <section className="frame bg-band py-8 sm:py-10">
           <div className="container-site">
             <SectionHeading onDark rule tag="Setups by role" title={`What each role in ${x.name.toLowerCase()} needs`} />
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

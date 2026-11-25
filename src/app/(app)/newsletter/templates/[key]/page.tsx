@@ -10,7 +10,7 @@ import { renderEmail } from "@/lib/newsletter/render";
 import { SAMPLE_PRODUCTS, templateByKey, withSamples } from "@/lib/newsletter/templates";
 import { MailFrame } from "../../mail-frame";
 
-export const metadata = { title: "Template · Zeronix Newsletter" };
+export const metadata = { title: "Template · Zeronix Outreach" };
 
 export default async function TemplatePage({ params, searchParams }: PageProps<"/newsletter/templates/[key]">) {
   await requireApp("newsletter");

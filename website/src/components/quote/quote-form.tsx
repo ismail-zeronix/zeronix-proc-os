@@ -8,7 +8,7 @@ import { quoteList, useQuoteList } from "@/lib/quote-list";
 import { firstTouch, sessionUtm } from "@/lib/track";
 import { ChatNowButton } from "./chat-now";
 
-const input = "h-11 w-full rounded-lg border border-line bg-white px-3.5 text-sm outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700";
+const input = "h-11 w-full rounded-lg border border-line bg-panel px-3.5 text-sm outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700";
 const label = "grid gap-2 text-sm font-semibold";
 
 /** The quote form: the quote list (with quantities), then who is asking and what for. Sends to the site's /api/quote. */
@@ -16,10 +16,19 @@ export function QuoteForm({
   brand,
   industries,
   prefill,
+  who,
+  connectRef = "",
+  cta,
 }: {
   brand: SiteBrand;
   industries: { slug: string; name: string }[];
   prefill: { industry: string; product: { slug: string; name: string } | null; category: string };
+  /** Details we already know (a cold email's /connect link fills them in). */
+  who?: { name: string; company: string; email: string; phone: string };
+  /** The signed ?r= of that link, passed on untouched so the portal knows which company answered. */
+  connectRef?: string;
+  /** Overrides the CTA label stored with the lead (e.g. "Connect link"). */
+  cta?: string;
 }) {
   const items = useQuoteList();
   const added = useRef(false);
@@ -60,7 +69,9 @@ export function QuoteForm({
         industry: get("industry"),
         items: items.map((i) => ({ slug: i.slug, name: i.name, qty: i.qty })),
         sourcePage: from.slice(0, 500),
-        cta: brand.ctaLabel,
+        cta: cta ?? brand.ctaLabel,
+        newsletter: f.get("newsletter") === "on",
+        ref: connectRef,
         utm,
         landingPath: first?.path ?? "",
         firstReferrer: first?.ref ?? "",
@@ -79,7 +90,7 @@ export function QuoteForm({
 
   if (done)
     return (
-      <div className="grid justify-items-start gap-5 rounded-card bg-white p-8">
+      <div className="grid justify-items-start gap-5 rounded-card bg-panel p-8">
         <CheckCircle2 className="size-10 text-brand-700" />
         <h2 className="text-xl font-semibold sm:text-2xl">Thank you, we have your request.</h2>
         <p className="max-w-xl text-muted-ink">Our sales team will reply with B2B pricing, usually within a working day. If it is urgent, chat with us now.</p>
@@ -94,7 +105,7 @@ export function QuoteForm({
 
   return (
     <form onSubmit={submit} className="grid gap-6">
-      <section className="grid gap-3 rounded-card bg-white p-6">
+      <section className="grid gap-3 rounded-card bg-panel p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold sm:text-lg">Models</h2>
           <Link href="/products" className="text-sm text-brand-700 hover:underline">
@@ -106,7 +117,7 @@ export function QuoteForm({
             {items.map((i) => (
               <li key={i.slug} className="flex items-center gap-3 rounded-2xl bg-surface-soft p-2 pl-4">
                 <span className="min-w-0 flex-1 truncate font-semibold">{i.name}</span>
-                <div className="flex items-center rounded-full border border-line bg-white">
+                <div className="flex items-center rounded-full border border-line bg-panel">
                   <button type="button" aria-label={`One less ${i.name}`} className="grid size-9 place-items-center" onClick={() => quoteList.setQty(i.slug, i.qty - 1)}>
                     <Minus className="size-3.5" />
                   </button>
@@ -126,23 +137,23 @@ export function QuoteForm({
         )}
       </section>
 
-      <section className="grid gap-4 rounded-card bg-white p-6 sm:grid-cols-2">
+      <section className="grid gap-4 rounded-card bg-panel p-6 sm:grid-cols-2">
         <h2 className="text-base font-semibold sm:col-span-2 sm:text-lg">Your details</h2>
         <label className={label}>
           Name
-          <input name="name" required minLength={2} autoComplete="name" className={input} />
+          <input name="name" required minLength={2} autoComplete="name" defaultValue={who?.name} className={input} />
         </label>
         <label className={label}>
           Company
-          <input name="company" autoComplete="organization" className={input} />
+          <input name="company" autoComplete="organization" defaultValue={who?.company} className={input} />
         </label>
         <label className={label}>
           Work email
-          <input name="email" type="email" required autoComplete="email" className={input} />
+          <input name="email" type="email" required autoComplete="email" defaultValue={who?.email} className={input} />
         </label>
         <label className={label}>
           Phone or WhatsApp
-          <input name="phone" type="tel" autoComplete="tel" placeholder="+971" className={input} />
+          <input name="phone" type="tel" autoComplete="tel" placeholder="+971" defaultValue={who?.phone} className={input} />
         </label>
         <label className={label}>
           Industry
@@ -177,6 +188,13 @@ export function QuoteForm({
           Anything else?
           <textarea name="notes" rows={4} maxLength={3000} placeholder="What the team does, software they run, where to deliver…" className={`${input} h-auto py-3`} />
         </label>
+        {/* unticked: news only for people who ask (the portal adds them to the "Website subscribers" list) */}
+        <label className="flex items-start gap-3 text-sm sm:col-span-2">
+          <input name="newsletter" type="checkbox" className="mt-0.5 size-4 shrink-0 accent-brand-700" />
+          <span>
+            Send me Zeronix&apos;s weekly product news and offers. <span className="text-muted-ink">One email a week, unsubscribe anytime.</span>
+          </span>
+        </label>
         {/* bots fill this in; people never see it */}
         <input name="website" tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] h-0 w-0 opacity-0" />
       </section>
@@ -184,9 +202,9 @@ export function QuoteForm({
       {error && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={sending} className="group inline-flex h-13 items-center gap-3 rounded-full bg-cta pr-1.5 pl-6 font-semibold text-white transition-colors hover:bg-cta-strong disabled:opacity-60">
+        <button type="submit" disabled={sending} className="group inline-flex h-13 items-center gap-3 rounded-full bg-cta pr-1.5 pl-6 font-semibold text-on-brand transition-colors hover:bg-cta-strong disabled:opacity-60">
           {sending ? "Sending…" : "Send request"}
-          <span className="grid size-10 place-items-center rounded-full bg-brand-900 text-white">
+          <span className="grid size-10 place-items-center rounded-full bg-brand-900 text-on-brand">
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </span>
         </button>

@@ -11,7 +11,7 @@ import { FreeDeliveryBar, priceText, Totals, TrustNotes } from "./fields";
 /** Quantity stepper used by the cart and the product buy box. */
 export function QtyStepper({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
   return (
-    <span className="inline-flex h-10 items-center rounded-lg border border-line bg-white">
+    <span className="inline-flex h-10 items-center rounded-lg border border-line bg-panel">
       <button type="button" onClick={() => onChange(value - 1)} disabled={value <= 1} aria-label={`One less ${label}`} className="grid size-10 place-items-center text-brand-900 disabled:opacity-30">
         <Minus className="size-4" />
       </button>
@@ -42,7 +42,7 @@ export function CartView() {
   const store = useStoreInfo();
   if (!items.length) {
     return (
-      <div className="grid justify-items-center gap-3 rounded-card border border-line/70 bg-white px-5 py-12 text-center">
+      <div className="grid justify-items-center gap-3 rounded-card border border-line/70 bg-panel px-5 py-12 text-center">
         <ShoppingCart className="size-8 text-brand-700" strokeWidth={1.5} />
         <p className="text-lg font-semibold text-ink">Your cart is empty</p>
         <p className="max-w-sm text-sm text-muted-ink">Add laptops, desktops, monitors and accessories with a price. For servers and bulk orders, ask us for a B2B quote.</p>
@@ -63,8 +63,8 @@ export function CartView() {
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <ul className="grid gap-2.5">
         {items.map((i) => (
-          <li key={i.slug} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 rounded-card border border-line/70 bg-white p-3 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:items-center">
-            <Link href={i.href} className="relative aspect-square overflow-hidden rounded-inner bg-white">
+          <li key={i.slug} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 rounded-card border border-line/70 bg-panel p-3 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:items-center">
+            <Link href={i.href} className="relative aspect-square overflow-hidden rounded-inner bg-panel">
               {i.image ? <Image src={i.image} alt="" fill sizes="88px" className="object-contain p-1" /> : <span className="grid h-full place-items-center bg-surface-soft text-xs text-muted-ink">No photo</span>}
             </Link>
             <div className="grid min-w-0 gap-1">
@@ -82,7 +82,7 @@ export function CartView() {
           </li>
         ))}
       </ul>
-      <aside className="grid gap-4 rounded-card border border-line/70 bg-white p-4 lg:sticky lg:top-32">
+      <aside className="grid gap-4 rounded-card border border-line/70 bg-panel p-4 lg:sticky lg:top-16">
         <h2 className="flex items-baseline justify-between text-base font-semibold text-ink">
           Order summary <span className="text-xs font-normal text-muted-ink">{count === 1 ? "1 item" : `${count} items`}</span>
         </h2>

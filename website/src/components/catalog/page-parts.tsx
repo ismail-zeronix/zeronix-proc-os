@@ -91,7 +91,7 @@ export function PageHero({
         {tiles ? (
           <div className="hidden grid-cols-4 gap-2 lg:grid">
             {tiles.map((src, i) => (
-              <Photo key={src} src={src} subject={title} ratio="1:1" sizes="120px" className="rounded-inner bg-white [&_img]:object-contain [&_img]:p-2" />
+              <Photo key={src} src={src} subject={title} ratio="1:1" sizes="120px" className="rounded-inner bg-panel [&_img]:object-contain [&_img]:p-2" />
             ))}
           </div>
         ) : (
@@ -109,7 +109,7 @@ export function PageHero({
 export function ProductTile({ p, label }: { p: SiteProductSummary; label?: string }) {
   return (
     <div className="relative h-full">
-      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-cta px-2 py-0.5 text-[0.6875rem] font-semibold text-white">{label}</span>}
+      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-cta px-2 py-0.5 text-[0.6875rem] font-semibold text-on-brand">{label}</span>}
       <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} mpn={p.mpn} stock={p.availability} />
     </div>
   );
@@ -131,7 +131,7 @@ export function Faq({ items, title = "Questions we get asked" }: { items: SiteFa
   return (
     <section className="container-site grid gap-3 py-5 sm:gap-4 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
       <h2 className="text-h2">{title}</h2>
-      <Accordion className="rounded-card border border-line/70 bg-white px-4 sm:px-5">
+      <Accordion className="rounded-card border border-line/70 bg-panel px-4 sm:px-5">
         {items.map((f, i) => (
           <AccordionItem key={f.q} value={`q${i}`}>
             <AccordionTrigger className="py-3 text-[0.8125rem] font-semibold sm:py-3.5 sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
@@ -153,7 +153,7 @@ export function Faq({ items, title = "Questions we get asked" }: { items: SiteFa
 /** The B2B action strip at the end of catalog pages: navy frame, the action already filled in for this page. */
 export function CtaStrip({ title, text, quoteHref, label }: { title: string; text: string; quoteHref: string; label: string }) {
   return (
-    <section className="frame mb-4 bg-brand-900 text-white">
+    <section className="frame mb-4 bg-band text-white">
       <div className="container-site flex flex-col gap-3 py-5 sm:gap-5 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
           <h2 className="text-h2 text-white">{title}</h2>
