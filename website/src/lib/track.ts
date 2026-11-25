@@ -64,6 +64,11 @@ export function sessionUtm(): Record<string, string> {
   }
 }
 
+/** This session's campaign tags (the latest campaign link wins), sent with GA4 lead events and quote requests. */
+export function keepUtm(utm: Record<string, string>) {
+  if (Object.keys(utm).length) store("session")?.setItem(UTM, JSON.stringify(utm));
+}
+
 /** Remembers the first visit (kept 90 days) and this session's campaign tags. Called on a session's first page. */
 export function rememberLanding(path: string, ref: string, utm: Record<string, string>) {
   if (Object.keys(utm).length) store("session")?.setItem(UTM, JSON.stringify(utm));

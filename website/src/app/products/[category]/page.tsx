@@ -13,6 +13,11 @@ import { SITE_URL } from "@/lib/defaults";
 import { listProducts, sortOf, SORTS, type SortId } from "@/lib/catalog-list";
 import { imageFor } from "@/lib/images";
 import { categoryTitle } from "@/lib/product-copy";
+import { BuyingLead, ChipLinks, CompareTable, mergeFaq, SpecGuide } from "@/components/catalog/seo-blocks";
+import { ShortQuote } from "@/components/quote/short-quote";
+import { BRAND_SEO } from "@/lib/seo-brands";
+import { CATEGORY_SEO, isVc, VC_NAMES, VC_PARENT, VC_SUBS } from "@/lib/seo-categories";
+import { EMIRATE_PAGES } from "@/lib/seo-emirates";
 import { cn } from "@/lib/utils";
 
 /** Products per page: four rows of the desktop grid. */
@@ -34,10 +39,14 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/pro
   const page = pageOf(sp);
   const base = `/products/${c.slug}`;
   const filtered = Boolean(one(sp.brand) || one(sp.industry) || one(sp.sort));
-  const title = c.seo.title || categoryTitle(c.name, c.brands.slice(0, 3).map((b) => b.name));
+  const title = c.seo.title || CATEGORY_SEO[c.slug]?.title || categoryTitle(c.name, c.brands.slice(0, 3).map((b) => b.name));
   return {
     title: page > 1 ? `${title} · Page ${page}` : title,
-    description: c.seo.description || c.summary,
+    description:
+      c.seo.description ||
+      CATEGORY_SEO[c.slug]?.description ||
+      c.summary ||
+      `Compare ${c.name.toLowerCase()} for business${c.brands.length ? ` from ${c.brands.slice(0, 3).map((b) => b.name).join(", ")}` : ""}. UAE stock, VAT invoice and B2B pricing from Dubai.`.slice(0, 155),
     // each numbered page is its own canonical; filtered views point at the plain category and stay out of the index
     alternates: { canonical: filtered ? base : listHref(base, { page }) },
     ...(filtered ? { robots: { index: false, follow: true } } : {}),
@@ -100,6 +109,12 @@ function SortLinks({ active, base, other }: { active: SortId; base: string; othe
 export default async function CategoryPage({ params, searchParams }: PageProps<"/products/[category]">) {
   const [c, { brand }] = await Promise.all([getCategory((await params).category), getSettings()]);
   if (!c) notFound();
+  const seo = CATEGORY_SEO[c.slug];
+  // the meeting-room parent holds no products itself: show a few from its six kinds instead
+  const fromKinds =
+    c.slug === VC_PARENT && !c.products.length
+      ? (await Promise.all(VC_SUBS.map((x) => getCategory(x).catch(() => null)))).flatMap((p) => (p?.products ?? []).slice(0, 2)).slice(0, 8)
+      : [];
   const sp = await searchParams;
   const brandFilter = one(sp.brand);
   const industryFilter = one(sp.industry);
@@ -147,6 +162,16 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           </Action>
         }
       />
+      {landing && seo && <BuyingLead paragraphs={seo.lead} title={`Choosing ${c.name.toLowerCase()} for your business`} />}
+      {landing && isVc(c.slug) && (
+        <nav aria-label="Meeting room hardware" className="container-site grid gap-2.5 pt-3 sm:pt-5">
+          <ChipLinks
+            label={c.slug === VC_PARENT ? "Shop by type:" : "More meeting room hardware:"}
+            items={[VC_PARENT, ...VC_SUBS].filter((x) => x !== c.slug).map((x) => ({ href: `/products/${x}`, label: VC_NAMES[x] }))}
+          />
+          <ChipLinks label="By emirate:" items={EMIRATE_PAGES.map((e) => ({ href: `/video-conferencing/${e.slug}`, label: `Video conferencing in ${e.place}` }))} />
+        </nav>
+      )}
       <section className={cn("container-site grid items-start gap-3 py-3 sm:gap-4 sm:py-6", hasFilters && "lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:gap-6")}>
         {hasFilters && (
           <aside aria-label="Filters" className="sticky top-16 hidden max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-card border border-line/70 bg-panel p-3 lg:block">
@@ -199,6 +224,25 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
         </div>
       </section>
 
+      {landing && fromKinds.length > 0 && (
+        <section className="container-site py-4 sm:py-6">
+          <h2 className="text-h2">Featured meeting room products</h2>
+          <div className="mt-3">
+            <ProductGrid products={fromKinds} />
+          </div>
+        </section>
+      )}
+      {landing && seo && <SpecGuide title={`Key specs to compare`} items={seo.compare} />}
+      {landing && seo && <CompareTable title={`Compare top ${c.name.toLowerCase()}`} products={c.products} labels={seo.table} />}
+      {landing && (c.brands.length > 0 || (seo?.brands.length ?? 0) > 0) && (
+        <nav aria-label="Brands" className="container-site py-2 sm:py-4">
+          <ChipLinks
+            label={`${c.name} by brand:`}
+            items={c.brands.map((b) => ({ href: BRAND_SEO[b.slug]?.categories[c.slug] ? `/brands/${b.slug}/${c.slug}` : `/brands/${b.slug}`, label: BRAND_SEO[b.slug]?.categories[c.slug]?.heading ?? b.name }))}
+            plain={(seo?.brands ?? []).filter((n) => !c.brands.some((b) => b.name.toLowerCase() === n.toLowerCase()))}
+          />
+        </nav>
+      )}
       {landing && c.introHtml && (
         <section className="container-site py-4 sm:py-8">
           <div className="rounded-frame border border-line/70 bg-panel p-4 sm:p-8">
@@ -233,7 +277,16 @@ export default async function CategoryPage({ params, searchParams }: PageProps<"
           )}
         </nav>
       )}
-      {landing && <Faq items={c.faq} title={`${c.name}: questions we get asked`} />}
+      {landing && <Faq items={mergeFaq(c.faq, seo?.faq ?? [])} title={`${c.name}: questions we get asked`} />}
+      {isVc(c.slug) && (
+        <ShortQuote
+          title="Get product pricing for your meeting rooms"
+          text="Tell us how many rooms, their size and your platform (Teams, Zoom or BYOD). We reply with options and B2B pricing, usually within a working day."
+          cta="Get product pricing"
+          topic={c.name}
+          placeholder="e.g. 2 huddle rooms and 1 boardroom for 12 people, Microsoft Teams"
+        />
+      )}
 
       <CtaStrip title={`Buying ${c.name.toLowerCase()} in volume?`} text="Corporate pricing, VAT invoices and delivery across the Emirates." quoteHref={quoteLink({ category: c.slug })} label={brand.ctaLabel} />
       <JsonLd

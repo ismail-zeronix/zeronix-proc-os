@@ -9,6 +9,7 @@ import { revalidateSite } from "@/lib/website/revalidate";
 import { saveHome } from "@/lib/website/settings";
 import { addStarterCatalog, fillEmptyCategoryPages, fillEmptyIndustryPages } from "@/lib/website/starter";
 import { addGamingStarter } from "@/lib/website/gaming-starter";
+import { addSeoCategories } from "@/lib/website/seo-starter";
 import { parseInput } from "@/lib/user-error";
 
 async function assertAdmin() {
@@ -92,5 +93,15 @@ export async function addGaming(): Promise<Result<{ categories: number; products
     const n = await addGamingStarter();
     revalidatePath("/website", "layout");
     return { categories: n.categories, products: n.products, siteRefreshed: await revalidateSite(["nav", "catalog"]) };
+  });
+}
+
+/** Networking and the video conferencing categories the SEO audit asked for (lib/website/seo-starter.ts), published. */
+export async function addSeoCategoriesAction(): Promise<Result<{ categories: number; siteRefreshed: boolean }>> {
+  return attempt(async () => {
+    await assertAdmin();
+    const n = await addSeoCategories();
+    revalidatePath("/website", "layout");
+    return { categories: n.categories, siteRefreshed: await revalidateSite(["nav", "catalog"]) };
   });
 }

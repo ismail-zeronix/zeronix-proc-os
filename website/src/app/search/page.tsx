@@ -5,7 +5,7 @@ import { Breadcrumbs, ProductGrid } from "@/components/catalog/page-parts";
 import { getSearch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Search", robots: { index: false, follow: true } };
+export const metadata: Metadata = { title: "Search", robots: { index: false, follow: true }, alternates: { canonical: "/search" } };
 
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const sp = await searchParams;

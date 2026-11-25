@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AccountView } from "@/components/store/account-view";
 
-export const metadata: Metadata = { title: "My account", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "My account", robots: { index: false, follow: false }, alternates: { canonical: "/account" } };
 
 export default function AccountPage() {
   return (

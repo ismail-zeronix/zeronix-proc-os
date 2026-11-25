@@ -2,7 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { rememberLanding, send, session, track, utmFromUrl } from "@/lib/track";
+import { gaEvent, productOnPage } from "@/lib/ga";
+import { keepUtm, rememberLanding, send, session, track, utmFromUrl } from "@/lib/track";
 
 /**
  * Page views, time on page and scroll depth, button clicks marked `data-track`, links to other sites, and the chat
@@ -29,6 +30,9 @@ export function Tracker() {
     engaged();
     const { sid, fresh } = session();
     const utm = fresh ? utmFromUrl() : {};
+    // a campaign link opened later in the visit (an email, an ad) still tags this session for the GA4 lead events
+    const later = fresh ? {} : utmFromUrl();
+    if (Object.keys(later).length) keepUtm(later);
     const ref = fresh && !document.referrer.startsWith(location.origin) ? document.referrer : "";
     if (fresh) rememberLanding(pathname, ref, utm);
     page.current = { path: pathname, active: 0, visibleSince: document.visibilityState === "visible" ? Date.now() : 0, scroll: 0, reported: 0 };
@@ -54,13 +58,20 @@ export function Tracker() {
       const tagged = el?.closest<HTMLElement>("[data-track]");
       if (tagged?.dataset.track) return track("cta_click", tagged.dataset.track);
       const a = el?.closest<HTMLAnchorElement>("a[href]");
-      if (!a || !/^https?:/.test(a.protocol)) return;
+      if (!a) return;
+      // GA4 key events: every WhatsApp and phone link on the site, wherever it sits
+      if (a.protocol === "tel:") gaEvent("phone_click", { product: a.dataset.product || productOnPage() });
+      else if (/(^|\.)wa\.me$|(^|\.)whatsapp\.com$/.test(a.hostname) || a.protocol === "whatsapp:") gaEvent("whatsapp_click", { product: a.dataset.product || productOnPage() });
+      if (!/^https?:/.test(a.protocol)) return;
       // every way into the quote form is a call to action, named by where it sits
       if (a.host === location.host && a.pathname === "/quote") return track("cta_click", `quote-${a.closest("header") ? "header" : a.closest("footer") ? "footer" : "page"}`);
       if (a.host && a.host !== location.host) track("outbound", a.host + a.pathname);
     };
     const onChatOpen = () => track("chat_open");
-    const onChatLead = () => track("chat_lead");
+    const onChatLead = () => {
+      track("chat_lead");
+      gaEvent("generate_lead", { form_name: "chat", product: productOnPage() });
+    };
     const onQuote = () => track("quote_submit");
     window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("visibilitychange", onVisibility);

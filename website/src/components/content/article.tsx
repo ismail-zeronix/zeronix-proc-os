@@ -66,8 +66,17 @@ function InlineCta({ text, href, label }: { text: string; href: string; label: s
 }
 
 /** A guide or blog post (BRAND.md): surface header with the byline, cover, contents + body, picks, comparison, FAQ, author. */
-export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: SiteBrand; crumbs: Crumb[] }) {
-  const quote = quoteLink({ industry: post.industry?.slug, product: post.picks[0]?.slug });
+/** A product panel near the top of a page and its own main action (a service page that should sell hardware). */
+export interface ArticleProducts {
+  title: string;
+  text: string;
+  links: { href: string; label: string }[];
+  cta: { label: string; href: string };
+}
+
+export function Article({ post, brand, crumbs, products }: { post: SitePostPage; brand: SiteBrand; crumbs: Crumb[]; products?: ArticleProducts }) {
+  const quote = products?.cta.href ?? quoteLink({ industry: post.industry?.slug, product: post.picks[0]?.slug });
+  const ctaLabel = products?.cta.label ?? brand.ctaLabel;
   const compareInline = post.blocks.some((b) => b.kind === "compare");
   const url = `${SITE_URL}${post.path}`;
   const cover = coverSrc(post);
@@ -89,8 +98,33 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
           <h1 className="max-w-4xl text-h1 text-ink">{post.title}</h1>
           {post.excerpt && <p className="max-w-3xl text-lead text-muted-ink">{post.excerpt}</p>}
           <Byline author={post.author} date={post.publishedAt} minutes={post.readingMinutes} />
+          {products && (
+            <div>
+              <Action href={products.cta.href} size="lg" track="service-product-pricing">
+                {products.cta.label}
+              </Action>
+            </div>
+          )}
         </div>
       </section>
+
+      {products && (
+        <nav aria-label={products.title} className="container-site pt-4 sm:pt-8">
+          <div className="grid gap-3 rounded-card border border-line/70 bg-panel p-4 sm:p-6">
+            <h2 className="text-h2">{products.title}</h2>
+            <p className="max-w-3xl text-sm text-muted-ink">{products.text}</p>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {products.links.map((l) => (
+                <li key={l.href}>
+                  <Link href={l.href} className="flex h-full items-center justify-between gap-2 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink hover:border-brand-700/40">
+                    {l.label} <span aria-hidden>→</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </nav>
+      )}
 
       {cover && (
         <div className="container-site pt-4 sm:pt-8">
@@ -128,7 +162,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
                   <CompareTable products={post.picks} groups={post.compare} />
                 </div>
               ) : b.kind === "cta" ? (
-                <InlineCta key={i} text={b.text || post.ctaText} href={quote} label={brand.ctaLabel} />
+                <InlineCta key={i} text={b.text || post.ctaText} href={quote} label={ctaLabel} />
               ) : null,
             )}
           </div>
@@ -172,7 +206,7 @@ export function Article({ post, brand, crumbs }: { post: SitePostPage; brand: Si
         </section>
       )}
 
-      <CtaStrip title={post.ctaText || "Equipping a team? Get B2B pricing."} text="Tell us how many people and which roles. We reply with a shortlist and pricing, usually within a working day." quoteHref={quote} label={brand.ctaLabel} />
+      <CtaStrip title={post.ctaText || "Equipping a team? Get B2B pricing."} text="Tell us how many people and which roles. We reply with a shortlist and pricing, usually within a working day." quoteHref={quote} label={ctaLabel} />
 
       <JsonLd
         data={{

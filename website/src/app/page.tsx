@@ -6,13 +6,18 @@ import type { CategoryCardData } from "@/components/home/category-icons";
 import { getCategories, getCategory, getIndustries, getNav, getPosts, getProducts, getSettings } from "@/lib/api";
 import type { SiteCategoriesResponse, SiteCategoryPage, SiteProductSummary } from "@/lib/contract";
 import { formatPrice } from "@/lib/price";
+import { BRAND_SEO } from "@/lib/seo-brands";
 import { MIN_SHELF } from "@/lib/shelf";
 
 // rebuilt at most every 10 minutes, or at once when the portal publishes a change
 export const revalidate = 600;
 
-// the home page's one address (?utm_... and other query strings point back here)
-export const metadata = { alternates: { canonical: "/" } };
+// the home page's one address (?utm_... and other query strings point back here). Title under 60, description under 155.
+export const metadata = {
+  title: { absolute: "Business IT Supplier in Dubai, UAE | Zeronix Tech" },
+  description: "Business laptops, desktops, workstations, servers and networking in Dubai, UAE stock with VAT invoice. Ask for corporate pricing today.",
+  alternates: { canonical: "/" },
+};
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
 
@@ -55,7 +60,8 @@ function categoryCards(categories: SiteCategoriesResponse["categories"], pageOf:
       return page.brands
         .filter((b) => b.count >= 2)
         .map((b) => ({
-          href: `/products/${c.slug}?brand=${encodeURIComponent(b.slug)}`,
+          // its own indexable page where one exists ("HP business laptops"), else the filtered category
+          href: BRAND_SEO[b.slug]?.categories[c.slug] ? `/brands/${b.slug}/${c.slug}` : `/products/${c.slug}?brand=${encodeURIComponent(b.slug)}`,
           title: `${b.name} ${c.name.toLowerCase()}`,
           count: b.count,
           image: page.products.find((p) => p.brandSlug === b.slug && p.image)?.image?.src,
@@ -122,11 +128,11 @@ export default async function HomePage() {
     <div className="page-grey bg-page pb-4 sm:pb-6">
       <Hero brand={brand} home={home} bannerProducts={bannerProducts} />
       <CategoryTiles cards={cards} ctaLabel={brand.ctaLabel} />
-      <Benefits home={home} />
       <Featured featured={home.featured} products={featured.length >= 4 ? featured : newest.products} />
-      {first && <CategoryShelf category={first} products={firstShelf} />}
       <Brands brands={nav.brands} />
       <ServicesBento services={home.services} />
+      <Benefits home={home} />
+      {first && <CategoryShelf category={first} products={firstShelf} />}
       {shelf(0, 2)}
       <HowItWorks ctaLabel={brand.ctaLabel} />
       {shelf(2, 4)}

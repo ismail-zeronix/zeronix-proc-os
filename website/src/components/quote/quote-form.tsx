@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { SiteBrand } from "@/lib/contract";
 import { quoteList, useQuoteList } from "@/lib/quote-list";
+import { gaEvent } from "@/lib/ga";
 import { firstTouch, sessionUtm } from "@/lib/track";
 import { ChatNowButton } from "./chat-now";
 
@@ -82,6 +83,9 @@ export function QuoteForm({
     const data = res ? await res.json().catch(() => ({})) : {};
     setSending(false);
     if (!res?.ok) return setError(data.error ?? "Something went wrong. Please try again, or chat with us.");
+    // GA4 key event: which form (by page), the product asked about, the page; utm tags ride along (lib/ga.ts)
+    const formName = location.pathname.startsWith("/connect") ? "connect" : location.pathname.startsWith("/contact") ? "contact" : "quote";
+    gaEvent("generate_lead", { form_name: formName, product: prefill.product?.slug ?? items[0]?.slug ?? "" });
     quoteList.clear();
     setDone(true);
     window.dispatchEvent(new CustomEvent("zx:quote-sent"));
