@@ -45,7 +45,8 @@ describe.skipIf(!live)("punch in / out (needs the dev database)", () => {
       (
         await db
           .insert(schema.users)
-          .values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role, createdAt: new Date("2026-10-01T00:00:00Z") })
+          // off the sales routine: punching out here is about attendance only (tests/daily-report.test.ts covers the report)
+          .values({ name: `${tag}-${name}`, email: `${tag}-${name}@example.test`, passwordHash: "x", role, salesTargets: { off: true }, createdAt: new Date("2026-10-01T00:00:00Z") })
           .returning({ id: schema.users.id })
       )[0].id;
     worker = await mk("worker", "sales");

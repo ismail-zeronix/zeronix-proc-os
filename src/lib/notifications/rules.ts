@@ -14,9 +14,10 @@ export type Step = "warn" | "due" | "late";
 /**
  * timer = a limit counted in working time from a start (stage change, quote sent, last contact);
  * moment = a time someone picked (the deal's follow-up);
- * date = a calendar day on the record (task due date, quote valid-until, expected close).
+ * date = a calendar day on the record (task due date, quote valid-until, expected close);
+ * daily = a fixed check of the sales routine (calls behind by a third / two thirds of the day, a missing report): on or off only.
  */
-export type RuleMode = "timer" | "moment" | "date";
+export type RuleMode = "timer" | "moment" | "date" | "daily";
 
 export interface RuleConfig {
   enabled: boolean;
@@ -133,6 +134,46 @@ export const RULES = [
     priority: { warn: "normal", due: "high", late: "critical" },
     to: "Project manager",
   },
+  {
+    key: "idle_while_punched_in",
+    label: "Salesman idle while punched in",
+    help: "Someone on the sales routine is punched in but has logged nothing (call, message, note, prospect) for this long.",
+    mode: "timer",
+    unit: "hours",
+    defaults: { enabled: true, limit: 1.5, warn: 0, escalate: 1.5 },
+    priority: { warn: "normal", due: "normal", late: "high" },
+    to: "The salesman",
+  },
+  {
+    key: "day_behind_target",
+    label: "Behind on today's calls",
+    help: "A third of the working day gone with under 30% of the call target, or two thirds gone with under 60%. Clears once they catch up.",
+    mode: "daily",
+    unit: "hours",
+    defaults: { enabled: true, limit: 0, warn: 0, escalate: 0 },
+    priority: { warn: "normal", due: "normal", late: "high" },
+    to: "The salesman",
+  },
+  {
+    key: "no_eod_report",
+    label: "No end-of-day report",
+    help: "Someone on the sales routine worked the last working day but sent no end-of-day report (the system closed their session).",
+    mode: "daily",
+    unit: "days",
+    defaults: { enabled: true, limit: 0, warn: 0, escalate: 0 },
+    priority: { warn: "normal", due: "normal", late: "normal" },
+    to: "Admins",
+  },
+  {
+    key: "checkin_missed",
+    label: "Check-in not answered",
+    help: "Someone on the sales routine did not answer the \"what have you done?\" check-in within 15 minutes (it rang 3 times).",
+    mode: "daily",
+    unit: "hours",
+    defaults: { enabled: true, limit: 0, warn: 0, escalate: 0 },
+    priority: { warn: "normal", due: "normal", late: "normal" },
+    to: "Admins",
+  },
 ] as const satisfies readonly RuleDef[];
 
 export type RuleKey = (typeof RULES)[number]["key"];
@@ -232,5 +273,13 @@ export function alertTitle(rule: RuleKey, step: Step, subject: string): string {
       return step === "warn" ? `Task due today: ${s}` : step === "due" ? `Task overdue: ${s}` : `Task badly overdue: ${s}`;
     case "project_past_target":
       return step === "warn" ? `Project target date is near: ${s}` : `Project past its target date: ${s}`;
+    case "idle_while_punched_in":
+      return step === "late" ? `Still nothing logged: ${s}` : `Nothing logged for a while: ${s}`;
+    case "day_behind_target":
+      return step === "late" ? `Far behind on calls today: ${s}` : `Behind on calls today: ${s}`;
+    case "no_eod_report":
+      return `No end-of-day report: ${s}`;
+    case "checkin_missed":
+      return `Check-in not answered: ${s}`;
   }
 }
