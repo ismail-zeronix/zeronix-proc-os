@@ -4,9 +4,77 @@
  */
 import type { WorkHours } from "@/lib/attendance";
 
-/** Default targets until Admin sets them (Phase 3 makes them editable per person). */
+/** Targets when Admin has set none (team default in the `sales_targets` setting, per person in users.sales_targets). */
 export const DEFAULT_TARGETS = { callsDay: 25, prospectsDay: 10, leadsWeek: 5, quotesWeek: 5 };
 export type Targets = typeof DEFAULT_TARGETS;
+export type TargetKey = keyof Targets;
+export const TARGET_FIELDS: { key: TargetKey; label: string; per: "day" | "week" }[] = [
+  { key: "callsDay", label: "Calls", per: "day" },
+  { key: "prospectsDay", label: "New prospects", per: "day" },
+  { key: "leadsWeek", label: "New leads", per: "week" },
+  { key: "quotesWeek", label: "Quotes sent", per: "week" },
+];
+
+/** One person's settings over the team default: their own numbers, or off = not on the sales routine at all. */
+export type TargetOverride = Partial<Targets> & { off?: boolean };
+
+const okTarget = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 1000;
+
+/** The team default from the setting (JSON), falling back field by field to DEFAULT_TARGETS. */
+export function teamTargets(saved: string): Targets {
+  let raw: Record<string, unknown> = {};
+  try {
+    const p = JSON.parse(saved || "{}");
+    if (p && typeof p === "object") raw = p;
+  } catch {
+    // broken setting: the defaults
+  }
+  const out = { ...DEFAULT_TARGETS };
+  for (const f of TARGET_FIELDS) if (okTarget(raw[f.key])) out[f.key] = raw[f.key] as number;
+  return out;
+}
+
+/** A person's targets: their own numbers where set, the team's for the rest. */
+export function targetsFor(team: Targets, own: TargetOverride | null | undefined): Targets {
+  const out = { ...team };
+  for (const f of TARGET_FIELDS) if (okTarget(own?.[f.key])) out[f.key] = own![f.key] as number;
+  return out;
+}
+
+/** What an end-of-day report keeps: the day's numbers and the targets they were measured against. */
+export interface DayReportCounts {
+  calls: number;
+  reached: number;
+  messages: number;
+  meetings: number;
+  prospectsAdded: number;
+  leadsWeek: number;
+  quotesWeek: number;
+  /** Follow-ups still due today when the report was sent (before any were moved). */
+  followUpsLeft: number;
+  /** The day's check-ins (missed includes ones answered late). Absent on reports from before check-ins. */
+  checkIns?: { answered: number; missed: number };
+  targets: Targets;
+}
+
+/** The daily targets missed by the end of the day (weekly ones are judged on Team Today, not here). */
+export function missedDaily(c: Pick<DayReportCounts, "calls" | "prospectsAdded">, t: Targets): string[] {
+  const out: string[] = [];
+  if (c.calls < t.callsDay) out.push(`calls ${c.calls}/${t.callsDay}`);
+  if (c.prospectsAdded < t.prospectsDay) out.push(`new prospects ${c.prospectsAdded}/${t.prospectsDay}`);
+  return out;
+}
+
+/**
+ * The calls nudge: "due" once a third of the day is gone with under 30% of the call target, "late" once two thirds are
+ * gone with under 60%. null = on track (or no target).
+ */
+export function callsNudge(calls: number, target: number, fraction: number): "due" | "late" | null {
+  if (target <= 0) return null;
+  if (fraction >= 2 / 3 && calls < target * 0.6) return "late";
+  if (fraction >= 1 / 3 && calls < target * 0.3) return "due";
+  return null;
+}
 
 /** Working minutes in the day (break excluded). */
 function workMinutes(h: WorkHours) {
@@ -19,6 +87,12 @@ export function dayFraction(min: number, h: WorkHours): number {
   if (min >= h.end) return 1;
   const inBreak = Math.max(0, Math.min(min, h.breakEnd) - h.breakStart);
   return Math.min(1, Math.max(0, (min - h.start - inBreak) / workMinutes(h)));
+}
+
+/** The minute of the day when `fraction` of the working time is gone (the inverse of dayFraction). */
+export function minuteAtFraction(fraction: number, h: WorkHours): number {
+  const m = h.start + Math.max(0, Math.min(1, fraction)) * workMinutes(h);
+  return Math.round(m > h.breakStart && h.breakEnd > h.breakStart ? m + (h.breakEnd - h.breakStart) : m);
 }
 
 /** Share of this week's working days gone (Monday-based), counting today by `dayFraction`. */
@@ -92,4 +166,44 @@ export function routineBlock(min: number, h: WorkHours, offDay = false): Block {
     if (min < until) return { key, ...B[key], until };
   }
   return { key: "wrap", ...B.wrap, until: h.end };
+}
+
+/** The "what have you done?" check-in: what they can tick, and how the asking works. */
+export const CHECKIN_DONE = [
+  { key: "calls", label: "Calls" },
+  { key: "followups", label: "Follow-ups" },
+  { key: "prospects", label: "Found prospects" },
+  { key: "emails", label: "Emails or quotes" },
+  { key: "meeting", label: "Meeting or visit" },
+  { key: "other", label: "Other" },
+] as const;
+export type CheckInDone = (typeof CHECKIN_DONE)[number]["key"];
+export const CHECKIN_DONE_KEYS = CHECKIN_DONE.map((d) => d.key) as [CheckInDone, ...CheckInDone[]];
+/** Rings again every 5 minutes, 3 rings in all; unanswered 15 minutes after it was due = missed (admins are told). */
+export const CHECKIN_RING_EVERY_MIN = 5;
+export const CHECKIN_RINGS = 3;
+export const CHECKIN_MISSED_AFTER_MIN = CHECKIN_RING_EVERY_MIN * CHECKIN_RINGS;
+
+/** What the system counted since the last check-in, shown in the window and kept with the answer. */
+export interface CheckInCounts {
+  calls: number;
+  reached: number;
+  messages: number;
+  meetings: number;
+  notes: number;
+  prospectsAdded: number;
+  quotesSent: number;
+}
+
+/** "5 calls (2 talked), 1 new prospect", or "nothing logged". */
+export function countsLine(c: CheckInCounts): string {
+  const parts: string[] = [];
+  const n = (v: number, one: string, many = `${one}s`) => `${v} ${v === 1 ? one : many}`;
+  if (c.calls) parts.push(`${n(c.calls, "call")}${c.reached ? ` (${c.reached} talked)` : ""}`);
+  if (c.messages) parts.push(n(c.messages, "message"));
+  if (c.meetings) parts.push(n(c.meetings, "meeting"));
+  if (c.prospectsAdded) parts.push(n(c.prospectsAdded, "new prospect"));
+  if (c.quotesSent) parts.push(n(c.quotesSent, "quote sent", "quotes sent"));
+  if (c.notes) parts.push(n(c.notes, "note"));
+  return parts.length ? parts.join(", ") : "nothing logged";
 }

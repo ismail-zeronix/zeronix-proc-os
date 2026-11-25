@@ -145,3 +145,79 @@ export async function teamOpen() {
     .orderBy(asc(schema.users.name), asc(n.createdAt))
     .limit(500);
 }
+
+/**
+ * The evening "team day" email to the admins (Phase 4 of the sales routine): one block per salesman with the day's
+ * numbers against target, check-ins, and their end-of-day report (or that there was none). Also a line in the admins'
+ * bell linking to CRM › Team. Without a digest mailbox only the bell line is made.
+ */
+export async function sendTeamDay(day: string): Promise<{ emails: number; people: number }> {
+  const { teamToday } = await import("@/lib/sales-kpis");
+  const [rows, admins, from] = await Promise.all([
+    teamToday(),
+    db.select({ id: schema.users.id, email: schema.users.email }).from(schema.users).where(and(eq(schema.users.isActive, true), eq(schema.users.role, "admin"))),
+    sender(),
+  ]);
+  if (!rows.length || !admins.length) return { emails: 0, people: 0 };
+  const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) : "-");
+  const amber = (bad: boolean, s: string) => (bad ? `<span style="color:#b45309">${s}</span>` : s);
+  const worked = rows.filter((r) => r.status !== "away");
+  const reports = worked.filter((r) => r.report).length;
+  const calls = rows.reduce((n, r) => n + r.calls, 0);
+  const block = rows
+    .map((r) => {
+      const head = `<tr><td colspan="2" style="padding:12px 0 2px;font-weight:bold;border-bottom:1px solid #e5e7eb">${esc(r.name)} <span style="font-weight:normal;color:#6b7280;font-size:12px">${
+        r.status === "away" ? "not in today" : `${hm(r.firstIn)}–${r.status === "in" ? "still in" : hm(r.lastOut)}`
+      }</span></td></tr>`;
+      if (r.status === "away") return head;
+      const nums = [
+        amber(r.calls < r.targets.callsDay, `${r.calls}/${r.targets.callsDay} calls`) + ` (${r.reached} talked)`,
+        `${r.messages} messages, ${r.meetings} meetings`,
+        amber(r.prospectsAdded < r.targets.prospectsDay, `${r.prospectsAdded}/${r.targets.prospectsDay} new prospects`),
+        `${r.leads} leads, ${r.quotesSent} quotes sent`,
+        r.overdue ? amber(true, `${r.overdue} follow-ups overdue`) : "no follow-ups overdue",
+        r.checkIns.answered + r.checkIns.missed ? `check-ins ${r.checkIns.answered} answered${r.checkIns.missed ? amber(true, `, ${r.checkIns.missed} missed`) : ""}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const report = r.report
+        ? `<div style="margin-top:4px">${esc(r.report.note).replace(/\n/g, "<br>")}</div>${r.report.behindReason ? `<div style="color:#b45309;font-size:12px">Behind: ${esc(r.report.behindReason)}</div>` : ""}`
+        : `<div style="margin-top:4px;color:#b45309">No end-of-day report.</div>`;
+      return `${head}<tr><td colspan="2" style="padding:4px 0;font-size:13px">${nums}${report}<div style="font-size:12px"><a href="${portal()}/crm/team/${r.id}?day=${day}" style="color:#0284c7">Their day, minute by minute</a></div></td></tr>`;
+    })
+    .join("");
+  const title = `Team day: ${calls} calls, ${reports} of ${worked.length} reports`;
+  let emails = 0;
+  if (from) {
+    const { smtpHost, smtpPort } = mailServer();
+    const transport = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: from.login, pass: from.pass }, connectionTimeout: 20_000, socketTimeout: 60_000 });
+    try {
+      const html = page("Your sales team today", `${worked.length} of ${rows.length} came in. Open CRM › Team for the live view.`, block).replace(
+        `${portal()}/notifications" style="color:#0284c7">Open all notifications`,
+        `${portal()}/crm/team" style="color:#0284c7">Open CRM › Team`,
+      ).replace("each working morning", "each working evening");
+      for (const a of admins) {
+        if (!a.email.includes("@")) continue;
+        try {
+          await transport.sendMail({ from: { name: "Zeronix portal", address: from.login }, to: a.email, subject: title, html });
+          emails++;
+        } catch (e) {
+          console.error(`[notify] team day to ${a.email} failed:`, (e as Error).message);
+        }
+      }
+    } finally {
+      transport.close();
+    }
+  }
+  await notify({
+    userIds: admins.map((a) => a.id),
+    kind: "digest",
+    rule: "team_day",
+    priority: worked.length > reports ? "normal" : "info",
+    title,
+    body: rows.map((r) => `${r.name.split(" ")[0]} ${r.status === "away" ? "away" : `${r.calls} calls${r.report ? "" : ", no report"}`}`).join(" · "),
+    link: "/crm/team",
+    key: `team_day:${day}`,
+  });
+  return { emails, people: rows.length };
+}

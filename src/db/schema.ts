@@ -21,6 +21,7 @@ import type { ChatCard } from "@/lib/chat/types";
 import type { WebClientInfo, WebGeo, WebPageVisit, WebSiteEvent } from "@/lib/webchat/types";
 import type { OfferDraft } from "@/lib/offer-draft";
 import type { SellerSnapshot } from "@/lib/seller-types";
+import type { CheckInCounts, DayReportCounts, TargetOverride } from "@/lib/routine";
 
 /**
  * Organisations (tenants). Row 1 is Zeronix. Every new table carries organization_id, and the accounting tables also get
@@ -81,6 +82,8 @@ export const users = pgTable("users", {
   jobTitle: text("job_title").notNull().default(""),
   phone: text("phone").notNull().default(""),
   mobile: text("mobile").notNull().default(""),
+  /** Sales routine (lib/routine.ts): this person's own targets over the team default, or off = not on the routine. NULL = team default. */
+  salesTargets: jsonb("sales_targets").$type<TargetOverride>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -2615,4 +2618,56 @@ export const mcpGrants = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [index("mcp_grants_user_idx").on(t.userId), uniqueIndex("mcp_grants_refresh_uq").on(t.refreshHash), orgPolicy()],
+);
+
+/**
+ * A salesman's end-of-day report, sent before punching out (lib/daily-report.ts). One per person per UAE day; the
+ * counts are a snapshot of the day at the time it was sent, the note is theirs.
+ */
+export const dailyReports = pgTable(
+  "daily_reports",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    counts: jsonb("counts").$type<DayReportCounts>().notNull(),
+    /** What moved today, what is stuck. */
+    note: text("note").notNull(),
+    /** Asked when a daily target was missed. */
+    behindReason: text("behind_reason").notNull().default(""),
+    /** Follow-ups still due today that the report moved to the next working morning. */
+    moved: integer("moved").notNull().default(0),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("daily_reports_user_day_uq").on(t.organizationId, t.userId, t.day), index("daily_reports_day_idx").on(t.day), orgPolicy()],
+);
+
+/**
+ * The every-two-hours "what have you done?" check-in of the sales routine (lib/check-in.ts). One row per ask: answered
+ * (done + note) or missed (no answer 15 minutes after it was due; an answer that comes later still fills it in).
+ */
+export const checkIns = pgTable(
+  "check_ins",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    /** When it was due (the ask); with the user, it identifies the check-in. */
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    missed: boolean("missed").notNull().default(false),
+    /** Ticked boxes (CHECKIN_DONE keys). */
+    done: text("done").array().notNull().default(sql`'{}'::text[]`),
+    note: text("note").notNull().default(""),
+    /** What the system counted between the last check-in and the answer. */
+    counts: jsonb("counts").$type<CheckInCounts>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("check_ins_user_due_uq").on(t.organizationId, t.userId, t.dueAt), index("check_ins_day_idx").on(t.day), orgPolicy()],
 );

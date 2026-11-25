@@ -3,7 +3,8 @@ import { dubaiMinutes, formatHm, isOffDay } from "@/lib/attendance";
 import { workHours } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
 import { myDay } from "@/lib/my-day";
-import { dayFraction, DEFAULT_TARGETS, pace, type Pace, routineBlock, weekFraction } from "@/lib/routine";
+import { dayFraction, pace, type Pace, routineBlock, weekFraction } from "@/lib/routine";
+import { routineFor, teamTargetsNow } from "@/lib/routine-data";
 import { TodayList } from "./today-list";
 
 const TONE: Record<Pace, { bar: string; text: string }> = {
@@ -52,8 +53,8 @@ export async function NowLine() {
 
 /** Today's numbers against the targets, then the list of what to do. */
 export async function MyDaySection({ userId, coldCalls }: { userId: number; coldCalls: boolean }) {
-  const [hours, day] = await Promise.all([workHours(), myDay(userId, { coldCalls })]);
-  const t = DEFAULT_TARGETS;
+  const [hours, day, routine, team] = await Promise.all([workHours(), myDay(userId, { coldCalls }), routineFor(userId), teamTargetsNow()]);
+  const t = routine?.targets ?? team;
   const min = dubaiMinutes();
   const today = dubaiToday();
   const df = dayFraction(min, hours);

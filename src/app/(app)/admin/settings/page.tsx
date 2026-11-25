@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { Bell, Building2, Clock, FolderKanban, Receipt, Scale } from "lucide-react";
+import { Bell, Building2, Clock, FolderKanban, Receipt, Scale, Target } from "lucide-react";
 import { PageToolbar } from "@/components/page-toolbar";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
@@ -12,6 +12,8 @@ import { BrandCard } from "../brand-ui";
 import { ProjectTypeSettings } from "../projects-ui";
 import { NotifySettings } from "../notify-ui";
 import { ruleConfigs, RULES } from "@/lib/notifications/rules";
+import { teamTargets } from "@/lib/routine";
+import { TeamTargetsCard } from "../routine-ui";
 
 
 export const metadata = { title: "Settings · Admin · Zeronix" };
@@ -36,6 +38,7 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
         initial={tab}
         tabs={[
           { key: "hours", label: "Work hours", icon: <Clock />, content: <WorkHoursSettings settings={settings} /> },
+          { key: "targets", label: "Sales targets", icon: <Target />, content: <TeamTargetsCard targets={teamTargets(settings.sales_targets)} checkinMinutes={Number(settings.checkin_minutes) || 0} /> },
           {
             key: "documents",
             label: "Documents",

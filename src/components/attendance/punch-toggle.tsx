@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { punchIn, punchOut } from "@/app/(app)/attendance-actions";
+import { loadEndOfDay, loadStartOfDay, sendDailyReport } from "@/app/(app)/daily-report-actions";
+import { EndOfDayDialog, StartOfDayDialog, type ReportForm } from "@/components/attendance/day-sheets";
+import type { EndOfDaySheet, StartOfDaySheet } from "@/lib/daily-report";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +49,9 @@ export function usePunch({ punchedIn, hours }: Pick<PunchProps, "punchedIn" | "h
   const router = useRouter();
   const [pending, start] = useTransition();
   const [ask, setAsk] = useState<"in" | "out" | null>(null);
+  // the sales routine: the end-of-day report before punching out, the plan-your-day sheet after punching in
+  const [eod, setEod] = useState<EndOfDaySheet | null>(null);
+  const [sod, setSod] = useState<StartOfDaySheet | null>(null);
 
   const send = (kind: "in" | "out", reason = "") =>
     start(async () => {
@@ -54,20 +60,57 @@ export function usePunch({ punchedIn, hours }: Pick<PunchProps, "punchedIn" | "h
         setAsk(null);
         toast.success(kind === "in" ? "Punched in. Have a good day." : "Punched out.");
         router.refresh();
+        if (kind === "in") setSod(await loadStartOfDay().catch(() => null));
       } catch (e) {
         toast.error(errorText(e));
       }
     });
 
-  const toggle = () => {
-    const kind = punchedIn ? "out" : "in";
+  // after the report (or for anyone not on the routine): the late / early reason when needed, then punch
+  const punch = (kind: "in" | "out") => {
     if (needsReason(kind, dubaiMinutes(), isOffDay(dubaiToday(), hours), hours)) setAsk(kind);
     else send(kind);
   };
 
-  const dialog = ask && (
+  const toggle = () => {
+    if (!punchedIn) return punch("in");
+    start(async () => {
+      try {
+        const sheet = await loadEndOfDay();
+        if (sheet && !sheet.sent) setEod(sheet);
+        else punch("out");
+      } catch (e) {
+        toast.error(errorText(e));
+      }
+    });
+  };
+
+  const sendReport = (f: ReportForm) =>
+    start(async () => {
+      try {
+        const r = await sendDailyReport(f);
+        setEod(null);
+        toast.success(r.moved ? `Report sent. ${r.moved} follow-up${r.moved === 1 ? "" : "s"} moved to the next working morning.` : "Report sent.");
+        punch("out");
+      } catch (e) {
+        toast.error(errorText(e));
+      }
+    });
+
+  const dialog = ask ? (
     <ReasonDialog kind={ask} hours={hours} pending={pending} onCancel={() => setAsk(null)} onSubmit={(r) => send(ask, r)} />
-  );
+  ) : eod ? (
+    <EndOfDayDialog sheet={eod} pending={pending} onCancel={() => setEod(null)} onSubmit={sendReport} />
+  ) : sod ? (
+    <StartOfDayDialog
+      sheet={sod}
+      onClose={() => setSod(null)}
+      onOpen={() => {
+        setSod(null);
+        router.push("/?view=day");
+      }}
+    />
+  ) : null;
   return { toggle, pending, dialog };
 }
 

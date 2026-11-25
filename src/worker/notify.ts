@@ -1,7 +1,7 @@
 import { isOffDay } from "@/lib/attendance";
 import { workHours } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
-import { sendDigests } from "@/lib/notifications/digest";
+import { sendDigests, sendTeamDay } from "@/lib/notifications/digest";
 import { runScan } from "@/lib/notifications/scan";
 import { dayAt } from "@/lib/notifications/work-time";
 import { getSetting, setSetting } from "@/lib/settings";
@@ -27,6 +27,13 @@ async function tick() {
       const { emails, summaries } = await sendDigests(today);
       console.log(`[notify] morning digests: ${emails} email(s), ${summaries} admin summary line(s)`);
     }
+    // the evening team-day email to admins: half an hour after work ends, for the next 3 hours, once a day
+    const end = dayAt(today, h.end).getTime() + 30 * 60_000;
+    if (!isOffDay(today, h) && Date.now() >= end && Date.now() < end + 3 * 3600_000 && (await getSetting("notify_team_day")) !== today) {
+      await setSetting("notify_team_day", today);
+      const { emails, people } = await sendTeamDay(today);
+      console.log(`[notify] evening team day: ${people} salesmen, ${emails} email(s)`);
+    }
     if (g.__notifyDown) console.log("[notify] rule check is back");
     g.__notifyDown = false;
   } catch (e) {
@@ -41,5 +48,5 @@ export function startNotifyScheduler() {
   g.__notifyTimer.unref?.();
   // first check shortly after start, once the server is up
   setTimeout(() => void tick(), 30_000).unref?.();
-  console.log("[notify] alert rules checked every 5 minutes, digests each working morning");
+  console.log("[notify] alert rules checked every 5 minutes, digests each working morning, team day each evening");
 }

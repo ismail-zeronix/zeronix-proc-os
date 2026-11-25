@@ -26,6 +26,8 @@ export interface NavGroup {
 export interface NavPerms {
   /** The Accountant switch (Admin › Users): journals, chart of accounts, tax codes. */
   accountant?: boolean;
+  /** Sees everyone's sales data (admins and "All data" users): the CRM Team page. */
+  seesAll?: boolean;
 }
 
 /** Sidebar pages per app. Apps without an entry have no sidebar (single-page apps). */
@@ -54,6 +56,11 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/crm/companies", label: "Companies", icon: Building2 },
         { href: "/crm/contacts", label: "Contacts", icon: Users },
       ],
+    },
+    {
+      label: "Team",
+      need: "seesAll",
+      items: [{ href: "/crm/team", label: "Team", icon: UsersRound }],
     },
   ],
   website: [

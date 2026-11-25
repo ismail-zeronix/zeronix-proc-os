@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toWorkHours } from "@/lib/attendance";
-import { dayFraction, pace, routineBlock, weekFraction } from "@/lib/routine";
+import { callsNudge, dayFraction, minuteAtFraction, missedDaily, pace, routineBlock, targetsFor, teamTargets, weekFraction } from "@/lib/routine";
 
 // 09:30-21:30 with a 14:30-16:30 break, Sunday off (the portal's defaults)
 const h = toWorkHours({ start: "09:30", end: "21:30", breakStart: "14:30", breakEnd: "16:30", offDays: "0" });
@@ -48,5 +48,49 @@ describe("the salesman's routine", () => {
     // Wednesday 2026-11-25 at the end of the day: Mon, Tue, Wed of six working days
     expect(weekFraction("2026-11-25", hm("22:00"), h)).toBeCloseTo(3 / 6);
     expect(weekFraction("2026-11-23", hm("08:00"), h)).toBe(0);
+  });
+
+  it("reads the team targets and lays a person's own numbers over them", () => {
+    expect(teamTargets("{}")).toEqual({ callsDay: 25, prospectsDay: 10, leadsWeek: 5, quotesWeek: 5 });
+    expect(teamTargets("broken")).toEqual(teamTargets(""));
+    // a bad field falls back to its default, the good ones stay
+    expect(teamTargets(JSON.stringify({ callsDay: 40, prospectsDay: -1, leadsWeek: 2.5 }))).toEqual({ callsDay: 40, prospectsDay: 10, leadsWeek: 5, quotesWeek: 5 });
+    const team = teamTargets(JSON.stringify({ callsDay: 30 }));
+    expect(targetsFor(team, null)).toEqual(team);
+    expect(targetsFor(team, { callsDay: 15, off: false })).toEqual({ ...team, callsDay: 15 });
+  });
+
+  it("names the daily targets missed", () => {
+    const t = { callsDay: 25, prospectsDay: 10, leadsWeek: 5, quotesWeek: 5 };
+    expect(missedDaily({ calls: 25, prospectsAdded: 10 }, t)).toEqual([]);
+    expect(missedDaily({ calls: 8, prospectsAdded: 10 }, t)).toEqual(["calls 8/25"]);
+    expect(missedDaily({ calls: 8, prospectsAdded: 3 }, { ...t, callsDay: 0 })).toEqual(["new prospects 3/10"]);
+  });
+
+  it("nudges when calls fall behind at a third and two thirds of the day", () => {
+    expect(callsNudge(0, 25, 0.2)).toBeNull();
+    expect(callsNudge(7, 25, 0.4)).toBe("due"); // under 30% (7.5)
+    expect(callsNudge(8, 25, 0.4)).toBeNull();
+    expect(callsNudge(14, 25, 0.7)).toBe("late"); // under 60% (15)
+    expect(callsNudge(15, 25, 0.7)).toBeNull();
+    expect(callsNudge(0, 0, 0.9)).toBeNull();
+  });
+
+  it("finds the minute a share of the working day is gone, skipping the break", () => {
+    expect(minuteAtFraction(0, h)).toBe(hm("09:30"));
+    expect(minuteAtFraction(0.4, h)).toBe(hm("13:30"));
+    expect(minuteAtFraction(0.6, h)).toBe(hm("17:30")); // 6 working hours: past the break
+    expect(minuteAtFraction(1, h)).toBe(hm("21:30"));
+    for (const f of [0.1, 1 / 3, 2 / 3, 0.9]) expect(dayFraction(minuteAtFraction(f, h), h)).toBeCloseTo(f, 2);
+  });
+});
+
+describe("check-in counts", () => {
+  it("reads as one short line", async () => {
+    const { countsLine } = await import("@/lib/routine");
+    const zero = { calls: 0, reached: 0, messages: 0, meetings: 0, notes: 0, prospectsAdded: 0, quotesSent: 0 };
+    expect(countsLine(zero)).toBe("nothing logged");
+    expect(countsLine({ ...zero, calls: 5, reached: 2, prospectsAdded: 1, quotesSent: 2 })).toBe("5 calls (2 talked), 1 new prospect, 2 quotes sent");
+    expect(countsLine({ ...zero, calls: 1, messages: 1 })).toBe("1 call, 1 message");
   });
 });

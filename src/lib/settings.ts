@@ -23,6 +23,10 @@ export const SETTING_DEFAULTS = {
   work_break_start: DEFAULT_HOURS.breakStart,
   work_break_end: DEFAULT_HOURS.breakEnd,
   work_off_days: DEFAULT_HOURS.offDays,
+  /** Sales routine team targets (lib/routine.ts): JSON {callsDay, prospectsDay, leadsWeek, quotesWeek}; "{}" = the defaults. */
+  sales_targets: "{}",
+  /** Sales routine: ask each salesman "what have you done?" every this many working minutes while punched in (0 = never). */
+  checkin_minutes: "120",
   /** Tax invoices: prefix + running number, padded to this many digits (INV-00124). Set the next number to continue an older series. */
   invoice_prefix: "INV-",
   invoice_next_number: "1",
@@ -45,6 +49,8 @@ export const SETTING_DEFAULTS = {
   notify_digest_from: "",
   /** UAE day the morning digests were last sent (so a restart never sends them twice). */
   notify_digest_day: "",
+  /** UAE day the evening team-day email (sales routine) was last sent. */
+  notify_team_day: "",
   /** Newsletter: the same address is not mailed a newsletter again within this many days (0 = no cool-off). */
   newsletter_cooloff_days: "7",
 } as const;
