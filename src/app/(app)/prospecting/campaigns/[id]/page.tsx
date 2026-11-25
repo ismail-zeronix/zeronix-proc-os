@@ -8,12 +8,12 @@ import { StatStrip } from "@/components/stat-strip";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requireApp } from "@/lib/auth/session";
 import { listMailboxes } from "@/lib/prospecting/data";
 import { campaignEnrollments, getCampaign, listSequences } from "@/lib/prospecting/outreach";
 import { CampaignDialog, CampaignStatusButtons, RefreshWhile, StopEnrollmentButton } from "../campaign-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Campaign · Zeronix Prospecting" };
+export const metadata = { title: "Campaign · Zeronix Outreach" };
 
 const LABEL: Record<string, string> = {
   writing: "AI writing",
@@ -38,7 +38,7 @@ const FILTERS = [
 ];
 
 export default async function CampaignPage({ params, searchParams }: PageProps<"/prospecting/campaigns/[id]">) {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id < 1) notFound();
   const sp = await searchParams;

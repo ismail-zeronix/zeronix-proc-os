@@ -5,25 +5,25 @@ import { PAGE_SIZE, Pager, pageParam } from "@/components/pager";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requireApp } from "@/lib/auth/session";
 import { listMailboxes } from "@/lib/prospecting/data";
 import { listCampaigns, listSequences } from "@/lib/prospecting/outreach";
 import { CampaignDialog } from "./campaign-ui";
 import { MessageSquarePlus } from "lucide-react";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Campaigns · Zeronix Prospecting" };
+export const metadata = { title: "Campaigns · Zeronix Outreach" };
 
 const STATUS: Record<string, string> = { active: "Running", paused: "Paused", finished: "Finished", draft: "Draft" };
 
 export default async function CampaignsPage({ searchParams }: PageProps<"/prospecting/campaigns">) {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const sp = await searchParams;
   const page = pageParam(sp.page);
   const [{ rows, total }, sequences, mailboxes] = await Promise.all([listCampaigns(page, PAGE_SIZE), listSequences(), listMailboxes()]);
   const n = (c: Record<string, number>, ...keys: string[]) => keys.reduce((s, k) => s + (c[k] ?? 0), 0);
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Campaigns" meta={`${total} campaign${total === 1 ? "" : "s"}`}>
+      <PageToolbar title="Cold email campaigns" meta={`${total} campaign${total === 1 ? "" : "s"}`}>
         <Button size="sm" nativeButton={false} render={<Link href="/prospecting/campaigns/new" />}>
           <MessageSquarePlus /> New campaign
         </Button>

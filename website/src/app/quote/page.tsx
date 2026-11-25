@@ -34,20 +34,20 @@ export default async function QuotePage({ searchParams }: PageProps<"/quote">) {
         />
       </div>
       <aside className="grid content-start gap-4">
-        <div className="rounded-card bg-brand-900 p-6 text-white">
+        <div className="rounded-card bg-band p-6 text-white">
           <h2 className="font-heading text-xl font-semibold">What happens next</h2>
           <ol className="mt-5 grid gap-4 text-sm text-white/75">
             {["We check UAE stock and the right part numbers for your team.", "You get a quote with volume pricing and a VAT invoice.", "We deliver and can set the machines up across the Emirates."].map((s, i) => (
               <li key={s} className="flex gap-3">
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-cta font-semibold text-white">{i + 1}</span>
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-cta font-semibold text-on-brand">{i + 1}</span>
                 {s}
               </li>
             ))}
           </ol>
         </div>
-        <div className="rounded-card bg-white p-6 text-sm text-muted-ink">
+        <div className="rounded-card bg-panel p-6 text-sm text-muted-ink">
           <p className="font-semibold text-ink">Your details stay with us</p>
-          <p className="mt-1">We use them only to answer this request. No newsletter unless you ask for one.</p>
+          <p className="mt-1">We use them only to answer this request. Weekly news only if you tick the box.</p>
         </div>
       </aside>
     </section>

@@ -2,19 +2,19 @@ import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { PageToolbar } from "@/components/page-toolbar";
 import { Button } from "@/components/ui/button";
-import { requireApp } from "@/lib/auth/session";
 import { listSegments, prospectingOverview } from "@/lib/prospecting/data";
 import { SegmentDialog } from "../setup-ui";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Segments · Zeronix Prospecting" };
+export const metadata = { title: "Segments · Zeronix Outreach" };
 
 export default async function SegmentsPage() {
-  const { user } = await requireApp("prospecting");
+  const { user } = await requireOutreachFull();
   const [segments, o] = await Promise.all([listSegments(), prospectingOverview()]);
   const count = new Map(o.bySegment.map((s) => [s.key, s.n]));
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Segments" meta="Who we target, built from what we sell" />
+      <PageToolbar title="Industries" meta="Who we target, built from what we sell" />
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {segments.map((s) => (
           <section key={s.key} className={`grid content-start gap-1.5 rounded-xl border bg-card p-3 ${s.active ? "" : "opacity-60"}`}>

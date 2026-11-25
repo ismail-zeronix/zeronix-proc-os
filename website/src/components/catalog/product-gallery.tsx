@@ -41,7 +41,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
 
   if (!n) {
     return (
-      <div className="rounded-frame bg-white p-3">
+      <div className="rounded-frame bg-panel p-3">
         <Photo subject={`${name}: product shot`} ratio="1:1" priority className="rounded-card" />
       </div>
     );
@@ -59,7 +59,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5">
-      <div className="relative rounded-frame border border-line/70 bg-white" {...swipe}>
+      <div className="relative rounded-frame border border-line/70 bg-panel" {...swipe}>
         <button type="button" onClick={() => setZoom(true)} className="relative block aspect-[6/5] w-full cursor-zoom-in sm:aspect-square lg:aspect-[5/4]" aria-label="View larger">
           <Image src={images[i].src} alt={images[i].alt || name} fill preload={i === 0} sizes="(min-width: 1024px) 45vw, 90vw" className="object-contain p-3 sm:p-6" />
         </button>
@@ -86,7 +86,7 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
                 onClick={() => setI(k)}
                 aria-label={`Picture ${k + 1}`}
                 aria-current={k === i}
-                className={cn("relative block size-13 overflow-hidden rounded-inner border-2 bg-white sm:size-18", k === i ? "border-brand-900" : "border-line/70 hover:border-brand-700")}
+                className={cn("relative block size-13 overflow-hidden rounded-inner border-2 bg-panel sm:size-18", k === i ? "border-brand-900" : "border-line/70 hover:border-brand-700")}
               >
                 <Image src={img.src} alt="" fill sizes="72px" className="object-contain p-1" />
               </button>
@@ -98,9 +98,9 @@ export function ProductGallery({ images, name }: { images: GalleryImage[]; name:
       {zoom && (
         <div role="dialog" aria-modal="true" aria-label={`${name} pictures`} className="fixed inset-0 z-60 grid bg-black/90" onClick={() => setZoom(false)} {...swipe}>
           <div className="relative m-3 sm:m-10" onClick={(e) => e.stopPropagation()}>
-            <Image src={images[i].src} alt={images[i].alt || name} fill sizes="100vw" className="rounded-card bg-white object-contain p-4" />
+            <Image src={images[i].src} alt={images[i].alt || name} fill sizes="100vw" className="rounded-card bg-panel object-contain p-4" />
           </div>
-          <button type="button" onClick={() => setZoom(false)} className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white text-brand-950 hover:bg-cta" aria-label="Close">
+          <button type="button" onClick={() => setZoom(false)} className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-panel text-brand-950 hover:bg-cta" aria-label="Close">
             <X className="size-5" />
           </button>
           {n > 1 && (

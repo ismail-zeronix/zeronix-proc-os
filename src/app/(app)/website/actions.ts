@@ -8,6 +8,7 @@ import { SITE_ICONS, type SiteHome } from "@/lib/website/contract";
 import { revalidateSite } from "@/lib/website/revalidate";
 import { saveHome } from "@/lib/website/settings";
 import { addStarterCatalog, fillEmptyCategoryPages, fillEmptyIndustryPages } from "@/lib/website/starter";
+import { addGamingStarter } from "@/lib/website/gaming-starter";
 import { parseInput } from "@/lib/user-error";
 
 async function assertAdmin() {
@@ -81,5 +82,15 @@ export async function addStarter(): Promise<Result<{ added: number; siteRefreshe
     const n = await addStarterCatalog();
     revalidatePath("/website", "layout");
     return { added: n.industries + n.categories + n.brands, siteRefreshed: await revalidateSite(["nav"]) };
+  });
+}
+
+/** The Gaming section (lib/website/gaming-starter.ts): gaming categories, the Zeronix brand and the five builds as drafts. */
+export async function addGaming(): Promise<Result<{ categories: number; products: number; siteRefreshed: boolean }>> {
+  return attempt(async () => {
+    await assertAdmin();
+    const n = await addGamingStarter();
+    revalidatePath("/website", "layout");
+    return { categories: n.categories, products: n.products, siteRefreshed: await revalidateSite(["nav", "catalog"]) };
   });
 }

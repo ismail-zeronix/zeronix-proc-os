@@ -47,21 +47,21 @@ interface BannerSpec {
 }
 const TALL: BannerSpec[] = [
   { key: "laptops", href: "/products/laptops", eyebrow: "Business IT", title: "Business laptops. Ready for work.", text: "Reliable, secure and built for modern business.", cta: "Explore laptops", tone: "mint", Glyph: Laptop, photo: "/images/hero-banners/business-laptops.webp", onPhoto: "light", focus: "60% 50%", phoneFocus: "50% 72%" },
-  { key: "gaming", href: "/search?q=gaming", eyebrow: "Gaming", title: "Build your advantage.", text: "High-performance PCs for gamers and creators.", cta: "Gaming PCs", tone: "slate", Glyph: Desktop, photo: "/images/hero-banners/gaming-pcs.webp", onPhoto: "dark", wash: true, focus: "50% 100%", phoneFocus: "60% 45%" },
+  { key: "gaming", href: "/gaming", eyebrow: "Gaming", title: "Build your advantage.", text: "GTA VI ready custom PCs, laptops and gear.", cta: "Gaming PCs", tone: "slate", Glyph: Desktop, photo: "/images/hero-banners/gaming-pcs.webp", onPhoto: "dark", wash: true, focus: "50% 100%", phoneFocus: "60% 45%" },
   { key: "workstations", href: "/products/workstations", eyebrow: "Professional workstations", title: "Power for big ideas.", text: "Compute, design and simulate without limits.", cta: "Workstations", tone: "cool", Glyph: Cpu, photo: "/images/hero-banners/workstations.webp", onPhoto: "light", focus: "40% 50%", phoneFocus: "60% 82%" },
 ];
 const SIDE: BannerSpec[] = [
   { key: "networking", href: "/services/networking-wifi", eyebrow: "Networking solutions", title: "Stay connected. Stay ahead.", text: "Fast, secure Wi-Fi and network infrastructure.", cta: "Networking", tone: "white", Glyph: WifiHigh, photo: "/images/hero-banners/networking.webp", onPhoto: "light", focus: "0% 50%", phoneFocus: "100% 50%" },
   { key: "security", href: "/services/cctv-surveillance", eyebrow: "Security & access", title: "Smarter security starts here.", text: "CCTV, access control and attendance systems.", cta: "CCTV & access", tone: "mint", Glyph: SecurityCamera, photo: "/images/hero-banners/security-access.webp", onPhoto: "light", wash: true, focus: "100% 40%", phoneFocus: "100% 50%" },
 ];
-const TONE: Record<Tone, string> = { mint: "bg-surface text-ink", slate: "bg-ink text-white", cool: "bg-[#e6edf3] text-ink", white: "bg-white text-ink" };
+const TONE: Record<Tone, string> = { mint: "bg-surface text-ink", slate: "bg-ink text-white", cool: "bg-[#e6edf3] text-ink", white: "bg-panel text-ink" };
 
 function CtaChip({ label, dark, className }: { label: string; dark: boolean; className?: string }) {
   return (
     <span
       className={cn(
         "inline-flex h-10 w-fit items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-colors",
-        dark ? "border border-white/50 text-white group-hover:bg-white group-hover:text-ink" : "bg-brand-900 text-white group-hover:bg-brand-800",
+        dark ? "border border-white/50 text-white group-hover:bg-panel group-hover:text-ink" : "bg-brand-900 text-on-brand group-hover:bg-brand-800",
         className,
       )}
     >
@@ -81,7 +81,7 @@ function Banner({ b, product, tall }: { b: BannerSpec; product?: SiteProductSumm
     <Image src={product.image.src} alt="" fill sizes={tall ? "320px" : "200px"} className={cn("object-contain transition-transform duration-500 group-hover:scale-[1.04]", tall ? "object-bottom p-2" : "p-3", b.tone !== "slate" && "mix-blend-multiply")} />
   ) : b.Glyph ? (
     <span className="absolute inset-0 grid place-items-center">
-      <span className={cn("grid place-items-center rounded-full text-brand-900", tall ? "size-36 xl:size-40" : "size-24 xl:size-28", b.tone === "white" ? "bg-surface" : "bg-white")}>
+      <span className={cn("grid place-items-center rounded-full text-brand-900", tall ? "size-36 xl:size-40" : "size-24 xl:size-28", b.tone === "white" ? "bg-surface" : "bg-panel")}>
         <b.Glyph weight="duotone" className={tall ? "size-16 xl:size-20" : "size-12 xl:size-14"} />
       </span>
     </span>
@@ -179,9 +179,9 @@ export function Benefits({ home }: { home: SiteHome }) {
   if (!home.benefits.length) return null;
   return (
     <section className="container-site mt-2 lg:mt-3">
-      <ul className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-line lg:overflow-visible lg:rounded-xl lg:bg-white lg:px-0 [&::-webkit-scrollbar]:hidden">
+      <ul className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-line lg:overflow-visible lg:rounded-xl lg:bg-panel lg:px-0 [&::-webkit-scrollbar]:hidden">
         {home.benefits.map((b) => (
-          <li key={b.title} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 lg:gap-3 lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
+          <li key={b.title} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-panel px-2.5 py-1.5 lg:gap-3 lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
             <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface text-brand-900 lg:size-9">
               <SiteIconView name={b.icon} className="size-3.5 lg:size-4.5" strokeWidth={2} />
             </span>

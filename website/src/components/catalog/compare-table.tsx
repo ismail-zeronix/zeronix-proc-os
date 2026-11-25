@@ -8,7 +8,7 @@ import { quoteLink } from "./page-parts";
 export function CompareTable({ products, groups }: { products: SiteProductSummary[]; groups: SiteCompareResponse["groups"] }) {
   const cols = { gridTemplateColumns: `minmax(9rem,14rem) repeat(${products.length}, minmax(12rem,1fr))` };
   return (
-    <div className="overflow-x-auto rounded-frame bg-white p-2">
+    <div className="overflow-x-auto rounded-frame bg-panel p-2">
       <div className="min-w-fit">
         <div className="grid gap-2" style={cols}>
           <div />

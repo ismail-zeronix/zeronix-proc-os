@@ -8,7 +8,7 @@ import { BLANK_KEY, blankDoc, HTML_KEY, templateByKey, TEMPLATES } from "@/lib/n
 import { CampaignEditor } from "../../campaign-editor";
 import { editorContext } from "../../editor-data";
 
-export const metadata = { title: "New newsletter · Zeronix Newsletter" };
+export const metadata = { title: "New newsletter · Zeronix Outreach" };
 
 export default async function NewCampaignPage({ searchParams }: PageProps<"/newsletter/campaigns/new">) {
   const { user } = await requireApp("newsletter");

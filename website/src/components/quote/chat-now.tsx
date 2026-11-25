@@ -38,7 +38,7 @@ export function ChatNowButton({ message, context, className }: { message: string
         const all = { ...context, page: location.pathname, landing: first?.path ?? "", referrer: first?.ref ?? "" };
         window.ZeronixChat?.open({ message, context: Object.fromEntries(Object.entries(all).filter(([, v]) => v)) });
       }}
-      className={`inline-flex h-11 items-center gap-2 rounded-lg bg-brand-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-800 ${className ?? ""}`}
+      className={`inline-flex h-11 items-center gap-2 rounded-lg bg-brand-900 px-5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-800 ${className ?? ""}`}
     >
       <MessagesSquare className="size-4" />
       Chat with sales

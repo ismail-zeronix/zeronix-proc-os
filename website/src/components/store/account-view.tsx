@@ -29,7 +29,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState("");
 
   return (
-    <div className="mx-auto grid w-full max-w-sm gap-4 rounded-card border border-line/70 bg-white p-5">
+    <div className="mx-auto grid w-full max-w-sm gap-4 rounded-card border border-line/70 bg-panel p-5">
       <div>
         <h1 className="text-xl font-semibold text-ink">Sign in</h1>
         <p className="mt-1 text-sm text-muted-ink">{step === "email" ? "We email you a 6-digit code. No password needed." : `Enter the code we sent to ${email}.`}</p>
@@ -57,7 +57,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
           </Field>
         )}
         {msg && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{msg}</p>}
-        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-on-brand hover:bg-brand-800 disabled:opacity-60">
           {busy ? "Please wait…" : step === "email" ? "Email me a code" : "Sign in"}
         </button>
         {step === "code" && (
@@ -77,7 +77,7 @@ function Profile({ account, onSaved }: { account: Account; onSaved: () => void }
   const patch = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   return (
     <form
-      className="grid gap-3 rounded-card border border-line/70 bg-white p-4"
+      className="grid gap-3 rounded-card border border-line/70 bg-panel p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         const res = await fetch("/api/account", {
@@ -119,7 +119,7 @@ function Profile({ account, onSaved }: { account: Account; onSaved: () => void }
         </Field>
       </div>
       <div className="flex items-center gap-3">
-        <button type="submit" className="inline-flex h-10 items-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-white hover:bg-brand-800">
+        <button type="submit" className="inline-flex h-10 items-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-on-brand hover:bg-brand-800">
           Save
         </button>
         {msg && <span className={cn("text-sm", msg.ok ? "text-brand-700" : "text-red-700")}>{msg.text}</span>}
@@ -165,7 +165,7 @@ export function AccountView() {
         </div>
         <Profile account={account} onSaved={load} />
       </div>
-      <section className="grid gap-2 rounded-card border border-line/70 bg-white p-4">
+      <section className="grid gap-2 rounded-card border border-line/70 bg-panel p-4">
         <h2 className="text-base font-semibold text-ink">My orders</h2>
         {account.orders.length === 0 && <p className="text-sm text-muted-ink">No orders yet.</p>}
         <ul className="grid gap-2">

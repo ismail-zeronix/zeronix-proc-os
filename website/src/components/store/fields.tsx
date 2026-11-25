@@ -3,7 +3,7 @@ import { formatPrice } from "@/lib/price";
 import { cn } from "@/lib/utils";
 
 /** Form styles for cart, checkout and account: compact, large enough to tap on phones. */
-export const input = "h-11 w-full rounded-lg border border-line bg-white px-3.5 text-sm outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700 disabled:bg-surface-soft";
+export const input = "h-11 w-full rounded-lg border border-line bg-panel px-3.5 text-sm outline-none transition-colors placeholder:text-muted-ink/60 focus:border-brand-700 disabled:bg-surface-soft";
 
 export function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: React.ReactNode }) {
   return (

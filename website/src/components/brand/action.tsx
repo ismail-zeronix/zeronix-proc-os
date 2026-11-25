@@ -5,12 +5,12 @@ import { cn } from "@/lib/utils";
 type Variant = "primary" | "dark" | "outline" | "onDark" | "light";
 
 const PILL: Record<Variant, string> = {
-  primary: "bg-brand-900 text-white hover:bg-brand-800",
-  dark: "bg-brand-900 text-white hover:bg-brand-800",
-  outline: "border border-ink/15 bg-white text-ink hover:border-ink/40",
+  primary: "bg-brand-900 text-on-brand hover:bg-brand-800",
+  dark: "bg-brand-900 text-on-brand hover:bg-brand-800",
+  outline: "border border-ink/15 bg-panel text-ink hover:border-ink/40",
   onDark: "border border-white/30 text-white hover:bg-white/10",
   /** white button for green bands */
-  light: "bg-white text-brand-900 hover:bg-highlight",
+  light: "bg-band-btn text-band-btn-ink hover:bg-band-btn-hover",
 };
 
 
@@ -61,7 +61,7 @@ export function ArrowCircle({ onDark = false, className }: { onDark?: boolean; c
       aria-hidden
       className={cn(
         "grid size-10 shrink-0 place-items-center rounded-full border transition-all duration-200 group-hover:rotate-45",
-        onDark ? "border-white/20 text-white group-hover:border-cta group-hover:bg-cta group-hover:text-white" : "border-line bg-white text-brand-950 group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-white",
+        onDark ? "border-white/20 text-white group-hover:border-cta group-hover:bg-cta group-hover:text-on-brand" : "border-line bg-panel text-brand-950 group-hover:border-brand-900 group-hover:bg-brand-900 group-hover:text-on-brand",
         className,
       )}
     >

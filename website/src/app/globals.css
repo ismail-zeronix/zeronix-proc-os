@@ -12,6 +12,8 @@
  *   cta = the bright header / large-fill green (white text on it only when large or bold) | cta-strong = its hover
  *   highlight = pale mint (badges, text on green) | surface = green tint (icon circles, wells)
  *   surface-soft = neutral grey well | page = the grey home background | canvas = white | ink / muted-ink / line
+ *   panel = section panels and cards (white) | on-brand = text on a brand-900 / cta fill
+ *   band = green bands and promo cards | band-soft = cards on a band | band-btn(-ink, -hover) = the button on a band
  */
 :root {
   --zx-brand-950: #05532a;
@@ -28,6 +30,13 @@
   --zx-ink: #1d2330;
   --zx-muted-ink: #666e7a;
   --zx-line: #e5e7eb;
+  --zx-panel: #ffffff;
+  --zx-on-brand: #ffffff;
+  --zx-band: #0a8443;
+  --zx-band-soft: #087236;
+  --zx-band-btn: #ffffff;
+  --zx-band-btn-ink: #0a8443;
+  --zx-band-btn-hover: #d6f5e3;
 }
 
 @theme inline {
@@ -48,6 +57,13 @@
   --color-ink: var(--zx-ink);
   --color-muted-ink: var(--zx-muted-ink);
   --color-line: var(--zx-line);
+  --color-panel: var(--zx-panel);
+  --color-on-brand: var(--zx-on-brand);
+  --color-band: var(--zx-band);
+  --color-band-soft: var(--zx-band-soft);
+  --color-band-btn: var(--zx-band-btn);
+  --color-band-btn-ink: var(--zx-band-btn-ink);
+  --color-band-btn-hover: var(--zx-band-btn-hover);
 
   /* shadcn's names, pointed at the brand */
   --color-background: var(--color-canvas);
@@ -315,3 +331,85 @@
   white-space: nowrap;
 }
 
+
+/*
+ * Gaming pages (owner 2026-11-22: white background, but it must feel like gaming). Flat store green on white, near-black
+ * ink, and a few game-UI cues: HUD corner brackets, a faint grid, cut-corner shapes and a ticker of game titles.
+ */
+@layer components {
+  /* green corner brackets (top-left, bottom-right) that reach further on hover; put on a positioned box */
+  .gx-frame {
+    position: relative;
+  }
+  .gx-frame::before,
+  .gx-frame::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    width: 0.875rem;
+    height: 0.875rem;
+    pointer-events: none;
+    transition:
+      width 0.3s ease-out,
+      height 0.3s ease-out;
+  }
+  .gx-frame::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid var(--color-cta);
+    border-left: 2px solid var(--color-cta);
+    border-top-left-radius: var(--radius-card);
+  }
+  .gx-frame::after {
+    right: -1px;
+    bottom: -1px;
+    border-right: 2px solid var(--color-cta);
+    border-bottom: 2px solid var(--color-cta);
+    border-bottom-right-radius: var(--radius-card);
+  }
+  .gx-frame:hover::before,
+  .gx-frame:hover::after,
+  .gx-frame:focus-within::before,
+  .gx-frame:focus-within::after,
+  .gx-frame[data-on="true"]::before,
+  .gx-frame[data-on="true"]::after {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  /* a faint 32 px grid behind a section, fading out towards the bottom */
+  .gx-grid {
+    background-image:
+      linear-gradient(to right, rgb(29 35 48 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(29 35 48 / 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+  /* cut top-left and bottom-right corners: buttons, badges */
+  .gx-cut {
+    clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem);
+  }
+  .gx-cut-sm {
+    clip-path: polygon(0.3rem 0, 100% 0, 100% calc(100% - 0.3rem), calc(100% - 0.3rem) 100%, 0 100%, 0 0.3rem);
+  }
+  /* the game ticker: two copies of the list slide left forever */
+  .gx-marquee {
+    animation: gx-marquee 40s linear infinite;
+  }
+  .gx-marquee:hover {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gx-marquee {
+      animation: none;
+    }
+    .gx-frame::before,
+    .gx-frame::after {
+      transition: none;
+    }
+  }
+}
+@keyframes gx-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}

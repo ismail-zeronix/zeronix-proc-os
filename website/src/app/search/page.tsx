@@ -23,7 +23,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       <Breadcrumbs items={[{ href: "/search", label: "Search" }]} />
       {/* phones: the header has only a search icon, so the field lives here (desktop has it in the header) */}
       <form action="/search" role="search" className="lg:hidden">
-        <label className="relative flex h-11 items-center rounded-lg border border-line bg-white focus-within:border-brand-900">
+        <label className="relative flex h-11 items-center rounded-lg border border-line bg-panel focus-within:border-brand-900">
           <span className="sr-only">Search products</span>
           <Search className="pointer-events-none absolute left-3 size-[1.125rem] text-muted-ink" />
           <input type="search" name="q" defaultValue={q} required autoFocus={!q} enterKeyHint="search" placeholder="Search laptops, desktops, part numbers…" className="h-full w-full min-w-0 rounded-lg bg-transparent pr-3 pl-10 text-ink outline-none placeholder:text-muted-ink" />
@@ -40,11 +40,11 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       </div>
       {cats.length > 1 && (
         <nav aria-label="Narrow by category" className="scroll-row items-center sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-          <Link href={href("")} className={cn(chip, !active ? "border-brand-900 bg-brand-900 text-white" : "border-line bg-white hover:border-brand-700/40")}>
+          <Link href={href("")} className={cn(chip, !active ? "border-brand-900 bg-brand-900 text-on-brand" : "border-line bg-panel hover:border-brand-700/40")}>
             All <span className="text-xs opacity-60">{found.length}</span>
           </Link>
           {cats.map((c) => (
-            <Link key={c.slug} href={href(c.slug)} className={cn(chip, active === c.slug ? "border-brand-900 bg-brand-900 text-white" : "border-line bg-white hover:border-brand-700/40")}>
+            <Link key={c.slug} href={href(c.slug)} className={cn(chip, active === c.slug ? "border-brand-900 bg-brand-900 text-on-brand" : "border-line bg-panel hover:border-brand-700/40")}>
               {c.name} <span className="text-xs opacity-60">{c.n}</span>
             </Link>
           ))}
@@ -57,7 +57,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
           <ul className="grid gap-2 sm:grid-cols-2">
             {posts.map((p) => (
               <li key={p.path}>
-                <Link href={p.path} className="block rounded-card border border-line/70 bg-white px-4 py-3 transition-colors hover:border-brand-900">
+                <Link href={p.path} className="block rounded-card border border-line/70 bg-panel px-4 py-3 transition-colors hover:border-brand-900">
                   <span className="block text-sm font-semibold text-ink">{p.title}</span>
                   {p.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-ink">{p.excerpt}</span>}
                 </Link>
@@ -67,7 +67,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
         </section>
       )}
       {q && !products.length && !posts.length && (
-        <div className="rounded-card border border-line/70 bg-white p-5 text-sm">
+        <div className="rounded-card border border-line/70 bg-panel p-5 text-sm">
           <p className="font-semibold">Nothing found for “{q}”.</p>
           <p className="mt-1 text-muted-ink">
             Try a shorter word or a part number, browse <Link href="/products" className="font-semibold text-brand-800 underline">all products</Link>, or{" "}

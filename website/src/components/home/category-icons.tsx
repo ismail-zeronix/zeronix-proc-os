@@ -1,6 +1,8 @@
 import type { Icon } from "@phosphor-icons/react";
-import { ClipboardText, Cpu, Desktop, HardDrives, Key, Keyboard, Laptop, Monitor, Package, SquaresFour, Wrench } from "@phosphor-icons/react/dist/ssr";
+import { ClipboardText, Cpu, Desktop, GameController, HardDrives, Key, Keyboard, Laptop, Monitor, Package, SquaresFour, Wrench } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { isGamingCategory } from "@/lib/gaming";
+import { cn } from "@/lib/utils";
 
 /** One category entry for the home page (a category, or a brand within a category, "Dell desktops"). */
 export interface CategoryCardData {
@@ -36,6 +38,8 @@ interface Tile {
   href: string;
   label: string;
   Glyph: Icon;
+  /** The Gaming tile: dark circle, green icon (stands for all the gaming categories). */
+  highlight?: boolean;
 }
 
 /**
@@ -43,8 +47,11 @@ interface Tile {
  * Desktop: one strip with dividers, larger rounded tiles (the owner reference). After the categories come "All products", "IT services" and "Bulk quote".
  */
 export function CategoryIcons({ cards, ctaLabel }: { cards: CategoryCardData[]; ctaLabel: string }) {
+  const cats = cards.filter((c) => c.kind === "category");
+  const gaming = cats.some((c) => isGamingCategory(c.href.split("/").pop() ?? ""));
   const tiles: Tile[] = [
-    ...cards.filter((c) => c.kind === "category").map((c) => ({ href: c.href, label: c.title, Glyph: ICONS[c.icon] ?? Package })),
+    ...(gaming ? [{ href: "/gaming", label: "Gaming", Glyph: GameController, highlight: true }] : []),
+    ...cats.filter((c) => !isGamingCategory(c.href.split("/").pop() ?? "")).map((c) => ({ href: c.href, label: c.title, Glyph: ICONS[c.icon] ?? Package })),
     { href: "/products", label: "All products", Glyph: SquaresFour },
     { href: "/services", label: "IT services", Glyph: Wrench },
     { href: "/quote", label: ctaLabel.length > 14 ? "Bulk quote" : ctaLabel, Glyph: ClipboardText },
@@ -57,7 +64,7 @@ export function CategoryIcons({ cards, ctaLabel }: { cards: CategoryCardData[]; 
       {tiles.map((t) => (
         <li key={t.href}>
           <Link href={t.href} className="group flex flex-col items-center gap-1 text-center lg:gap-2.5 lg:px-1 lg:py-1.5" data-track="home-category">
-            <span className="grid size-12 place-items-center rounded-full bg-surface text-brand-900 transition-colors duration-200 group-hover:bg-brand-900 group-hover:text-white sm:size-16 lg:size-[4.5rem] lg:rounded-2xl xl:size-20">
+            <span className={cn("grid size-12 place-items-center rounded-full transition-colors duration-200 sm:size-16 lg:size-[4.5rem] lg:rounded-2xl xl:size-20", t.highlight ? "bg-[#0b0e14] text-[#2fcf7a] group-hover:bg-[#1a212c]" : "bg-surface text-brand-900 group-hover:bg-brand-900 group-hover:text-on-brand")}>
               <t.Glyph weight="duotone" className="size-6 sm:size-8 lg:size-9 xl:size-10" />
             </span>
             <span className="line-clamp-2 text-[0.625rem] leading-tight font-medium text-ink group-hover:text-brand-900 sm:text-xs lg:text-[0.8125rem] lg:font-semibold xl:text-sm">{t.label}</span>

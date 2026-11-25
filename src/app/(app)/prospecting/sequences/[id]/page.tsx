@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
 import { BackButton } from "@/components/back-button";
-import { requireApp } from "@/lib/auth/session";
 import { listSegments } from "@/lib/prospecting/data";
 import { getSequence } from "@/lib/prospecting/outreach";
 import { SequenceEditor } from "../sequence-editor";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Sequence · Zeronix Prospecting" };
+export const metadata = { title: "Sequence · Zeronix Outreach" };
 
 /** Edit a sequence, or write a new one at /prospecting/sequences/new. */
 export default async function SequencePage({ params }: PageProps<"/prospecting/sequences/[id]">) {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const raw = (await params).id;
   const segments = (await listSegments()).filter((s) => s.active).map((s) => ({ key: s.key, label: s.label }));
   let sequence: Parameters<typeof SequenceEditor>[0]["sequence"];
@@ -24,7 +24,7 @@ export default async function SequencePage({ params }: PageProps<"/prospecting/s
     <div className="grid gap-3">
       <div className="flex items-center gap-3">
         <BackButton fallback="/prospecting/sequences" />
-        <h1 className="text-sm font-semibold">{sequence ? sequence.name : "New sequence"}</h1>
+        <h1 className="text-sm font-semibold">{sequence ? sequence.name : "New follow-up steps"}</h1>
       </div>
       <SequenceEditor sequence={sequence} segments={segments} />
     </div>

@@ -12,7 +12,7 @@ import { ago } from "@/lib/format";
 import { getList, listContacts, listLists, type ContactStatus } from "@/lib/newsletter/data";
 import { AddEmailsDialog, DeleteListButton, ListDialog, RemoveContactButton } from "../../audience-ui";
 
-export const metadata = { title: "List · Zeronix Newsletter" };
+export const metadata = { title: "List · Zeronix Outreach" };
 
 const FILTERS: { key: ContactStatus | "all"; label: string }[] = [
   { key: "all", label: "All" },

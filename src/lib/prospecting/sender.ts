@@ -6,6 +6,7 @@ import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { db, schema } from "@/db";
 import { getBrand, getLogo } from "@/lib/brand";
+import { CONNECT_URL, connectToken } from "@/lib/connect-token";
 import { decryptSecret } from "@/lib/crypto";
 import { dubaiToday } from "@/lib/dates";
 import { textToHtml } from "@/lib/mail/compose";
@@ -14,7 +15,8 @@ import { signatureHtml, signatureText } from "@/lib/signature";
 import { isFreeMail } from "./constants";
 import { guessIndustry } from "./industry";
 import { mergeVars } from "./outreach";
-import { addWorkingDays, render, unfilled } from "./outreach-rules";
+import { simpleParser } from "mailparser";
+import { addWorkingDays, render, replySnippet, unfilled } from "./outreach-rules";
 import { capOn, type DayKey } from "./sending";
 import { offerOf, writeEmail, writeInputFor } from "./writer";
 import { FALLBACK_FIRST } from "./writer-rules";
@@ -267,12 +269,16 @@ async function sendOne(m: Mailbox, e: Enrollment): Promise<void> {
   ]);
   const person = { name: m.fromName || m.email, email: m.email, jobTitle: owner?.jobTitle ?? "", phone: owner?.phone ?? "", mobile: owner?.mobile ?? "" };
   const optOut = "If you would rather not hear from us, just reply with \"unsubscribe\" and we will not email you again.";
+  // one link back to the website (Phase 6): their details are filled in, and they can ask for the weekly news there
+  const connect = `${CONNECT_URL}?r=${connectToken(e.companyId)}`;
+  const invite = "Tell us what you need, or get our weekly offers:";
   const font = "font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222222";
   const html =
     `<div style="${font}">${textToHtml(body)}</div>` +
     signatureHtml(brand, person, logo ? `cid:${LOGO_CID}` : "") +
-    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#888888;margin-top:16px">${optOut}</div>`;
-  const text = [body.trimEnd(), "", signatureText(brand, person), "", optOut].join("\n");
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#555555;margin-top:16px">${invite} <a href="${connect}" style="color:#555555">${CONNECT_URL.replace(/^https?:\/\//, "")}</a></div>` +
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#888888;margin-top:8px">${optOut}</div>`;
+  const text = [body.trimEnd(), "", signatureText(brand, person), "", `${invite} ${connect}`, optOut].join("\n");
 
   const domain = m.email.split("@")[1] ?? "mail.local";
   const messageId = `<${randomUUID()}@${domain}>`;
@@ -451,7 +457,16 @@ export async function checkReplies(m: Mailbox): Promise<number> {
         .update(schema.prospectCompanies)
         .set({ status: optOut ? "disqualified" : "replied", ...(optOut ? { disqualifyReason: "Unsubscribed" } : {}), statusChangedAt: new Date() })
         .where(eq(schema.prospectCompanies.id, hit.companyId));
-      await db.insert(schema.prospectActivities).values({ companyId: hit.companyId, userId: null, kind: "email", body: `${optOut ? "Asked to unsubscribe" : "Replied"}: ${from} · ${msg.envelope?.subject ?? ""}`.slice(0, 500) });
+      // the words they wrote (above the quoted email), shown on Outreach › Replies
+      const said = optOut ? "" : await simpleParser(msg.source ?? Buffer.from(raw)).then((p) => replySnippet(p.text ?? "")).catch(() => "");
+      await db.insert(schema.prospectActivities).values({
+        companyId: hit.companyId,
+        userId: null,
+        kind: "email",
+        body: `${`${optOut ? "Asked to unsubscribe" : "Replied"}: ${from} · ${msg.envelope?.subject ?? ""}`.slice(0, 300)}${said ? `
+
+${said}` : ""}`,
+      });
       found++;
     }
     await db.update(schema.outreachMailboxes).set({ lastSeenUid: top, repliesCheckedAt: new Date() }).where(eq(schema.outreachMailboxes.id, m.id));

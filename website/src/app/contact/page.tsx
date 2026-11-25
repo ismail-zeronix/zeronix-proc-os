@@ -38,8 +38,8 @@ export default async function ContactPage() {
       </div>
       <aside className="grid content-start gap-3">
         {lines.map((l) => (
-          <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="flex items-start gap-3 rounded-card bg-white p-5 transition-colors hover:bg-surface-soft">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-900 text-white">
+          <a key={l.label} href={l.href} target={l.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="flex items-start gap-3 rounded-card bg-panel p-5 transition-colors hover:bg-surface-soft">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-900 text-on-brand">
               <l.icon className="size-4" />
             </span>
             <span className="grid gap-0.5">

@@ -48,7 +48,7 @@ export function Photo({
         box,
         "grid p-5 text-center",
         slotAt === "end" ? "place-items-end" : "place-items-center",
-        tone === "dark" ? "bg-brand-800 text-white/55" : "bg-canvas text-ink/40 ring-1 ring-line/60 ring-inset",
+        tone === "dark" ? "bg-band-soft text-white/55" : "bg-canvas text-ink/40 ring-1 ring-line/60 ring-inset",
       )}
     >
       <span className="grid max-w-[16rem] justify-items-center gap-2.5">

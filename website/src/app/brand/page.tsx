@@ -8,9 +8,9 @@ import { Photo } from "@/components/brand/photo";
 export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false } };
 
 const COLOURS = [
-  { name: "cta", hex: "#0f9d58", use: "Header bar, large green fills", cls: "bg-cta text-white" },
-  { name: "brand-900", hex: "#0a8443", use: "Buttons, links, active states", cls: "bg-brand-900 text-white" },
-  { name: "brand-800", hex: "#087236", use: "Hover on green", cls: "bg-brand-800 text-white" },
+  { name: "cta", hex: "#0f9d58", use: "Header bar, large green fills", cls: "bg-cta text-on-brand" },
+  { name: "brand-900", hex: "#0a8443", use: "Buttons, links, active states", cls: "bg-brand-900 text-on-brand" },
+  { name: "brand-800", hex: "#087236", use: "Hover on green", cls: "bg-brand-800 text-on-brand" },
   { name: "brand-700", hex: "#0b8f47", use: "Icons and accents", cls: "bg-brand-700 text-white" },
   { name: "brand-950", hex: "#05532a", use: "Deep green text on tints", cls: "bg-brand-950 text-white" },
   { name: "highlight", hex: "#d6f5e3", use: "Mint: badges, text on green", cls: "bg-highlight text-brand-950" },
@@ -37,7 +37,7 @@ export default function BrandPage() {
   return (
     <>
       {/* hero sample */}
-      <section className="frame relative mt-3 bg-brand-900 text-white">
+      <section className="frame relative mt-3 bg-band text-white">
         <div className="relative grid min-h-[34rem] lg:grid-cols-2">
           <div className="relative z-10 flex flex-col justify-center gap-7 p-8 sm:p-12 lg:p-16">
             <Tag onDark>Corporate IT for UAE businesses</Tag>
@@ -70,7 +70,7 @@ export default function BrandPage() {
 
       <Block n="01" title="Logo">
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="grid h-40 place-items-center rounded-card bg-white">
+          <div className="grid h-40 place-items-center rounded-card bg-panel">
             <Logo />
           </div>
           <div className="grid h-40 place-items-center rounded-card bg-cta">
@@ -85,7 +85,7 @@ export default function BrandPage() {
       <Block n="02" title="Colour">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {COLOURS.map((c) => (
-            <div key={c.name} className="overflow-hidden rounded-card bg-white">
+            <div key={c.name} className="overflow-hidden rounded-card bg-panel">
               <div className={`h-24 ${c.cls} flex items-end p-3 text-xs font-semibold`}>{c.hex}</div>
               <div className="p-3">
                 <p className="text-sm font-semibold">{c.name}</p>
@@ -98,7 +98,7 @@ export default function BrandPage() {
       </Block>
 
       <Block n="03" title="Typography">
-        <div className="grid gap-8 rounded-card bg-white p-8">
+        <div className="grid gap-8 rounded-card bg-panel p-8">
           <div>
             <p className="text-xs text-muted-ink">Display · Manrope 500</p>
             <p className="font-heading text-display font-semibold">Business IT, matched to your industry.</p>
@@ -127,7 +127,7 @@ export default function BrandPage() {
 
       <Block n="04" title="Buttons, tags, icons">
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="flex flex-wrap items-center gap-3 rounded-card bg-white p-8">
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-panel p-8">
             <Action href="/quote">Get B2B pricing</Action>
             <Action href="/guides" variant="dark">
               Read the guide
@@ -141,7 +141,7 @@ export default function BrandPage() {
             <Tag>Who we are</Tag>
             <IconBadge name="laptop" />
           </div>
-          <div className="flex flex-wrap items-center gap-3 rounded-card bg-brand-900 p-8">
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-band p-8">
             <Action href="/quote" variant="light">Get B2B pricing</Action>
             <Action href="/products" variant="onDark" arrow={false}>
               All products
@@ -172,7 +172,7 @@ export default function BrandPage() {
         </div>
       </Block>
 
-      <section className="frame bg-brand-900 py-8 sm:py-10">
+      <section className="frame bg-band py-8 sm:py-10">
         <div className="container-site">
           <SectionHeading onDark rule tag="Dark band" title="Strategic setups that fit how your teams work" />
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

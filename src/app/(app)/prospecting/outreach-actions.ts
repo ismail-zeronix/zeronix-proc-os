@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
+import { assertOutreachFull } from "@/lib/prospecting/access";
 import { enroll, type EnrollResult } from "@/lib/prospecting/outreach";
 import { MERGE_FIELDS, unfilled } from "@/lib/prospecting/outreach-rules";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
@@ -35,7 +36,7 @@ export type SequenceInput = z.input<typeof sequenceSchema>;
 /** Creates or replaces a sequence with its steps. Field names are checked so a typo never reaches a prospect. */
 export async function saveSequence(sequenceId: number | null, input: SequenceInput): Promise<Result<number>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const d = parseInput(sequenceSchema, input);
     if (!d.steps[0].subject) throw new Problem("The first email needs a subject");
     d.steps.forEach((s, i) => {
@@ -66,7 +67,7 @@ export async function saveSequence(sequenceId: number | null, input: SequenceInp
 
 export async function deleteSequence(sequenceId: number): Promise<Result<void>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const [used] = await db.select({ id: schema.outreachCampaigns.id }).from(schema.outreachCampaigns).where(eq(schema.outreachCampaigns.sequenceId, sequenceId)).limit(1);
     if (used) throw new Problem("A campaign uses this sequence. Delete or change the campaign first.");
     await db.delete(schema.outreachSequences).where(eq(schema.outreachSequences.id, sequenceId));
@@ -85,7 +86,7 @@ export type CampaignInput = z.input<typeof campaignSchema>;
 
 export async function createCampaign(input: CampaignInput): Promise<Result<number>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const d = parseInput(campaignSchema, input);
     const [row] = await db.insert(schema.outreachCampaigns).values({ ...d, ownerId: me.id }).returning({ id: schema.outreachCampaigns.id });
     refresh();
@@ -95,7 +96,7 @@ export async function createCampaign(input: CampaignInput): Promise<Result<numbe
 
 export async function updateCampaign(campaignId: number, input: CampaignInput): Promise<Result<void>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const d = parseInput(campaignSchema, input);
     await db.update(schema.outreachCampaigns).set(d).where(eq(schema.outreachCampaigns.id, id.parse(campaignId)));
     refresh();
@@ -105,7 +106,7 @@ export async function updateCampaign(campaignId: number, input: CampaignInput): 
 /** Pause stops all sending from the campaign until it is resumed; finish stops it for good. */
 export async function setCampaignStatus(campaignId: number, status: "active" | "paused" | "finished"): Promise<Result<void>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const s = parseInput(z.enum(["active", "paused", "finished"]), status);
     await db.transaction(async (tx) => {
       await tx.update(schema.outreachCampaigns).set({ status: s }).where(eq(schema.outreachCampaigns.id, campaignId));
@@ -123,7 +124,7 @@ export async function setCampaignStatus(campaignId: number, status: "active" | "
 /** Adds the main contact of each selected prospect to a campaign; the first emails wait in Review. */
 export async function addToCampaign(campaignId: number, companyIds: number[]): Promise<Result<EnrollResult>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const list = parseInput(z.array(id).min(1, "Pick at least one prospect").max(500, "Add up to 500 prospects at a time"), companyIds);
     const [c] = await db.select({ status: schema.outreachCampaigns.status }).from(schema.outreachCampaigns).where(eq(schema.outreachCampaigns.id, campaignId));
     if (!c) throw new Problem("That campaign no longer exists");
@@ -143,7 +144,7 @@ const draftSchema = z.object({
 
 export async function saveDraft(enrollmentId: number, input: z.input<typeof draftSchema>): Promise<Result<void>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const d = parseInput(draftSchema, input);
     const [row] = await db
       .update(schema.outreachEnrollments)
@@ -166,7 +167,7 @@ export interface ApproveResult {
  */
 export async function approveDrafts(enrollmentIds: number[]): Promise<Result<ApproveResult>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const ids = parseInput(z.array(id).min(1).max(200), enrollmentIds);
     const rows = await db
       .select({ e: schema.outreachEnrollments, name: schema.prospectCompanies.name, domain: schema.prospectCompanies.domain, startAt: schema.outreachCampaigns.startAt })
@@ -216,7 +217,7 @@ export async function approveDrafts(enrollmentIds: number[]): Promise<Result<App
 
 export async function skipDrafts(enrollmentIds: number[]): Promise<Result<number>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const ids = parseInput(z.array(id).min(1).max(200), enrollmentIds);
     const rows = await db
       .update(schema.outreachEnrollments)
@@ -231,7 +232,7 @@ export async function skipDrafts(enrollmentIds: number[]): Promise<Result<number
 /** Stops one person's emails (draft, active or paused). */
 export async function stopEnrollment(enrollmentId: number): Promise<Result<void>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     await db
       .update(schema.outreachEnrollments)
       .set({ status: "stopped", stopReason: "Stopped by hand", nextSendAt: null, updatedAt: new Date() })

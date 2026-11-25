@@ -9,20 +9,22 @@ import { openCampaigns } from "@/lib/prospecting/outreach";
 import { ProspectDialog } from "../prospect-ui";
 import { ResearchProgress } from "../research-ui";
 import { ProspectTable } from "./prospect-table";
+import { outreachView } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Prospects · Zeronix Prospecting" };
+export const metadata = { title: "Prospects · Zeronix Outreach" };
 
 const one = (v: string | string[] | undefined) => String((Array.isArray(v) ? v[0] : v) ?? "").trim();
 
 export default async function ProspectsPage({ searchParams }: PageProps<"/prospecting/prospects">) {
   await requireApp("prospecting");
+  const view = await outreachView();
   const sp = await searchParams;
   const status = one(sp.status);
   const owner = Number(one(sp.owner));
   const source = Number(one(sp.source));
   const page = pageParam(sp.page);
   const [{ rows, total }, segments, users, campaigns] = await Promise.all([
-    listProspects({ page, pageSize: PAGE_SIZE, q: one(sp.q), status: isStatus(status) ? status : undefined, segment: one(sp.segment) || undefined, ownerId: Number.isInteger(owner) && owner > 0 ? owner : undefined, sourceId: Number.isInteger(source) && source > 0 ? source : undefined }),
+    listProspects({ page, pageSize: PAGE_SIZE, q: one(sp.q), status: isStatus(status) ? status : undefined, segment: one(sp.segment) || undefined, ownerId: Number.isInteger(owner) && owner > 0 ? owner : undefined, sourceId: Number.isInteger(source) && source > 0 ? source : undefined, scopeUserId: view.full ? undefined : view.userId }),
     listSegments(),
     prospectingUsers(),
     openCampaigns(),
@@ -30,7 +32,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/prospe
   const segOptions = segments.filter((s) => s.active).map((s) => ({ key: s.key, label: s.label }));
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Prospects" meta={`${total.toLocaleString("en-US")} ${total === 1 ? "prospect" : "prospects"} · best score first`}>
+      <PageToolbar title="Prospects" meta={`${total.toLocaleString("en-US")} ${total === 1 ? "prospect" : "prospects"} ${view.full ? "" : " (yours and unassigned)"} · hottest first`}>
         <ProspectDialog
           segments={segOptions}
           trigger={
@@ -41,7 +43,7 @@ export default async function ProspectsPage({ searchParams }: PageProps<"/prospe
         />
       </PageToolbar>
       <ResearchProgress />
-      <ProspectTable rows={rows} segments={segOptions} users={users} campaigns={campaigns} />
+      <ProspectTable rows={rows} segments={segOptions} users={users} campaigns={campaigns} full={view.full} />
       <Pager path="/prospecting/prospects" params={sp} page={page} total={total} />
     </div>
   );

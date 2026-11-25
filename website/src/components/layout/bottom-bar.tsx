@@ -79,7 +79,7 @@ export function BottomBar() {
                 <span className={cn("relative grid h-7 w-12 place-items-center rounded-full transition-colors duration-200", on && "bg-surface")}>
                   <Icon className="size-5" strokeWidth={on ? 2.25 : 1.75} />
                   {t.href === "/cart" && n > 0 && (
-                    <span className="absolute -top-1 right-1.5 grid min-w-4 place-items-center rounded-full bg-brand-900 px-1 text-[0.5625rem] leading-4 font-semibold text-white ring-2 ring-white">{n}</span>
+                    <span className="absolute -top-1 right-1.5 grid min-w-4 place-items-center rounded-full bg-brand-900 px-1 text-[0.5625rem] leading-4 font-semibold text-on-brand ring-2 ring-panel">{n}</span>
                   )}
                 </span>
                 <span className={cn(on && "font-semibold")}>{t.label}</span>

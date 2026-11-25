@@ -74,7 +74,7 @@ export function PostsPageSkeleton() {
       <PageHeroSkeleton />
       <div className="container-site grid gap-2 py-4 sm:grid-cols-2 sm:gap-4 sm:py-8 lg:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} aria-hidden className="flex gap-3 rounded-card border border-line/70 bg-white p-2 sm:grid sm:gap-2.5">
+          <div key={i} aria-hidden className="flex gap-3 rounded-card border border-line/70 bg-panel p-2 sm:grid sm:gap-2.5">
             <Skeleton className="aspect-[16/9] w-[40%] shrink-0 rounded-inner sm:w-full" />
             <div className="grid flex-1 content-start gap-2 py-1 sm:px-1 sm:pb-2">
               <Skeleton className="h-2.5 w-24 rounded-full" />
@@ -90,7 +90,7 @@ export function PostsPageSkeleton() {
 
 /** The grey home page: banner row, category circles, product shelves. */
 export function HomeSkeleton() {
-  const panel = "-mx-3 bg-white px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5";
+  const panel = "-mx-3 bg-panel px-3 py-3 sm:mx-0 sm:rounded-xl sm:px-5 sm:py-5";
   return (
     <div role="status" aria-label="Loading" className="page-grey bg-page pb-4">
       <div className="container-site pt-2 sm:pt-3 lg:pt-4">

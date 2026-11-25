@@ -12,7 +12,7 @@ import { cooloffDays, readyMailboxes } from "@/lib/newsletter/send";
 import { templateName } from "@/lib/newsletter/templates";
 import { CooloffButton } from "./campaign-controls";
 
-export const metadata = { title: "Newsletters · Zeronix Newsletter" };
+export const metadata = { title: "Newsletters · Zeronix Outreach" };
 
 const STATUS: Record<string, string> = { draft: "Draft", sending: "Sending", paused: "Paused", done: "Finished" };
 

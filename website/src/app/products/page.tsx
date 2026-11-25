@@ -23,8 +23,8 @@ export default async function ProductsPage() {
         <ul className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
           {categories.map((c) => (
             <li key={c.slug}>
-              <Link href={`/products/${c.slug}`} className="group flex h-full items-center gap-3 rounded-xl border border-line bg-white p-3 transition-colors hover:border-brand-900 sm:gap-4 sm:p-4">
-                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-brand-900 transition-colors group-hover:bg-brand-900 group-hover:text-white sm:size-14">
+              <Link href={`/products/${c.slug}`} className="group flex h-full items-center gap-3 rounded-xl border border-line bg-panel p-3 transition-colors hover:border-brand-900 sm:gap-4 sm:p-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-brand-900 transition-colors group-hover:bg-brand-900 group-hover:text-on-brand sm:size-14">
                   <CategoryGlyph icon={c.icon} className="size-6 sm:size-7" />
                 </span>
                 <span className="grid min-w-0 flex-1 gap-0.5">

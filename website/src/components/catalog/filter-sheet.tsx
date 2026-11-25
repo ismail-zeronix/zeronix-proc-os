@@ -16,13 +16,13 @@ export function FilterSheet({ active, children }: { active: number; children: Re
         render={
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-brand-900 transition-colors hover:border-brand-700/40 lg:hidden"
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-line bg-panel px-4 text-sm font-semibold text-brand-900 transition-colors hover:border-brand-700/40 lg:hidden"
           />
         }
       >
         <SlidersHorizontal className="size-4" />
         Filters
-        {active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-brand-900 px-1 text-[0.6875rem] leading-5 text-white">{active}</span>}
+        {active > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-brand-900 px-1 text-[0.6875rem] leading-5 text-on-brand">{active}</span>}
       </SheetTrigger>
       <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-3xl bg-canvas">
         <SheetHeader>

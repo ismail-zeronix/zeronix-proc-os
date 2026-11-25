@@ -82,7 +82,7 @@ export function ProductRail({ products, label }: { products: SiteProductSummary[
 
   if (!products.length) return null;
   const arrow =
-    "absolute top-[38%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-brand-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-brand-900 hover:bg-brand-900 hover:text-white md:grid";
+    "absolute top-[38%] z-10 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-white/95 text-brand-900 shadow-lift backdrop-blur transition-all duration-200 hover:border-brand-900 hover:bg-brand-900 hover:text-on-brand md:grid";
   return (
     <div className="relative">
       <ul
