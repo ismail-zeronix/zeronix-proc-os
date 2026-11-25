@@ -5,7 +5,7 @@ import { Logo, LogoMark } from "@/components/brand/logo";
 import { Photo } from "@/components/brand/photo";
 
 /** The brand system, live (BRAND.md). Not linked and not indexed: a reference for whoever builds the next page. */
-export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false }, alternates: { canonical: "/brand" } };
 
 const COLOURS = [
   { name: "cta", hex: "#0f9d58", use: "Header bar, large green fills", cls: "bg-cta text-on-brand" },

@@ -1,5 +1,5 @@
 import { Cpu, Desktop, Laptop, SecurityCamera, WifiHigh } from "@phosphor-icons/react/dist/ssr";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { SiteBrand, SiteHome, SiteProductSummary } from "@/lib/contract";
@@ -148,7 +148,28 @@ export function Hero({ brand, home, bannerProducts }: { brand: SiteBrand; home: 
 
   return (
     <section className="container-site pt-2 sm:pt-3 lg:pt-4">
-      <h1 className="sr-only">{home.hero.title || brand.tagline}</h1>
+      {/* business buyers first: what we are, and the two ways to get a price (same button styles as the quote form) */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-panel px-4 py-3 sm:mb-3 lg:px-5">
+        <div className="min-w-0 flex-1 basis-72">
+          <h1 className="text-base font-semibold text-ink sm:text-lg">Business IT supplier in Dubai, UAE</h1>
+          <p className="text-sm text-muted-ink">{brand.subline}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/quote" data-track="home-hero-quote" className="inline-flex h-10 items-center rounded-full bg-cta px-5 text-sm font-semibold text-on-brand transition-colors hover:bg-cta-strong">
+            {brand.ctaLabel || "Get B2B pricing"}
+          </Link>
+          {brand.whatsapp && (
+            <a
+              href={`https://wa.me/${brand.whatsapp.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-line px-4 text-sm font-semibold hover:border-brand-700/40"
+            >
+              <MessageCircle className="size-4" /> WhatsApp
+            </a>
+          )}
+        </div>
+      </div>
 
       {/* phones and tablets: the same banners as one swipeable row (the next one peeks in at the edge) */}
       <div className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-px-3 px-3 [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">

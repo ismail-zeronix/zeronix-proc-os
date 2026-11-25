@@ -16,6 +16,12 @@ export function proxy(req: NextRequest) {
     if (host.slice(4).split(":")[0] === site.hostname) return NextResponse.redirect(new URL(req.nextUrl.pathname + req.nextUrl.search, site), 308);
   }
 
+  // http to https on the live host (behind Caddy the original scheme is in X-Forwarded-Proto); local http stays as it is
+  const live = new URL(process.env.SITE_URL || "https://zeronixtech.com");
+  if (live.protocol === "https:" && req.headers.get("x-forwarded-proto") === "http" && host.split(":")[0] === live.hostname) {
+    return NextResponse.redirect(new URL(req.nextUrl.pathname + req.nextUrl.search, live), 308);
+  }
+
   const { pathname } = req.nextUrl;
   const wantsMarkdown = pathname.endsWith(".md") || acceptsMarkdown(req.headers.get("accept"));
   if ((req.method === "GET" || req.method === "HEAD") && wantsMarkdown && markdownRoute(pathname)) {
