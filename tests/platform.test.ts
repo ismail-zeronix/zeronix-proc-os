@@ -133,6 +133,32 @@ describe.skipIf(!live)("the platform console (needs the test database)", () => {
     await setPlanAction(orgId, { apps: ["crm", "sales", "accounts", "projects", "tasks", "files", "chat"], userLimit: null });
   });
 
+  it("starts a 30-day trial; a recorded payment moves paid-until on and reactivates a company paused for being unpaid", async () => {
+    const { setBillingAction, recordPaymentAction, setStatusAction } = await import("@/app/(platform)/platform/actions");
+    const { dubaiToday } = await import("@/lib/dates");
+    const { addDays, addMonths } = await import("@/lib/billing");
+    const today = dubaiToday();
+    const row = async () =>
+      (await adminQuery<{ plan: string; trial_ends_on: string | null; paid_until: string | null; status: string; paused_reason: string }>(
+        "SELECT plan, trial_ends_on::text, paid_until::text, status, paused_reason FROM organizations WHERE id = $1",
+        [orgId],
+      ))[0];
+    expect(await row()).toMatchObject({ plan: "trial", trial_ends_on: addDays(today, 30), paid_until: null });
+    expect(await setBillingAction(orgId, { plan: "paid", trialEndsOn: null, paidUntil: null, priceMonthly: null, note: "" })).toMatchObject({ ok: false });
+    // unpaid for weeks, so the billing job paused it
+    expect(await setBillingAction(orgId, { plan: "paid", trialEndsOn: null, paidUntil: addDays(today, -20), priceMonthly: 99, note: "pays by transfer" })).toEqual({ ok: true });
+    await adminQuery("UPDATE organizations SET status = 'suspended', paused_reason = 'unpaid' WHERE id = $1", [orgId]);
+    // reactivating it without a payment would only be undone within the hour
+    expect(await setStatusAction(orgId, "active", "trying")).toMatchObject({ ok: false, error: expect.stringMatching(/still unpaid/) });
+    expect(await recordPaymentAction(orgId, 2, "x")).toMatchObject({ ok: false });
+    expect(await recordPaymentAction(orgId, 1, "INV-TEST-1")).toEqual({ ok: true, paidUntil: addMonths(today, 1) });
+    expect(await row()).toEqual({ plan: "paid", trial_ends_on: null, paid_until: addMonths(today, 1), status: "active", paused_reason: "" });
+    const [audit] = await adminQuery<{ summary: string; reason: string }>("SELECT summary, reason FROM platform_audit_log WHERE organization_id = $1 AND action = 'tenant.payment'", [orgId]);
+    expect(audit).toMatchObject({ reason: "INV-TEST-1", summary: expect.stringMatching(/reactivated/) });
+    // back to an open trial for the tests below
+    expect(await setBillingAction(orgId, { plan: "trial", trialEndsOn: null, paidUntil: null, priceMonthly: null, note: "" })).toEqual({ ok: true });
+  });
+
   it("enters read only: the banner's flag is set, and neither the app nor the database accepts a change", async () => {
     const { enterAction } = await import("@/app/(platform)/platform/actions");
     await expect(enterAction(orgId, true, "")).rejects.toThrow(/redirect:\//);

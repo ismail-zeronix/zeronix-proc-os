@@ -4,6 +4,8 @@ import { db, runAsOrg, schema as tenantSchema } from "@/db";
 import { TENANT_CORE_APPS, isAppKey, type AppKey } from "@/lib/apps";
 import { setSessionCookie } from "@/lib/auth/session-cookie";
 import type { PlatformSession } from "@/lib/auth/platform-token";
+import { addDays, billingState, extendPaidUntil, shouldPause, TRIAL_DAYS, type Plan } from "@/lib/billing";
+import { dubaiToday } from "@/lib/dates";
 import { createInvite, emailInvite } from "@/lib/invites";
 import { aeVat } from "@/lib/tax/ae-vat";
 import { UserError } from "@/lib/user-error";
@@ -19,13 +21,17 @@ export async function listTenants() {
     created_at: Date;
     enabled_apps: string[] | null;
     user_limit: number | null;
+    plan: Plan;
+    trial_ends_on: string | null;
+    paid_until: string | null;
+    paused_reason: string;
     users: number;
     last_login: Date | null;
     quotes: number;
     invoices: number;
     storage: number;
   }>(sql`
-    SELECT o.id, o.name, o.status, o.created_at, o.enabled_apps, o.user_limit,
+    SELECT o.id, o.name, o.status, o.created_at, o.enabled_apps, o.user_limit, o.plan, o.trial_ends_on::text, o.paid_until::text, o.paused_reason,
       (SELECT count(*)::int FROM users u WHERE u.organization_id = o.id AND u.is_active) AS users,
       (SELECT max(a.at) FROM audit_log a WHERE a.organization_id = o.id AND a.action IN ('auth.login', 'user.join')) AS last_login,
       (SELECT count(*)::int FROM quotes q WHERE q.organization_id = o.id) AS quotes,
@@ -106,7 +112,19 @@ export async function createTenant(admin: PlatformSession, input: NewTenant): Pr
 
   const [org] = await platformDb
     .insert(schema.organizations)
-    .values({ name, legalName: (input.legalName ?? "").trim(), country: "AE", baseCurrency: "AED", taxRegime: "AE_VAT", emirate: input.emirate || "dubai", enabledApps: TENANT_CORE_APPS, userLimit: limit })
+    .values({
+      name,
+      legalName: (input.legalName ?? "").trim(),
+      country: "AE",
+      baseCurrency: "AED",
+      taxRegime: "AE_VAT",
+      emirate: input.emirate || "dubai",
+      enabledApps: TENANT_CORE_APPS,
+      userLimit: limit,
+      // a free trial from today (lib/billing.ts); the console can change it
+      plan: "trial",
+      trialEndsOn: addDays(dubaiToday(), TRIAL_DAYS),
+    })
     .returning({ id: schema.organizations.id });
 
   // the rest is the organisation's own data: written as that organisation, under its row-level security
@@ -123,9 +141,80 @@ export async function createTenant(admin: PlatformSession, input: NewTenant): Pr
 
 export async function setTenantStatus(admin: PlatformSession, id: number, status: "active" | "suspended", reason: string) {
   if (reason.trim().length < 3) throw new UserError("Say why.");
-  const [o] = await platformDb.update(schema.organizations).set({ status, updatedAt: new Date() }).where(eq(schema.organizations.id, id)).returning({ name: schema.organizations.name });
+  if (status === "active") {
+    // reactivating an organisation that is still unpaid past its grace days: the billing job would pause it again
+    const [b] = await platformDb.select({ plan: schema.organizations.plan, trialEndsOn: schema.organizations.trialEndsOn, paidUntil: schema.organizations.paidUntil }).from(schema.organizations).where(eq(schema.organizations.id, id));
+    if (b && shouldPause(billingState(b, dubaiToday()))) throw new UserError("It is still unpaid past its grace days, so it would be paused again within the hour. Record a payment or set a later date in Billing first.");
+  }
+  const [o] = await platformDb
+    .update(schema.organizations)
+    .set({ status, pausedReason: "", updatedAt: new Date() })
+    .where(eq(schema.organizations.id, id))
+    .returning({ name: schema.organizations.name });
   if (!o) throw new UserError("That organisation does not exist.");
   await platformAudit({ admin, action: status === "active" ? "tenant.reactivate" : "tenant.suspend", orgId: id, summary: `${o.name} ${status === "active" ? "reactivated" : "paused"}`, reason });
+}
+
+export interface BillingInput {
+  plan: Plan;
+  trialEndsOn: string | null;
+  paidUntil: string | null;
+  priceMonthly: number | null;
+  note: string;
+}
+
+const isDay = (d: string | null) => d === null || (/^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d));
+
+/** The organisation's plan and dates as typed in the console (lib/billing.ts). A new date starts the reminders again. */
+export async function setTenantBilling(admin: PlatformSession, id: number, input: BillingInput) {
+  if (!["trial", "paid", "free"].includes(input.plan)) throw new UserError("Pick a plan.");
+  if (!isDay(input.trialEndsOn) || !isDay(input.paidUntil)) throw new UserError("Use real dates.");
+  if (input.plan === "paid" && !input.paidUntil) throw new UserError("A paid plan needs its paid-until date.");
+  if (input.priceMonthly != null && (!(input.priceMonthly >= 0) || input.priceMonthly > 1_000_000)) throw new UserError("Check the monthly price.");
+  const [o] = await platformDb
+    .update(schema.organizations)
+    .set({
+      plan: input.plan,
+      trialEndsOn: input.trialEndsOn,
+      paidUntil: input.paidUntil,
+      priceMonthly: input.priceMonthly == null ? null : Math.round(input.priceMonthly * 100) / 100,
+      billingNote: input.note.trim().slice(0, 500),
+      billingReminder: "",
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.organizations.id, id))
+    .returning({ name: schema.organizations.name });
+  if (!o) throw new UserError("That organisation does not exist.");
+  const st = billingState(input, dubaiToday());
+  await platformAudit({ admin, action: "tenant.billing", orgId: id, summary: `${o.name}: ${input.plan}, ${st.label}${input.priceMonthly != null ? `, AED ${input.priceMonthly}/month` : ""}` });
+}
+
+/**
+ * A payment received for `months`: paid until moves on (lib/billing.ts extendPaidUntil), the plan becomes paid, and an
+ * organisation paused for being unpaid is active again.
+ */
+export async function recordPayment(admin: PlatformSession, id: number, months: number, reference: string): Promise<{ paidUntil: string }> {
+  if (![1, 3, 6, 12].includes(months)) throw new UserError("Pick 1, 3, 6 or 12 months.");
+  const [b] = await platformDb
+    .select({ name: schema.organizations.name, status: schema.organizations.status, pausedReason: schema.organizations.pausedReason, plan: schema.organizations.plan, trialEndsOn: schema.organizations.trialEndsOn, paidUntil: schema.organizations.paidUntil })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, id));
+  if (!b) throw new UserError("That organisation does not exist.");
+  if (b.plan === "free") throw new UserError("This organisation is on the free plan. Change its plan first.");
+  const paidUntil = extendPaidUntil(b, dubaiToday(), months);
+  const reactivate = b.status === "suspended" && b.pausedReason === "unpaid";
+  await platformDb
+    .update(schema.organizations)
+    .set({ plan: "paid", paidUntil, billingReminder: "", ...(reactivate ? { status: "active" as const, pausedReason: "" } : {}), updatedAt: new Date() })
+    .where(eq(schema.organizations.id, id));
+  await platformAudit({
+    admin,
+    action: "tenant.payment",
+    orgId: id,
+    summary: `${b.name}: payment for ${months} month${months === 1 ? "" : "s"}, paid until ${paidUntil}${reactivate ? "; reactivated" : ""}`,
+    reason: reference.trim().slice(0, 200),
+  });
+  return { paidUntil };
 }
 
 export async function setTenantPlan(admin: PlatformSession, id: number, plan: { apps: string[] | null; userLimit: number | null }) {

@@ -1,3 +1,4 @@
+import { startBillingScheduler } from "./billing";
 import { startExportScheduler } from "./exports";
 import { startFeedScheduler } from "./feeds";
 import { startMailScheduler } from "./mail";
@@ -14,7 +15,7 @@ const g = globalThis as unknown as { __workerStarted?: boolean };
 /**
  * Starts the background schedulers in this process: live feeds, mailboxes, prospect research, prospecting email,
  * newsletters, scheduled website posts, the notification rules and background downloads. The first six serve Zeronix's
- * own apps (lib/edition.ts), so the SaaS install runs only the notification rules and background downloads.
+ * own apps (lib/edition.ts); the SaaS install runs the notification rules, background downloads and billing.
  */
 export async function startWorker() {
   if (g.__workerStarted) return;
@@ -30,6 +31,8 @@ export async function startWorker() {
     startWebsiteScheduler();
   } else {
     console.log("[worker] SaaS install: Zeronix's own jobs (feeds, mail, research, outreach, newsletters, website) are off");
+    // trial and payment dates of the organisations (lib/billing.ts)
+    startBillingScheduler();
   }
   startNotifyScheduler();
   startExportScheduler();

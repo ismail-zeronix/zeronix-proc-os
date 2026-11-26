@@ -51,6 +51,18 @@ export const organizations = pgTable("organizations", {
   enabledApps: text("enabled_apps").array(),
   /** Most people the organisation may have (active users); null = no limit. */
   userLimit: integer("user_limit"),
+  // ---- billing (SaaS, manual invoices: lib/billing.ts) ----
+  /** trial (until trialEndsOn, or open when null), paid (until paidUntil), free (never ends, e.g. Zeronix itself). */
+  plan: text("plan", { enum: ["trial", "paid", "free"] }).notNull().default("trial"),
+  trialEndsOn: date("trial_ends_on"),
+  paidUntil: date("paid_until"),
+  /** What it pays a month, AED before VAT (shown in the console and the reminders); null = not set. */
+  priceMonthly: numeric("price_monthly", { precision: 12, scale: 2, mode: "number" }),
+  billingNote: text("billing_note").notNull().default(""),
+  /** Why it is paused: "unpaid" when the billing job paused it (a recorded payment then reactivates it), else "". */
+  pausedReason: text("paused_reason").notNull().default(""),
+  /** The last reminder sent (lib/billing.ts reminderFor), so each one goes once. */
+  billingReminder: text("billing_reminder").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, () => [

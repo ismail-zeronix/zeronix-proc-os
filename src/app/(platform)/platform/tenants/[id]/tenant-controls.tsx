@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { enterAction, inviteAction, setPlanAction, setStatusAction } from "../../actions";
+import { enterAction, inviteAction, recordPaymentAction, setBillingAction, setPlanAction, setStatusAction } from "../../actions";
 import { InviteLink } from "../../invite-link";
 
 /** Look inside the organisation: read only by default; changes need a reason the company will see. */
@@ -89,7 +89,7 @@ export function PlanBox({ orgId, apps, enabled, userLimit }: { orgId: number; ap
       </CardHeader>
       <CardContent className="grid gap-3">
         <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={all} onCheckedChange={(v) => setAll(!!v)} /> Every app (no plan limits)
+          <Checkbox checked={all} onCheckedChange={(v) => setAll(!!v)} /> Every core app
         </label>
         {!all && (
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -125,6 +125,144 @@ export function PlanBox({ orgId, apps, enabled, userLimit }: { orgId: number; ap
           }
         >
           Save
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Billing by manual invoice (lib/billing.ts): record a payment when it arrives (moves "paid until" on and reactivates a
+ * company paused for being unpaid), or set the plan, dates and price by hand.
+ */
+export function BillingBox({
+  orgId,
+  plan,
+  trialEndsOn,
+  paidUntil,
+  priceMonthly,
+  note,
+  stateLabel,
+  tone,
+  pausedUnpaid,
+}: {
+  orgId: number;
+  plan: "trial" | "paid" | "free";
+  trialEndsOn: string | null;
+  paidUntil: string | null;
+  priceMonthly: number | null;
+  note: string;
+  stateLabel: string;
+  tone: "ok" | "warn" | "bad";
+  pausedUnpaid: boolean;
+}) {
+  const [months, setMonths] = useState(1);
+  const [reference, setReference] = useState("");
+  const [f, setF] = useState({ plan, trialEndsOn: trialEndsOn ?? "", paidUntil: paidUntil ?? "", price: priceMonthly == null ? "" : String(priceMonthly), note });
+  const [pending, start] = useTransition();
+  const color = tone === "bad" ? "text-destructive" : tone === "warn" ? "text-amber-700 dark:text-amber-400" : "text-foreground";
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Billing</CardTitle>
+        <CardDescription>Invoice from Zeronix&apos;s own Accounts, then record the payment here. Reminders go to the company&apos;s admins 7, 3 and 1 days before; unpaid, it pauses 7 days after.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className={`text-sm font-medium ${color}`}>
+          {stateLabel}
+          {pausedUnpaid && <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-xs text-destructive">paused: unpaid</span>}
+        </div>
+        {plan !== "free" && (
+          <div className="flex flex-wrap items-end gap-2 rounded-md border p-2">
+            <div className="grid gap-1">
+              <Label htmlFor="pay-months" className="text-xs">
+                Payment received for
+              </Label>
+              <select id="pay-months" className="h-8 rounded-md border bg-background px-2 text-sm" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
+                {[1, 3, 6, 12].map((m) => (
+                  <option key={m} value={m}>
+                    {m} month{m === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid min-w-40 flex-1 gap-1">
+              <Label htmlFor="pay-ref" className="text-xs">
+                Reference (invoice number, transfer)
+              </Label>
+              <Input id="pay-ref" value={reference} onChange={(e) => setReference(e.target.value)} maxLength={200} />
+            </div>
+            <Button
+              pending={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await recordPaymentAction(orgId, months, reference);
+                  if (!r.ok) return void toast.error(r.error);
+                  setReference("");
+                  setF((x) => ({ ...x, plan: "paid", paidUntil: r.paidUntil }));
+                  toast.success(`Paid until ${r.paidUntil}.`);
+                })
+              }
+            >
+              Record payment
+            </Button>
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1 sm:col-span-2">
+            <span className="text-xs text-muted-foreground">Plan</span>
+            <div className="flex flex-wrap gap-3 text-sm">
+              {(
+                [
+                  ["trial", "Trial"],
+                  ["paid", "Paid"],
+                  ["free", "Free (never ends)"],
+                ] as const
+              ).map(([k, label]) => (
+                <label key={k} className="flex items-center gap-1.5">
+                  <input type="radio" checked={f.plan === k} onChange={() => setF({ ...f, plan: k })} /> {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="b-trial" className="text-xs">
+              Trial ends (empty = no end)
+            </Label>
+            <Input id="b-trial" type="date" value={f.trialEndsOn} onChange={(e) => setF({ ...f, trialEndsOn: e.target.value })} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="b-paid" className="text-xs">
+              Paid until
+            </Label>
+            <Input id="b-paid" type="date" value={f.paidUntil} onChange={(e) => setF({ ...f, paidUntil: e.target.value })} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="b-price" className="text-xs">
+              Monthly price, AED before VAT (optional)
+            </Label>
+            <Input id="b-price" inputMode="decimal" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value.replace(/[^\d.]/g, "") })} />
+          </div>
+          <div className="grid gap-1">
+            <Label htmlFor="b-note" className="text-xs">
+              Note (only you see it)
+            </Label>
+            <Input id="b-note" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} maxLength={500} />
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          className="w-fit"
+          pending={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await setBillingAction(orgId, { plan: f.plan, trialEndsOn: f.trialEndsOn || null, paidUntil: f.paidUntil || null, priceMonthly: f.price.trim() ? Number(f.price) : null, note: f.note });
+              if (!r.ok) return void toast.error(r.error);
+              toast.success("Billing saved.");
+            })
+          }
+        >
+          Save billing
         </Button>
       </CardContent>
     </Card>

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { UserError } from "@/lib/user-error";
 import { assertPlatform } from "@/platform/session";
-import { createTenant, enterTenant, newInvite, setTenantPlan, setTenantStatus } from "@/platform/tenants";
+import { createTenant, enterTenant, newInvite, recordPayment, setTenantBilling, setTenantPlan, setTenantStatus } from "@/platform/tenants";
 
 /** What a console form gets back: production builds hide thrown messages, so they come back as `error`. */
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -60,6 +60,37 @@ export async function setPlanAction(orgId: number, plan: { apps: string[] | null
     await setTenantPlan(admin, id.parse(orgId), { apps: plan.apps === null ? null : z.array(z.string().max(40)).max(40).parse(plan.apps), userLimit: plan.userLimit == null ? null : z.number().int().parse(plan.userLimit) });
     revalidatePath(`/platform/tenants/${orgId}`);
     return {};
+  });
+}
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-31").nullable();
+const billingSchema = z.object({
+  plan: z.enum(["trial", "paid", "free"]),
+  trialEndsOn: day,
+  paidUntil: day,
+  priceMonthly: z.number().min(0).max(1_000_000).nullable(),
+  note: z.string().max(500).default(""),
+});
+
+export async function setBillingAction(orgId: number, input: z.input<typeof billingSchema>) {
+  return run(async () => {
+    const admin = await assertPlatform();
+    const d = billingSchema.safeParse(input);
+    if (!d.success) throw new UserError(d.error.issues[0]?.message ?? "Check the form.");
+    await setTenantBilling(admin, id.parse(orgId), d.data);
+    revalidatePath(`/platform/tenants/${orgId}`);
+    revalidatePath("/platform");
+    return {};
+  });
+}
+
+export async function recordPaymentAction(orgId: number, months: number, reference: string) {
+  return run(async () => {
+    const admin = await assertPlatform();
+    const r = await recordPayment(admin, id.parse(orgId), z.number().int().parse(months), z.string().max(200).parse(reference));
+    revalidatePath(`/platform/tenants/${orgId}`);
+    revalidatePath("/platform");
+    return r;
   });
 }
 

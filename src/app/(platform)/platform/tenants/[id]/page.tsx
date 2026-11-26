@@ -3,9 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { APPS, TENANT_CORE_APPS } from "@/lib/apps";
+import { billingState } from "@/lib/billing";
+import { dubaiToday } from "@/lib/dates";
 import { requirePlatform } from "@/platform/session";
 import { getTenant } from "@/platform/tenants";
-import { EnterBox, InviteBox, PlanBox, StatusBox } from "./tenant-controls";
+import { BillingBox, EnterBox, InviteBox, PlanBox, StatusBox } from "./tenant-controls";
 
 const when = (d: Date | string | null) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dubai" }) : "-");
 
@@ -18,19 +20,31 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   const { org } = t;
   // only the core apps can be switched on: Zeronix's own apps are not offered to organisations (lib/edition.ts)
   const apps = APPS.filter((a) => TENANT_CORE_APPS.includes(a.key)).map((a) => ({ key: a.key, label: a.label }));
+  const billing = billingState(org, dubaiToday());
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold">{org.name}</h1>
         <span className="text-sm text-muted-foreground">#{org.id}</span>
-        {org.status === "active" ? <Badge variant="secondary">Active</Badge> : <Badge variant="destructive">Paused</Badge>}
+        {org.status === "active" ? <Badge variant="secondary">Active</Badge> : <Badge variant="destructive">{org.pausedReason === "unpaid" ? "Paused: unpaid" : "Paused"}</Badge>}
         <span className="ml-auto text-sm text-muted-foreground">Created {when(org.createdAt)}</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
+        <BillingBox
+          orgId={org.id}
+          plan={org.plan}
+          trialEndsOn={org.trialEndsOn}
+          paidUntil={org.paidUntil}
+          priceMonthly={org.priceMonthly}
+          note={org.billingNote}
+          stateLabel={billing.label}
+          tone={billing.tone}
+          pausedUnpaid={org.status !== "active" && org.pausedReason === "unpaid"}
+        />
+        <InviteBox orgId={org.id} />
         <EnterBox orgId={org.id} active={org.status === "active"} />
         <StatusBox orgId={org.id} status={org.status} />
         <PlanBox orgId={org.id} apps={apps} enabled={org.enabledApps} userLimit={org.userLimit} />
-        <InviteBox orgId={org.id} />
       </div>
       <Card>
         <CardHeader>

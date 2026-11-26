@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { billingState } from "@/lib/billing";
+import { dubaiToday } from "@/lib/dates";
 import { requirePlatform } from "@/platform/session";
 import { listTenants, platformHealth } from "@/platform/tenants";
 
@@ -11,6 +13,7 @@ const day = (d: Date | string | null) => (d ? new Date(d).toLocaleDateString("en
 export default async function PlatformHome() {
   await requirePlatform();
   const [tenants, health] = await Promise.all([listTenants(), platformHealth()]);
+  const today = dubaiToday();
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -42,6 +45,7 @@ export default async function PlatformHome() {
                 <TableHead>#</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Billing</TableHead>
                 <TableHead className="text-right">People</TableHead>
                 <TableHead>Last sign-in</TableHead>
                 <TableHead className="text-right">Quotes</TableHead>
@@ -59,7 +63,13 @@ export default async function PlatformHome() {
                       {t.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{t.status === "active" ? <Badge variant="secondary">Active</Badge> : <Badge variant="destructive">Paused</Badge>}</TableCell>
+                  <TableCell>{t.status === "active" ? <Badge variant="secondary">Active</Badge> : <Badge variant="destructive">{t.paused_reason === "unpaid" ? "Paused: unpaid" : "Paused"}</Badge>}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const b = billingState({ plan: t.plan, trialEndsOn: t.trial_ends_on, paidUntil: t.paid_until }, today);
+                      return <span className={`text-xs ${b.tone === "bad" ? "text-destructive" : b.tone === "warn" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{b.label}</span>;
+                    })()}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {t.users}
                     {t.user_limit ? ` / ${t.user_limit}` : ""}

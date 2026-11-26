@@ -1,4 +1,5 @@
 import { CheckInPrompt } from "@/components/attendance/check-in";
+import { BillingBanner } from "@/components/billing-notice";
 import { PunchGate } from "@/components/attendance/punch-gate";
 import { ChatWidget } from "@/components/chat/chat-widget";
 import { ExportWatcher } from "@/components/export-button";
@@ -28,6 +29,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>
       {support && <SupportBanner adminName={support.adminName} orgName={orgName} readOnly={support.readOnly} />}
+      {/* the last week of the trial or paid period, or past it: a line for the organisation's admins (SaaS only) */}
+      {!support && <BillingBanner isAdmin={user.role === "admin"} />}
       <PunchGate locked={!punchedIn} />
       <ExportWatcher />
       {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { monthLabel, pickMonth } from "@/components/attendance/attendance-card";
 import { cellLook } from "@/components/attendance/status-cell";
 import { TeamMatrix } from "@/components/attendance/team-matrix";
+import { PlanCard } from "@/components/billing-notice";
 import { PageToolbar } from "@/components/page-toolbar";
 import { StatStrip } from "@/components/stat-strip";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ export default async function AdminOverviewPage({ searchParams }: PageProps<"/ad
 
   return (
     <div className="grid gap-3">
+      {/* the organisation's plan and dates (SaaS install only) */}
+      <PlanCard />
       <PageToolbar
         title="Team today"
         meta={`Work ${formatHm(hours.start)}–${formatHm(hours.end)} · break ${formatHm(hours.breakStart)}–${formatHm(hours.breakEnd)}`}
