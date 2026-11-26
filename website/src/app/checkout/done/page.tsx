@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { OrderDone } from "@/components/store/order-done";
 
-export const metadata: Metadata = { title: "Order placed", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Order placed", robots: { index: false, follow: false }, alternates: { canonical: "/checkout/done" } };
 
 export default function OrderDonePage() {
   return (

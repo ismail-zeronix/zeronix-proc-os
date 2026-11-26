@@ -42,13 +42,16 @@ services:
       # served over HTTPS by Caddy, so the session cookie is Secure
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       # websites allowed to use the website chat widget (widget/README.md)
-      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,https://zeronixtech.com,https://www.zeronixtech.com}
+      WEBCHAT_ORIGINS: ${WEBCHAT_ORIGINS:-https://www.zeronix.ae,https://zeronix.ae,https://zeronixtech.com,https://www.zeronixtech.com,https://souqfeed.com,https://www.souqfeed.com}
       # public website zeronixtech.com (website/, WEBSITE-PLAN.md): the key the site reads /api/site/* with, the secret
       # the portal sends when it asks the site to refresh after a publish, and the site's address on site-net
       SITE_API_KEY: ${SITE_API_KEY:-}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
       SITE_INTERNAL_URL: ${SITE_INTERNAL_URL:-http://zeronix-site:3000}
       SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-https://zeronixtech.com}
+      # online payment at the site's checkout (lib/website/nomod.ts): the live Nomod Hosted Checkout key; empty = not offered
+      NOMOD_API_KEY: ${NOMOD_API_KEY:-}
+      NOMOD_API_URL: ${NOMOD_API_URL:-https://api.nomod.com/v1}
       MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-imap.hostinger.com}
       MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-993}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-smtp.hostinger.com}

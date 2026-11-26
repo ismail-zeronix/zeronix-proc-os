@@ -26,7 +26,7 @@ export function OrderActions({ id, status, note }: { id: number; status: OrderSt
     });
   const next = NEXT[status];
   return (
-    <div className="grid content-start gap-2 lg:w-60">
+    <div className="grid content-start gap-2">
       {next && (
         <Button size="sm" pending={pending} onClick={() => save(next)}>
           Mark {ORDER_LABEL[next].toLowerCase()}

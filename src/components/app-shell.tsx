@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PortalHeader } from "@/components/portal-header";
 import { getBrand } from "@/lib/brand";
+import { zeronixFeatures } from "@/lib/edition";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { NavPerms } from "@/lib/app-nav";
 import type { AppKey } from "@/lib/apps";
@@ -28,7 +29,7 @@ export async function AppShell({
   const [open, brand] = await Promise.all([(async () => (await cookies()).get("sidebar_state")?.value === "true")(), getBrand()]);
   return (
     <SidebarProvider defaultOpen={open}>
-      <AppSidebar app={app} badges={badges} perms={perms} orgName={brand.company} />
+      <AppSidebar app={app} badges={badges} perms={{ ...perms, zeronix: zeronixFeatures() }} orgName={brand.company} />
       <SidebarInset className={fill ? "h-svh overflow-hidden pb-(--mobile-nav-h)" : undefined}>
         <PortalHeader withSidebar />
         {fill ? (

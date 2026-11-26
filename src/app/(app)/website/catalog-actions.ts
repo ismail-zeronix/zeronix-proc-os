@@ -26,6 +26,7 @@ import {
   type ProductInput,
 } from "@/lib/website/catalog";
 import { SITE_ICONS } from "@/lib/website/contract";
+import { AVAILABILITY } from "@/lib/website/store-core";
 import type { ListingItem } from "@/lib/website/listing-import";
 import { revalidateSite } from "@/lib/website/revalidate";
 import type { SiteImage } from "@/lib/website/types";
@@ -137,6 +138,7 @@ const productSchema = z
     status,
     links: z.array(z.object({ industryId: z.number().int().positive(), role: text(120), label: text(80), rank: z.number().int().min(0) })).max(20),
     priceMode: z.enum(["hidden", "on_request", "public"]).optional(),
+    availability: z.enum(AVAILABILITY).optional(),
     listPrice: z
       .string()
       .trim()
@@ -252,6 +254,7 @@ const productTarget = z.union([z.object({ ids: z.array(z.number().int().positive
 const productChange = z.union([
   z.object({ op: z.enum(["publish", "draft", "archive", "sell_online", "quote_only", "delete"]) }),
   z.object({ op: z.literal("category"), categoryId: z.number().int().positive() }),
+  z.object({ op: z.literal("availability"), availability: z.enum(AVAILABILITY) }),
 ]);
 
 /** Many products at once: the ticked ones, or every product matching the list's filter ("select all N"). */

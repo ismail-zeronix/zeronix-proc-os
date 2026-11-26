@@ -8,12 +8,12 @@ import { quoteLink } from "./page-parts";
 export function CompareTable({ products, groups }: { products: SiteProductSummary[]; groups: SiteCompareResponse["groups"] }) {
   const cols = { gridTemplateColumns: `minmax(9rem,14rem) repeat(${products.length}, minmax(12rem,1fr))` };
   return (
-    <div className="overflow-x-auto rounded-frame bg-white p-2">
+    <div className="overflow-x-auto rounded-frame bg-panel p-2">
       <div className="min-w-fit">
         <div className="grid gap-2" style={cols}>
           <div />
           {products.map((p) => (
-            <div key={p.slug} className="grid content-start gap-3 rounded-card bg-sage-50 p-3">
+            <div key={p.slug} className="grid content-start gap-3 rounded-card bg-surface-soft p-3">
               <Photo src={p.image?.src} subject={`${p.name}, product shot`} ratio="4:3" sizes="25vw" />
               <Link href={`/products/${p.categorySlug}/${p.slug}`} className="font-semibold hover:underline">
                 {p.name}
@@ -31,7 +31,7 @@ export function CompareTable({ products, groups }: { products: SiteProductSummar
               <div key={r.label} className="grid gap-2 border-t border-line px-2 py-3 text-sm" style={cols}>
                 <div className="px-2 text-muted-ink">{r.label}</div>
                 {r.values.map((v, i) => (
-                  <div key={i} className="px-3 font-medium">
+                  <div key={i} className="px-3 font-semibold">
                     {v}
                   </div>
                 ))}

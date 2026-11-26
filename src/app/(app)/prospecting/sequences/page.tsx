@@ -4,20 +4,20 @@ import { PageToolbar } from "@/components/page-toolbar";
 import { Empty } from "@/components/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requireApp } from "@/lib/auth/session";
 import { ago } from "@/lib/format";
 import { listSegments } from "@/lib/prospecting/data";
 import { listSequences } from "@/lib/prospecting/outreach";
+import { requireOutreachFull } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Sequences · Zeronix Prospecting" };
+export const metadata = { title: "Sequences · Zeronix Outreach" };
 
 export default async function SequencesPage() {
-  await requireApp("prospecting");
+  await requireOutreachFull();
   const [rows, segments] = await Promise.all([listSequences(), listSegments()]);
   const seg = new Map(segments.map((s) => [s.key, s.label]));
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Sequences" meta="The emails a campaign sends: a first email, then follow-ups in the same thread until they reply">
+      <PageToolbar title="Follow-up steps" meta="The emails a campaign sends: a first email, then follow-ups in the same thread until they reply">
         <Button variant="outline" size="icon-sm" nativeButton={false} render={<Link href="/prospecting/sequences/new" />} aria-label="New sequence" title="New sequence">
           <Plus />
         </Button>

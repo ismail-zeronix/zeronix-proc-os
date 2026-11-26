@@ -1,18 +1,23 @@
 import { CtaStrip, Faq, quoteLink } from "@/components/catalog/page-parts";
-import { Hero, heroPicks } from "@/components/home/hero";
+import { Benefits, Hero, heroPicks } from "@/components/home/hero";
 import { LazyShelf } from "@/components/home/lazy-shelf";
 import { Brands, BundlesBand, CategoryShelf, CategoryTiles, Featured, HowItWorks, Industries, LatestGuides, ServicesBento, WhyUs } from "@/components/home/sections";
-import type { CategoryCardData } from "@/components/home/category-rail";
+import type { CategoryCardData } from "@/components/home/category-icons";
 import { getCategories, getCategory, getIndustries, getNav, getPosts, getProducts, getSettings } from "@/lib/api";
 import type { SiteCategoriesResponse, SiteCategoryPage, SiteProductSummary } from "@/lib/contract";
 import { formatPrice } from "@/lib/price";
+import { BRAND_SEO } from "@/lib/seo-brands";
 import { MIN_SHELF } from "@/lib/shelf";
 
 // rebuilt at most every 10 minutes, or at once when the portal publishes a change
 export const revalidate = 600;
 
-// the home page's one address (?utm_... and other query strings point back here)
-export const metadata = { alternates: { canonical: "/" } };
+// the home page's one address (?utm_... and other query strings point back here). Title under 60, description under 155.
+export const metadata = {
+  title: { absolute: "Business IT Supplier in Dubai, UAE | Zeronix Tech" },
+  description: "Business laptops, desktops, workstations, servers and networking in Dubai, UAE stock with VAT invoice. Ask for corporate pricing today.",
+  alternates: { canonical: "/" },
+};
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Ras Al Khaimah", "Fujairah", "Umm Al Quwain"];
 
@@ -55,7 +60,8 @@ function categoryCards(categories: SiteCategoriesResponse["categories"], pageOf:
       return page.brands
         .filter((b) => b.count >= 2)
         .map((b) => ({
-          href: `/products/${c.slug}?brand=${encodeURIComponent(b.slug)}`,
+          // its own indexable page where one exists ("HP business laptops"), else the filtered category
+          href: BRAND_SEO[b.slug]?.categories[c.slug] ? `/brands/${b.slug}/${c.slug}` : `/products/${c.slug}?brand=${encodeURIComponent(b.slug)}`,
           title: `${b.name} ${c.name.toLowerCase()}`,
           count: b.count,
           image: page.products.find((p) => p.brandSlug === b.slug && p.image)?.image?.src,
@@ -108,14 +114,25 @@ export default async function HomePage() {
   // the hero shows three products; the featured rail mixes categories and leaves those three out
   const picks = heroPicks(newest.products);
   const featured = featuredMix(pages, picks);
+  // desktop banners: one pictured product per banner category (priced first), not one the phone banners already show
+  const used = new Set(picks.map((p) => p.slug));
+  const bannerProducts = Object.fromEntries(
+    stocked.map((c, i) => {
+      const pictured = (pages[i]?.products ?? []).filter((p) => p.image);
+      const fresh = pictured.filter((p) => !used.has(p.slug));
+      return [c.slug, fresh.find((p) => formatPrice(p.price)) ?? fresh[0] ?? pictured[0]];
+    }),
+  );
 
   return (
-    <>
-      <Hero brand={brand} home={home} picks={picks} />
-      <CategoryTiles cards={cards} />
+    <div className="page-grey bg-page pb-4 sm:pb-6">
+      <Hero brand={brand} home={home} bannerProducts={bannerProducts} />
+      <CategoryTiles cards={cards} ctaLabel={brand.ctaLabel} />
       <Featured featured={home.featured} products={featured.length >= 4 ? featured : newest.products} />
-      {first && <CategoryShelf category={first} products={firstShelf} />}
+      <Brands brands={nav.brands} />
       <ServicesBento services={home.services} />
+      <Benefits home={home} />
+      {first && <CategoryShelf category={first} products={firstShelf} />}
       {shelf(0, 2)}
       <HowItWorks ctaLabel={brand.ctaLabel} />
       {shelf(2, 4)}
@@ -123,10 +140,9 @@ export default async function HomePage() {
       <BundlesBand bundles={home.bundles} />
       {shelf(4)}
       <LatestGuides posts={guides.posts} />
-      <WhyUs brand={brand} home={home} />
-      <Brands brands={nav.brands} />
+      <WhyUs brand={brand} home={home} brandCount={nav.brands.length} />
       <Faq items={homeFaq(brand.name)} />
       <CtaStrip title={home.ctaBand.title} text={home.ctaBand.text} quoteHref={quoteLink({})} label={brand.ctaLabel} />
-    </>
+    </div>
   );
 }

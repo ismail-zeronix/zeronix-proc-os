@@ -171,7 +171,7 @@ function pageTitle(pathname: string, orgName: string): string {
   const app = appOfPath(pathname);
   if (!app) return orgName;
   const under = (base: string) => pathname.startsWith(base + "/");
-  const item = navFor(app.key as AppKey, { accountant: true })
+  const item = navFor(app.key as AppKey, { accountant: true, zeronix: true })
     .flatMap((g) => g.items)
     .find((n) => pathname === n.href || (!n.exact && under(n.href)) || !!n.also?.some(under));
   return item && !item.exact ? item.label : app.label;

@@ -46,7 +46,7 @@ export const PORTAL: Article[] = [
             ["CRM", "Leads, deals (the pipeline), companies and contacts: everything before the customer says yes"],
             ["Sales", "Customers (companies whose deal is won), quotes and orders"],
             ["Accounts", "The accounts team: invoices, payments, supplier bills, expenses and reports"],
-            ["Procurement", "Supplier price lists and Compare prices"],
+            ["Procurement", "Every supplier's prices in one search, Share price, and the Inbox for supplier stock to check"],
             ["Projects", "Project deals: BOQ, proposal, checklist"],
           ],
         },
@@ -153,6 +153,131 @@ export const PORTAL: Article[] = [
         ],
       },
       { tip: "The VAT summary is a working paper: check zero-rated, exempt and reverse-charge items with the accountant before filing the return." },
+    ],
+  },
+  {
+    slug: "portal-claude",
+    section: "portal",
+    title: "Use Claude with ZeronixOS",
+    summary: "Connect Claude to the portal so it can read your figures, suggest what to do next and, if you allow it, add tasks, notes, leads and draft quotes.",
+    tags: ["claude", "ai", "assistant", "mcp", "connector", "admin", "sales", "how to", "setup", "disconnect"],
+    reviewed: "2026-11-24",
+    blocks: [
+      { h: "What it is" },
+      {
+        p: "Claude (claude.ai on the web, the Claude desktop app and the Claude phone app) can look at live ZeronixOS data while you chat: deals, customers, quotes, orders, tasks and supplier prices, and with the Accounts app also money owed, bills and reports. Ask it what needs attention and it answers from the real figures, with links back to the records. Admins and sales staff can connect. It uses your own claude.ai plan, so there is nothing extra to pay to Zeronix.",
+      },
+      {
+        p: "Claude sees exactly what you see in the portal. A salesperson on Own deals sees only the deals they are on, and gets no money or report tools without the Accounts app. Admins and All data users see everything.",
+      },
+      { h: "Connect it (once)" },
+      {
+        ol: [
+          "Open claude.ai and go to Settings → Connectors → Add custom connector.",
+          "Name: ZeronixOS. Address: https://zeronixos.online/api/mcp. Press Add.",
+          "Press Connect. The ZeronixOS sign-in page opens; sign in with your own account (never someone else's).",
+          "On the next page, Read is always on. Tick Write only if you want Claude to be able to add or change records. Press Allow.",
+          "Done. The connector now also works in the Claude desktop and phone apps under the same claude.ai account.",
+        ],
+      },
+      {
+        p: "Claude Code (for developers): run claude mcp add --transport http zeronix https://zeronixos.online/api/mcp, then type /mcp in Claude Code and sign in the same way.",
+      },
+      { h: "Things to ask" },
+      {
+        ul: [
+          "What needs my attention today?",
+          "Which customers owe us money for more than 60 days, and how much?",
+          "Which deals have gone quiet this week? Suggest a follow-up for each.",
+          "Show the profit and loss for last month and compare it with the month before.",
+          "Which supplier bills are due in the next 7 days?",
+          "What does (customer name) have open with us: deals, quotes and unpaid invoices?",
+          "Find the best supplier price for a Dell Latitude 5450.",
+          "Add a follow-up task for me on that deal for Thursday. (needs Write)",
+          "Make a draft quote for that deal with 10 laptops at the price we discussed. (needs Write)",
+        ],
+      },
+      { h: "What Claude can and cannot do" },
+      {
+        table: {
+          head: ["", "What"],
+          rows: [
+            ["Read (always)", "Business overview, search, your deals, customers, quotes, sales orders, your tasks, supplier prices, the team. With Accounts: money owed, bills due, reports (P&L, balance sheet, cash flow, ageing, sales, VAT and more). With Website: web shop orders"],
+            ["Write (only if you ticked Write)", "Create a task or follow-up, add a note or log a call, update a deal (stage, value, close date, won or lost), add a lead or a new customer, make a DRAFT quote"],
+            ["Never", "Delete anything, post invoices, payments, bills or journals, send emails or WhatsApp to customers, send a quote"],
+          ],
+        },
+      },
+      {
+        ul: [
+          "Claude asks you in the chat before every change. The change is saved in your name, exactly as if you made it in the portal, with the same checks.",
+          "Sales staff must be punched in for Claude to make changes, the same as in the portal. Reading works any time.",
+          "Notes and timeline entries Claude adds end with (via Claude), so the team can see where they came from.",
+          "Draft quotes stay drafts: check the prices and send them yourself from Sales → Quotes.",
+          "Claude can be wrong. Check figures that matter (VAT, payroll, large amounts) in the portal before acting on them.",
+        ],
+      },
+      { h: "See what it did, and disconnect" },
+      {
+        ul: [
+          "Admins: Admin → Claude lists who is connected, read or read + write, and when it was last used.",
+          "The same page shows every change Claude made: when, by whose connection, and what.",
+          "Disconnect on that page cuts Claude off at once. To connect again, press Connect in claude.ai.",
+          "Sales staff: to disconnect, ask an admin, or change your password (that disconnects Claude everywhere).",
+          "Changing your password, Sign out everywhere, or a deactivated account also disconnects Claude.",
+        ],
+      },
+      { h: "If something goes wrong" },
+      {
+        table: {
+          head: ["You see", "Do this"],
+          rows: [
+            ["Claude asks you to sign in again", "Normal after a disconnect, a password change, or 90 days without use. Press Connect and sign in."],
+            ["Not available on the sign-in page", "Your account cannot connect Claude. Ask an admin."],
+            ["Claude says to punch in first", "Punch in in the portal (the clock at the top), then ask Claude again."],
+            ["Claude says it cannot make changes", "You connected with Read only. Disconnect (an admin can do it in Admin → Claude), then connect again and tick Write."],
+            ["Claude cannot find a deal or customer", "It is probably not one of yours. Claude sees what you see in the portal."],
+            ["Payroll questions are not answered", "Payroll is not connected to Claude yet; it is coming in a later update."],
+          ],
+        },
+      },
+    ],
+  },
+  {
+    slug: "portal-supplier-stock",
+    section: "portal",
+    title: "Supplier stock from WhatsApp (Procurement)",
+    summary: "Claude reads the suppliers' WhatsApp messages and files them in Procurement; you search prices and share them with customers.",
+    tags: ["procurement", "supplier", "whatsapp", "stock", "price list", "claude", "inbox", "share price", "broadcast"],
+    reviewed: "2026-11-24",
+    blocks: [
+      { h: "How stock comes in" },
+      {
+        ol: [
+          "In Chrome, open WhatsApp Web. Ask Claude (with the Zeronix OS connector) to push the new stock messages of a group or chat. Procurement → Search → How stock comes in has a prompt to copy.",
+          "Claude checks when that chat was last pushed, reads only newer messages, and sends one line per product.",
+          "Clear lines are saved at once and show in Search. Claude tells you what was saved, what is new, which prices changed and what needs a check.",
+          "Distributors' Excel sheets: the upload button next to the search box.",
+        ],
+      },
+      { h: "How suppliers are told apart" },
+      {
+        ul: [
+          "By their WhatsApp number first, then by the name WhatsApp shows. A supplier's numbers and names are on the supplier's page, WhatsApp tab.",
+          "A message from someone we do not know waits in the Inbox: choose the supplier (or add a new one) once, and everything from them goes in by itself from then on.",
+          "The same broadcast sent again is not saved twice; its prices just count as given again that day.",
+          "Added a supplier twice? Supplier page → WhatsApp → Merge into another supplier (not when Accounts has bills for it).",
+        ],
+      },
+      { h: "Sending prices to a customer" },
+      {
+        ol: [
+          "Search for the products in Procurement and tick them.",
+          "Press Share price, type your price for each one (the best supplier price shows as a reminder), and copy the message into WhatsApp.",
+          "The message never contains supplier names or supplier prices.",
+        ],
+      },
+      { tip: "Lines without a brand or a model, or that look like a product we already have, wait in the Inbox. Check them there so Search stays clean." },
     ],
   },
 ];

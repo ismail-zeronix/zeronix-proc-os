@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Action, Tag } from "@/components/brand/action";
 import { ProductCard } from "@/components/brand/cards";
+import { GRID_COLS } from "@/components/brand/skeleton";
 import { Photo } from "@/components/brand/photo";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { SiteFaqItem, SiteProductSummary } from "@/lib/contract";
@@ -23,7 +24,7 @@ export function Breadcrumbs({ items, onDark = false }: { items: Crumb[]; onDark?
   return (
     <>
       <nav aria-label="Breadcrumb">
-        <ol className={cn("flex flex-wrap items-center gap-1 text-sm", onDark ? "text-white/60" : "text-muted-ink")}>
+        <ol className={cn("flex flex-wrap items-center gap-1 text-xs sm:text-sm", onDark ? "text-white/60" : "text-muted-ink")}>
           {all.map((c, i) => (
             <li key={c.href} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="size-3.5 opacity-60" aria-hidden />}
@@ -52,8 +53,9 @@ export function Breadcrumbs({ items, onDark = false }: { items: Crumb[]; onDark?
 }
 
 /**
- * Header of an inner page: a sage frame with breadcrumbs, tag, title and lead, and a photo on the right when there is
- * one (or a labelled slot when `photoSubject` is given).
+ * Header of an inner page: a surface frame with breadcrumbs, tag, title and lead, and a photo on the right when there is
+ * one (or a labelled slot when `photoSubject` is given). `mosaic`: four product pictures on white tiles instead, for a
+ * category that has no photo of its own.
  */
 export function PageHero({
   crumbs,
@@ -62,6 +64,7 @@ export function PageHero({
   lead,
   photo,
   photoSubject,
+  mosaic,
   actions,
 }: {
   crumbs: Crumb[];
@@ -70,23 +73,33 @@ export function PageHero({
   lead?: string;
   photo?: string;
   photoSubject?: string;
+  mosaic?: string[];
   actions?: React.ReactNode;
 }) {
-  const withPhoto = Boolean(photo || photoSubject);
+  const tiles = !photo && mosaic && mosaic.length >= 4 ? mosaic.slice(0, 4) : null;
+  const withPhoto = Boolean(photo || photoSubject || tiles);
   return (
-    <section className="frame mt-2 bg-sage-100">
-      <div className={cn("container-site grid gap-6 py-6 sm:py-8", withPhoto && "items-center lg:grid-cols-[1.4fr_1fr]")}>
-        <div className="grid content-start gap-3 sm:gap-4">
+    <section className="frame mt-2 bg-surface">
+      <div className={cn("container-site grid gap-4 py-4 sm:gap-6 sm:py-8", withPhoto && "items-center lg:grid-cols-[1.4fr_1fr]")}>
+        <div className="grid content-start gap-2 sm:gap-4">
           <Breadcrumbs items={crumbs} />
-          {tag && <Tag>{tag}</Tag>}
-          <h1 className="text-2xl leading-tight font-medium tracking-tight text-ink sm:text-3xl">{title}</h1>
-          {lead && <p className="max-w-xl text-lead text-muted-ink">{lead}</p>}
-          {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
+          {tag && <Tag className="hidden sm:inline-flex">{tag}</Tag>}
+          <h1 className="text-h1 text-ink">{title}</h1>
+          {lead && <p className="line-clamp-2 max-w-xl text-lead text-muted-ink sm:line-clamp-none">{lead}</p>}
+          {actions && <div className="mt-1 flex flex-wrap gap-2 sm:mt-0 sm:gap-3">{actions}</div>}
         </div>
-        {withPhoto && (
-          <div className="hidden lg:block">
-            <Photo src={photo} subject={photoSubject ?? title} ratio="21:9" priority sizes="40vw" className="rounded-card" />
+        {tiles ? (
+          <div className="hidden grid-cols-4 gap-2 lg:grid">
+            {tiles.map((src, i) => (
+              <Photo key={src} src={src} subject={title} ratio="1:1" sizes="120px" className="rounded-inner bg-panel [&_img]:object-contain [&_img]:p-2" />
+            ))}
           </div>
+        ) : (
+          withPhoto && (
+            <div className="hidden lg:block">
+              <Photo src={photo} subject={photoSubject ?? title} ratio="21:9" sizes="40vw" className="rounded-card" />
+            </div>
+          )
         )}
       </div>
     </section>
@@ -96,15 +109,15 @@ export function PageHero({
 export function ProductTile({ p, label }: { p: SiteProductSummary; label?: string }) {
   return (
     <div className="relative h-full">
-      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-lime-400 px-2 py-0.5 text-[0.6875rem] font-semibold text-forest-950">{label}</span>}
-      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} />
+      {label && <span className="absolute top-3 left-3 z-10 rounded-full bg-cta px-2 py-0.5 text-[0.6875rem] font-semibold text-on-brand">{label}</span>}
+      <ProductCard href={`/products/${p.categorySlug}/${p.slug}`} brand={p.brand || p.category} name={p.name} specs={p.keySpecs} photo={p.image?.src} price={formatPrice(p.price, p.currency)} buy={p.price} mpn={p.mpn} stock={p.availability} />
     </div>
   );
 }
 
-export function ProductGrid({ products, labels }: { products: SiteProductSummary[]; labels?: Record<string, string> }) {
+export function ProductGrid({ products, labels, cols = GRID_COLS }: { products: SiteProductSummary[]; labels?: Record<string, string>; cols?: string }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className={cols}>
       {products.map((p) => (
         <ProductTile key={p.slug} p={p} label={labels?.[p.slug]} />
       ))}
@@ -116,13 +129,13 @@ export function ProductGrid({ products, labels }: { products: SiteProductSummary
 export function Faq({ items, title = "Questions we get asked" }: { items: SiteFaqItem[]; title?: string }) {
   if (!items.length) return null;
   return (
-    <section className="container-site grid gap-4 py-8 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
+    <section className="container-site grid gap-3 py-5 sm:gap-4 sm:py-10 lg:grid-cols-[1fr_2fr] lg:gap-8">
       <h2 className="text-h2">{title}</h2>
-      <Accordion className="rounded-card border border-line/70 bg-white px-4 sm:px-5">
+      <Accordion className="rounded-card border border-line/70 bg-panel px-4 sm:px-5">
         {items.map((f, i) => (
           <AccordionItem key={f.q} value={`q${i}`}>
-            <AccordionTrigger className="py-3.5 text-sm font-semibold sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
-            <AccordionContent className="pb-4 text-muted-ink">{f.a}</AccordionContent>
+            <AccordionTrigger className="py-3 text-[0.8125rem] font-semibold sm:py-3.5 sm:text-[0.9375rem]">{f.q}</AccordionTrigger>
+            <AccordionContent className="pb-3 text-[0.8125rem] text-muted-ink sm:pb-4 sm:text-sm">{f.a}</AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>
@@ -137,16 +150,16 @@ export function Faq({ items, title = "Questions we get asked" }: { items: SiteFa
   );
 }
 
-/** The B2B action strip at the end of catalog pages: forest frame, the action already filled in for this page. */
+/** The B2B action strip at the end of catalog pages: navy frame, the action already filled in for this page. */
 export function CtaStrip({ title, text, quoteHref, label }: { title: string; text: string; quoteHref: string; label: string }) {
   return (
-    <section className="frame mb-4 bg-forest-900 text-white">
-      <div className="container-site flex flex-col gap-5 py-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
+    <section className="frame mb-4 bg-band text-white">
+      <div className="container-site flex flex-col gap-3 py-5 sm:gap-5 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
           <h2 className="text-h2 text-white">{title}</h2>
-          <p className="mt-2 text-white/70">{text}</p>
+          <p className="mt-1 text-[0.8125rem] text-white/85 sm:mt-2 sm:text-base">{text}</p>
         </div>
-        <Action href={quoteHref} size="lg" track="cta-strip">
+        <Action href={quoteHref} size="lg" variant="light" track="cta-strip">
           {label}
         </Action>
       </div>

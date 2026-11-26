@@ -107,15 +107,26 @@ export function NotifySettings({
                         {r.mode === "timer" ? (
                           <NumberCell value={c.limit} onChange={(v) => set(r.key, { limit: v })} suffix={unit(r)} disabled={off} />
                         ) : (
-                          <span className="text-xs text-muted-foreground">{r.mode === "moment" ? "Time set on the deal" : "Date on the record"}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {r.mode === "moment" ? "Time set on the deal" : r.mode === "daily" ? (r.key === "no_eod_report" ? "Checked each morning" : "Checked through the day") : "Date on the record"}
+                          </span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <NumberCell value={c.warn} onChange={(v) => set(r.key, { warn: v })} suffix={r.mode === "date" ? "days" : "hours"} disabled={off} />
-                      </TableCell>
-                      <TableCell>
-                        <NumberCell value={c.escalate} onChange={(v) => set(r.key, { escalate: v })} suffix={r.mode === "moment" ? "work h" : unit(r)} disabled={off} />
-                      </TableCell>
+                      {r.mode === "daily" ? (
+                        <>
+                          <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>
+                            <NumberCell value={c.warn} onChange={(v) => set(r.key, { warn: v })} suffix={r.mode === "date" ? "days" : "hours"} disabled={off} />
+                          </TableCell>
+                          <TableCell>
+                            <NumberCell value={c.escalate} onChange={(v) => set(r.key, { escalate: v })} suffix={r.mode === "moment" ? "work h" : unit(r)} disabled={off} />
+                          </TableCell>
+                        </>
+                      )}
                       <TableCell className="text-xs text-muted-foreground">{r.to}</TableCell>
                     </TableRow>
                   );

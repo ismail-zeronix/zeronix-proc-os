@@ -1,13 +1,16 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { WorkHours } from "@/lib/attendance";
+import { dubaiMinutes, isOffDay, type WorkHours } from "@/lib/attendance";
 import { workHours } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
+import { markMissedCheckIns, missedToday } from "@/lib/check-in";
+import { callsNudge, CHECKIN_MISSED_AFTER_MIN, dayFraction, minuteAtFraction } from "@/lib/routine";
+import { routineUsers } from "@/lib/routine-data";
 import { getSetting } from "@/lib/settings";
 import { notify, resolveExcept } from "./index";
 import { alertTitle, dateTimeline, momentTimeline, ruleConfigs, RULES, stepAt, timerTimeline, type RuleConfig, type RuleKey, type Timeline } from "./rules";
-import { shiftDay } from "./work-time";
+import { dayAt, shiftDay } from "./work-time";
 
 /**
  * The rule checker the worker runs every few minutes. For each rule it finds the records that match, works out which
@@ -31,6 +34,8 @@ interface Hit {
   timeline: Timeline;
   /** Starts at High even for the heads-up (a high-priority task). */
   urgent?: boolean;
+  /** Extra part of the alert key for alerts that repeat on the same record (the sales routine: per day, per idle spell). */
+  keyPart?: string;
 }
 
 type Row = Record<string, unknown>;
@@ -39,7 +44,7 @@ const ids = (v: unknown): number[] => (Array.isArray(v) ? v.map(Number).filter((
 const date = (v: unknown) => (v instanceof Date ? v : new Date(String(v)));
 const dayText = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
 
-async function hitsFor(rule: RuleKey, cfg: RuleConfig, h: WorkHours, today: string): Promise<Hit[]> {
+async function hitsFor(rule: RuleKey, cfg: RuleConfig, h: WorkHours, today: string, now: Date): Promise<Hit[]> {
   const deal = (r: Row, timeline: Timeline): Hit => ({
     recordType: "deal",
     recordId: Number(r.id),
@@ -50,6 +55,12 @@ async function hitsFor(rule: RuleKey, cfg: RuleConfig, h: WorkHours, today: stri
     timeline,
   });
   switch (rule) {
+    case "idle_while_punched_in":
+    case "day_behind_target":
+    case "no_eod_report":
+    case "checkin_missed":
+      return routineHits(rule, cfg, h, today, now);
+
     case "lead_not_contacted":
       return (
         await rows(sql`SELECT d.id, d.title, c.name AS company, d.created_at AS start, ${TEAM} AS team
@@ -143,6 +154,111 @@ async function hitsFor(rule: RuleKey, cfg: RuleConfig, h: WorkHours, today: stri
   }
 }
 
+const hm = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/**
+ * The sales routine nudges (lib/routine.ts): people on the routine who are punched in and idle, or behind on calls,
+ * get them in their own bell; a missing end-of-day report for the last working day goes to the admins (no userIds).
+ */
+export async function routineHits(
+  rule: "idle_while_punched_in" | "day_behind_target" | "no_eod_report" | "checkin_missed",
+  cfg: RuleConfig,
+  h: WorkHours,
+  today: string,
+  now: Date,
+): Promise<Hit[]> {
+  const people = await routineUsers();
+  if (!people.length) return [];
+  const list = sql.join(
+    people.map((p) => sql`${p.id}`),
+    sql`, `,
+  );
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const hit = (id: number, subject: string, body: string, link: string, timeline: Timeline, keyPart: string, toAdmins = false): Hit => ({
+    recordType: "user",
+    recordId: id,
+    userIds: toAdmins ? [] : [id],
+    subject,
+    body,
+    link,
+    timeline,
+    keyPart,
+  });
+
+  if (rule === "checkin_missed") {
+    return (await missedToday(now))
+      .filter((m) => byId.has(m.userId))
+      .map((m) => {
+        const p = byId.get(m.userId)!;
+        const at = new Date(m.dueAt.getTime() + CHECKIN_MISSED_AFTER_MIN * 60_000);
+        return hit(
+          p.id,
+          `${p.name}, ${hm(m.dueAt)}`,
+          m.answeredAt ? `Answered late, at ${hm(m.answeredAt)}.` : "Rang 3 times with no answer.",
+          `/admin/users/${p.id}`,
+          { warnAt: null, dueAt: at, lateAt: null },
+          String(m.dueAt.getTime()),
+          true,
+        );
+      });
+  }
+
+  if (rule === "no_eod_report") {
+    let day = shiftDay(today, -1);
+    for (let i = 0; i < 7 && isOffDay(day, h); i++) day = shiftDay(day, -1);
+    const missing = await rows(sql`SELECT DISTINCT p.user_id FROM attendance_punches p
+      WHERE p.day = ${day}::date AND p.user_id IN (${list})
+        AND NOT EXISTS (SELECT 1 FROM daily_reports r WHERE r.user_id = p.user_id AND r.day = p.day)`);
+    const due = dayAt(today, h.start);
+    return missing.map((r) => {
+      const p = byId.get(Number(r.user_id))!;
+      return hit(p.id, `${p.name} (${day})`, "Worked that day but sent no end-of-day report.", `/admin/users/${p.id}`, { warnAt: null, dueAt: due, lateAt: null }, day, true);
+    });
+  }
+
+  // the other two only while someone is punched in on a working day
+  if (isOffDay(today, h)) return [];
+  const midnight = dayAt(today, 0);
+  const open = await rows(sql`SELECT p.user_id, max(p.in_at) AS in_at,
+      (SELECT max(a.at) FROM activities a WHERE a.user_id = p.user_id AND a.at >= ${midnight}) AS deal_last,
+      (SELECT max(x.created_at) FROM prospect_activities x WHERE x.user_id = p.user_id AND x.created_at >= ${midnight}) AS prospect_last,
+      (SELECT count(*) FROM activities a WHERE a.user_id = p.user_id AND a.type = 'call' AND a.at >= ${midnight})::int
+        + (SELECT count(*) FROM prospect_activities x WHERE x.user_id = p.user_id AND x.kind = 'call' AND x.created_at >= ${midnight})::int AS calls
+    FROM attendance_punches p WHERE p.day = ${today}::date AND p.out_at IS NULL AND p.user_id IN (${list})
+    GROUP BY p.user_id`);
+
+  if (rule === "idle_while_punched_in") {
+    return open.map((r) => {
+      const p = byId.get(Number(r.user_id))!;
+      const since = new Date(Math.max(...[r.in_at, r.deal_last, r.prospect_last].filter(Boolean).map((v) => date(v).getTime())));
+      return hit(
+        p.id,
+        `nothing since ${hm(since)}`,
+        "Pick the next one on My Day: a follow-up, a call, a new prospect.",
+        "/?view=day",
+        timerTimeline(since, cfg, "hours", h),
+        `${today}:${since.getTime()}`,
+      );
+    });
+  }
+
+  const fraction = dayFraction(dubaiMinutes(now), h);
+  const out: Hit[] = [];
+  for (const r of open) {
+    const p = byId.get(Number(r.user_id))!;
+    const calls = Number(r.calls);
+    const step = callsNudge(calls, p.targets.callsDay, fraction);
+    if (!step) continue;
+    const timeline: Timeline = {
+      warnAt: null,
+      dueAt: dayAt(today, minuteAtFraction(1 / 3, h)),
+      lateAt: step === "late" ? dayAt(today, minuteAtFraction(2 / 3, h)) : null,
+    };
+    out.push(hit(p.id, `${calls} of ${p.targets.callsDay}`, "Your call list is on My Day: call, pick how it went, next.", "/?view=day", timeline, today));
+  }
+  return out;
+}
+
 const g = globalThis as unknown as { __notifyScanning?: boolean };
 
 /** Runs every rule once. Returns how many bell lines were added and how many alerts were resolved. */
@@ -159,6 +275,8 @@ export async function runScan(now = new Date()): Promise<{ added: number; resolv
         .where(and(eq(schema.users.role, "admin"), eq(schema.users.isActive, true))),
     ]);
     const configs = ruleConfigs(saved);
+    // sales routine: check-ins nobody answered become "missed" first, so the checkin_missed rule sees them
+    await markMissedCheckIns(now).catch((e) => console.error("check-in scan failed", e));
     const today = dubaiToday(now);
     let added = 0;
     let resolved = 0;
@@ -166,10 +284,10 @@ export async function runScan(now = new Date()): Promise<{ added: number; resolv
       const cfg = configs[rule.key];
       const keep = new Set<string>();
       if (cfg.enabled) {
-        for (const hit of await hitsFor(rule.key, cfg, h, today)) {
+        for (const hit of await hitsFor(rule.key, cfg, h, today, now)) {
           const step = stepAt(hit.timeline, now);
           if (!step) continue;
-          const key = `${rule.key}:${hit.recordType}:${hit.recordId}:${step}`;
+          const key = `${rule.key}:${hit.recordType}:${hit.recordId}${hit.keyPart ? `:${hit.keyPart}` : ""}:${step}`;
           const userIds = hit.userIds.length ? hit.userIds : admins.map((a) => a.id);
           for (const u of userIds) keep.add(`${u}|${key}`);
           const priority = hit.urgent && step === "warn" ? "high" : rule.priority[step];

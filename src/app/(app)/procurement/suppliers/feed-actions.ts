@@ -21,7 +21,7 @@ const feedSchema = z.object({
 function refresh(supplierId: number) {
   revalidatePath(`/procurement/suppliers/${supplierId}`);
   revalidatePath("/procurement/suppliers");
-  revalidatePath("/procurement/compare");
+  revalidatePath("/procurement");
   revalidatePath("/procurement/price-lists");
   revalidatePath("/");
 }

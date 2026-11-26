@@ -6,6 +6,9 @@ import { requireApp } from "@/lib/auth/session";
 import { listCategories } from "@/lib/website/catalog";
 import { StatusBulkActions } from "../bulk-actions";
 import { FillButton } from "../industries/fill-button";
+import { GamingButton } from "./gaming-button";
+import { SeoCategoriesButton } from "./seo-button";
+import { SEO_CATEGORY_SLUGS } from "@/lib/website/seo-starter";
 import { DataTable } from "@/components/data-table";
 import { StatusBadge } from "../status-badge";
 import { LIST_PAGE } from "@/components/list-page";
@@ -25,6 +28,8 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/websi
         <span className="text-xs text-muted-foreground">Each one decides which specs its products show, compare and filter on</span>
         <div className="ml-auto flex gap-2">
           {user.role === "admin" && <FillButton kind="category" />}
+          {user.role === "admin" && !all.some((c) => c.slug === "gaming-pcs") && <GamingButton />}
+          {user.role === "admin" && SEO_CATEGORY_SLUGS.some((s) => !all.some((c) => c.slug === s)) && <SeoCategoriesButton />}
           <Button size="sm" nativeButton={false} render={<Link href="/website/categories/new" />}>
             <Plus /> New category
           </Button>

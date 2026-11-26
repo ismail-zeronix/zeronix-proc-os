@@ -11,6 +11,7 @@ import { isEmail } from "@/lib/mail/compose";
 import { DISQUALIFY_REASONS, MANUAL_STATUSES, SUPPRESSION_REASONS, domainOf, isSignal, isStatus, statusLabel, type StatusKey } from "@/lib/prospecting/constants";
 import { IMPORT_FIELDS, importedEmailStatus, rowToProspect, type ImportMapping } from "@/lib/prospecting/import";
 import { guessIndustry } from "@/lib/prospecting/industry";
+import { assertOutreachFull, assertProspects, companyOfPerson, companyOfSignal } from "@/lib/prospecting/access";
 import { attempt, Problem, type Result } from "@/lib/prospecting/result";
 import { rescoreIn } from "@/lib/prospecting/rescore";
 import { latestResearch, queueResearch, researchQueue, RUNNING, stopQueuedResearch, type ResearchQueue } from "@/lib/prospecting/research";
@@ -115,7 +116,7 @@ export async function createProspect(input: ProspectInput & { sourceKey?: string
 
 export async function updateProspect(companyId: number, input: ProspectInput) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertProspects([companyId]);
     await mustExist(companyId);
     const d = parseInput(prospectSchema, input);
     const cols = columns(d);
@@ -132,7 +133,7 @@ export async function updateProspect(companyId: number, input: ProspectInput) {
 
 export async function deleteProspect(companyId: number) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     if (me.role !== "admin") throw new Problem("Only an admin can delete a prospect. Disqualify it instead.");
     await db.delete(schema.prospectCompanies).where(eq(schema.prospectCompanies.id, companyId));
     refresh();
@@ -148,8 +149,8 @@ const statusSchema = z.object({
 /** Moves prospects to a status by hand (one or many). Disqualifying needs a reason; "Not now" needs a date. */
 export async function setProspectStatus(ids: number[], input: z.input<typeof statusSchema>) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
     const list = parseInput(z.array(id).min(1).max(1000), ids);
+    const { me } = await assertProspects(list);
     const d = parseInput(statusSchema, input);
     if (d.status === "disqualified" && !DISQUALIFY_REASONS.includes(d.reason as (typeof DISQUALIFY_REASONS)[number])) throw new Problem("Pick why it is disqualified");
     if (d.status === "not_now" && (!d.snoozeUntil || d.snoozeUntil <= dubaiToday())) throw new Problem("Pick a date in the future to look again");
@@ -173,7 +174,7 @@ export async function setProspectStatus(ids: number[], input: z.input<typeof sta
 
 export async function setProspectOwner(ids: number[], ownerId: number | null) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const list = parseInput(z.array(id).min(1).max(1000), ids);
     await db.update(schema.prospectCompanies).set({ ownerId: ownerId ? id.parse(ownerId) : null, updatedAt: new Date() }).where(inArray(schema.prospectCompanies.id, list));
     refresh();
@@ -183,7 +184,7 @@ export async function setProspectOwner(ids: number[], ownerId: number | null) {
 /** The hook for the first email. Keep it to one or two sentences about them, not about us. */
 export async function savePersonalLine(companyId: number, line: string) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertProspects([companyId]);
     await mustExist(companyId);
     const v = parseInput(z.string().trim().max(400, "Keep the personal line under 400 characters"), line);
     await db.update(schema.prospectCompanies).set({ personalLine: v, updatedAt: new Date() }).where(eq(schema.prospectCompanies.id, companyId));
@@ -193,7 +194,7 @@ export async function savePersonalLine(companyId: number, line: string) {
 
 export async function addProspectNote(companyId: number, body: string) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const { me } = await assertProspects([companyId]);
     await mustExist(companyId);
     await log(companyId, me.id, "note", z.string().trim().min(1, "Write the note").max(4000).parse(body));
     refresh();
@@ -224,7 +225,7 @@ async function onlyPrimary(companyId: number, personId: number) {
 
 export async function addPerson(companyId: number, input: PersonInput) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const { me } = await assertProspects([companyId]);
     await mustExist(companyId);
     const d = parseInput(personSchema, input);
     const n = await db.$count(schema.prospectPeople, eq(schema.prospectPeople.companyId, companyId));
@@ -241,7 +242,7 @@ export async function addPerson(companyId: number, input: PersonInput) {
 
 export async function updatePerson(personId: number, input: PersonInput) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertProspects([await companyOfPerson(personId)]);
     const d = parseInput(personSchema, input);
     const [row] = await db.update(schema.prospectPeople).set(d).where(eq(schema.prospectPeople.id, personId)).returning({ companyId: schema.prospectPeople.companyId });
     if (!row) throw new Problem("That person no longer exists.");
@@ -253,7 +254,7 @@ export async function updatePerson(personId: number, input: PersonInput) {
 
 export async function deletePerson(personId: number) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertProspects([await companyOfPerson(personId)]);
     const [row] = await db.delete(schema.prospectPeople).where(eq(schema.prospectPeople.id, personId)).returning({ companyId: schema.prospectPeople.companyId });
     if (row) await rescore(row.companyId);
     refresh();
@@ -272,7 +273,7 @@ export type SignalInput = z.input<typeof signalSchema>;
 
 export async function addSignal(companyId: number, input: SignalInput) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const { me } = await assertProspects([companyId]);
     await mustExist(companyId);
     const d = parseInput(signalSchema, input);
     if (d.observedOn > dubaiToday()) throw new Problem("The date cannot be in the future");
@@ -285,7 +286,7 @@ export async function addSignal(companyId: number, input: SignalInput) {
 
 export async function deleteSignal(signalId: number) {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertProspects([await companyOfSignal(signalId)]);
     const [row] = await db.delete(schema.prospectSignals).where(eq(schema.prospectSignals.id, signalId)).returning({ companyId: schema.prospectSignals.companyId });
     if (row) await rescore(row.companyId);
     refresh();
@@ -314,7 +315,7 @@ export interface ImportResult {
 /** Adds the rows of a checked file. Rows without a company name are skipped; companies already in the list are not added again. */
 export async function commitImport(input: z.input<typeof importSchema>): Promise<Result<ImportResult>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const d = parseInput(importSchema, input);
     const map = d.mapping as ImportMapping;
     if (map.name === undefined || map.name < 0) throw new Problem("Choose which column has the company name");
@@ -399,7 +400,7 @@ export async function commitImport(input: z.input<typeof importSchema>): Promise
 /** Blocks an email address or a whole domain from every campaign. Accepts "a@b.ae", "b.ae" or a website. */
 export async function addSuppression(input: { value: string; reason?: string; note?: string }) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const raw = parseInput(z.string().trim().toLowerCase().min(3, "Enter an email or a domain").max(254), input.value);
     const reason = parseInput(z.enum(SUPPRESSION_REASONS).default("manual"), input.reason || undefined);
     const note = parseInput(text(300), input.note ?? "");
@@ -422,7 +423,7 @@ export async function addSuppression(input: { value: string; reason?: string; no
 
 export async function removeSuppression(suppressionId: number) {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const [row] = await db.select({ reason: schema.outreachSuppression.reason }).from(schema.outreachSuppression).where(eq(schema.outreachSuppression.id, suppressionId));
     // someone who unsubscribed asked us to stop: only an admin may undo that
     if (row && (row.reason === "unsubscribe" || row.reason === "complaint") && me.role !== "admin") throw new Problem("Only an admin can remove an unsubscribe or a complaint.");
@@ -503,8 +504,8 @@ export async function updateSource(sourceId: number, input: SourceInput) {
 /** Queues research for one prospect or a selection: "site" reads the website only, "ai" adds the AI steps. */
 export async function startResearch(ids: number[], mode: "site" | "ai" = "site"): Promise<Result<number>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
     const list = parseInput(z.array(id).min(1, "Pick at least one prospect").max(200, "Research up to 200 prospects at a time"), ids);
+    const { me } = await assertProspects(list);
     const n = await queueResearch(list, me.id, z.enum(["site", "ai"]).parse(mode));
     if (!n) throw new Problem(list.length === 1 ? "Research is already running for this prospect." : "Research is already running for these prospects.");
     refresh();
@@ -532,7 +533,7 @@ export async function researchProgress(): Promise<Result<ResearchQueue>> {
 /** Stops the research runs that have not started yet. */
 export async function stopResearch(): Promise<Result<number>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const n = await stopQueuedResearch();
     if (!n) throw new Problem("Nothing is waiting; the runs being read now will finish.");
     refresh();
@@ -543,7 +544,7 @@ export async function stopResearch(): Promise<Result<number>> {
 /** Puts a found email or phone on the company (replacing what is there). */
 export async function applyFinding(companyId: number, kind: "email" | "phone", value: string): Promise<Result<void>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const { me } = await assertProspects([companyId]);
     await mustExist(companyId);
     const v = kind === "email" ? emailField.parse(value) : z.string().trim().min(7, "That phone number is too short").max(40).parse(value);
     await db

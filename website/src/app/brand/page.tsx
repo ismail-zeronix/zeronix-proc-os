@@ -5,27 +5,28 @@ import { Logo, LogoMark } from "@/components/brand/logo";
 import { Photo } from "@/components/brand/photo";
 
 /** The brand system, live (BRAND.md). Not linked and not indexed: a reference for whoever builds the next page. */
-export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Brand system", robots: { index: false, follow: false }, alternates: { canonical: "/brand" } };
 
 const COLOURS = [
-  { name: "forest-950", hex: "#03201A", use: "Deepest: footer, text on lime", cls: "bg-forest-950 text-white" },
-  { name: "forest-900", hex: "#06352B", use: "Dark bands, dark buttons", cls: "bg-forest-900 text-white" },
-  { name: "forest-800", hex: "#0B4A3B", use: "Cards on dark, hover", cls: "bg-forest-800 text-white" },
-  { name: "forest-700", hex: "#12614C", use: "Links, icons on light", cls: "bg-forest-700 text-white" },
-  { name: "lime-400", hex: "#B9F23F", use: "Primary CTA fill", cls: "bg-lime-400 text-forest-950" },
-  { name: "mint-300", hex: "#4FF0B4", use: "Highlights on dark", cls: "bg-mint-300 text-forest-950" },
-  { name: "sage-100", hex: "#E6F1E0", use: "Light cards, image wells", cls: "bg-sage-100 text-forest-950" },
-  { name: "sage-50", hex: "#F0F5EC", use: "Alternate sections", cls: "bg-sage-50 text-forest-950" },
-  { name: "paper", hex: "#F6F6F1", use: "Page background", cls: "bg-paper text-forest-950 border border-line" },
-  { name: "ink", hex: "#0C1F1A", use: "Body text", cls: "bg-ink text-white" },
-  { name: "muted", hex: "#5A6B65", use: "Secondary text", cls: "bg-muted-ink text-white" },
-  { name: "line", hex: "#DCE3DB", use: "Borders, dividers", cls: "bg-line text-forest-950" },
+  { name: "cta", hex: "#0f9d58", use: "Header bar, large green fills", cls: "bg-cta text-on-brand" },
+  { name: "brand-900", hex: "#0a8443", use: "Buttons, links, active states", cls: "bg-brand-900 text-on-brand" },
+  { name: "brand-800", hex: "#087236", use: "Hover on green", cls: "bg-brand-800 text-on-brand" },
+  { name: "brand-700", hex: "#0b8f47", use: "Icons and accents", cls: "bg-brand-700 text-white" },
+  { name: "brand-950", hex: "#05532a", use: "Deep green text on tints", cls: "bg-brand-950 text-white" },
+  { name: "highlight", hex: "#d6f5e3", use: "Mint: badges, text on green", cls: "bg-highlight text-brand-950" },
+  { name: "surface", hex: "#e8f5ee", use: "Icon circles, soft cards", cls: "bg-surface text-brand-950" },
+  { name: "surface-soft", hex: "#f5f6f8", use: "Grey wells and steps", cls: "bg-surface-soft text-ink" },
+  { name: "page", hex: "#f2f3f5", use: "Home page background", cls: "bg-page text-ink border border-line" },
+  { name: "canvas", hex: "#ffffff", use: "Panels and pages", cls: "bg-canvas text-ink border border-line" },
+  { name: "ink", hex: "#1d2330", use: "Body text, slate banner", cls: "bg-ink text-white" },
+  { name: "muted", hex: "#666e7a", use: "Secondary text", cls: "bg-muted-ink text-white" },
+  { name: "line", hex: "#e5e7eb", use: "Borders, dividers", cls: "bg-line text-ink" },
 ];
 
 function Block({ n, title, children }: { n: string; title: string; children: React.ReactNode }) {
   return (
     <section className="container-site border-t border-line py-6 sm:py-8">
-      <p className="text-sm font-semibold text-forest-700">{n}</p>
+      <p className="text-sm font-semibold text-brand-700">{n}</p>
       <h2 className="mt-1 text-3xl">{title}</h2>
       <div className="mt-5">{children}</div>
     </section>
@@ -35,17 +36,17 @@ function Block({ n, title, children }: { n: string; title: string; children: Rea
 export default function BrandPage() {
   return (
     <>
-      {/* hero sample: the Finovate frame with a photo, white headline, lime action and floating UI chips */}
-      <section className="frame relative mt-3 bg-forest-900 text-white">
+      {/* hero sample */}
+      <section className="frame relative mt-3 bg-band text-white">
         <div className="relative grid min-h-[34rem] lg:grid-cols-2">
           <div className="relative z-10 flex flex-col justify-center gap-7 p-8 sm:p-12 lg:p-16">
             <Tag onDark>Corporate IT for UAE businesses</Tag>
             <h1 className="max-w-xl text-display text-white">
-              Business IT, matched to <span className="text-mint-300">your industry.</span>
+              Business IT, matched to <span className="text-highlight">your industry.</span>
             </h1>
             <p className="max-w-md text-lead text-white/70">Laptops, desktops, workstations and servers for the way your team works. UAE stock, local warranty, corporate pricing.</p>
             <div className="flex flex-wrap gap-3">
-              <Action href="/quote" size="lg">
+              <Action href="/quote" size="lg" variant="light">
                 Get B2B pricing
               </Action>
               <Action href="/#industries" size="lg" variant="onDark" arrow={false}>
@@ -63,19 +64,19 @@ export default function BrandPage() {
 
       <div className="container-site py-6 sm:py-8">
         <Tag>Brand system</Tag>
-        <h1 className="mt-5 max-w-3xl text-h2">The rules every page of zeronixtech.com follows.</h1>
-        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. Warm paper, forest-green bands, lime for action, mint for highlights on dark. Medium-weight headings, pill controls, rounded frames, real photography.</p>
+        <h1 className="mt-5 max-w-3xl text-h1">The rules every page of zeronixtech.com follows.</h1>
+        <p className="mt-4 max-w-2xl text-lead text-muted-ink">Written in website/BRAND.md. A bright green store in the noon.com style: green header, grey home page with white panels, slate text, rectangular buttons, icon categories. No lime, no dark-green bands, no gradients.</p>
       </div>
 
       <Block n="01" title="Logo">
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="grid h-40 place-items-center rounded-card bg-white">
+          <div className="grid h-40 place-items-center rounded-card bg-panel">
             <Logo />
           </div>
-          <div className="grid h-40 place-items-center rounded-card bg-forest-900">
+          <div className="grid h-40 place-items-center rounded-card bg-cta">
             <Logo onDark />
           </div>
-          <div className="grid h-40 place-items-center gap-2 rounded-card bg-lime-400">
+          <div className="grid h-40 place-items-center gap-2 rounded-card bg-surface">
             <LogoMark className="size-16" />
           </div>
         </div>
@@ -84,7 +85,7 @@ export default function BrandPage() {
       <Block n="02" title="Colour">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {COLOURS.map((c) => (
-            <div key={c.name} className="overflow-hidden rounded-card bg-white">
+            <div key={c.name} className="overflow-hidden rounded-card bg-panel">
               <div className={`h-24 ${c.cls} flex items-end p-3 text-xs font-semibold`}>{c.hex}</div>
               <div className="p-3">
                 <p className="text-sm font-semibold">{c.name}</p>
@@ -93,18 +94,18 @@ export default function BrandPage() {
             </div>
           ))}
         </div>
-        <p className="mt-6 text-sm text-muted-ink">About 60% paper and white, 25% forest, 10% sage, 5% lime or mint. Lime is a fill, never text on light. No blue, purple, glows or gradient text.</p>
+        <p className="mt-6 text-sm text-muted-ink">About 70% white and grey, 20% green, 10% mint and slate. Green text only in the darker brand-900 shade; white text on green fills. No lime, purple, glows or gradients.</p>
       </Block>
 
       <Block n="03" title="Typography">
-        <div className="grid gap-8 rounded-card bg-white p-8">
+        <div className="grid gap-8 rounded-card bg-panel p-8">
           <div>
             <p className="text-xs text-muted-ink">Display · Manrope 500</p>
-            <p className="font-heading text-display font-medium">Business IT, matched to your industry.</p>
+            <p className="font-heading text-display font-semibold">Business IT, matched to your industry.</p>
           </div>
           <div>
             <p className="text-xs text-muted-ink">H2 · Manrope 500</p>
-            <p className="font-heading text-h2 font-medium">Every team works differently.</p>
+            <p className="font-heading text-h2 font-semibold">Every team works differently.</p>
           </div>
           <div>
             <p className="text-xs text-muted-ink">H3 · Manrope 600</p>
@@ -126,7 +127,7 @@ export default function BrandPage() {
 
       <Block n="04" title="Buttons, tags, icons">
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="flex flex-wrap items-center gap-3 rounded-card bg-white p-8">
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-panel p-8">
             <Action href="/quote">Get B2B pricing</Action>
             <Action href="/guides" variant="dark">
               Read the guide
@@ -140,8 +141,8 @@ export default function BrandPage() {
             <Tag>Who we are</Tag>
             <IconBadge name="laptop" />
           </div>
-          <div className="flex flex-wrap items-center gap-3 rounded-card bg-forest-900 p-8">
-            <Action href="/quote">Get B2B pricing</Action>
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-band p-8">
+            <Action href="/quote" variant="light">Get B2B pricing</Action>
             <Action href="/products" variant="onDark" arrow={false}>
               All products
             </Action>
@@ -158,7 +159,7 @@ export default function BrandPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <FeatureCard href="/about" tag="Who we are" title="The UAE partner for business IT, matched to the work" subject="Our team with a client, office setting" />
           <AccentCard href="/industries/real-estate" tag="Industry" title="Best laptops for real estate agents in the UAE" subject="Agent showing a property on a light laptop" />
-          <FeatureCard href="/guides" tag="Guide" title="Workstations for architects: what really matters" tone="sage" subject="Architect at a dual-monitor workstation" />
+          <FeatureCard href="/guides" tag="Guide" title="Workstations for architects: what really matters" tone="surface" subject="Architect at a dual-monitor workstation" />
         </div>
       </Block>
 
@@ -171,7 +172,7 @@ export default function BrandPage() {
         </div>
       </Block>
 
-      <section className="frame bg-forest-900 py-8 sm:py-10">
+      <section className="frame bg-band py-8 sm:py-10">
         <div className="container-site">
           <SectionHeading onDark rule tag="Dark band" title="Strategic setups that fit how your teams work" />
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -201,7 +202,7 @@ export default function BrandPage() {
       <Block n="08" title="Photo slots">
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
           <Photo subject="Hero: UAE office team around a table with business laptops" ratio="16:9" />
-          <Photo subject="Product shot: laptop three-quarter view on sage" ratio="1:1" />
+          <Photo subject="Product shot: laptop three-quarter view on a light background" ratio="1:1" />
         </div>
         <p className="mt-6 max-w-2xl text-sm text-muted-ink">Until a real photo is uploaded, each slot names the subject and the ratio. The full list for the home page is in BRAND.md section 9.</p>
       </Block>

@@ -5,20 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cart, cartTotal, useCart } from "@/lib/cart";
+import { deliveryFee, toFreeDelivery, useStoreInfo, type Payment } from "@/lib/store-info";
 import { cn } from "@/lib/utils";
 import { CartView } from "./cart-view";
-import { Field, input, priceText, Totals } from "./fields";
+import { aed, Field, FreeDeliveryBar, input, priceText, Totals, TrustNotes } from "./fields";
 
-type Payment = "request" | "cod" | "bank";
-interface StoreInfo {
-  payments: Payment[];
-  bankDetails: string;
-  deliveryNote: string;
-  signIn: boolean;
-}
 
 const EMIRATES = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
 const PAY_LABEL: Record<Payment, { title: string; text: string }> = {
+  card: { title: "Pay online now", text: "Card, Apple Pay or Google Pay on Nomod's secure payment page." },
   request: { title: "Order request", text: "We confirm your order and send a payment link or invoice." },
   cod: { title: "Cash or card on delivery", text: "Pay the driver when your order arrives." },
   bank: { title: "Bank transfer", text: "Bank details are shown after you order." },
@@ -28,7 +23,7 @@ const PAY_LABEL: Record<Payment, { title: string; text: string }> = {
 export function CheckoutForm() {
   const router = useRouter();
   const items = useCart();
-  const [store, setStore] = useState<StoreInfo | null>(null);
+  const store = useStoreInfo();
   const [signedIn, setSignedIn] = useState<string | null>(null);
   const [f, setF] = useState({ name: "", email: "", phone: "", company: "", trn: "", delivery: "delivery" as "delivery" | "pickup", emirate: "Dubai", area: "", street: "", payment: "request" as Payment, notes: "", website: "" });
   const [error, setError] = useState("");
@@ -36,14 +31,6 @@ export function CheckoutForm() {
   const patch = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
 
   useEffect(() => {
-    fetch("/api/store")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s: StoreInfo | null) => {
-        if (!s) return;
-        setStore(s);
-        setF((x) => ({ ...x, payment: s.payments.includes(x.payment) ? x.payment : (s.payments[0] ?? "request") }));
-      })
-      .catch(() => {});
     fetch("/api/account")
       .then((r) => (r.ok ? r.json() : null))
       .then((a) => {
@@ -57,6 +44,11 @@ export function CheckoutForm() {
 
   if (!items.length) return <CartView />;
   const total = cartTotal(items);
+  // a way to pay the store no longer offers falls back to the first one it does
+  const payment: Payment = store && !store.payments.includes(f.payment) ? (store.payments[0] ?? "request") : f.payment;
+  const rules = store?.delivery;
+  const fee = deliveryFee(rules, total, f.delivery, f.emirate);
+  const left = f.delivery === "delivery" ? toFreeDelivery(rules, total) : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +66,7 @@ export function CheckoutForm() {
         trn: f.trn,
         delivery: f.delivery,
         address: f.delivery === "delivery" ? { emirate: f.emirate, area: f.area, street: f.street } : { emirate: "", area: "", street: "" },
-        payment: f.payment,
+        payment,
         notes: f.notes,
         website: f.website,
       }),
@@ -83,19 +75,26 @@ export function CheckoutForm() {
     setSending(false);
     if (!res?.ok) return setError(data?.error ?? "We could not place the order. Please try again or call us.");
     cart.clear();
-    router.push(`/checkout/done?n=${encodeURIComponent(data.number)}&pay=${data.payment}&total=${data.total}`);
+    // online payment: on to Nomod's page; it sends the customer back to /checkout/done, which checks the payment
+    if (data.payment === "card" && typeof data.payUrl === "string" && /^https?:\/\//.test(data.payUrl)) {
+      setSending(true);
+      window.location.assign(data.payUrl);
+      return;
+    }
+    const q = new URLSearchParams({ n: data.number, pay: data.payment, total: data.total, ...(data.token ? { t: data.token } : {}) });
+    router.push(`/checkout/done?${q}`);
   };
 
   return (
     <form onSubmit={submit} className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="grid gap-4">
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-semibold text-ink">Your details</h2>
             {signedIn ? (
               <span className="text-xs text-muted-ink">Signed in as {signedIn}</span>
             ) : store?.signIn ? (
-              <Link href="/account?next=/checkout" className="text-xs font-semibold text-forest-800 hover:text-forest-950">
+              <Link href="/account?next=/checkout" className="text-xs font-semibold text-brand-800 hover:text-brand-950">
                 Have an account? Sign in
               </Link>
             ) : null}
@@ -119,7 +118,7 @@ export function CheckoutForm() {
           </div>
         </section>
 
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <h2 className="text-base font-semibold text-ink">Delivery</h2>
           <div className="grid grid-cols-2 gap-2">
             {(["delivery", "pickup"] as const).map((d) => (
@@ -127,9 +126,10 @@ export function CheckoutForm() {
                 key={d}
                 type="button"
                 onClick={() => patch({ delivery: d })}
-                className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", f.delivery === d ? "border-forest-900 bg-sage-50 font-semibold text-ink" : "border-line text-muted-ink hover:border-forest-700")}
+                className={cn("rounded-xl border px-3 py-2.5 text-left text-sm", f.delivery === d ? "border-brand-900 bg-surface-soft font-semibold text-ink" : "border-line text-muted-ink hover:border-brand-700")}
               >
-                {d === "delivery" ? "Deliver to me" : "Collect from our office"}
+                <span className="block">{d === "delivery" ? "Deliver to me" : "Collect from our office"}</span>
+                <span className="text-xs font-normal text-muted-ink">{d === "pickup" || !rules ? "Free" : deliveryFee(rules, total, "delivery", f.emirate) ? aed(deliveryFee(rules, total, "delivery", f.emirate)) : "Free"}</span>
               </button>
             ))}
           </div>
@@ -155,12 +155,12 @@ export function CheckoutForm() {
           {store?.deliveryNote && <p className="text-xs text-muted-ink">{store.deliveryNote}</p>}
         </section>
 
-        <section className="grid gap-3 rounded-card border border-line/70 bg-white p-4">
+        <section className="grid gap-3 rounded-card border border-line/70 bg-panel p-4">
           <h2 className="text-base font-semibold text-ink">Payment</h2>
           <div className="grid gap-2">
             {(store?.payments ?? ["request"]).map((p) => (
-              <label key={p} className={cn("flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-sm", f.payment === p ? "border-forest-900 bg-sage-50" : "border-line hover:border-forest-700")}>
-                <input type="radio" name="payment" className="mt-1 accent-forest-900" checked={f.payment === p} onChange={() => patch({ payment: p })} />
+              <label key={p} className={cn("flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-sm", payment === p ? "border-brand-900 bg-surface-soft" : "border-line hover:border-brand-700")}>
+                <input type="radio" name="payment" className="mt-1 accent-brand-900" checked={payment === p} onChange={() => patch({ payment: p })} />
                 <span>
                   <span className="block font-semibold text-ink">{PAY_LABEL[p].title}</span>
                   <span className="text-xs text-muted-ink">{PAY_LABEL[p].text}</span>
@@ -175,12 +175,12 @@ export function CheckoutForm() {
         </section>
       </div>
 
-      <aside className="grid gap-3 rounded-card border border-line/70 bg-white p-4 lg:sticky lg:top-32">
+      <aside className="grid gap-3 rounded-card border border-line/70 bg-panel p-4 lg:sticky lg:top-16">
         <h2 className="text-base font-semibold text-ink">Your order</h2>
         <ul className="grid gap-2">
           {items.map((i) => (
             <li key={i.slug} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-2 text-sm">
-              <span className="relative size-12 overflow-hidden rounded-inner border border-line/60 bg-white">{i.image && <Image src={i.image} alt="" fill sizes="48px" className="object-contain p-0.5" />}</span>
+              <span className="relative size-12 overflow-hidden rounded-inner border border-line/60 bg-panel">{i.image && <Image src={i.image} alt="" fill sizes="48px" className="object-contain p-0.5" />}</span>
               <span className="line-clamp-2 leading-snug">
                 <span className="font-semibold tabular-nums">{i.qty} ×</span> {i.name}
               </span>
@@ -188,14 +188,16 @@ export function CheckoutForm() {
             </li>
           ))}
         </ul>
-        <Totals total={total} />
+        {left !== null && rules && <FreeDeliveryBar left={left} threshold={rules.freeAbove} />}
+        <Totals goods={total} delivery={f.delivery === "pickup" ? "pickup" : rules ? fee : undefined} />
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-full bg-lime-400 px-6 text-base font-semibold text-forest-950 transition-colors hover:bg-lime-500 disabled:opacity-60">
-          {sending ? "Placing your order…" : "Place order"}
+        <button type="submit" disabled={sending} className="inline-flex h-12 items-center justify-center rounded-lg bg-brand-900 px-6 text-[0.9375rem] font-semibold text-on-brand transition-colors hover:bg-brand-800 disabled:opacity-60">
+          {payment === "card" ? (sending ? "Opening secure payment…" : "Pay now") : sending ? "Placing your order…" : "Place order"}
         </button>
-        <Link href="/cart" className="text-center text-xs font-semibold text-forest-800 hover:text-forest-950">
+        <Link href="/cart" className="text-center text-xs font-semibold text-brand-800 hover:text-brand-950">
           Edit cart
         </Link>
+        <TrustNotes />
       </aside>
     </form>
   );

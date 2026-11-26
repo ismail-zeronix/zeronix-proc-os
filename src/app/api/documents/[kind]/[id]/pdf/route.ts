@@ -22,10 +22,11 @@ async function fileName(kind: string, id: number, credit: boolean, creditId: num
   if (kind === "debit-note") return (await db.select({ number: schema.debitNotes.number }).from(schema.debitNotes).where(eq(schema.debitNotes.id, id)))[0]?.number ?? `Debit note ${id}`;
   if (kind === "receipt") return (await db.select({ number: schema.payments.number }).from(schema.payments).where(eq(schema.payments.id, id)))[0]?.number ?? `Receipt ${id}`;
   if (kind === "payment-voucher") return (await db.select({ number: schema.supplierPayments.number }).from(schema.supplierPayments).where(eq(schema.supplierPayments.id, id)))[0]?.number ?? `Voucher ${id}`;
+  if (kind === "payslip") return (await db.select({ number: schema.payslips.number, name: schema.payslips.employeeName }).from(schema.payslips).where(eq(schema.payslips.id, id)))[0]?.number ?? `Payslip ${id}`;
   return `Statement ${(await db.select({ name: schema.companies.name }).from(schema.companies).where(eq(schema.companies.id, id)))[0]?.name ?? id}`;
 }
 
-const KINDS = new Set(["invoice", "receipt", "payment-voucher", "statement", "debit-note", "refund"]);
+const KINDS = new Set(["invoice", "receipt", "payment-voucher", "statement", "debit-note", "refund", "payslip"]);
 
 /**
  * A money document as a PDF, the file the print page gives. The print page opens with the user's own session, so who may

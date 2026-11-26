@@ -29,7 +29,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState("");
 
   return (
-    <div className="mx-auto grid w-full max-w-sm gap-4 rounded-card border border-line/70 bg-white p-5">
+    <div className="mx-auto grid w-full max-w-sm gap-4 rounded-card border border-line/70 bg-panel p-5">
       <div>
         <h1 className="text-xl font-semibold text-ink">Sign in</h1>
         <p className="mt-1 text-sm text-muted-ink">{step === "email" ? "We email you a 6-digit code. No password needed." : `Enter the code we sent to ${email}.`}</p>
@@ -57,11 +57,11 @@ function SignIn({ onDone }: { onDone: () => void }) {
           </Field>
         )}
         {msg && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">{msg}</p>}
-        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-full bg-lime-400 px-5 text-sm font-semibold text-forest-950 hover:bg-lime-500 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-on-brand hover:bg-brand-800 disabled:opacity-60">
           {busy ? "Please wait…" : step === "email" ? "Email me a code" : "Sign in"}
         </button>
         {step === "code" && (
-          <button type="button" className="text-xs font-semibold text-forest-800" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
+          <button type="button" className="text-xs font-semibold text-brand-800" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
             Use another email or send a new code
           </button>
         )}
@@ -77,7 +77,7 @@ function Profile({ account, onSaved }: { account: Account; onSaved: () => void }
   const patch = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   return (
     <form
-      className="grid gap-3 rounded-card border border-line/70 bg-white p-4"
+      className="grid gap-3 rounded-card border border-line/70 bg-panel p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         const res = await fetch("/api/account", {
@@ -119,10 +119,10 @@ function Profile({ account, onSaved }: { account: Account; onSaved: () => void }
         </Field>
       </div>
       <div className="flex items-center gap-3">
-        <button type="submit" className="inline-flex h-10 items-center rounded-full bg-forest-900 px-5 text-sm font-semibold text-white hover:bg-forest-800">
+        <button type="submit" className="inline-flex h-10 items-center rounded-lg bg-brand-900 px-5 text-sm font-semibold text-on-brand hover:bg-brand-800">
           Save
         </button>
-        {msg && <span className={cn("text-sm", msg.ok ? "text-forest-700" : "text-red-700")}>{msg.text}</span>}
+        {msg && <span className={cn("text-sm", msg.ok ? "text-brand-700" : "text-red-700")}>{msg.text}</span>}
       </div>
     </form>
   );
@@ -159,22 +159,22 @@ export function AccountView() {
             <h1 className="text-xl font-semibold text-ink">My account</h1>
             <p className="text-sm text-muted-ink">{account.customer.email}</p>
           </div>
-          <button type="button" onClick={async () => (await post({ action: "logout" }), setAccount(null))} className="inline-flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm font-semibold text-forest-900 hover:border-forest-900">
+          <button type="button" onClick={async () => (await post({ action: "logout" }), setAccount(null))} className="inline-flex h-10 items-center gap-2 rounded-lg border border-line px-4 text-sm font-semibold text-brand-900 hover:border-brand-900">
             <LogOut className="size-4" /> Sign out
           </button>
         </div>
         <Profile account={account} onSaved={load} />
       </div>
-      <section className="grid gap-2 rounded-card border border-line/70 bg-white p-4">
+      <section className="grid gap-2 rounded-card border border-line/70 bg-panel p-4">
         <h2 className="text-base font-semibold text-ink">My orders</h2>
         {account.orders.length === 0 && <p className="text-sm text-muted-ink">No orders yet.</p>}
         <ul className="grid gap-2">
           {account.orders.map((o) => (
             <li key={o.number} className="grid gap-1 rounded-xl border border-line/70 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <Package className="size-4 text-forest-700" />
+                <Package className="size-4 text-brand-700" />
                 <span className="font-semibold">{o.number}</span>
-                <span className="rounded-full bg-sage-100 px-2 py-0.5 text-xs font-semibold text-forest-900">{STATUS[o.status] ?? o.status}</span>
+                <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-brand-900">{STATUS[o.status] ?? o.status}</span>
                 <span className="ml-auto font-semibold tabular-nums">{aed(o.total)}</span>
               </div>
               <p className="line-clamp-2 text-xs text-muted-ink">{o.items.map((i) => `${i.qty} × ${i.name}`).join(", ")}</p>

@@ -56,7 +56,8 @@ const dealColumns = {
   stageChangedAt: schema.deals.stageChangedAt,
   createdAt: schema.deals.createdAt,
   closedAt: schema.deals.closedAt,
-  nextDue: sql<string | null>`(SELECT min(t.due_date)::text FROM tasks t WHERE t.related_type = 'deal' AND t.related_id = ${schema.deals.id} AND t.status = 'open')`,
+  // the earlier of the deal's follow-up day and its first open task
+  nextDue: sql<string | null>`(SELECT least(min(t.due_date), (${schema.deals.followUpAt} AT TIME ZONE 'Asia/Dubai')::date)::text FROM tasks t WHERE t.related_type = 'deal' AND t.related_id = ${schema.deals.id} AND t.status = 'open')`,
   lastActivityAt: sql<string | null>`(SELECT max(a.at) FROM activities a WHERE a.deal_id = ${schema.deals.id})`,
 };
 
@@ -150,6 +151,7 @@ export async function dealActivities(dealId: number) {
       id: schema.activities.id,
       type: schema.activities.type,
       body: schema.activities.body,
+      outcome: schema.activities.outcome,
       at: schema.activities.at,
       userName: sql<string>`coalesce(${schema.users.name}, '')`,
     })

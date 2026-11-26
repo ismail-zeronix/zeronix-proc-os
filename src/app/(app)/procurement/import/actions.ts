@@ -1,77 +1,16 @@
 "use server";
 
-import { and, eq, ne, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
 import { CURRENCIES } from "@/lib/fx";
-import { CATEGORIES, offerDraftSchema, type OfferDraft } from "@/lib/llm/schema";
+import { CATEGORIES, offerDraftSchema, type OfferDraft } from "@/lib/offer-draft";
 import { attachMatches } from "@/lib/products";
-import { SUPPLIER_TYPE_KEYS, supplierType } from "@/lib/supplier-types";
-import { searchNormFor, upsertProductFor } from "@/lib/products";
-import { getSetting } from "@/lib/settings";
+import { SUPPLIER_TYPE_KEYS } from "@/lib/supplier-types";
+import { insertOffers } from "@/lib/procurement/offers";
 import { parseInput, UserError } from "@/lib/user-error";
-
-const createSchema = z.object({
-  supplierId: z.coerce.number().int().positive().optional(),
-  newSupplierName: z.string().trim().max(120).optional(),
-  newSupplierType: z.enum(SUPPLIER_TYPE_KEYS).optional(),
-  receivedAt: z.string().optional(),
-  rawText: z.string().trim().min(10, "Paste the supplier message first.").max(100_000),
-});
-
-export async function createPriceList(input: z.input<typeof createSchema>) {
-  const user = await assertApp("procurement");
-  const data = parseInput(createSchema, input);
-
-  let supplierId = data.supplierId;
-  if (!supplierId) {
-    const name = data.newSupplierName?.trim();
-    if (!name) throw new UserError("Choose a supplier or type a new supplier name.");
-    const [existing] = await db
-      .select({ id: schema.suppliers.id })
-      .from(schema.suppliers)
-      .where(sql`lower(${schema.suppliers.name}) = lower(${name})`);
-    supplierId =
-      existing?.id ??
-      (
-        await db
-          .insert(schema.suppliers)
-          .values({
-            name,
-            type: data.newSupplierType ?? "other",
-            defaultCurrency: supplierType(data.newSupplierType).currency,
-          })
-          .returning({ id: schema.suppliers.id })
-      )[0].id;
-  }
-
-  const receivedAt = data.receivedAt ? new Date(data.receivedAt) : new Date();
-  const [pl] = await db
-    .insert(schema.priceLists)
-    .values({
-      supplierId,
-      rawText: data.rawText,
-      receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,
-      createdBy: user.id,
-      status: "queued",
-    })
-    .returning({ id: schema.priceLists.id });
-
-  revalidatePath("/procurement/price-lists");
-  // the list waits in the queue until an admin has started AI reading (Admin page)
-  return { id: pl.id, aiRunning: (await getSetting("ai_running")) === "true" };
-}
-
-export async function reparsePriceList(id: number) {
-  await assertApp("procurement");
-  await db
-    .update(schema.priceLists)
-    .set({ status: "queued", error: null, progressDone: 0, drafts: null })
-    .where(and(eq(schema.priceLists.id, id), ne(schema.priceLists.status, "saved")));
-  revalidatePath("/procurement/price-lists");
-}
 
 export async function deletePriceList(id: number) {
   const user = await assertApp("procurement");
@@ -80,37 +19,7 @@ export async function deletePriceList(id: number) {
   if (pl.status === "saved" && user.role !== "admin") throw new UserError("Only an admin can delete a saved price list.");
   await db.delete(schema.priceLists).where(eq(schema.priceLists.id, id));
   revalidatePath("/procurement/price-lists");
-  revalidatePath("/procurement/compare");
-}
-
-const EDITABLE: (keyof OfferDraft)[] = [
-  "category", "brand", "modelName", "partNumber", "cpu", "ramGb", "storage", "display", "gpu", "os", "extras", "price",
-];
-
-function toFewShotItem(d: OfferDraft) {
-  return {
-    block: 0, category: d.category, brand: d.brand, model_name: d.modelName, part_number: d.partNumber,
-    cpu: d.cpu, ram: d.ramGb ? `${d.ramGb}GB` : "", storage: d.storage, display: d.display, gpu: d.gpu,
-    os: d.os, extras: d.extras, price: d.price,
-  };
-}
-
-/** Blocks the user corrected become few-shot examples for this supplier's next paste. */
-function corrections(original: OfferDraft[], edited: OfferDraft[]) {
-  const byKey = new Map(original.map((d) => [d.key, d]));
-  const changedBlocks = new Set<string>();
-  for (const d of edited) {
-    const o = byKey.get(d.key);
-    if (!o) continue;
-    if (!d.include || EDITABLE.some((f) => JSON.stringify(o[f]) !== JSON.stringify(d[f]))) changedBlocks.add(d.rawText);
-  }
-  return [...changedBlocks]
-    .filter((raw) => raw.length > 0 && raw.length < 800)
-    .slice(0, 3)
-    .map((raw) => ({
-      input: `[#0]\n${raw}`,
-      output: JSON.stringify({ items: edited.filter((d) => d.include && d.rawText === raw).map(toFewShotItem) }),
-    }));
+  revalidatePath("/procurement");
 }
 
 export async function savePriceList(id: number, draftsInput: OfferDraft[]) {
@@ -125,49 +34,17 @@ export async function savePriceList(id: number, draftsInput: OfferDraft[]) {
   if (pl.pl.status === "saved") throw new UserError("This price list is already saved.");
 
   const included = drafts.filter((d) => d.include);
-  const fewShots = corrections(pl.pl.drafts ?? [], drafts);
 
   await db.transaction(async (tx) => {
-    for (const d of included) {
-      const productId = await upsertProductFor(d, tx);
-      await tx.insert(schema.offers).values({
-        priceListId: id,
-        supplierId: pl.pl.supplierId,
-        productId,
-        category: d.category,
-        brand: d.brand,
-        modelName: d.modelName,
-        partNumber: d.partNumber,
-        cpu: d.cpu,
-        ramGb: d.ramGb,
-        storage: d.storage,
-        display: d.display,
-        gpu: d.gpu,
-        os: d.os,
-        extras: d.extras,
-        condition: d.condition,
-        price: d.price,
-        currency: d.currency || "AED",
-        priceBasis: d.priceBasis,
-        stockNote: d.stockNote,
-        rawText: d.rawText,
-        confidence: d.confidence,
-        searchNorm: searchNormFor(d, pl.supplierName),
-        receivedAt: pl.pl.receivedAt,
-      });
-    }
-    if (fewShots.length) {
-      await tx.insert(schema.parseCorrections).values(fewShots.map((f) => ({ supplierId: pl.pl.supplierId, ...f })));
-    }
+    await insertOffers(tx, { priceListId: id, supplierId: pl.pl.supplierId, supplierName: pl.supplierName, receivedAt: pl.pl.receivedAt }, included);
     await tx
       .update(schema.priceLists)
       .set({ status: "saved", savedAt: new Date(), drafts })
       .where(eq(schema.priceLists.id, id));
   });
 
-  revalidatePath("/procurement/price-lists");
-  revalidatePath("/procurement/compare");
-  return { saved: included.length, learned: fewShots.length };
+  revalidatePath("/procurement", "layout");
+  return { saved: included.length };
 }
 
 const MAX_EXCEL_ROWS = 5000;

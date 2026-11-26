@@ -15,7 +15,7 @@ html[data-pdf=body] [data-pdf-cover]{display:none!important}
 
 export function ProposalPrintFrame({ back, label, note, pdfHref, children }: { back: string; label: string; note?: string; pdfHref?: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-neutral-100 px-3 py-4 print:bg-white print:p-0">
+    <div className="min-h-screen bg-muted px-3 py-4 print:bg-white print:p-0">
       {/* data-page-css: the PDF maker swaps this for its own page rules when it prints the body */}
       <style data-page-css>{CSS}</style>
       <PrintBar dealHref={back} number={label} pdfHref={pdfHref} />

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertApp } from "@/lib/auth/session";
+import { assertOutreachFull } from "@/lib/prospecting/access";
 import { dubaiToday } from "@/lib/dates";
 import { pickedIds, recipientsFor, sendingCapacity, UNSORTED } from "@/lib/prospecting/campaign-builder";
 import { enroll } from "@/lib/prospecting/outreach";
@@ -24,7 +25,7 @@ export type PickInput = z.input<typeof pickSchema>;
 /** The prospects a choice covers, with who each would be emailed at. */
 export async function previewPick(input: PickInput): Promise<Result<{ count: number; rows: Awaited<ReturnType<typeof recipientsFor>> }>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const ids = await pickedIds(pickSchema.parse(input));
     return { count: ids.length, rows: await recipientsFor(ids.slice(0, 6)) };
   });
@@ -54,7 +55,7 @@ export interface Sample {
 /** Writes one real example email with AI (not saved), so people can see and adjust the style before launching. */
 export async function sampleEmail(input: SampleInput): Promise<Result<Sample>> {
   return attempt(async () => {
-    await assertApp("prospecting");
+    await assertOutreachFull();
     const d = parseInput(sampleSchema, input);
     const ids = await pickedIds(d, d.index + 1);
     const id = ids[Math.min(d.index, ids.length - 1)];
@@ -82,7 +83,7 @@ export type LaunchInput = z.input<typeof launchSchema>;
  */
 export async function launchCampaign(input: LaunchInput): Promise<Result<{ campaignId: number; added: number; skipped: { name: string; reason: string }[] }>> {
   return attempt(async () => {
-    const me = await assertApp("prospecting");
+    const me = await assertOutreachFull();
     const d = parseInput(launchSchema, input);
     const ids = await pickedIds(d);
     if (!ids.length) throw new Problem("No prospect matches this choice any more.");

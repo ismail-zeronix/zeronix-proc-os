@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserAvatar } from "@/components/user-avatar";
-import { STATUSES, statusLabel } from "@/lib/prospecting/constants";
+import { STATUSES, statusLabel, scoreBand } from "@/lib/prospecting/constants";
 import type { ProspectRow } from "@/lib/prospecting/data";
 import { OwnerControl, StatusControl, type SegmentOption } from "../prospect-ui";
 import { AddToCampaign } from "../campaigns/campaign-ui";
@@ -27,17 +27,31 @@ const STATUS_TONE: Record<string, string> = {
 
 /** Score as a small bar plus the number, so the best prospects stand out while scanning. */
 function ScoreCell({ score }: { score: number }) {
+  const band = scoreBand(score);
   return (
-    <div className="flex items-center justify-end gap-1.5" title="Fit 40% · signal 40% · reach 20%">
+    <div className="flex items-center justify-end gap-1.5" title={`Score ${score.toFixed(1)} of 10: fit 40%, signal 40%, reach 20%`}>
+      <span className={`font-medium ${band.tone}`}>{band.label}</span>
       <div className="h-1.5 w-10 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-[var(--series-1)]" style={{ width: `${Math.min(100, score * 10)}%` }} />
       </div>
-      <span className="w-6 text-right tabular-nums">{score.toFixed(1)}</span>
     </div>
   );
 }
 
-export function ProspectTable({ rows, segments, users, campaigns }: { rows: ProspectRow[]; segments: SegmentOption[]; users: { id: number; name: string }[]; campaigns: { id: number; name: string }[] }) {
+export function ProspectTable({
+  rows,
+  segments,
+  users,
+  campaigns,
+  full = true,
+}: {
+  rows: ProspectRow[];
+  segments: SegmentOption[];
+  users: { id: number; name: string }[];
+  campaigns: { id: number; name: string }[];
+  /** Admins and "All data" users: owner filter, campaigns and handing out prospects. */
+  full?: boolean;
+}) {
   const router = useRouter();
   const path = usePathname();
   const sp = useSearchParams();
@@ -70,22 +84,24 @@ export function ProspectTable({ rows, segments, users, campaigns }: { rows: Pros
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <NativeSelect size="sm" aria-label="Segment" value={sp.get("segment") ?? ""} onChange={(e) => setParam("segment", e.target.value)}>
-          <NativeSelectOption value="">Every segment</NativeSelectOption>
+        <NativeSelect size="sm" aria-label="Industry" value={sp.get("segment") ?? ""} onChange={(e) => setParam("segment", e.target.value)}>
+          <NativeSelectOption value="">Every industry</NativeSelectOption>
           {segments.map((s) => (
             <NativeSelectOption key={s.key} value={s.key}>
               {s.label}
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <NativeSelect size="sm" aria-label="Owner" value={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
-          <NativeSelectOption value="">Everyone</NativeSelectOption>
-          {users.map((u) => (
-            <NativeSelectOption key={u.id} value={String(u.id)}>
-              {u.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+        {full && (
+          <NativeSelect size="sm" aria-label="Owner" value={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
+            <NativeSelectOption value="">Everyone</NativeSelectOption>
+            {users.map((u) => (
+              <NativeSelectOption key={u.id} value={String(u.id)}>
+                {u.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        )}
         <form
           className="relative w-56 max-w-full"
           onSubmit={(e) => {
@@ -100,9 +116,9 @@ export function ProspectTable({ rows, segments, users, campaigns }: { rows: Pros
           <div className="ml-auto flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1">
             <span className="text-xs font-medium">{ids.length} selected</span>
             <ResearchButtons ids={ids} onDone={() => setPicked(new Set())} />
-            <AddToCampaign ids={ids} campaigns={campaigns} onDone={() => setPicked(new Set())} />
+            {full && <AddToCampaign ids={ids} campaigns={campaigns} onDone={() => setPicked(new Set())} />}
             <StatusControl ids={ids} placeholder="Move to" onDone={() => setPicked(new Set())} />
-            <OwnerControl ids={ids} users={users} onDone={() => setPicked(new Set())} />
+            {full && <OwnerControl ids={ids} users={users} onDone={() => setPicked(new Set())} />}
             <Button variant="ghost" size="icon-sm" aria-label="Clear selection" onClick={() => setPicked(new Set())}>
               <X />
             </Button>
@@ -119,10 +135,10 @@ export function ProspectTable({ rows, segments, users, campaigns }: { rows: Pros
               </TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Key person</TableHead>
-              <TableHead>Segment</TableHead>
+              <TableHead>Industry</TableHead>
               <TableHead>Where</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Score</TableHead>
+              <TableHead className="text-right">Heat</TableHead>
               <TableHead className="w-8" />
             </TableRow>
           </TableHeader>

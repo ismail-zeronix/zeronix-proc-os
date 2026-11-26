@@ -8,6 +8,8 @@ import { db, schema } from "@/db";
 import { dubaiMinutes, isOffDay, needsReason } from "@/lib/attendance";
 import { closeStaleSessions, workHours } from "@/lib/attendance-data";
 import { loadAccess, SUPPORT_READ_ONLY } from "@/lib/auth/session";
+import { reportDue } from "@/lib/daily-report";
+import { zeronixFeatures } from "@/lib/edition";
 import { dubaiToday } from "@/lib/dates";
 import { parseInput, UserError } from "@/lib/user-error";
 
@@ -54,6 +56,8 @@ export async function punchOut(input: { reason?: string }) {
     .orderBy(desc(schema.attendancePunches.inAt))
     .limit(1);
   if (!open) throw new UserError("You are not punched in.");
+  // the end-of-day report is part of Zeronix's sales routine (lib/edition.ts)
+  if (zeronixFeatures() && (await reportDue(user.id))) throw new UserError("Send your end-of-day report first.");
   const early = needsReason("out", dubaiMinutes(), isOffDay(today, hours), hours);
   if (early && text.length < 3) throw new UserError("Please give a reason for leaving during working hours.");
   await db

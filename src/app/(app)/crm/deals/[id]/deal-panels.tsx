@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { ACTIVITY_TYPES, type Checks, CHECKS, SOURCES } from "@/lib/sales";
+import { ACTIVITY_TYPES, type CallOutcome, type Checks, CHECKS, SOURCES } from "@/lib/sales";
+import type { WorkHours } from "@/lib/attendance";
+import { formatFollowUp, needsNextStep, type NextStep, NextStepPicker, nextStepTime, OutcomeChips, takesOutcome } from "@/components/quick-log";
 import { deleteDeal, logActivity, setAssignees, setChecks, setDealKind, updateDeal } from "../../actions";
 import { errorText } from "@/lib/user-error";
 
@@ -89,26 +91,48 @@ export function ChecklistPanel({ dealId, checks }: { dealId: number; checks: Che
  * Log a call, message, email, meeting or note. "@" mentions a teammate: they get a card for this deal in their chat
  * Activity. Mentioning someone who cannot see the deal warns first (and admins can add them to the deal).
  */
-export function ActivityForm({ dealId, canAssign, assigneeIds }: { dealId: number; canAssign: boolean; assigneeIds: number[] }) {
+export function ActivityForm({
+  dealId,
+  canAssign,
+  assigneeIds,
+  stage,
+  followUpAt,
+  hours,
+}: {
+  dealId: number;
+  canAssign: boolean;
+  assigneeIds: number[];
+  stage: string;
+  followUpAt: string | null;
+  hours: WorkHours;
+}) {
   const [type, setType] = useState<string>("call");
   const [body, setBody] = useState("");
-  const [followUp, setFollowUp] = useState("");
+  const [outcome, setOutcome] = useState<CallOutcome | null>(null);
+  const [next, setNext] = useState<NextStep>(null);
   const [pending, run] = useRun();
   const mentions = useMentions(`deal:${dealId}`);
   const team = useMentionPeople(`deal:${dealId}`, "cannot see this deal");
   const blocked = team.blocked(mentions.mentioned(body));
+  const withOutcome = takesOutcome(type);
+  const needNext = needsNextStep({ type, outcome: withOutcome ? outcome : null, stage, followUpAt });
+  const ready = (type !== "call" || !!outcome) && (!!body.trim() || (withOutcome && !!outcome)) && (!needNext || !!next);
   return (
     <form
       className="grid gap-2"
       onSubmit={(e) => {
         e.preventDefault();
+        const when = nextStepTime(next, hours);
+        const lost = withOutcome && outcome === "not_interested";
         run(
-          () => logActivity(dealId, { type, body: mentions.toTokens(body), followUp }),
-          "Added to the timeline",
+          () => logActivity(dealId, { type, body: mentions.toTokens(body), outcome: withOutcome ? (outcome ?? undefined) : undefined, followUpAt: when?.toISOString() }),
+          when ? `Logged. Next follow-up ${formatFollowUp(when)}` : "Added to the timeline",
           () => {
             setBody("");
-            setFollowUp("");
+            setOutcome(null);
+            setNext(null);
             mentions.reset();
+            if (lost) toast.info("Not interested: if the deal is over, mark it lost from the stage menu.");
           },
         );
       }}
@@ -134,7 +158,9 @@ export function ActivityForm({ dealId, canAssign, assigneeIds }: { dealId: numbe
         rows={2}
         value={body}
         onChange={setBody}
-        placeholder={type === "note" ? "Write a note… (@ to mention a teammate)" : "What was said or agreed? (@ to mention a teammate)"}
+        placeholder={
+          type === "note" ? "Write a note… (@ to mention a teammate)" : withOutcome ? "What was said or agreed? Optional once you pick how it went. (@ to mention)" : "What was said or agreed? (@ to mention a teammate)"
+        }
         aria-label="What happened"
         className="field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
       />
@@ -156,12 +182,10 @@ export function ActivityForm({ dealId, canAssign, assigneeIds }: { dealId: numbe
           )}
         </div>
       )}
+      {withOutcome && <OutcomeChips value={outcome} onChange={setOutcome} required={type === "call"} />}
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor="log-follow" className="text-xs text-muted-foreground">
-          Follow up on
-        </Label>
-        <Input id="log-follow" type="date" value={followUp} onChange={(e) => setFollowUp(e.target.value)} className="h-8 w-40" title="Optional. Creates a follow-up task." />
-        <Button type="submit" size="sm" className="ml-auto" pending={pending} disabled={!body.trim()}>
+        {type !== "note" && <NextStepPicker value={next} onChange={setNext} hours={hours} required={needNext} existing={followUpAt} />}
+        <Button type="submit" size="sm" className="ml-auto" pending={pending} disabled={!ready}>
           Add to timeline
         </Button>
       </div>

@@ -1,19 +1,24 @@
 import { websiteOrg } from "./orgs";
 import { siteDbConfigured } from "@/db/site";
 import { pruneEvents, rebuildDaily } from "@/lib/website/analytics";
+import { weeklyRankCheck } from "@/lib/website/dataforseo";
 import { dailySearchImport } from "@/lib/website/gsc";
 import { runPictureQueue } from "@/lib/website/picture-queue";
 import { publishDuePosts } from "@/lib/website/posts";
+import { syncFromSales } from "@/lib/website/web-sales-sync";
+import { sendStatusEmail, syncOnlinePayments } from "@/lib/website/store";
 import { dubaiDay } from "@/lib/website/traffic";
 
 const TICK_MS = 60_000;
 const ROLLUP_MS = 15 * 60_000;
-const g = globalThis as unknown as { __websiteTimer?: NodeJS.Timeout; __websiteBusy?: boolean; __websiteDown?: boolean; __websiteRollupAt?: number; __websitePrunedOn?: string; __websiteGscOn?: string; __websitePicturesTimer?: NodeJS.Timeout };
+const SALES_SYNC_MS = 5 * 60_000;
+const g = globalThis as unknown as { __websiteTimer?: NodeJS.Timeout; __websiteBusy?: boolean; __websiteDown?: boolean; __websiteRollupAt?: number; __websitePrunedOn?: string; __websiteGscOn?: string; __websitePicturesTimer?: NodeJS.Timeout; __websiteSalesAt?: number; __websiteRankOn?: string };
 
 /**
  * Public website, on the website's own database: publishes scheduled posts when their time comes, and every 15
  * minutes rolls the tracker's events up for the dashboards (today and yesterday; the last 35 days after a restart).
- * Once a day after 06:00 UAE it imports Google Search Console (the first time, 16 months of history).
+ * Once a day after 06:00 UAE it imports Google Search Console (the first time, 16 months of history). Every 5 minutes
+ * web orders linked to a Sales order follow it (delivered, paid: web-sales-sync.ts).
  * Without SITE_DATABASE_URL it does nothing, and an outage is logged once, not every minute.
  */
 async function tick() {
@@ -33,6 +38,15 @@ async function tick() {
         g.__websitePrunedOn = today;
       }
     }
+    if (!g.__websiteSalesAt || Date.now() - g.__websiteSalesAt >= SALES_SYNC_MS) {
+      g.__websiteSalesAt = Date.now();
+      const moved = await syncFromSales();
+      if (moved.length) console.log(`[website] from Sales: ${moved.map((m) => `${m.number} ${m.status}`).join(", ")}`);
+      for (const m of moved) await sendStatusEmail(m.id, m.status); // the customer hears it is paid / delivered
+      // card orders paid at Nomod whose customer never came back to the return page
+      const paid = await syncOnlinePayments();
+      if (paid.length) console.log(`[website] paid online: ${paid.join(", ")}`);
+    }
     const today = dubaiDay();
     if (g.__websiteGscOn !== today && new Date(Date.now() + 4 * 3600_000).getUTCHours() >= 6) {
       g.__websiteGscOn = today; // once a day, even when it fails (the error shows in Website › Settings)
@@ -41,6 +55,14 @@ async function tick() {
         return 0;
       });
       if (rows) console.log(`[website] imported ${rows} Search Console rows`);
+    }
+    // Mondays after 06:00 UAE: Google ranking check of the planned keywords (DataForSEO, only when connected)
+    if (g.__websiteRankOn !== today && new Date(Date.now() + 4 * 3600_000).getUTCDay() === 1 && new Date(Date.now() + 4 * 3600_000).getUTCHours() >= 6) {
+      g.__websiteRankOn = today;
+      // not awaited: up to 200 calls take minutes, and scheduled posts must not wait for them
+      void weeklyRankCheck()
+        .then((n) => n && console.log(`[website] checked Google rankings for ${n} keyword(s)`))
+        .catch((e: Error) => console.error("[website] ranking check failed:", e.message));
     }
     if (g.__websiteDown) console.log("[website] website database is back");
     g.__websiteDown = false;

@@ -228,7 +228,7 @@ export function GlobalSearch({ apps, perms }: { apps: AppKey[]; perms?: NavPerms
                 {!fetching && nothing && <CommandEmpty>Nothing matches “{debounced}”.</CommandEmpty>}
                 {hasProducts && (
                   <CommandGroup heading="Search">
-                    <CommandItem value="all" onSelect={() => go(`/procurement/compare?q=${encodeURIComponent(debounced)}`)}>
+                    <CommandItem value="all" onSelect={() => go(`/procurement?q=${encodeURIComponent(debounced)}`)}>
                       <Search /> See all products for “{debounced}” on the Compare page
                     </CommandItem>
                   </CommandGroup>

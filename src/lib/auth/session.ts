@@ -1,16 +1,32 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { allowedApps, type AppKey } from "@/lib/apps";
+import { allowedApps, planApps, type AppKey } from "@/lib/apps";
 import { dubaiToday } from "@/lib/dates";
+import { zeronixFeatures } from "@/lib/edition";
 import { PLATFORM_COOKIE, verifyPlatform } from "./platform-token";
 import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 import { UserError } from "@/lib/user-error";
 
+/**
+ * The Claude connector (/api/mcp) runs the normal server actions as the person who connected it: the same checks,
+ * timeline entries and notifications as clicking in the portal. Only server code can set this (runAsClaude); a browser
+ * has no way to reach it. Admins need no punch-in for Claude's changes (they approve each one in the chat); sales staff
+ * must be punched in, exactly as in the portal.
+ */
+const claudeActor = new AsyncLocalStorage<SessionUser>();
+
+export function runAsClaude<T>(user: SessionUser, fn: () => Promise<T>): Promise<T> {
+  return claudeActor.run(user, fn);
+}
+
 export async function getSession(): Promise<SessionUser | null> {
+  const claude = claudeActor.getStore();
+  if (claude) return claude;
   const jar = await cookies();
   return verifySession(jar.get(SESSION_COOKIE)?.value);
 }
@@ -74,8 +90,8 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
     support = { adminId: platform.id, adminName: platform.name, readOnly: session.support.readOnly };
   }
   const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv, org: row.organizationId, support: session.support ?? null };
-  // the organisation's plan decides which apps exist at all (null = every app); Admin always stays for its admins
-  const apps = allowedApps({ role: row.role, apps: row.apps }).filter((a) => !row.orgApps || a === "admin" || row.orgApps.includes(a));
+  // the organisation's plan decides which apps exist at all; Admin always stays for its admins (lib/apps.ts planApps)
+  const apps = planApps(allowedApps({ role: row.role, apps: row.apps }), row.orgApps, zeronixFeatures());
   return {
     user,
     orgId: row.organizationId,
@@ -120,6 +136,8 @@ export async function requireAccountant(): Promise<Access> {
  * Only a session opened today counts. Cached per request.
  */
 export const isPunchedIn = cache(async (userId: number): Promise<boolean> => {
+  const claude = claudeActor.getStore();
+  if (claude?.id === userId && claude.role === "admin") return true;
   const [open] = await db
     .select({ id: schema.attendancePunches.id })
     .from(schema.attendancePunches)

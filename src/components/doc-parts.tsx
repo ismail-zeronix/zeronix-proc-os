@@ -24,6 +24,8 @@ export interface QuoteBrand {
   /** Shown under the totals when the template asks for them. */
   signatureSrc?: string | null;
   stampSrc?: string | null;
+  /** Printed without any of our details (no logo, address, TRN, footer or signature): the plain delivery note. */
+  plain?: boolean;
 }
 
 export { safeColor, tint };
@@ -92,6 +94,16 @@ function BrandBar({ s }: { s: DocStyle }) {
 export function DocHeader({ brand, title, number }: { brand: QuoteBrand; title: string; number: string }) {
   const s = styleOf(brand);
   const accent = s.accent;
+  if (brand.plain) {
+    return (
+      <div className="break-inside-avoid break-after-avoid">
+        <header className="text-right">
+          <div className="text-[26px] leading-none font-extrabold tracking-tight text-neutral-900">{title}</div>
+          <div className="mt-2 inline-block rounded-md bg-neutral-100 px-2.5 py-1 text-[12px] font-bold tracking-wide text-neutral-900">{number}</div>
+        </header>
+      </div>
+    );
+  }
   if (s.header === "band") {
     const fg = onColor(accent);
     const dark = fg === "#ffffff";
@@ -300,7 +312,7 @@ export function NumberedList({ label, items, s }: { label: string; items: string
 /** The uploaded signature and company stamp, when the template shows them and they are uploaded (Letterhead). */
 export function SignOff({ brand }: { brand: QuoteBrand }) {
   const s = styleOf(brand);
-  if (!s.showSignature || !(brand.signatureSrc || brand.stampSrc)) return null;
+  if (brand.plain || !s.showSignature || !(brand.signatureSrc || brand.stampSrc)) return null;
   return (
     <section className="mt-6 flex justify-end break-inside-avoid">
       <div className="grid w-56 justify-items-center text-center text-[10.5px] text-neutral-600">
@@ -322,6 +334,7 @@ export const withNumbers = <T,>(s: DocStyle, head: T[]): T[] => (s.showNumbers ?
 
 export function DocFooter({ left, brand }: { left: React.ReactNode; brand: QuoteBrand }) {
   const s = styleOf(brand);
+  if (brand.plain) return null;
   return (
     <footer className="zx-rule mt-6 flex items-center justify-between gap-4 pt-2.5 text-[9.5px] text-neutral-500 break-inside-avoid">
       <span>{s.footerText || left}</span>

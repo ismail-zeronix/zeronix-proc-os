@@ -7,7 +7,7 @@ import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 
 /** Back and Print buttons above the document; hidden when printing. */
-export function PrintBar({ dealHref, number, pdfHref }: { dealHref: string; number: string; pdfHref?: string }) {
+export function PrintBar({ dealHref, number, pdfHref, options }: { dealHref: string; number: string; pdfHref?: string; options?: React.ReactNode }) {
   // dealHref: where Back goes when there is nothing to return to
   const router = useRouter();
   const goBack = useGoBack(dealHref);
@@ -25,7 +25,8 @@ export function PrintBar({ dealHref, number, pdfHref }: { dealHref: string; numb
       {pdfHref ? (
         <>
           {/* the server-made PDF has the running header, page numbers and a full-page cover */}
-          <span className="flex-1 truncate text-sm text-neutral-600">{number}</span>
+          <span className="flex-1 truncate text-sm text-muted-foreground">{number}</span>
+          {options}
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer /> Print
           </Button>
@@ -35,7 +36,8 @@ export function PrintBar({ dealHref, number, pdfHref }: { dealHref: string; numb
         </>
       ) : (
         <>
-          <span className="flex-1 truncate text-sm text-neutral-600">{number}: choose “Save as PDF” in the print window to get a file.</span>
+          <span className="flex-1 truncate text-sm text-muted-foreground">{number}: choose “Save as PDF” in the print window to get a file.</span>
+          {options}
           <Button size="sm" onClick={() => window.print()}>
             <Printer /> Print / PDF
           </Button>

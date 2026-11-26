@@ -3,6 +3,7 @@ import { visibleApps } from "@/lib/apps";
 import { punchState, workHours } from "@/lib/attendance-data";
 import { requireAccess } from "@/lib/auth/session";
 import { getBrand } from "@/lib/brand";
+import { zeronixFeatures } from "@/lib/edition";
 import { bellFor } from "@/lib/notifications";
 
 /** Server wrapper: reads who is signed in and what they may open, then renders the header. */
@@ -14,7 +15,7 @@ export async function PortalHeader({ withSidebar = false }: { withSidebar?: bool
     <AppHeader
       user={user}
       apps={apps}
-      perms={{ accountant }}
+      perms={{ accountant, zeronix: zeronixFeatures() }}
       visible={visible}
       withSidebar={withSidebar}
       punch={{ punchedIn, since, closedMinutes, hours }}

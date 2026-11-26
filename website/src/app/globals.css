@@ -4,66 +4,119 @@
 @plugin "@tailwindcss/typography";
 
 /*
- * Zeronix Tech brand tokens: BRAND.md is the rulebook, /brand shows them live. Change both together.
- * One look (no dark mode): warm paper, forest-green bands, lime for action, mint for highlights on dark.
+ * Zeronix Tech theme (owner, 2026-11-22): a bright green store in the style of noon.com. Green header bar, grey home
+ * page with white section panels, neutral slate text, NO lime and no dark-green bands. Overrides BRAND.md colours.
+ * Components use ROLE names, never colour names, so a theme is only the --zx-* values below:
+ *   brand-900 = THE green: primary buttons, links, active states (white text on it passes AA)
+ *   brand-800 = its hover (darker) | brand-700 = icons and accents | brand-950 = deep green text on green tints
+ *   cta = the bright header / large-fill green (white text on it only when large or bold) | cta-strong = its hover
+ *   highlight = pale mint (badges, text on green) | surface = green tint (icon circles, wells)
+ *   surface-soft = neutral grey well | page = the grey home background | canvas = white | ink / muted-ink / line
+ *   panel = section panels and cards (white) | on-brand = text on a brand-900 / cta fill
+ *   band = green bands and promo cards | band-soft = cards on a band | band-btn(-ink, -hover) = the button on a band
  */
+:root {
+  --zx-brand-950: #05532a;
+  --zx-brand-900: #0a8443;
+  --zx-brand-800: #087236;
+  --zx-brand-700: #0b8f47;
+  --zx-cta: #0f9d58;
+  --zx-cta-strong: #0d8c4e;
+  --zx-highlight: #d6f5e3;
+  --zx-surface: #e8f5ee;
+  --zx-surface-soft: #f5f6f8;
+  --zx-page: #f2f3f5;
+  --zx-canvas: #ffffff;
+  --zx-ink: #1d2330;
+  --zx-muted-ink: #666e7a;
+  --zx-line: #e5e7eb;
+  --zx-panel: #ffffff;
+  --zx-on-brand: #ffffff;
+  --zx-band: #0a8443;
+  --zx-band-soft: #087236;
+  --zx-band-btn: #ffffff;
+  --zx-band-btn-ink: #0a8443;
+  --zx-band-btn-hover: #d6f5e3;
+}
+
 @theme inline {
   --font-sans: var(--font-body);
   --font-heading: var(--font-display);
 
-  --color-forest-950: #03201a;
-  --color-forest-900: #06352b;
-  --color-forest-800: #0b4a3b;
-  --color-forest-700: #12614c;
-  --color-lime-400: #b9f23f;
-  --color-lime-500: #a4dc27;
-  --color-mint-300: #4ff0b4;
-  --color-sage-100: #e6f1e0;
-  --color-sage-50: #f0f5ec;
-  --color-paper: #f6f6f1;
-  --color-ink: #0c1f1a;
-  --color-muted-ink: #5a6b65;
-  --color-line: #dce3db;
+  --color-brand-950: var(--zx-brand-950);
+  --color-brand-900: var(--zx-brand-900);
+  --color-brand-800: var(--zx-brand-800);
+  --color-brand-700: var(--zx-brand-700);
+  --color-cta: var(--zx-cta);
+  --color-cta-strong: var(--zx-cta-strong);
+  --color-highlight: var(--zx-highlight);
+  --color-surface: var(--zx-surface);
+  --color-surface-soft: var(--zx-surface-soft);
+  --color-page: var(--zx-page);
+  --color-canvas: var(--zx-canvas);
+  --color-ink: var(--zx-ink);
+  --color-muted-ink: var(--zx-muted-ink);
+  --color-line: var(--zx-line);
+  --color-panel: var(--zx-panel);
+  --color-on-brand: var(--zx-on-brand);
+  --color-band: var(--zx-band);
+  --color-band-soft: var(--zx-band-soft);
+  --color-band-btn: var(--zx-band-btn);
+  --color-band-btn-ink: var(--zx-band-btn-ink);
+  --color-band-btn-hover: var(--zx-band-btn-hover);
 
   /* shadcn's names, pointed at the brand */
-  --color-background: var(--color-paper);
+  --color-background: var(--color-canvas);
   --color-foreground: var(--color-ink);
   --color-card: #ffffff;
   --color-card-foreground: var(--color-ink);
   --color-popover: #ffffff;
   --color-popover-foreground: var(--color-ink);
-  --color-primary: var(--color-forest-900);
+  --color-primary: var(--color-brand-900);
   --color-primary-foreground: #ffffff;
-  --color-secondary: var(--color-sage-100);
-  --color-secondary-foreground: var(--color-forest-900);
-  --color-muted: var(--color-sage-50);
+  --color-secondary: var(--color-surface);
+  --color-secondary-foreground: var(--color-brand-900);
+  --color-muted: var(--color-surface-soft);
   --color-muted-foreground: var(--color-muted-ink);
-  --color-accent: var(--color-sage-100);
-  --color-accent-foreground: var(--color-forest-900);
+  --color-accent: var(--color-surface);
+  --color-accent-foreground: var(--color-brand-900);
   --color-destructive: #c2410c;
   --color-border: var(--color-line);
   --color-input: var(--color-line);
-  --color-ring: var(--color-forest-700);
+  --color-ring: var(--color-brand-700);
 
-  --radius: 1rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-  --radius-inner: 0.75rem;
-  --radius-card: 1rem;
-  --radius-frame: 1.25rem;
+  --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-inner: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-frame: 1rem;
 
-  --shadow-lift: 0 12px 32px -16px rgb(3 32 26 / 0.25);
+  --shadow-lift: 0 1px 2px rgb(16 28 22 / 0.04), 0 8px 24px -12px rgb(16 28 22 / 0.18);
 
-  --text-display: clamp(1.75rem, 1.35rem + 1.8vw, 2.75rem);
-  --text-display--line-height: 1.1;
-  --text-display--letter-spacing: -0.03em;
-  --text-h2: clamp(1.25rem, 1.1rem + 0.7vw, 1.75rem);
-  --text-h2--line-height: 1.2;
-  --text-h2--letter-spacing: -0.02em;
-  --text-lead: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
-  --text-lead--line-height: 1.55;
+  /*
+   * Type scale: a standard store scale (about 1.2 steps), phone size at 390 px, desktop size from about 1200 px.
+   * Body 16 px, never below for reading text. Headings are semibold (600) with light negative tracking; nothing huge.
+   * Phones use a compact UI scale like current stores (Shopify Horizon, Apple Store): body 15, UI text 13-14.
+   *   display 21 to 40 | h1 19 to 32 | h2 16 to 24 | h3 15 to 18 | lead 14 to 17 | body 14 (phone) / 16
+   *   (phones compacted 2026-11-22 at the owner's request, Shopify-store density)
+   */
+  --text-display: clamp(1.3125rem, 1rem + 1.4vw, 2.5rem);
+  --text-display--line-height: 1.12;
+  --text-display--letter-spacing: -0.025em;
+  --text-h1: clamp(1.1875rem, 0.98rem + 0.95vw, 2rem);
+  --text-h1--line-height: 1.18;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: clamp(1rem, 0.86rem + 0.55vw, 1.5rem);
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.015em;
+  --text-h3: clamp(0.9375rem, 0.88rem + 0.25vw, 1.125rem);
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.01em;
+  --text-lead: clamp(0.875rem, 0.82rem + 0.25vw, 1.0625rem);
+  --text-lead--line-height: 1.6;
 }
 
 @layer base {
@@ -73,19 +126,68 @@
   html {
     scroll-behavior: smooth;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
-    @apply bg-paper font-sans text-ink antialiased;
-    font-size: 0.9375rem;
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-size: 0.875rem;
+    font-weight: 400;
     line-height: 1.55;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+  }
+  @media (min-width: 1024px) {
+    body {
+      font-size: 1rem;
+    }
   }
   h1,
   h2,
   h3,
   h4 {
-    @apply font-heading font-medium text-balance;
+    @apply font-heading font-semibold text-balance;
+  }
+  p,
+  li {
+    text-wrap: pretty;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-forest-700;
+    @apply outline-2 outline-offset-2 outline-brand-700;
+  }
+  /* iOS zooms into any field under 16 px when it gets focus: every field is 16 px on touch-size screens */
+  @media (max-width: 1023px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+    /* the 16 px only matters for typed text; the hint stays at the compact UI size */
+    input::placeholder,
+    textarea::placeholder {
+      font-size: 14px;
+    }
+  }
+  /* installed app (PWA): no grey tap flash, no rubber-band pull on the page edge */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* phones: the chat bubble sits above the floating tab bar and the product buy bar */
+  @media (max-width: 1023px) {
+    #zeronix-chat {
+      transform: translateY(calc(-4.75rem - env(safe-area-inset-bottom)));
+    }
+  }
+  /* the grey home page runs to the very bottom (behind the tab bar space) */
+  body:has(.page-grey) {
+    background-color: var(--color-page);
+  }
+  @media (display-mode: standalone) {
+    body {
+      overscroll-behavior-y: none;
+    }
   }
 }
 
@@ -103,6 +205,31 @@
   }
   .scroll-row > * {
     @apply shrink-0 snap-start;
+  }
+}
+
+/* Loading placeholders (components/ui/skeleton.tsx): a grey block with a light band sweeping across. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+/* in a layer so a bg-* utility on a Skeleton can still change its base colour */
+@layer components {
+  .skeleton-shimmer {
+    background-color: rgb(29 35 48 / 0.06);
+    background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.75) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-shimmer 1.3s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer {
+      animation: none;
+    }
   }
 }
 
@@ -131,5 +258,158 @@
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/*
+ * Long reading text (guides and blog posts, components/content/article.tsx).
+ * 17 to 19 px with 1.65 line height, text kept to about 70 characters a line (36em), headings from the scale above with space
+ * above them larger than below so each belongs to the text that follows. Tables and cards keep the full width.
+ * Not in a layer on purpose: it must win over the typography plugin's defaults.
+ */
+.article-prose {
+  font-size: clamp(0.9375rem, 0.85rem + 0.45vw, 1.1875rem);
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.article-prose :is(p, ul, ol, blockquote) {
+  max-width: 36em;
+}
+.article-prose :is(p, li) {
+  hyphens: manual;
+}
+.article-prose > div > :first-child {
+  margin-top: 0;
+}
+.article-prose h2 {
+  max-width: 30ch;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  font-size: var(--text-h2);
+  line-height: var(--text-h2--line-height);
+  letter-spacing: var(--text-h2--letter-spacing);
+}
+.article-prose h3 {
+  max-width: 40ch;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  letter-spacing: var(--text-h3--letter-spacing);
+  font-weight: 600;
+}
+.article-prose :is(ul, ol) {
+  padding-inline-start: 1.35em;
+}
+.article-prose li {
+  margin-block: 0.35em;
+  padding-inline-start: 0.25em;
+}
+.article-prose strong {
+  font-weight: 600;
+}
+.article-prose a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.article-prose a:hover {
+  text-decoration-thickness: 2px;
+}
+.article-prose table {
+  display: block;
+  overflow-x: auto;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.article-prose :is(th, td) {
+  padding: 0.6rem 0.85rem;
+  vertical-align: top;
+}
+.article-prose th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+
+/*
+ * Gaming pages (owner 2026-11-22: white background, but it must feel like gaming). Flat store green on white, near-black
+ * ink, and a few game-UI cues: HUD corner brackets, a faint grid, cut-corner shapes and a ticker of game titles.
+ */
+@layer components {
+  /* green corner brackets (top-left, bottom-right) that reach further on hover; put on a positioned box */
+  .gx-frame {
+    position: relative;
+  }
+  .gx-frame::before,
+  .gx-frame::after {
+    content: "";
+    position: absolute;
+    z-index: 2;
+    width: 0.875rem;
+    height: 0.875rem;
+    pointer-events: none;
+    transition:
+      width 0.3s ease-out,
+      height 0.3s ease-out;
+  }
+  .gx-frame::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid var(--color-cta);
+    border-left: 2px solid var(--color-cta);
+    border-top-left-radius: var(--radius-card);
+  }
+  .gx-frame::after {
+    right: -1px;
+    bottom: -1px;
+    border-right: 2px solid var(--color-cta);
+    border-bottom: 2px solid var(--color-cta);
+    border-bottom-right-radius: var(--radius-card);
+  }
+  .gx-frame:hover::before,
+  .gx-frame:hover::after,
+  .gx-frame:focus-within::before,
+  .gx-frame:focus-within::after,
+  .gx-frame[data-on="true"]::before,
+  .gx-frame[data-on="true"]::after {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  /* a faint 32 px grid behind a section, fading out towards the bottom */
+  .gx-grid {
+    background-image:
+      linear-gradient(to right, rgb(29 35 48 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(29 35 48 / 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+  /* cut top-left and bottom-right corners: buttons, badges */
+  .gx-cut {
+    clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem);
+  }
+  .gx-cut-sm {
+    clip-path: polygon(0.3rem 0, 100% 0, 100% calc(100% - 0.3rem), calc(100% - 0.3rem) 100%, 0 100%, 0 0.3rem);
+  }
+  /* the game ticker: two copies of the list slide left forever */
+  .gx-marquee {
+    animation: gx-marquee 40s linear infinite;
+  }
+  .gx-marquee:hover {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gx-marquee {
+      animation: none;
+    }
+    .gx-frame::before,
+    .gx-frame::after {
+      transition: none;
+    }
+  }
+}
+@keyframes gx-marquee {
+  to {
+    transform: translateX(-50%);
   }
 }

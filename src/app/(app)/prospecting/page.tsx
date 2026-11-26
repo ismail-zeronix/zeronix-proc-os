@@ -8,18 +8,21 @@ import { ago } from "@/lib/format";
 import { STATUSES, statusLabel } from "@/lib/prospecting/constants";
 import { prospectingOverview } from "@/lib/prospecting/data";
 import { ResearchProgress } from "./research-ui";
+import { redirect } from "next/navigation";
+import { outreachView } from "@/lib/prospecting/access";
 
-export const metadata = { title: "Overview · Zeronix Prospecting" };
+export const metadata = { title: "Overview · Zeronix Outreach" };
 
 export default async function ProspectingOverviewPage() {
   await requireApp("prospecting");
+  if (!(await outreachView()).full) redirect("/prospecting/prospects");
   const o = await prospectingOverview();
   const c = (k: string) => o.count[k] ?? 0;
 
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 className="text-sm font-semibold">Prospecting overview</h1>
+        <h1 className="text-sm font-semibold">Outreach overview</h1>
         <span className="text-xs text-muted-foreground">{o.total} prospects · {o.addedThisWeek} added this week</span>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/prospecting/import" />}>

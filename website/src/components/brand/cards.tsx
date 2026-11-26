@@ -2,6 +2,7 @@ import { PackageOpen } from "lucide-react";
 import Link from "next/link";
 import { AddToQuote } from "@/components/quote/quote-buttons";
 import { AddToCart } from "@/components/store/cart-buttons";
+import { StockLabel, type Stock } from "@/components/store/stock";
 import { SiteIconView } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { ArrowCircle, Tag } from "./action";
@@ -11,10 +12,10 @@ import { Photo, type PhotoRatio } from "./photo";
 
 const lift = "transition-shadow duration-200 hover:shadow-lift";
 
-/** Icon in a circle: lime on light, mint on dark. */
+/** Icon in a circle: mint on light, mint on dark. */
 export function IconBadge({ name, onDark = false, className }: { name: string; onDark?: boolean; className?: string }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-forest-800 text-mint-300" : "bg-lime-400 text-forest-950", className)}>
+    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full", onDark ? "bg-band-soft text-highlight" : "bg-cta text-on-brand", className)}>
       <SiteIconView name={name} className="size-[1.125rem]" strokeWidth={1.75} />
     </span>
   );
@@ -23,20 +24,20 @@ export function IconBadge({ name, onDark = false, className }: { name: string; o
 /** 1. Photo card: tall photo in an inner frame, title row with the arrow. Industries, guides, people. */
 export function PhotoCard({ href, title, photo, subject, ratio = "4:5", icon, className }: { href: string; title: string; photo?: string; subject: string; ratio?: PhotoRatio; icon?: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex flex-col rounded-card bg-white p-2", lift, className)}>
+    <Link href={href} className={cn("group flex flex-col rounded-card bg-panel p-2", lift, className)}>
       <div className="relative">
         <Photo src={photo} subject={subject} ratio={ratio} />
         {icon && <IconBadge name={icon} className="absolute top-3 left-3" />}
       </div>
       <div className="flex items-center justify-between gap-3 px-3 pt-4 pb-2">
-        <h3 className="text-base font-semibold sm:text-lg">{title}</h3>
+        <h3 className="text-[0.9375rem] font-semibold sm:text-lg">{title}</h3>
         <ArrowCircle />
       </div>
     </Link>
   );
 }
 
-/** 2. Feature card (light): tag top-left, arrow top-right, title, a photo at the bottom. `tone="sage"` for the sage fill. */
+/** 2. Feature card (light): tag top-left, arrow top-right, title, a photo at the bottom. `tone="surface"` for the surface fill. */
 export function FeatureCard({
   href,
   tag,
@@ -53,62 +54,62 @@ export function FeatureCard({
   text?: string;
   photo?: string;
   subject?: string;
-  tone?: "white" | "sage";
+  tone?: "white" | "surface";
   className?: string;
 }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "sage" ? "bg-sage-100" : "bg-white", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card p-6", tone === "surface" ? "bg-surface" : "bg-panel", lift, className)}>
       <div className="flex items-start justify-between gap-4">
         <Tag>{tag}</Tag>
         <ArrowCircle />
       </div>
       <div>
-        <h3 className="max-w-xs text-xl leading-snug font-semibold">{title}</h3>
+        <h3 className="max-w-xs text-base leading-snug font-semibold sm:text-xl">{title}</h3>
         {text && <p className="mt-2 text-sm text-muted-ink">{text}</p>}
       </div>
-      {subject && <Photo src={photo} subject={subject} ratio="4:3" className={cn("mt-auto", tone === "sage" && "bg-white/60")} />}
+      {subject && <Photo src={photo} subject={subject} ratio="4:3" className={cn("mt-auto", tone === "surface" && "bg-white/60")} />}
     </Link>
   );
 }
 
-/** 3. Accent card: lime fill, forest text, a photo. The one highlight in a group. */
+/** 3. Accent card: mint fill, navy text, a photo. The one highlight in a group. */
 export function AccentCard({ href, tag, title, photo, subject, className }: { href: string; tag: string; title: string; photo?: string; subject: string; className?: string }) {
   return (
-    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-lime-400 p-6 text-forest-950", lift, className)}>
+    <Link href={href} className={cn("group flex h-full flex-col gap-5 rounded-card bg-cta p-6 text-on-brand", lift, className)}>
       <Photo src={photo} subject={subject} ratio="4:3" className="bg-white/40" />
       <div className="mt-auto flex items-end justify-between gap-4">
         <div>
-          <Tag className="border-forest-950/20 bg-transparent text-forest-950/70">{tag}</Tag>
-          <h3 className="mt-3 max-w-xs text-xl leading-snug font-semibold">{title}</h3>
+          <Tag className="border-brand-950/20 bg-transparent text-brand-950/70">{tag}</Tag>
+          <h3 className="mt-3 max-w-xs text-base leading-snug font-semibold sm:text-xl">{title}</h3>
         </div>
-        <ArrowCircle className="border-forest-950 bg-forest-950 text-lime-400" />
+        <ArrowCircle className="border-brand-900 bg-brand-900 text-on-brand" />
       </div>
     </Link>
   );
 }
 
-/** 4. Dark card: on a forest band. Mint icon, white title, softer text. */
+/** 4. Dark card: on a navy band. Mint icon, white title, softer text. */
 export function DarkCard({ icon, title, text, className }: { icon: string; title: string; text: string; className?: string }) {
   return (
-    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-forest-800/70 p-6", className)}>
+    <div className={cn("flex h-full flex-col gap-4 rounded-card border border-white/10 bg-band-soft/70 p-6", className)}>
       <IconBadge name={icon} onDark />
-      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <h3 className="text-base font-semibold text-white sm:text-lg">{title}</h3>
       <p className="text-sm leading-relaxed text-white/65">{text}</p>
     </div>
   );
 }
 
-/** 5. Stat: big Manrope number, the unit in lime (light) or mint (dark), a muted label. */
+/** 5. Stat: big Manrope number, the unit in mint (light) or mint (dark), a muted label. */
 export function Stat({ value, label, onDark = false }: { value: string; label: string; onDark?: boolean }) {
   const m = value.match(/^([\d.,]+)(.*)$/);
   return (
     <div className="flex flex-col-reverse gap-1">
       <dt className={cn("text-sm", onDark ? "text-white/60" : "text-muted-ink")}>{label}</dt>
-      <dd className={cn("font-heading text-4xl font-medium tracking-tight tabular-nums sm:text-5xl", onDark ? "text-white" : "text-ink")}>
+      <dd className={cn("font-heading text-2xl font-semibold tracking-tight tabular-nums sm:text-4xl", onDark ? "text-white" : "text-ink")}>
         {m ? (
           <>
             {m[1]}
-            <span className={onDark ? "text-mint-300" : "text-forest-700"}>{m[2]}</span>
+            <span className={onDark ? "text-highlight" : "text-brand-700"}>{m[2]}</span>
           </>
         ) : (
           value
@@ -130,6 +131,8 @@ export function ProductCard({
   photo,
   price,
   buy,
+  mpn,
+  stock,
   className,
 }: {
   href: string;
@@ -141,47 +144,66 @@ export function ProductCard({
   price?: string | null;
   /** The raw price ("4489.00") when the product is sold online: the card then has Add to cart instead of Add to quote. */
   buy?: string | null;
+  /** Manufacturer part number, shown after the brand. */
+  mpn?: string;
+  /** Stock label; shown on products sold online. */
+  stock?: Stock;
   className?: string;
 }) {
   const slug = href.split("/").pop() ?? "";
   return (
-    <div className={cn("group relative flex h-full flex-col rounded-card border border-line/70 bg-white p-2 transition-shadow duration-200 hover:shadow-lift", className)}>
+    <div className={cn("group relative flex h-full flex-col rounded-card border border-line bg-panel p-1.5 transition-shadow sm:p-2.5 duration-200 hover:shadow-lift", className)}>
       {photo ? (
-        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 45vw" className="bg-white [&_img]:object-contain [&_img]:p-2" />
+        <Photo src={photo} subject={name} ratio="1:1" sizes="(min-width: 1024px) 220px, 40vw" className="bg-surface-soft [&_img]:object-contain [&_img]:p-2 sm:[&_img]:p-3 [&_img]:mix-blend-multiply [&_img]:transition-transform [&_img]:duration-500 group-hover:[&_img]:scale-105" />
       ) : (
         // no catalog picture yet: a calm neutral tile with the brand, never the design-time "photo slot"
-        <div className="grid aspect-square place-items-center rounded-inner bg-paper">
+        <div className="grid aspect-square place-items-center rounded-inner bg-canvas">
           <span className="grid justify-items-center gap-2 text-center">
             <PackageOpen className="size-9 text-ink/20" strokeWidth={1.25} />
             <span className="font-heading text-sm font-semibold tracking-tight text-ink/35">{brand}</span>
           </span>
         </div>
       )}
-      <div className="flex flex-1 flex-col gap-1 px-1 pt-2">
-        <span className="text-[0.6875rem] font-semibold tracking-wide text-muted-ink uppercase">{brand}</span>
-        <h3 className="line-clamp-2 min-h-[2.6em] text-sm leading-snug font-semibold text-ink">
+      <div className="flex flex-1 flex-col gap-1 px-1 pt-1.5 sm:pt-2">
+        <span className="flex min-w-0 items-baseline gap-1.5 text-[0.625rem] font-bold tracking-wider sm:text-[0.6875rem] text-muted-ink uppercase">
+          <span className="shrink-0 text-brand-700">{brand}</span>
+          {mpn && <span className="truncate font-semibold tracking-normal normal-case tabular-nums" title={`Part number ${mpn}`}>{mpn}</span>}
+        </span>
+        <h3 className="line-clamp-2 min-h-[2.6em] text-xs leading-snug font-medium text-ink sm:text-sm">
           <Link href={href} className="after:absolute after:inset-0">
             {name}
           </Link>
         </h3>
-        {specs.length > 0 && <p className="line-clamp-1 text-xs text-muted-ink">{specs.slice(0, 3).join(" · ")}</p>}
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+        {/* key specs as chips (CPU, RAM, storage); at most two rows so the cards in a row stay level */}
+        {specs.length > 0 && (
+          <ul className="flex max-h-[2.5rem] flex-wrap gap-1 overflow-hidden sm:max-h-[2.75rem]" aria-label="Key specifications">
+            {specs.slice(0, 3).map((s, i) => (
+              <li key={s} className={cn("max-w-full truncate rounded bg-surface-soft px-1 py-0.5 text-[0.625rem] leading-4 font-medium text-muted-ink ring-1 ring-line ring-inset sm:px-1.5 sm:text-[0.6875rem]", i === 2 && "hidden sm:block")}>
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-auto grid gap-1 pt-1.5 sm:gap-1.5 sm:pt-2">
+        {buy && stock && <StockLabel value={stock} />}
+        <div className="flex items-end justify-between gap-1.5 sm:gap-2">
           {price ? (
             <p className="leading-tight">
-              <span className="block text-[0.9375rem] font-bold whitespace-nowrap text-ink tabular-nums sm:text-[1.0625rem]">{price}</span>
-              <span className="text-[0.6875rem] text-muted-ink">incl. VAT</span>
+              <span className="block text-[0.8125rem] font-bold whitespace-nowrap text-ink tabular-nums sm:text-base sm:font-semibold">{price}</span>
+              <span className="text-[0.625rem] font-medium text-muted-ink sm:text-[0.6875rem] sm:font-semibold">incl. VAT</span>
             </p>
           ) : (
-            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-xs leading-tight font-semibold text-forest-800 hover:text-forest-950">
+            <Link href={`/quote?product=${encodeURIComponent(slug)}`} className="relative z-10 text-[0.6875rem] leading-tight font-semibold text-brand-800 hover:text-brand-950 sm:text-xs">
               Price on request
               <span className="block font-normal text-muted-ink">Get B2B quote</span>
             </Link>
           )}
           {buy ? (
-            <AddToCart item={{ slug, name, href, image: photo ?? null, price: buy }} className="relative z-10 size-9 w-9" />
+            <AddToCart item={{ slug, name, href, image: photo ?? null, price: buy }} className="relative z-10 size-8 w-8 sm:size-9 sm:w-9" />
           ) : (
-            <AddToQuote slug={slug} name={name} className="relative z-10 size-9 w-9" />
+            <AddToQuote slug={slug} name={name} className="relative z-10 size-8 w-8 sm:size-9 sm:w-9" />
           )}
+        </div>
         </div>
       </div>
     </div>

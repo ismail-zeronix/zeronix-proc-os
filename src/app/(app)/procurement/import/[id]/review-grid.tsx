@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CATEGORIES, type OfferDraft } from "@/lib/llm/schema";
+import { CATEGORIES, type OfferDraft } from "@/lib/offer-draft";
 import { cn } from "@/lib/utils";
 import { useReviewStore } from "@/stores/import-store";
 
@@ -252,7 +252,7 @@ export function ReviewGrid({
     <Card className="min-w-0 gap-0 py-3">
       <CardContent className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 px-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{rows.length} rows</Badge>
+          <Badge variant="outline">{rows.length} {rows.length === 1 ? "row" : "rows"}</Badge>
           {flagged > 0 && (
             <Button variant={onlyFlagged ? "secondary" : "ghost"} size="sm" onClick={() => setOnlyFlagged((v) => !v)}>
               <AlertTriangle className="text-amber-600" /> {flagged} to check

@@ -20,8 +20,9 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ChatCard } from "@/lib/chat/types";
 import type { WebClientInfo, WebGeo, WebPageVisit, WebSiteEvent } from "@/lib/webchat/types";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import type { SellerSnapshot } from "@/lib/seller-types";
+import type { CheckInCounts, DayReportCounts, TargetOverride } from "@/lib/routine";
 
 /**
  * Organisations (tenants). Row 1 is Zeronix. Every new table carries organization_id, and the accounting tables also get
@@ -105,6 +106,8 @@ export const users = pgTable("users", {
   jobTitle: text("job_title").notNull().default(""),
   phone: text("phone").notNull().default(""),
   mobile: text("mobile").notNull().default(""),
+  /** Sales routine (lib/routine.ts): this person's own targets over the team default, or off = not on the routine. NULL = team default. */
+  salesTargets: jsonb("sales_targets").$type<TargetOverride>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 },
   () => [orgPolicy()]);
@@ -165,6 +168,29 @@ export const supplierFeeds = pgTable("supplier_feeds", {
 },
   () => [orgPolicy()]);
 
+/**
+ * How a supplier shows up in WhatsApp: their phone numbers and the names they appear under. Claude's pushes are matched
+ * to a supplier through these (phone first), so one supplier writing from two numbers, or two suppliers with similar
+ * names, never get mixed up. Learned when someone picks the supplier for an unknown sender in the Procurement Inbox.
+ */
+export const supplierHandles = pgTable(
+  "supplier_handles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["phone", "name"] }).notNull(),
+    /** As written, e.g. "+971 50 123 4567" or "Ali Computers JLT". */
+    value: text("value").notNull(),
+    /** lib/parse/clean.ts normalizePhone / normalizeName. */
+    valueNorm: text("value_norm").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("supplier_handles_uq").on(t.organizationId, t.kind, t.valueNorm), index("supplier_handles_supplier_idx").on(t.supplierId), orgPolicy()],
+);
+
 export const priceLists = pgTable(
   "price_lists",
   {
@@ -173,10 +199,21 @@ export const priceLists = pgTable(
     supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
     rawText: text("raw_text").notNull(),
-    /** How the list arrived: pasted WhatsApp text, an uploaded Excel sheet, or a supplier's live feed link. */
-    source: text("source", { enum: ["paste", "excel", "feed"] }).notNull().default("paste"),
+    /**
+     * How the list arrived: a WhatsApp message pushed by Claude, an uploaded Excel sheet, or a supplier's live feed link.
+     * "paste" = the old in-app AI reading (removed 2026-11; older lists keep it).
+     */
+    source: text("source", { enum: ["paste", "excel", "feed", "whatsapp"] }).notNull().default("whatsapp"),
     /** Original file name for Excel imports; the feed link for live-feed syncs. */
     sourceName: text("source_name").notNull().default(""),
+    /** WhatsApp group or chat the message came from, and the sender as shown there. */
+    chat: text("chat").notNull().default(""),
+    sender: text("sender").notNull().default(""),
+    /** sha1 of the message text: the same broadcast sent again is recognised (lib/procurement/intake.ts). */
+    fingerprint: text("fingerprint").notNull().default(""),
+    /** How often the same message was pushed, and when last: a repeat keeps its prices fresh. */
+    seenCount: integer("seen_count").notNull().default(1),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     status: text("status", { enum: ["queued", "parsing", "review", "saved", "failed"] })
       .notNull()
       .default("queued"),
@@ -193,7 +230,34 @@ export const priceLists = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     savedAt: timestamp("saved_at", { withTimezone: true }),
   },
-  (t) => [index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt), orgPolicy()],
+  (t) => [
+    index("price_lists_supplier_idx").on(t.supplierId, t.receivedAt),
+    uniqueIndex("price_lists_fingerprint_uq").on(t.supplierId, t.fingerprint).where(sql`${t.fingerprint} <> ''`),
+    orgPolicy(),
+  ],
+);
+
+/**
+ * A WhatsApp message Claude pushed from a sender we do not know yet. It waits in the Procurement Inbox until someone
+ * says which supplier it is (or adds them); then it goes through the normal intake and the sender is remembered.
+ */
+export const stockInbox = pgTable(
+  "stock_inbox",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    chat: text("chat").notNull().default(""),
+    senderName: text("sender_name").notNull().default(""),
+    senderPhone: text("sender_phone").notNull().default(""),
+    messageAt: timestamp("message_at", { withTimezone: true }).notNull(),
+    messageText: text("message_text").notNull(),
+    /** The lines Claude read, as pushed (lib/procurement/intake.ts PushedItem). */
+    items: jsonb("items").$type<unknown[]>().notNull(),
+    priceBasis: text("price_basis").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
 );
 
 export const products = pgTable(
@@ -277,22 +341,6 @@ export const offers = pgTable(
     index("offers_search_trgm").using("gin", t.searchNorm.op("gin_trgm_ops")),
     orgPolicy(),
   ],
-);
-
-/** Reviewed corrections reused as few-shot examples for the same supplier. */
-export const parseCorrections = pgTable(
-  "parse_corrections",
-  {
-    organizationId: orgId(),
-    id: serial("id").primaryKey(),
-    supplierId: integer("supplier_id")
-      .notNull()
-      .references(() => suppliers.id, { onDelete: "cascade" }),
-    input: text("input").notNull(),
-    output: text("output").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("parse_corrections_supplier_idx").on(t.supplierId, t.createdAt), orgPolicy()],
 );
 
 export const settings = pgTable("settings", {
@@ -545,12 +593,21 @@ export const activities = pgTable(
     /** call, whatsapp, email, meeting, note, stage, created */
     type: text("type").notNull(),
     body: text("body").notNull().default(""),
+    /** How a call or message went (CALL_OUTCOMES in lib/sales.ts); counted for the salesman's day and the KPIs. */
+    outcome: text("outcome"),
     dealId: integer("deal_id").references(() => deals.id, { onDelete: "cascade" }),
     companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    /** The person spoken to; defaults to the deal's main contact. */
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("activities_deal_idx").on(t.dealId, t.at), index("activities_company_idx").on(t.companyId, t.at), orgPolicy()],
+  (t) => [
+    index("activities_deal_idx").on(t.dealId, t.at),
+    index("activities_company_idx").on(t.companyId, t.at),
+    index("activities_user_idx").on(t.userId, t.at),
+    orgPolicy(),
+  ],
 );
 
 /** Everyone working on a deal, in display order. The first one is also stored as deals.owner_id (the main owner). */
@@ -1820,12 +1877,18 @@ export const prospectActivities = pgTable(
       .notNull()
       .references(() => prospectCompanies.id, { onDelete: "cascade" }),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
-    /** note / status / created / import / research / converted */
+    /** note / status / created / import / research / converted / call */
     kind: text("kind").notNull(),
     body: text("body").notNull().default(""),
+    /** For a call: how it went (CALL_OUTCOMES in lib/sales.ts), so cold calls count in the salesman's day. */
+    outcome: text("outcome"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prospect_activities_company_idx").on(t.companyId, t.createdAt), orgPolicy()],
+  (t) => [
+    index("prospect_activities_company_idx").on(t.companyId, t.createdAt),
+    index("prospect_activities_user_idx").on(t.userId, t.createdAt),
+    orgPolicy(),
+  ],
 );
 
 /** Never email these: an address or a whole domain. Checked when a prospect is queued and again just before sending. */
@@ -2039,6 +2102,97 @@ export const outreachMessages = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("outreach_messages_mailbox_idx").on(t.mailboxId, t.sentAt), index("outreach_messages_enrollment_idx").on(t.enrollmentId), orgPolicy()],
+);
+
+/** Newsletter audiences: a named list of people who agreed to hear from us (pasted or uploaded in the Newsletter app). */
+export const newsletterLists = pgTable(
+  "newsletter_lists",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    /** Why these people get our email; printed in the footer ("You are receiving this because ..."). */
+    consentNote: text("consent_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
+);
+
+export const newsletterContacts = pgTable(
+  "newsletter_contacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    listId: integer("list_id")
+      .notNull()
+      .references(() => newsletterLists.id, { onDelete: "cascade" }),
+    /** Lower-case. */
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    company: text("company").notNull().default(""),
+    status: text("status", { enum: ["active", "unsubscribed", "bounced"] }).notNull().default("active"),
+    /** Where the address came from and why we may write to it (met at an event, existing customer, ...). */
+    source: text("source").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("newsletter_contacts_list_email_uq").on(t.listId, t.email), index("newsletter_contacts_email_idx").on(t.email), orgPolicy()],
+);
+
+/** One newsletter going to one list: the chosen template, its filled-in fields and its sending state. */
+export const newsletterCampaigns = pgTable(
+  "newsletter_campaigns",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    templateKey: text("template_key").notNull(),
+    subject: text("subject").notNull(),
+    preheader: text("preheader").notNull().default(""),
+    /** What the person typed into the template's fields (headline, intro, button, picked products, ...). */
+    fields: jsonb("fields").$type<Record<string, unknown>>().notNull().default({}),
+    listId: integer("list_id").references(() => newsletterLists.id, { onDelete: "set null" }),
+    /** draft -> sending (queue built) <-> paused -> done */
+    status: text("status", { enum: ["draft", "sending", "paused", "done"] }).notNull().default("draft"),
+    /** Sending mailboxes used in turn; empty = every mailbox that is switched on. */
+    mailboxIds: integer("mailbox_ids").array().notNull().default(sql`'{}'::int[]`),
+    /** Not before this moment (null = as soon as a mailbox is free). */
+    startAt: timestamp("start_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [orgPolicy()],
+);
+
+/** One email to one person for one campaign: the sending queue and the record of what happened. */
+export const newsletterSends = pgTable(
+  "newsletter_sends",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => newsletterCampaigns.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => newsletterContacts.id, { onDelete: "set null" }),
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    /** queued -> sent / failed; skipped = never sent (unsubscribed, recently mailed, ...) */
+    status: text("status", { enum: ["queued", "sent", "failed", "skipped"] }).notNull().default("queued"),
+    skipReason: text("skip_reason").notNull().default(""),
+    mailboxId: integer("mailbox_id").references(() => outreachMailboxes.id, { onDelete: "set null" }),
+    messageId: text("message_id").notNull().default(""),
+    error: text("error").notNull().default(""),
+    /** Queued sends are picked when this has passed; pushed forward while one is being sent or after an error. */
+    nextSendAt: timestamp("next_send_at", { withTimezone: true }).defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("newsletter_sends_campaign_email_uq").on(t.campaignId, t.email),
+    index("newsletter_sends_queue_idx").on(t.status, t.nextSendAt),
+    index("newsletter_sends_mailbox_idx").on(t.mailboxId, t.sentAt),
+    index("newsletter_sends_email_idx").on(t.email, t.sentAt),
+    orgPolicy(),
+  ],
 );
 
 /** Who gets which sequence from which mailboxes. */
@@ -2468,4 +2622,242 @@ export const invites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("invites_org_idx").on(t.organizationId, t.createdAt), orgPolicy()],
+);
+
+// ---------- Payroll (Accounts › Payroll) ----------
+
+/** What a person is paid each month. One row per user; only admins and accountants can read it. */
+export const employeePay = pgTable(
+  "employee_pay",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** Monthly base salary in AED. */
+    baseSalary: numeric("base_salary", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("employee_pay_user_uq").on(t.userId), orgPolicy()],
+);
+
+/**
+ * The kinds of line a payslip can have, set up by the accountant (Bonus, Overtime, Absence...). `systemKey` marks the two
+ * the portal treats specially: "advance_recovery" (pays back an advance) and "absence" (suggested from attendance).
+ */
+export const payItemTypes = pgTable(
+  "pay_item_types",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["earning", "deduction"] }).notNull(),
+    systemKey: text("system_key"),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("pay_item_types_name_uq").on(t.organizationId, t.name), orgPolicy()],
+);
+
+/**
+ * One person's pay for one month. A draft can be edited; "paid" posts to the ledger (salary cost, advance taken back,
+ * money out of the bank) and locks it; a wrong one is voided with a reason, never deleted.
+ */
+export const payslips = pgTable(
+  "payslips",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    /** PSL-2026-0001 */
+    number: text("number").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** YYYY-MM the pay is for. */
+    month: text("month").notNull(),
+    /** The name as it was when the slip was made, so a later rename does not change a paid slip. */
+    employeeName: text("employee_name").notNull(),
+    jobTitle: text("job_title").notNull().default(""),
+    baseSalary: numeric("base_salary", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    status: text("status", { enum: ["draft", "paid", "void"] }).notNull().default("draft"),
+    /** Money in the slip's totals, saved when it is marked paid. */
+    gross: numeric("gross", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    deductions: numeric("deductions", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    net: numeric("net", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    /** Days in, late, days away, hours: what attendance said when the slip was made or last refreshed. */
+    attendance: jsonb("attendance").$type<PayslipAttendance>(),
+    notes: text("notes").notNull().default(""),
+    paidOn: date("paid_on"),
+    method: text("method"),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    reference: text("reference").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("payslips_number_uq").on(t.organizationId, t.number),
+    // one live slip per person per month (a voided one makes room for a new one)
+    uniqueIndex("payslips_user_month_uq").on(t.userId, t.month).where(sql`status <> 'void'`),
+    index("payslips_month_idx").on(t.organizationId, t.month),
+    orgPolicy(),
+  ],
+);
+
+export interface PayslipAttendance {
+  daysIn: number;
+  late: number;
+  absent: number;
+  medical: number;
+  other: number;
+  hours: number;
+}
+
+export const payslipLines = pgTable(
+  "payslip_lines",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    payslipId: integer("payslip_id")
+      .notNull()
+      .references(() => payslips.id, { onDelete: "cascade" }),
+    typeId: integer("type_id").references(() => payItemTypes.id),
+    /** The type's name when the line was made. */
+    label: text("label").notNull(),
+    kind: text("kind", { enum: ["earning", "deduction"] }).notNull(),
+    systemKey: text("system_key"),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    note: text("note").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("payslip_lines_slip_idx").on(t.payslipId), orgPolicy()],
+);
+
+/** Money paid to an employee ahead of salary. What is not yet taken back is the employee's advance balance. */
+export const employeeAdvances = pgTable(
+  "employee_advances",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    /** ADV-2026-0001 */
+    number: text("number").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    employeeName: text("employee_name").notNull(),
+    paidOn: date("paid_on").notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    method: text("method").notNull(),
+    bankAccountId: integer("bank_account_id").references((): AnyPgColumn => bankAccounts.id),
+    reference: text("reference").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidReason: text("void_reason").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("employee_advances_number_uq").on(t.organizationId, t.number), index("employee_advances_user_idx").on(t.userId), orgPolicy()],
+);
+
+/**
+ * Claude connector (MCP at /api/mcp, lib/mcp/*). An app that registered itself through OAuth dynamic client
+ * registration: Claude on the web/desktop/phone registers once per connection, Claude Code with a loopback address.
+ * Registration happens before anyone signs in, so a client belongs to the default organisation.
+ */
+export const mcpClients = pgTable(
+  "mcp_clients",
+  {
+    id: serial("id").primaryKey(),
+    /** The organisation it was registered at (Zeronix today; registration comes before any sign-in). */
+    organizationId: orgId(),
+    /** The public client_id handed back to the app (random, 32 hex characters). */
+    clientId: text("client_id").notNull().unique(),
+    name: text("name").notNull().default(""),
+    redirectUris: text("redirect_uris").array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+    () => [orgPolicy()],
+);
+
+/**
+ * One Claude connection: an admin allowed an app to read (and maybe change) data as them. "pending" between the consent
+ * page and the code exchange; "active" after; revokedAt set by Admin › Claude or by a refresh token used twice.
+ */
+export const mcpGrants = pgTable(
+  "mcp_grants",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpClients.clientId, { onDelete: "cascade" }),
+    /** "read" or "read write". */
+    scope: text("scope").notNull(),
+    status: text("status", { enum: ["pending", "active"] }).notNull().default("pending"),
+    /** users.session_version when they allowed it: a password change or "Sign out everywhere" also ends the connection. */
+    userSv: integer("user_sv").notNull().default(1),
+    /** sha256 of the current refresh token; it changes on every refresh. */
+    refreshHash: text("refresh_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("mcp_grants_user_idx").on(t.userId), uniqueIndex("mcp_grants_refresh_uq").on(t.refreshHash), orgPolicy()],
+);
+
+/**
+ * A salesman's end-of-day report, sent before punching out (lib/daily-report.ts). One per person per UAE day; the
+ * counts are a snapshot of the day at the time it was sent, the note is theirs.
+ */
+export const dailyReports = pgTable(
+  "daily_reports",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    counts: jsonb("counts").$type<DayReportCounts>().notNull(),
+    /** What moved today, what is stuck. */
+    note: text("note").notNull(),
+    /** Asked when a daily target was missed. */
+    behindReason: text("behind_reason").notNull().default(""),
+    /** Follow-ups still due today that the report moved to the next working morning. */
+    moved: integer("moved").notNull().default(0),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("daily_reports_user_day_uq").on(t.organizationId, t.userId, t.day), index("daily_reports_day_idx").on(t.day), orgPolicy()],
+);
+
+/**
+ * The every-two-hours "what have you done?" check-in of the sales routine (lib/check-in.ts). One row per ask: answered
+ * (done + note) or missed (no answer 15 minutes after it was due; an answer that comes later still fills it in).
+ */
+export const checkIns = pgTable(
+  "check_ins",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    /** When it was due (the ask); with the user, it identifies the check-in. */
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    missed: boolean("missed").notNull().default(false),
+    /** Ticked boxes (CHECKIN_DONE keys). */
+    done: text("done").array().notNull().default(sql`'{}'::text[]`),
+    note: text("note").notNull().default(""),
+    /** What the system counted between the last check-in and the answer. */
+    counts: jsonb("counts").$type<CheckInCounts>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("check_ins_user_due_uq").on(t.organizationId, t.userId, t.dueAt), index("check_ins_day_idx").on(t.day), orgPolicy()],
 );

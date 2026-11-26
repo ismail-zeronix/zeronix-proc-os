@@ -1,48 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { offersToCsv, quoteText } from "@/lib/export";
-import { LlmUnavailable, type LlmProvider } from "@/lib/llm/provider";
-import type { OfferDraft } from "@/lib/llm/schema";
-import { preclean } from "@/lib/parse/preclean";
-import { blockCacheKey, parsePriceList } from "@/lib/parse/pipeline";
-import { toDraft } from "@/lib/parse/postfix";
-import { likelyPriceLists, looksLikeChatExport, parseChatExport } from "@/lib/parse/whatsapp";
 import { searchParamsFrom, type ProductHit } from "@/lib/search";
-
-const ANDROID = `19/10/2026, 09:01 - Messages and calls are end-to-end encrypted.
-19/10/2026, 09:05 - Aman Star: Good morning
-19/10/2026, 10:32 - Aman Star: *Desktops*
-HP 290 G9 | i5 | 8GB | 256GB @1500/-
-Lenovo V15 | i3 | 8GB | 256GB @1200/-
-Dell Vostro | i7 | 16GB | 512GB @2400/-
-20/10/2026, 08:00 - Aman Star: <Media omitted>`;
-
-describe("WhatsApp chat export", () => {
-  it("splits messages, joins continuation lines and drops system/media lines", () => {
-    expect(looksLikeChatExport(ANDROID)).toBe(true);
-    const msgs = parseChatExport(ANDROID);
-    expect(msgs).toHaveLength(2);
-    expect(msgs[1].sender).toBe("Aman Star");
-    expect(msgs[1].at).toBe("2026-10-19T10:32");
-    expect(msgs[1].text.split("\n")).toHaveLength(4);
-    expect(likelyPriceLists(msgs)).toEqual([msgs[1]]);
-  });
-
-  it("reads iOS and web-copy formats, 12-hour clock and month-first dates", () => {
-    const ios = parseChatExport("[19/10/26, 10:32:15] Sam: HP 250 @1500/-\n[19/10/26, 10:33:00] Sam: ok");
-    expect(ios[0].at).toBe("2026-10-19T10:32");
-    const web = parseChatExport("[10:32, 19/10/2026] Sam: HP 250 @1500/-");
-    expect(web[0].at).toBe("2026-10-19T10:32");
-    const us = parseChatExport("10/19/2026, 9:05 PM - Sam: hi\n10/20/2026, 9:05 AM - Sam: yo");
-    expect(us[0].at).toBe("2026-10-19T21:05");
-    expect(us[1].at).toBe("2026-10-20T09:05");
-  });
-
-  it("strips the copy-paste prefix before cleaning", () => {
-    expect(preclean("[10:32, 19/10/2026] Aman Star: *HP 250 G10* | 8GB")).toBe("HP 250 G10 | 8GB");
-    expect(preclean("19/10/2026, 10:32 - Aman Star: HP 250")).toBe("HP 250");
-    expect(preclean("HP ProBook 440 G11 | 16GB | 512GB")).toBe("HP ProBook 440 G11 | 16GB | 512GB");
-  });
-});
+import { DEFAULT_SHARE_FOOTER, parseTypedPrice, shareText } from "@/lib/share-price";
 
 const hit = (over: Partial<ProductHit> = {}): ProductHit => ({
   id: 1, label: "HP 250 G10", brand: "HP", modelName: "250 G10", partNumber: "", category: "laptop",
@@ -86,77 +45,31 @@ describe("search params", () => {
   });
 });
 
-describe("reusing reviewed rows", () => {
-  const list = `HP 250 G10 | i5 | 8GB | 256GB\n@1500/-\n\nLenovo V15 | i3 | 8GB | 256GB\n@1200/-\n\nDell Vostro 3520 | i7 | 16GB\n@2400/-`;
-  const item = (block: number, brand: string, model: string, price: number) => ({
-    block, category: "laptop" as const, brand, model_name: model, part_number: "", cpu: "", ram: "8GB", storage: "",
-    display: "", gpu: "", os: "", extras: "", price,
+describe("share price", () => {
+  const lines = [
+    { label: "Dell Latitude 5450", specs: "i7 · 16GB · 512GB SSD", price: 2200, stock: "Ready stock" },
+    { label: "HP *27* Monitor", specs: "", price: 760.5, stock: "" },
+  ];
+
+  it("writes one block per product with our price, then the last line", () => {
+    const t = shareText(lines, { showSpecs: true, showStock: true, currency: "AED", footer: DEFAULT_SHARE_FOOTER });
+    expect(t).toBe(`*Dell Latitude 5450*\ni7 · 16GB · 512GB SSD\nAED 2,200 · Ready stock\n\n*HP 27 Monitor*\nAED 760.5\n\n${DEFAULT_SHARE_FOOTER}`);
   });
 
-  it("skips the AI for blocks that were already reviewed and keeps list order", async () => {
-    const calls: string[] = [];
-    const llm: LlmProvider = {
-      name: "fake", model: "fake", health: async () => ({ ok: true, detail: "" }),
-      isLoaded: async () => false, unload: async () => {},
-      extractJson: async (req) => {
-        const user = req.messages.at(-1)!.content;
-        calls.push(user);
-        return { items: [item(0, "Lenovo", "V15", 1200)] };
-      },
-    };
-    // the reviewer already confirmed blocks 0 and 2 on an earlier list
-    const reviewed = (brand: string, model: string, raw: string, price: number): OfferDraft => ({
-      ...toDraft({ ...item(0, brand, model, price), condition: "new", currency: "AED", stock_note: "" }, { index: 0, text: raw, section: null }, 0),
-      include: false,
-    });
-    const known = new Map<string, OfferDraft[]>([
-      [blockCacheKey("HP 250 G10 | i5 | 8GB | 256GB\n@1500/-"), [reviewed("HP", "250 G10", "HP 250 G10 | i5 | 8GB | 256GB\n@1500/-", 1500)]],
-      [blockCacheKey("Dell  Vostro 3520 | i7 | 16GB\n@2400/-"), [reviewed("Dell", "Vostro 3520", "Dell Vostro 3520 | i7 | 16GB\n@2400/-", 2400)]],
-    ]);
-
-    let reusedBlocks = -1;
-    const drafts = await parsePriceList(list, { llm, known, onReused: (n) => void (reusedBlocks = n) });
-
-    expect(reusedBlocks).toBe(2);
-    expect(calls).toHaveLength(1); // only the Lenovo block went to the model
-    expect(calls[0]).toContain("Lenovo V15");
-    expect(calls[0]).not.toContain("HP 250");
-    expect(drafts.map((d) => d.brand)).toEqual(["HP", "Lenovo", "Dell"]);
-    expect(drafts[0].include).toBe(false); // the reviewer's decision is kept
-    expect(drafts[0].flags).toEqual([]);
-    expect(drafts[0].productId).toBeNull(); // product matching is redone for the new list
-  });
-});
-
-describe("hosted AI reading", () => {
-  const list = Array.from({ length: 12 }, (_, i) => `HP 250 G${i} | i5 | 8GB\n@${1000 + i}/-`).join("\n\n");
-  const hosted = (extractJson: LlmProvider["extractJson"]): LlmProvider => ({
-    name: "openrouter", model: "OpenRouter free", batch: { blocks: 20, chars: 4000 }, counted: true,
-    health: async () => ({ ok: true, detail: "" }), isLoaded: async () => false, unload: async () => {}, extractJson,
+  it("leaves out specs, stock and an empty last line when asked", () => {
+    expect(shareText(lines.slice(0, 1), { showSpecs: false, showStock: false, currency: "AED", footer: " " })).toBe("*Dell Latitude 5450*\nAED 2,200");
   });
 
-  it("reads a whole list in one request and does not re-ask skipped blocks", async () => {
-    let calls = 0;
-    const drafts = await parsePriceList(list, {
-      llm: hosted(async () => {
-        calls++;
-        // the model skipped the last block: with a counted allowance it is left out, not asked again
-        return { items: Array.from({ length: 11 }, (_, i) => ({ block: i, category: "laptop", brand: "HP", model_name: `250 G${i}`, part_number: "", cpu: "", ram: "8GB", storage: "", display: "", gpu: "", os: "", extras: "", price: 1000 + i })) };
-      }),
-    });
-    expect(calls).toBe(1);
-    expect(drafts).toHaveLength(11);
+  it("never carries supplier data: it only knows the lines it is given", () => {
+    const t = shareText([{ ...lines[0], price: 2200 }], { showSpecs: true, showStock: true, currency: "AED", footer: "" });
+    expect(t).not.toMatch(/Aman|supplier|1,500/i);
   });
 
-  it("stops the list when the service is out instead of making manual rows", async () => {
-    let calls = 0;
-    const read = parsePriceList(list, {
-      llm: hosted(async () => {
-        calls++;
-        throw new LlmUnavailable("OpenRouter free: allowance used up");
-      }),
-    });
-    await expect(read).rejects.toBeInstanceOf(LlmUnavailable);
-    expect(calls).toBe(1);
+  it("reads typed prices", () => {
+    expect(parseTypedPrice("2,200")).toBe(2200);
+    expect(parseTypedPrice("AED 2200.50")).toBe(2200.5);
+    expect(parseTypedPrice("")).toBeNull();
+    expect(parseTypedPrice("0")).toBeNull();
+    expect(parseTypedPrice("abc")).toBeNull();
   });
 });

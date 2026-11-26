@@ -6,6 +6,7 @@ import {
   Handshake,
   ListChecks,
   Mail,
+  Megaphone,
   MessageCircle,
   PackageSearch,
   Radar,
@@ -32,6 +33,8 @@ export interface AppDef {
   color: string;
   /** Every active user has it; not one of the apps an admin switches per user. */
   always?: boolean;
+  /** Lives inside another app (no tile, not in the switcher) but is still switched on per user, e.g. Newsletter in Outreach. */
+  inside?: string;
 }
 
 /** Single source of truth for the portal's apps. Add an app = add a row here + a folder under src/app/(app)/. */
@@ -141,14 +144,28 @@ export const APPS = [
     color: "var(--series-2)",
   },
   {
+    // Outreach (Phase 5 of the sales routine): finding customers, cold calls, cold email and newsletters in one app.
+    // The key stays "prospecting" so saved access lists and links keep working. Salesmen work their own prospects.
     key: "prospecting",
-    label: "Prospecting",
+    label: "Outreach",
     href: "/prospecting",
     icon: Radar,
-    blurb: "Find companies, research, cold email",
-    defaultFor: ["admin"],
+    blurb: "Find customers, cold calls, email and newsletters",
+    defaultFor: ["admin", "sales"],
     status: "live",
     color: "var(--series-5)",
+  },
+  {
+    // ready-made newsletters to pasted lists, sent from the Prospecting mailboxes with a working unsubscribe link
+    key: "newsletter",
+    label: "Newsletters",
+    href: "/newsletter",
+    icon: Megaphone,
+    blurb: "Send newsletters to your lists (inside Outreach)",
+    defaultFor: ["admin"],
+    status: "live",
+    color: "var(--series-4)",
+    inside: "prospecting",
   },
   {
     // control panel of the public site zeronixtech.com (WEBSITE-PLAN.md): content, catalog, leads, analytics
@@ -201,7 +218,7 @@ export function allowedApps(user: AccessUser): AppKey[] {
  */
 export function visibleApps(user: AccessUser): AppDef[] {
   const allowed = new Set<string>(user.apps ?? allowedApps(user));
-  return APPS.filter((a) => allowed.has(a.key) && (a.status === "live" || user.role === "admin"));
+  return APPS.filter((a) => allowed.has(a.key) && !("inside" in a) && (a.status === "live" || user.role === "admin"));
 }
 
 export const canOpen =(user: AccessUser, key: AppKey) => allowedApps(user).includes(key);
@@ -217,6 +234,17 @@ export function appOfPath(path: string): AppDef | undefined {
 
 /**
  * The apps a SaaS organisation gets (demo.zeronixos.online, v1): CRM, Sales, Accounts, Projects, Tasks, Files and Chat
- * (attendance is part of every account). Procurement, Mail, Knowledge, Prospecting and Website stay Zeronix's own for now.
+ * (attendance is part of every account). Procurement, Mail, Knowledge, Outreach, Newsletters and Website are Zeronix's
+ * own (lib/edition.ts): the platform console cannot switch them on for an organisation.
  */
 export const TENANT_CORE_APPS: AppKey[] = ["crm", "sales", "accounts", "projects", "tasks", "files", "chat"];
+
+/**
+ * Which of a person's apps their organisation's plan allows. `orgApps` is organizations.enabled_apps (null = no list
+ * saved). On Zeronix's own install null means every app; in the SaaS install (`zeronix` false) the plan can never go
+ * beyond TENANT_CORE_APPS, and null means all of those. Admin always stays for an organisation's admins.
+ */
+export function planApps(apps: AppKey[], orgApps: string[] | null, zeronix: boolean): AppKey[] {
+  const plan = zeronix ? orgApps : (orgApps ?? TENANT_CORE_APPS).filter((a) => (TENANT_CORE_APPS as string[]).includes(a));
+  return apps.filter((a) => !plan || a === "admin" || plan.includes(a));
+}

@@ -1,4 +1,4 @@
-import { Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, Bell, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon } from "lucide-react";
+import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon, PhoneCall } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -11,6 +11,8 @@ export interface NavItem {
   exact?: boolean;
   /** Other paths whose pages (`/procurement/import/3`) belong to this item, so it stays lit there. */
   also?: string[];
+  /** One of Zeronix's own features (lib/edition.ts): shown only with NavPerms.zeronix. */
+  zeronixOnly?: true;
 }
 
 export interface NavGroup {
@@ -26,6 +28,15 @@ export interface NavGroup {
 export interface NavPerms {
   /** The Accountant switch (Admin › Users): journals, chart of accounts, tax codes. */
   accountant?: boolean;
+  /** Sees everyone's sales data (admins and "All data" users): the CRM Team page. */
+  seesAll?: boolean;
+  /** Outreach for admins and "All data" users: overview, campaigns, newsletters, setup (lib/prospecting/access.ts). */
+  outreachFull?: boolean;
+  /**
+   * Zeronix's own install, so its own features' pages show (zeronixFeatures() in lib/edition.ts). The menus are drawn in
+   * the browser, which cannot read the server's MULTI_TENANT, so the server passes it here.
+   */
+  zeronix?: boolean;
 }
 
 /** Sidebar pages per app. Apps without an entry have no sidebar (single-page apps). */
@@ -35,7 +46,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       label: "Chat",
       items: [
         { href: "/chat", label: "Team chats", icon: MessagesSquare, exact: true, badge: "chatUnread" },
-        { href: "/chat/website", label: "Website chats", icon: Globe, badge: "webWaiting" },
+        { href: "/chat/website", label: "Website chats", icon: Globe, badge: "webWaiting", zeronixOnly: true },
       ],
     },
   ],
@@ -54,6 +65,11 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/crm/companies", label: "Companies", icon: Building2 },
         { href: "/crm/contacts", label: "Contacts", icon: Users },
       ],
+    },
+    {
+      label: "Team",
+      need: "seesAll",
+      items: [{ href: "/crm/team", label: "Team", icon: UsersRound, zeronixOnly: true }],
     },
   ],
   website: [
@@ -82,25 +98,32 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       items: [{ href: "/website/settings", label: "Settings", icon: SlidersHorizontal }],
     },
   ],
+  // Outreach (Prospecting with Newsletter inside, Phase 5): salesmen get Work; the rest is for admins and "All data" users
   prospecting: [
+    {
+      label: "Overview",
+      need: "outreachFull",
+      hideLabel: true,
+      items: [{ href: "/prospecting", label: "Overview", icon: LayoutDashboard, exact: true }],
+    },
     {
       label: "Work",
       items: [
-        { href: "/prospecting", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/prospecting/prospects", label: "Prospects", icon: Building2 },
-        { href: "/prospecting/review", label: "Review", icon: ClipboardCheck, badge: "review" },
-        { href: "/prospecting/campaigns", label: "Campaigns", icon: Send },
-        { href: "/prospecting/import", label: "Import", icon: Upload },
+        { href: "/prospecting/prospects", label: "Prospects", icon: Building2, also: ["/prospecting/import"] },
+        { href: "/prospecting/calls", label: "Call mode", icon: PhoneCall },
+        { href: "/prospecting/replies", label: "Replies", icon: Inbox, badge: "replies" },
       ],
     },
     {
+      label: "Email",
+      need: "outreachFull",
+      items: [{ href: "/prospecting/campaigns", label: "Campaigns", icon: Send, badge: "review", also: ["/prospecting/review", "/prospecting/sequences", "/newsletter"] }],
+    },
+    {
       label: "Setup",
+      need: "outreachFull",
       items: [
-        { href: "/prospecting/sequences", label: "Sequences", icon: ListOrdered },
-        { href: "/prospecting/sources", label: "Sources", icon: Database },
-        { href: "/prospecting/segments", label: "Segments", icon: Target },
-        { href: "/prospecting/do-not-contact", label: "Do not contact", icon: Ban },
-        { href: "/prospecting/settings", label: "Settings", icon: SlidersHorizontal },
+        { href: "/prospecting/settings", label: "Settings", icon: SlidersHorizontal, also: ["/prospecting/sources", "/prospecting/segments", "/prospecting/do-not-contact"] },
       ],
     },
   ],
@@ -115,18 +138,13 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
   ],
   procurement: [
     {
-      label: "Work",
+      label: "Procurement",
+      hideLabel: true,
       items: [
-        { href: "/procurement", label: "Overview", icon: LayoutDashboard, exact: true },
-        { href: "/procurement/compare", label: "Compare prices", icon: Search, also: ["/procurement/products"] },
-        { href: "/procurement/price-lists", label: "Price lists", icon: History, badge: "review", also: ["/procurement/import"] },
-      ],
-    },
-    {
-      label: "Track",
-      items: [
-        { href: "/procurement/alerts", label: "Price alerts", icon: Bell, badge: "alerts" },
+        { href: "/procurement", label: "Search", icon: Search, exact: true, also: ["/procurement/products"] },
+        { href: "/procurement/inbox", label: "Inbox", icon: Inbox, badge: "inbox" },
         { href: "/procurement/suppliers", label: "Suppliers", icon: Truck },
+        { href: "/procurement/price-lists", label: "Received", icon: History, also: ["/procurement/import"] },
       ],
     },
   ],
@@ -180,6 +198,11 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       ],
     },
     {
+      label: "People",
+      need: "accountant",
+      items: [{ href: "/accounts/payroll", label: "Payroll", icon: Banknote, zeronixOnly: true }],
+    },
+    {
       label: "Reports",
       items: [{ href: "/accounts/reports", label: "Reports", icon: BarChart3 }],
     },
@@ -200,24 +223,32 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
     {
       label: "System",
       items: [
-        { href: "/admin/ai", label: "AI & feeds", icon: Bot, badge: "queue" },
+        { href: "/admin/feeds", label: "Supplier feeds", icon: Bot, zeronixOnly: true },
         { href: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
+        { href: "/admin/claude", label: "Claude", icon: Sparkles, zeronixOnly: true },
         { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
       ],
     },
   ],
 };
 
-/** The sidebar groups of an app, without the groups this user lacks the permission for. */
+/**
+ * The sidebar groups of an app, without the groups this user lacks the permission for, and without Zeronix's own pages
+ * outside Zeronix's install (a group left empty goes too).
+ */
 export function navFor(app: AppKey, perms: NavPerms = {}): NavGroup[] {
-  return (APP_NAV[app] ?? []).filter((g) => !g.need || perms[g.need]);
+  return (APP_NAV[app] ?? [])
+    .filter((g) => !g.need || perms[g.need])
+    .map((g) => (perms.zeronix ? g : { ...g, items: g.items.filter((i) => !i.zeronixOnly) }))
+    .filter((g) => g.items.length > 0);
 }
 
 /** Hover text for a sidebar badge. */
 export const BADGE_LABELS: Record<string, string> = {
   review: "waiting for review",
+  replies: "replies waiting for someone",
   alerts: "new this week",
-  queue: "price lists waiting for AI",
+  inbox: "supplier messages waiting for a check",
   overdue: "invoices overdue",
   toInvoice: "delivered sales orders waiting for an invoice",
   billsDue: "supplier bills due this week or overdue",

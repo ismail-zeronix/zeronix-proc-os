@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import type { OfferDraft } from "@/lib/llm/schema";
+import type { OfferDraft } from "@/lib/offer-draft";
 import { compatible, matchKey, norm, specSummary } from "@/lib/parse/match";
 
 type Product = typeof schema.products.$inferSelect;

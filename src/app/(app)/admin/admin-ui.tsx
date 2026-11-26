@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, KeyRound, LayoutGrid, Plus, UserCheck, UserPlus, UserX, XCircle } from "lucide-react";
+import { KeyRound, LayoutGrid, Plus, UserCheck, UserPlus, UserX } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -36,77 +36,19 @@ function useAction() {
   return [pending, run] as const;
 }
 
-export function AdminSettings({
-  settings,
-  models,
-  engines,
-  health,
-}: {
-  settings: { llm_model: string; llm_provider_id: string; stale_days: string; fx_usd: string };
-  models: string[];
-  /** AI services saved in Prospecting → Settings. */
-  engines: { id: number; label: string; enabled: boolean }[];
-  health: { ok: boolean; detail: string };
-}) {
-  const [engine, setEngine] = useState(settings.llm_provider_id);
-  const [model, setModel] = useState(settings.llm_model);
+/** Price comparison (Procurement): when an offer counts as old, and the USD rate used to rank USD prices. */
+export function AdminSettings({ settings }: { settings: { stale_days: string; fx_usd: string } }) {
   const [stale, setStale] = useState(settings.stale_days);
   const [fx, setFx] = useState(settings.fx_usd);
   const [pending, run] = useAction();
-  const options = models.includes(model) ? models : [model, ...models];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI & comparison</CardTitle>
-        <CardDescription className="flex items-center gap-2">
-          {health.ok ? (
-            <CheckCircle2 className="size-4 text-emerald-600" />
-          ) : (
-            <XCircle className="size-4 text-destructive" />
-          )}
-          {health.detail}
-        </CardDescription>
+        <CardTitle>Price comparison</CardTitle>
+        <CardDescription>How supplier prices are ranked in Procurement and in the quote builder&apos;s Find price.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-[1fr_200px_200px_auto] md:items-start">
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label>Reads pasted price lists with</Label>
-            <NativeSelect value={engine} onChange={(e) => setEngine(e.target.value)}>
-              <NativeSelectOption value="">Local model (Ollama)</NativeSelectOption>
-              {engines.map((p) => (
-                <NativeSelectOption key={p.id} value={String(p.id)}>
-                  {p.label}
-                  {p.enabled ? "" : " (switched off)"}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <p className="text-xs text-muted-foreground">
-              AI services and keys are added in{" "}
-              <Link href="/prospecting/settings" className="underline">
-                Prospecting → Settings
-              </Link>
-              . OpenRouter free models read a list in a few seconds and share that key&apos;s 50 free requests a day; a
-              list waits in the queue when they run out.
-            </p>
-          </div>
-          {engine === "" && (
-            <div className="grid gap-1.5">
-              <Label>Local model (Ollama)</Label>
-              <NativeSelect value={model} onChange={(e) => setModel(e.target.value)}>
-                {options.map((m) => (
-                  <NativeSelectOption key={m} value={m}>
-                    {m}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <p className="text-xs text-muted-foreground">
-                qwen3.5:4b gives the best accuracy on CPU (~3.4 GB RAM). qwen3.5:2b is ~20% faster but less accurate.
-                Pull other models with <code>ollama pull &lt;name&gt;</code>.
-              </p>
-            </div>
-          )}
-        </div>
+      <CardContent className="grid gap-4 md:grid-cols-[200px_200px_auto] md:items-start">
         <div className="grid gap-1.5">
           <Label>Offer is “old” after (days)</Label>
           <Input type="number" min={1} max={365} value={stale} onChange={(e) => setStale(e.target.value)} />
@@ -119,13 +61,7 @@ export function AdminSettings({
             Lets USD distributor prices rank against AED prices. Other currencies are only compared with themselves.
           </p>
         </div>
-        <Button
-          className="md:mt-[1.375rem]"
-          pending={pending}
-          onClick={() =>
-            run(() => saveSettings({ llm_model: model, llm_provider_id: engine, stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")
-          }
-        >
+        <Button className="md:mt-[1.375rem]" pending={pending} onClick={() => run(() => saveSettings({ stale_days: Number(stale), fx_usd: Number(fx) }), "Settings saved")}>
           Save
         </Button>
       </CardContent>
@@ -216,11 +152,15 @@ interface UserRow {
   jobTitle: string;
 }
 
-/** Which apps one user can open: the role's defaults, or a list the admin picks. Admins always see every app. */
-function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; run: ReturnType<typeof useAction>[1] }) {
+/**
+ * Which apps one user can open: the role's defaults, or a list the admin picks. Admins always see every app. Only the
+ * apps the organisation's plan has are offered (`grantable`, from the server).
+ */
+function UserApps({ user, grantable, disabled, run }: { user: UserRow; grantable: readonly string[]; disabled: boolean; run: ReturnType<typeof useAction>[1] }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(user.apps !== null);
-  const [picked, setPicked] = useState<string[]>(user.apps ?? allowedApps({ role: user.role }));
+  const [picked, setPicked] = useState<string[]>((user.apps ?? allowedApps({ role: user.role })).filter((k) => grantable.includes(k)));
+  const offered = GRANTABLE_APPS.filter((a) => grantable.includes(a.key));
   const [accountant, setAccountant] = useState(user.isAccountant);
   if (user.role === "admin") return <span className="text-sm text-muted-foreground">All apps</span>;
   const count = (user.apps === null ? "Role defaults" : `${user.apps.length} app${user.apps.length === 1 ? "" : "s"}`) + (user.isAccountant ? " · Accountant" : "");
@@ -235,7 +175,7 @@ function UserApps({ user, disabled, run }: { user: UserRow; disabled: boolean; r
           <Checkbox checked={!custom} onCheckedChange={(v) => setCustom(!v)} /> Use role defaults
         </label>
         <div className="grid gap-1.5 border-t pt-2">
-          {GRANTABLE_APPS.map((a) => (
+          {offered.map((a) => (
             <label key={a.key} className="flex items-center gap-2 text-sm aria-disabled:opacity-50" aria-disabled={!custom}>
               <Checkbox
                 disabled={!custom}
@@ -284,13 +224,27 @@ export interface TodayInfo {
   label: string;
 }
 
-export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: number; today: Record<number, TodayInfo> }) {
+export function AdminUsers({
+  users,
+  meId,
+  today,
+  grantable,
+  payroll,
+}: {
+  users: UserRow[];
+  meId: number;
+  today: Record<number, TodayInfo>;
+  /** App keys the organisation's plan has, so the only ones offered per person. */
+  grantable: readonly string[];
+  /** Zeronix's own install: the salary field for Accounts › Payroll (lib/edition.ts). */
+  payroll: boolean;
+}) {
   const [pending, run] = useAction();
 
   return (
     <div className="grid gap-3">
       <PageToolbar title="Users" meta={`${users.filter((u) => u.isActive).length} active · ${users.length} in total`}>
-        <AddUserDialog run={run} pending={pending} />
+        <AddUserDialog run={run} pending={pending} payroll={payroll} />
       </PageToolbar>
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table cards>
@@ -348,7 +302,7 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
                     </NativeSelect>
                   </TableCell>
                   <TableCell className="hidden py-1.5 md:table-cell">
-                    <UserApps key={`${u.id}-${u.role}-${u.apps?.join(",") ?? "-"}-${u.isAccountant}`} user={u} disabled={pending} run={run} />
+                    <UserApps key={`${u.id}-${u.role}-${u.apps?.join(",") ?? "-"}-${u.isAccountant}`} user={u} grantable={grantable} disabled={pending} run={run} />
                   </TableCell>
                   <TableCell className="hidden py-1.5 md:table-cell">
                     {u.role === "admin" ? (
@@ -413,9 +367,9 @@ export function AdminUsers({ users, meId, today }: { users: UserRow[]; meId: num
   );
 }
 
-function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1]; pending: boolean }) {
+function AddUserDialog({ run, pending, payroll }: { run: ReturnType<typeof useAction>[1]; pending: boolean; payroll: boolean }) {
   const [open, setOpen] = useState(false);
-  const blank = { name: "", email: "", password: "", role: "sales" as "admin" | "sales" };
+  const blank = { name: "", email: "", password: "", role: "sales" as "admin" | "sales", salary: "" };
   const [form, setForm] = useState(blank);
   const valid = !!form.name && !!form.email && form.password.length >= 8;
   return (
@@ -434,7 +388,7 @@ function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1];
             e.preventDefault();
             if (!valid) return;
             run(async () => {
-              await createUser(form);
+              await createUser({ ...form, salary: Number(form.salary) || 0 });
               setForm(blank);
               setOpen(false);
             }, "User created");
@@ -467,6 +421,18 @@ function AddUserDialog({ run, pending }: { run: ReturnType<typeof useAction>[1];
               </NativeSelect>
             </div>
           </div>
+          {payroll && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="nu-salary">Monthly salary (AED)</Label>
+              <Input
+                id="nu-salary"
+                inputMode="decimal"
+                value={form.salary}
+                onChange={(e) => setForm({ ...form, salary: e.target.value.replace(/[^\d.]/g, "") })}
+                placeholder="Used for payslips in Accounts › Payroll. Leave empty if not paid by the company."
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button type="submit" pending={pending} disabled={!valid}>
               <UserPlus /> Add user

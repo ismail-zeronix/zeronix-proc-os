@@ -48,7 +48,8 @@ export async function proformaDoc(o: Order): Promise<SalesDocData> {
 }
 
 /** Delivery note: quantities only, signature boxes for both sides. */
-export function deliveryDoc(o: Order): SalesDocData {
+/** `plain`: the version without our details, which shows prices and the total value instead (see print/order). */
+export function deliveryDoc(o: Order, plain = false): SalesDocData {
   return {
     title: "DELIVERY NOTE",
     number: o.dnNumber ?? "(not delivered yet)",
@@ -60,15 +61,16 @@ export function deliveryDoc(o: Order): SalesDocData {
     to: { name: o.company.name, lines: customerLines(o) },
     shipTo: o.deliveryAddress ? { label: "Delivered to", lines: [o.deliveryAddress] } : undefined,
     items: items(o.items),
-    showPrices: false,
+    showPrices: plain,
     vatPct: o.vatPct,
     subtotal: o.subtotal,
     vatAmount: o.vatAmount,
     total: o.total,
     notes: ["Please check the goods on delivery. Report anything missing or damaged within 2 working days.", ...(o.receivedBy ? [`Received by: ${o.receivedBy}`] : [])],
-    signatures: ["Delivered by", "Received in good condition by (customer)"],
+    // no company name in the signature box: every organisation prints its own delivery notes
+    signatures: plain ? ["Delivered by", "Received in good condition by"] : ["Delivered by", "Received in good condition by (customer)"],
     stamp: o.status === "cancelled" ? "CANCELLED" : undefined,
-    preparedBy: o.author?.name,
+    preparedBy: plain ? undefined : o.author?.name,
   };
 }
 

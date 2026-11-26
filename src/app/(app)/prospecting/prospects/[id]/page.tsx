@@ -25,11 +25,12 @@ import {
   StatusControl,
 } from "../../prospect-ui";
 import { ResearchButtons, ResearchWatcher, UseFindingButton } from "../../research-ui";
+import { canOpenProspect, outreachView } from "@/lib/prospecting/access";
 
 export async function generateMetadata({ params }: PageProps<"/prospecting/prospects/[id]">) {
   await requireApp("prospecting");
   const p = await getProspect(Number((await params).id)).catch(() => null);
-  return { title: `${p?.name ?? "Prospect"} · Zeronix Prospecting` };
+  return { title: `${p?.name ?? "Prospect"} · Zeronix Outreach` };
 }
 
 const q = (s: string) => encodeURIComponent(s);
@@ -160,6 +161,8 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
   if (!Number.isInteger(id) || id < 1) notFound();
   const [p, segments, users, run] = await Promise.all([getProspect(id), listSegments(), prospectingUsers(), latestResearch(id)]);
   if (!p) notFound();
+  const view = await outreachView();
+  if (!canOpenProspect(view, p.ownerId)) notFound();
   const running = !!run && RUNNING.includes(run.status);
   const segOptions = segments.filter((s) => s.active || s.key === p.segmentKey).map((s) => ({ key: s.key, label: s.label }));
   const meta = "inline-flex items-center gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0";
@@ -173,7 +176,7 @@ export default async function ProspectPage({ params }: PageProps<"/prospecting/p
         <h1 className="min-w-0 flex-1 basis-[calc(100%-3rem)] truncate text-lg font-semibold tracking-tight sm:basis-0">{p.name}</h1>
         <ResearchButtons ids={[p.id]} running={running} />
         <StatusControl ids={[p.id]} status={p.status} />
-        <OwnerControl ids={[p.id]} ownerId={p.ownerId} users={users} />
+        {view.full && <OwnerControl ids={[p.id]} ownerId={p.ownerId} users={users} />}
         <ProspectDialog
           segments={segOptions}
           prospect={{

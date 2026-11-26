@@ -78,6 +78,31 @@ undone: they only ever add.
 | New password and authenticator secret | `... platform-admin.js reset --email x` |
 | Remove access | `... platform-admin.js off --email x` |
 
+## Bringing dev into saas
+
+Work happens in its own folder, a git worktree of this branch (`E:\ZERONIX PORTAL\zeronix-saas`), so the `dev` folder
+is never switched. Each time `dev` is merged in:
+
+1. **Migrations.** `saas` has its own migrations between dev's, so dev's new ones get the next free numbers here:
+   - rename the `.sql` file and its `meta/NNNN_snapshot.json`;
+   - point the first one's `prevId` at the last snapshot here;
+   - append them to `meta/_journal.json`, keeping each one's `when` (the demo database runs a migration only if its
+     `when` is later than the last one applied).
+   - The 2026-11-26 merge, for example, put dev's 0064-0071 at 0066-0073, after 0064_tenancy and 0065_platform.
+2. **New tables.** A new table from dev must have `orgId()` and `orgPolicy()`; `tests/org-scope.test.ts` fails
+   otherwise.
+   - dev makes them with `DEFAULT 1`: add a catch-up migration that sets the default to the session organisation and
+     forces the policy (as `0074_tenancy_catchup` does).
+   - An `onConflict` target on a per-organisation unique key must include `organizationId`.
+3. **Zeronix's own features.** `src/lib/edition.ts` keeps them off here:
+   - the proxy answers 404 for their addresses;
+   - menu items are marked `zeronixOnly`;
+   - their server actions start with `assertZeronixFeatures()`.
+   - A new Zeronix-only page, menu item or action from dev needs the same.
+   - Organisations only ever get `TENANT_CORE_APPS`.
+4. Test against a throwaway Postgres (never the shared dev one): `npx vitest run` with `DATABASE_URL` pointing at it.
+   Then simulate the demo's upgrade: migrate a database with the old `saas` migrations, then with the new ones.
+
 ## Before taking money from customers
 
 - Legal: approve the terms and privacy text (`src/content/legal.ts`, `approved: true`), the operator name and the

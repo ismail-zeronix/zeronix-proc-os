@@ -1,9 +1,12 @@
-import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
+import { WebMcp } from "@/components/agent/web-mcp";
 import { Tracker } from "@/components/analytics/tracker";
 import { Footer } from "@/components/layout/footer";
+import { BottomBar } from "@/components/layout/bottom-bar";
 import { Header } from "@/components/layout/header";
+import { SwRegister } from "@/components/layout/sw-register";
 import { getNav, getSettings } from "@/lib/api";
 import { SITE_URL } from "@/lib/defaults";
 import { flags } from "@/lib/flags";
@@ -11,9 +14,9 @@ import { JsonLd } from "@/components/catalog/page-parts";
 import { siteJsonLd } from "@/lib/seo";
 import "./globals.css";
 
-// BRAND.md section 3. Self-hosted (next/font/google fails in the server's Docker build); variable fonts, SIL OFL.
-const body = localFont({ src: "./fonts/Figtree-latin-wght.woff2", variable: "--font-body", weight: "300 900", display: "swap" });
-const display = localFont({ src: "./fonts/Manrope-latin-wght.woff2", variable: "--font-display", weight: "200 800", display: "swap" });
+// One family for everything (Inter, self-hosted: next/font/google fails in the server's Docker build); variable, SIL OFL.
+const body = localFont({ src: "./fonts/Inter-latin-wght.woff2", variable: "--font-body", weight: "100 900", display: "swap" });
+const display = localFont({ src: "./fonts/Inter-latin-wght.woff2", variable: "--font-display", weight: "100 900", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
   const { brand } = await getSettings();
@@ -22,6 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${brand.name} · ${brand.tagline}`, template: `%s · ${brand.name}` },
     description: brand.subline,
     applicationName: brand.name,
+    // added to the home screen it opens like an app (manifest.ts); iOS reads these instead of the manifest
+    appleWebApp: { capable: true, title: "Zeronix", statusBarStyle: "default" },
     publisher: brand.name,
     category: "technology",
     formatDetection: { telephone: false, email: false, address: false },
@@ -45,16 +50,17 @@ const GA_ID = process.env.GA_MEASUREMENT_ID || "G-MZWP8C8GLW";
 const GTM_ID = process.env.GTM_ID || "GTM-PJ5JPS9P";
 
 export const viewport: Viewport = {
-  themeColor: "#f6f6f1",
+  themeColor: "#ffffff",
+  // the app runs edge to edge on notched phones; the header and the tab bar pad themselves with the safe areas
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const [{ brand, home }, nav] = await Promise.all([getSettings(), getNav()]);
   return (
     <html lang="en" className={`${body.variable} ${display.variable}`}>
-      {flags.indexing && GTM_ID && <GoogleTagManager gtmId={GTM_ID} />}
-      <body className="flex min-h-dvh flex-col font-sans">
-        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-lime-400 focus:px-3 focus:py-2 focus:text-forest-950">
+      <body className="flex min-h-dvh flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] font-sans lg:pb-0">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-cta focus:px-3 focus:py-2 focus:text-on-brand">
           Skip to content
         </a>
         <Header brand={brand} home={home} nav={nav} />
@@ -62,24 +68,41 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <Footer brand={brand} nav={nav} services={home.services} />
+        <BottomBar />
+        <SwRegister />
         <JsonLd data={siteJsonLd(brand)} />
         <Tracker />
+        <WebMcp />
         {/* the portal's chat widget (the portal's widget/README.md), in the brand colours; chats are tagged with this site */}
         {process.env.PORTAL_PUBLIC_URL && (
-          <script
+          <Script
+            strategy="lazyOnload"
             src={`${process.env.PORTAL_PUBLIC_URL.replace(/\/$/, "")}/widget/zeronix-chat.js`}
-            data-color="#06352B"
-            data-dark="#03201A"
+            data-color="#0a8443"
+            data-dark="#087236"
             data-title={`${brand.name} sales`}
             data-greeting={`Hi 👋 Welcome to ${brand.name}. Tell us what your team does, or which models you are looking at, and we will send B2B pricing.`}
             data-quick={`${brand.ctaLabel}|Which laptop suits my team?|Talk to a sales person`}
             data-popup-delay="45"
             data-popup-scroll="70"
-            defer
           />
         )}
+        {/* Google Tag Manager and Google Analytics 4 are ~360 KB of script: they load once the page has finished loading
+            (lazyOnload), never in the way of the first screen. Same ids and tags as before. */}
+        {flags.indexing && GTM_ID && (
+          <Script id="gtm" strategy="lazyOnload">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
+          </Script>
+        )}
+        {flags.indexing && GA_ID && (
+          <>
+            <Script id="ga" strategy="lazyOnload">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;gtag('js',new Date());gtag('config','${GA_ID}');`}
+            </Script>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
+          </>
+        )}
       </body>
-      {flags.indexing && GA_ID && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

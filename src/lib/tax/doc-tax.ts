@@ -54,6 +54,36 @@ export function docTax(lines: readonly { net: number; code: string }[], vatOverr
 }
 
 /**
+ * The net of an amount that includes VAT at a code's rate, to the fil. Looks for the net whose VAT (worked out the way
+ * docTax works it out) adds back to exactly the amount, so a VAT-inclusive 105.00 is 100.00 + 5.00, not 99.99 + 5.01.
+ */
+export function netFromGross(gross: number, code: string): number {
+  const rate = chargedRate(code);
+  const g = toMinor(gross);
+  if (rate === 0) return fromMinor(g);
+  const guess = Math.round((g * 100) / (100 + rate));
+  for (const d of [0, -1, 1, -2, 2]) {
+    if (guess + d + pctOf(guess + d, rate) === g) return fromMinor(guess + d);
+  }
+  return fromMinor(guess);
+}
+
+/** Line nets from line amounts that include VAT: each code's lines are converted together, so they add up to its net. */
+export function netsFromGross(lines: readonly { gross: number; code: string }[]): number[] {
+  const out = lines.map(() => 0);
+  for (const code of new Set(lines.map((l) => l.code))) {
+    const idx = lines.flatMap((l, i) => (l.code === code ? [i] : []));
+    const gross = idx.reduce((s, i) => s + toMinor(lines[i].gross), 0);
+    const net = toMinor(netFromGross(fromMinor(gross), code));
+    const shares = allocate(net, idx.map((i) => toMinor(lines[i].gross)));
+    idx.forEach((i, k) => {
+      out[i] = fromMinor(shares[k]);
+    });
+  }
+  return out;
+}
+
+/**
  * The VAT a credit or debit note gives back. Worked out on what it credits, but never past what is left of the document's
  * VAT, and when it clears everything standard-rated it takes exactly what is left, so fils never remain after several notes.
  */

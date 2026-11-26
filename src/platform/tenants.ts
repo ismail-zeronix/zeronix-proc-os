@@ -128,7 +128,8 @@ export async function setTenantStatus(admin: PlatformSession, id: number, status
 }
 
 export async function setTenantPlan(admin: PlatformSession, id: number, plan: { apps: string[] | null; userLimit: number | null }) {
-  const apps = plan.apps === null ? null : [...new Set(plan.apps)].filter((a): a is AppKey => isAppKey(a) && a !== "admin");
+  // core apps only (lib/apps.ts TENANT_CORE_APPS): Zeronix's own apps cannot be switched on for an organisation
+  const apps = plan.apps === null ? null : [...new Set(plan.apps)].filter((a): a is AppKey => isAppKey(a) && TENANT_CORE_APPS.includes(a));
   const limit = plan.userLimit == null ? null : Math.floor(plan.userLimit);
   if (limit != null && (limit < 1 || limit > 10_000)) throw new UserError("The user limit must be between 1 and 10,000, or empty for no limit.");
   const [o] = await platformDb.update(schema.organizations).set({ enabledApps: apps, userLimit: limit, updatedAt: new Date() }).where(eq(schema.organizations.id, id)).returning({ name: schema.organizations.name });

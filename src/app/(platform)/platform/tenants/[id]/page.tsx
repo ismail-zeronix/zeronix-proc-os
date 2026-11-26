@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { APPS } from "@/lib/apps";
+import { APPS, TENANT_CORE_APPS } from "@/lib/apps";
 import { requirePlatform } from "@/platform/session";
 import { getTenant } from "@/platform/tenants";
 import { EnterBox, InviteBox, PlanBox, StatusBox } from "./tenant-controls";
@@ -16,7 +16,8 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   const t = await getTenant(id);
   if (!t) notFound();
   const { org } = t;
-  const apps = APPS.filter((a) => a.key !== "admin").map((a) => ({ key: a.key, label: a.label }));
+  // only the core apps can be switched on: Zeronix's own apps are not offered to organisations (lib/edition.ts)
+  const apps = APPS.filter((a) => TENANT_CORE_APPS.includes(a.key)).map((a) => ({ key: a.key, label: a.label }));
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-3">
