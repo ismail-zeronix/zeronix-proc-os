@@ -230,17 +230,24 @@ export async function requeueStuckLists() {
   revalidatePath("/procurement/price-lists");
 }
 
-/** A one-time link for someone to join this company (Admin › Users): they choose their own password. */
-export async function createInviteLink(input: { email: string; name: string; role: "admin" | "sales" }): Promise<{ url: string; expiresAt: string } | { error: string }> {
+/**
+ * A one-time link for someone to join this company (Admin › Users): they choose their own password. Emailed to them from
+ * the platform mailbox when one is set up (`emailed`); the link is shown either way.
+ */
+export async function createInviteLink(input: { email: string; name: string; role: "admin" | "sales" }): Promise<{ url: string; expiresAt: string; emailed: boolean } | { error: string }> {
   const me = await requireAdmin();
   try {
-    const { createInvite } = await import("@/lib/invites");
+    const { createInvite, emailInvite } = await import("@/lib/invites");
     const { currentOrgId } = await import("@/lib/org");
+    const { getBrand } = await import("@/lib/brand");
     const role = z.enum(["admin", "sales"]).parse(input.role);
-    const r = await createInvite(await currentOrgId(), { email: z.string().max(200).parse(input.email), name: z.string().max(120).parse(input.name), role, createdBy: me.id });
-    await audit(db, { userId: me.id, action: "invite.create", entity: "user", summary: `Invitation for ${input.email.trim().toLowerCase()} as ${role}` });
+    const email = z.string().max(200).parse(input.email).trim().toLowerCase();
+    const name = z.string().max(120).parse(input.name);
+    const r = await createInvite(await currentOrgId(), { email, name, role, createdBy: me.id });
+    const emailed = await emailInvite({ to: email, name, orgName: (await getBrand()).company || "your company", url: r.url, expiresAt: r.expiresAt, by: me.name });
+    await audit(db, { userId: me.id, action: "invite.create", entity: "user", summary: `Invitation for ${email} as ${role}${emailed ? " (emailed)" : ""}` });
     revalidatePath("/admin/users");
-    return { url: r.url, expiresAt: r.expiresAt.toISOString() };
+    return { url: r.url, expiresAt: r.expiresAt.toISOString(), emailed };
   } catch (e) {
     if (e instanceof UserError) return { error: e.message };
     throw e;

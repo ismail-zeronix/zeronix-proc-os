@@ -5,6 +5,7 @@ import { requireApp } from "@/lib/auth/session";
 import { teamMonth, todayLine } from "@/lib/attendance-data";
 import { dubaiToday } from "@/lib/dates";
 import { zeronixFeatures } from "@/lib/edition";
+import { platformMailReady } from "@/lib/platform-mail";
 import { AdminUsers, type TodayInfo } from "../admin-ui";
 import { listUsers } from "../data";
 import { InviteByLink } from "./invite-ui";
@@ -33,7 +34,7 @@ export default async function AdminUsersPage() {
   return (
     <div className="grid gap-3">
       <AdminUsers users={users} meId={me.id} today={todayBy} grantable={grantable} payroll={zeronix} />
-      <InviteByLink />
+      <InviteByLink mail={platformMailReady()} />
       <SupportVisits />
     </div>
   );

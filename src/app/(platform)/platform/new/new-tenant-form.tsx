@@ -14,7 +14,7 @@ const blank = { name: "", legalName: "", trn: "", emirate: "dubai", adminName: "
 
 export function NewTenantForm() {
   const [f, setF] = useState(blank);
-  const [made, setMade] = useState<{ id: number; inviteUrl: string; expiresAt: string } | null>(null);
+  const [made, setMade] = useState<{ id: number; inviteUrl: string; expiresAt: string; emailedTo: string | null } | null>(null);
   const [pending, start] = useTransition();
   const field = (k: keyof typeof blank, label: string, props: React.ComponentProps<typeof Input> = {}) => (
     <div className="grid gap-1.5">
@@ -30,7 +30,7 @@ export function NewTenantForm() {
           <CardDescription>It has the core apps (CRM, Sales, Accounts, Projects, Tasks, Files, Chat). Its first admin joins with this link.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <InviteLink url={made.inviteUrl} expiresAt={made.expiresAt} />
+          <InviteLink url={made.inviteUrl} expiresAt={made.expiresAt} emailedTo={made.emailedTo} />
           <div className="flex gap-2">
             <Button nativeButton={false} render={<Link href={`/platform/tenants/${made.id}`} />}>
               Open the organisation
@@ -57,7 +57,7 @@ export function NewTenantForm() {
             start(async () => {
               const r = await createTenantAction({ ...f, userLimit: f.userLimit.trim() ? Number(f.userLimit) : null });
               if (!r.ok) return void toast.error(r.error);
-              setMade({ id: r.id, inviteUrl: r.inviteUrl, expiresAt: new Date(r.expiresAt).toISOString() });
+              setMade({ id: r.id, inviteUrl: r.inviteUrl, expiresAt: new Date(r.expiresAt).toISOString(), emailedTo: r.emailed ? f.adminEmail.trim().toLowerCase() : null });
             });
           }}
         >

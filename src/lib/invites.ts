@@ -45,6 +45,27 @@ export async function createInvite(orgId: number, input: { email: string; name?:
   return { url: `${await publicBaseUrl()}/invite/${token}`, expiresAt };
 }
 
+/**
+ * Emails an invitation link from the platform mailbox (lib/platform-mail.ts). False when no mailbox is set up or the
+ * send failed: whoever made the link still sees it, to copy and send themselves.
+ */
+export async function emailInvite(input: { to: string; name?: string; orgName: string; url: string; expiresAt: Date; by?: string }): Promise<boolean> {
+  const { sendPlatformMail } = await import("@/lib/platform-mail");
+  const until = input.expiresAt.toLocaleString("en-GB", { timeZone: "Asia/Dubai", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const name = (input.name ?? "").trim().split(/\s+/)[0];
+  return sendPlatformMail({
+    to: input.to,
+    subject: `Join ${input.orgName} on ZeronixOS`,
+    lines: [
+      name ? `Hello ${name},` : "Hello,",
+      `${input.by ? `${input.by} has invited you` : "You have been invited"} to join ${input.orgName} on ZeronixOS, for its CRM, quotes, invoices and projects.`,
+      "Open the link to choose your own password and sign in.",
+    ],
+    button: { label: `Join ${input.orgName}`, url: input.url },
+    note: `The link works once, until ${until} (UAE time). If you did not expect it, you can ignore this email.`,
+  });
+}
+
 export interface InviteInfo {
   id: number;
   orgId: number;

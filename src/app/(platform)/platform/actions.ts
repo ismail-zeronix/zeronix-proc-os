@@ -68,7 +68,7 @@ export async function inviteAction(orgId: number, input: { email: string; name: 
     const admin = await assertPlatform();
     const r = await newInvite(admin, id.parse(orgId), { email: z.string().max(200).parse(input.email), name: z.string().max(120).parse(input.name), role: z.enum(["admin", "sales"]).parse(input.role) });
     revalidatePath(`/platform/tenants/${orgId}`);
-    return { url: r.url, expiresAt: r.expiresAt.toISOString() };
+    return { url: r.url, expiresAt: r.expiresAt.toISOString(), emailed: r.emailed };
   });
 }
 

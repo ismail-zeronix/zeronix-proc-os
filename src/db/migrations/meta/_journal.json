@@ -526,6 +526,13 @@
       "when": 1795682718362,
       "tag": "0074_tenancy_catchup",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1795696992648,
+      "tag": "0075_password_resets",
+      "breakpoints": true
     }
   ]
 }

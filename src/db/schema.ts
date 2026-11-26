@@ -2624,6 +2624,29 @@ export const invites = pgTable(
   (t) => [index("invites_org_idx").on(t.organizationId, t.createdAt), orgPolicy()],
 );
 
+/**
+ * A "forgot password" link (/reset-password/<token>), emailed from the platform mailbox (lib/platform-mail.ts). Works
+ * once, for an hour. Only a hash of the token is kept. Opened through app_reset_lookup(), since the person following the
+ * link is not signed in.
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** The address that asked for it (for the audit trail). */
+    ip: text("ip").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId, t.createdAt), orgPolicy()],
+);
+
 // ---------- Payroll (Accounts › Payroll) ----------
 
 /** What a person is paid each month. One row per user; only admins and accountants can read it. */

@@ -133,7 +133,7 @@ export function PlanBox({ orgId, apps, enabled, userLimit }: { orgId: number; ap
 
 export function InviteBox({ orgId }: { orgId: number }) {
   const [f, setF] = useState({ email: "", name: "", role: "admin" as "admin" | "sales" });
-  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [link, setLink] = useState<{ url: string; expiresAt: string; emailedTo: string | null } | null>(null);
   const [pending, start] = useTransition();
   return (
     <Card>
@@ -142,7 +142,7 @@ export function InviteBox({ orgId }: { orgId: number }) {
         <CardDescription>A one-time link to join this company (72 hours): for a first admin who lost theirs, or a new person.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {link && <InviteLink url={link.url} expiresAt={link.expiresAt} />}
+        {link && <InviteLink url={link.url} expiresAt={link.expiresAt} emailedTo={link.emailedTo} />}
         <div className="grid gap-2 sm:grid-cols-2">
           <Input placeholder="Email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
           <Input placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
@@ -162,7 +162,7 @@ export function InviteBox({ orgId }: { orgId: number }) {
               start(async () => {
                 const r = await inviteAction(orgId, f);
                 if (!r.ok) return void toast.error(r.error);
-                setLink({ url: r.url, expiresAt: r.expiresAt });
+                setLink({ url: r.url, expiresAt: r.expiresAt, emailedTo: r.emailed ? f.email.trim().toLowerCase() : null });
                 setF({ email: "", name: "", role: "admin" });
               })
             }

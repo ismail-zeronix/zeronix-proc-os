@@ -33,6 +33,15 @@ x-app-env: &app-env
   WEBCHAT_ORIGINS: ""
   MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-200}
   MIGRATE_ON_START: "false"
+  # the platform's own mailbox (lib/platform-mail.ts): invitations, "forgot password", trial requests, payment
+  # reminders. Empty = nothing is emailed (links are shown to copy) and "Forgot password?" stays hidden.
+  PLATFORM_SMTP_HOST: ${PLATFORM_SMTP_HOST:-}
+  PLATFORM_SMTP_PORT: ${PLATFORM_SMTP_PORT:-465}
+  PLATFORM_SMTP_USER: ${PLATFORM_SMTP_USER:-}
+  PLATFORM_SMTP_PASS: ${PLATFORM_SMTP_PASS:-}
+  PLATFORM_MAIL_FROM: ${PLATFORM_MAIL_FROM:-}
+  # where new trial requests and unpaid-company notices go (comma separated); empty = the platform admins' emails
+  PLATFORM_NOTIFY_EMAIL: ${PLATFORM_NOTIFY_EMAIL:-}
 
 services:
   zxsaas-postgres:

@@ -4,7 +4,7 @@ import { db, runAsOrg, schema as tenantSchema } from "@/db";
 import { TENANT_CORE_APPS, isAppKey, type AppKey } from "@/lib/apps";
 import { setSessionCookie } from "@/lib/auth/session-cookie";
 import type { PlatformSession } from "@/lib/auth/platform-token";
-import { createInvite } from "@/lib/invites";
+import { createInvite, emailInvite } from "@/lib/invites";
 import { aeVat } from "@/lib/tax/ae-vat";
 import { UserError } from "@/lib/user-error";
 import { platformDb, schema } from "./db";
@@ -93,7 +93,7 @@ export interface NewTenant {
  * A new organisation, ready to use: its row (through the platform role: no organisation may add another), its own
  * brand name on documents, TRN, project types, the core apps, and a one-time link for its first admin.
  */
-export async function createTenant(admin: PlatformSession, input: NewTenant): Promise<{ id: number; inviteUrl: string; expiresAt: Date }> {
+export async function createTenant(admin: PlatformSession, input: NewTenant): Promise<{ id: number; inviteUrl: string; expiresAt: Date; emailed: boolean }> {
   const name = input.name.trim();
   if (name.length < 2) throw new UserError("Enter the company name.");
   const trn = (input.trn ?? "").replace(/[\s-]/g, "");
@@ -116,8 +116,9 @@ export async function createTenant(admin: PlatformSession, input: NewTenant): Pr
     await db.insert(tenantSchema.projectTypes).values(DEFAULT_PROJECT_TYPES.map(([key, label], i) => ({ key, label, position: i + 1 })));
   });
   const invite = await createInvite(org.id, { email: input.adminEmail, name: input.adminName, role: "admin", createdBy: null });
-  await platformAudit({ admin, action: "tenant.create", orgId: org.id, summary: `${name} created; first admin invited: ${input.adminEmail.trim().toLowerCase()}` });
-  return { id: org.id, inviteUrl: invite.url, expiresAt: invite.expiresAt };
+  const emailed = await emailInvite({ to: input.adminEmail.trim().toLowerCase(), name: input.adminName, orgName: name, url: invite.url, expiresAt: invite.expiresAt });
+  await platformAudit({ admin, action: "tenant.create", orgId: org.id, summary: `${name} created; first admin invited: ${input.adminEmail.trim().toLowerCase()}${emailed ? " (emailed)" : ""}` });
+  return { id: org.id, inviteUrl: invite.url, expiresAt: invite.expiresAt, emailed };
 }
 
 export async function setTenantStatus(admin: PlatformSession, id: number, status: "active" | "suspended", reason: string) {
@@ -139,8 +140,10 @@ export async function setTenantPlan(admin: PlatformSession, id: number, plan: { 
 
 export async function newInvite(admin: PlatformSession, id: number, input: { email: string; name: string; role: "admin" | "sales" }) {
   const invite = await createInvite(id, { ...input, createdBy: null });
-  await platformAudit({ admin, action: "invite.create", orgId: id, summary: `Invitation for ${input.email.trim().toLowerCase()} (${input.role})` });
-  return invite;
+  const [org] = await platformDb.select({ name: schema.organizations.name }).from(schema.organizations).where(eq(schema.organizations.id, id));
+  const emailed = await emailInvite({ to: input.email.trim().toLowerCase(), name: input.name, orgName: org?.name ?? "your company", url: invite.url, expiresAt: invite.expiresAt });
+  await platformAudit({ admin, action: "invite.create", orgId: id, summary: `Invitation for ${input.email.trim().toLowerCase()} (${input.role})${emailed ? " (emailed)" : ""}` });
+  return { ...invite, emailed };
 }
 
 /**
