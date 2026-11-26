@@ -42,6 +42,8 @@ x-app-env: &app-env
   PLATFORM_MAIL_FROM: ${PLATFORM_MAIL_FROM:-}
   # where new trial requests and unpaid-company notices go (comma separated); empty = the platform admins' emails
   PLATFORM_NOTIFY_EMAIL: ${PLATFORM_NOTIFY_EMAIL:-}
+  # the address organisations write to about their plan (reminders, Admin's plan card)
+  PLATFORM_SUPPORT_EMAIL: ${PLATFORM_SUPPORT_EMAIL:-support@zeronixos.online}
 
 services:
   zxsaas-postgres:

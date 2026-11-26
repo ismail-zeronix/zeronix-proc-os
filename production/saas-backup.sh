@@ -3,7 +3,8 @@
 #   /srv/docker/zeronix-saas/production/saas-backup.sh
 # Writes <BACKUP_DIR>/zxsaas-db-YYYYMMDD-HHMMSS.dump (pg_dump custom format) and zxsaas-files-*.tar.gz. The dump runs
 # inside the postgres container as its owner, so no password is passed or printed. Old backups are removed only after
-# a successful run. A copy off this server is strongly recommended (the server failing takes these with it).
+# a successful run. Then, when OFFSITE_* is set (production/saas-offsite.sh), both are encrypted and copied to Object
+# Storage, so a server failure does not take them too; a failed copy makes the script fail (the cron log shows it).
 #   BACKUP_DIR        /srv/backups/zeronix-saas   (or BACKUP_DIR in .env.saas)
 #   BACKUP_KEEP_DAYS  14
 set -euo pipefail
@@ -37,4 +38,17 @@ fi
 
 if [ "$KEEP_DAYS" -gt 0 ]; then
   find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'zxsaas-db-*.dump' -o -name 'zxsaas-files-*.tar.gz' \) -mtime +"$KEEP_DAYS" -delete
+fi
+
+# the copy off this server: encrypted here, streamed to Object Storage
+. "$ROOT/production/saas-offsite.sh"
+if offsite_ready; then
+  offsite_encrypt < "$DB_FILE" | offsite_put "$(basename "$DB_FILE").enc" || { echo "ERROR: the off-server copy of the database failed" >&2; exit 1; }
+  if [ -n "${FILES:-}" ] && [ -f "$FILES" ]; then
+    offsite_encrypt < "$FILES" | offsite_put "$(basename "$FILES").enc" || { echo "ERROR: the off-server copy of the files failed" >&2; exit 1; }
+  fi
+  offsite_prune "$OFFSITE_KEEP_DAYS" || echo "warning: old off-server copies could not be pruned" >&2
+  echo "off-server copy: $OFFSITE_S3_BUCKET/$(basename "$DB_FILE").enc (encrypted)"
+else
+  echo "no off-server copy yet: set OFFSITE_* in .env.saas (production/SAAS.md, Off-server backups)"
 fi

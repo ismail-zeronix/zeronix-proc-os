@@ -46,7 +46,9 @@ volumes, secrets and backups.
    cd /srv/docker && git clone -b saas https://github.com/ismail-zeronix/zeronix-proc-os.git zeronix-saas
    cd zeronix-saas && bash production/saas-env.sh      # .env.saas with fresh secrets, mode 600
    ```
-   Keep a copy of `DATA_KEY` from `.env.saas` somewhere safe. Saved mailbox passwords cannot be read without it.
+   Keep a copy of `DATA_KEY` and `OFFSITE_PASSPHRASE` from `.env.saas` somewhere safe. Saved mailbox passwords and
+   the off-server backups cannot be read without them. An `.env.saas` from an older version gets the newer settings
+   with `bash production/saas-env.sh --add-missing`, which changes nothing that is already there.
 4. **Deploy**, the same command every time:
    ```
    sudo bash production/saas-deploy.sh
@@ -57,8 +59,66 @@ volumes, secrets and backups.
    ```
    It prints a password and an authenticator secret. Add the secret to an authenticator app at once; it is not shown
    again. Then sign in at https://demo.zeronixos.online/platform.
-6. **Nightly backup** (cron as root): `30 2 * * * /srv/docker/zeronix-saas/production/saas-backup.sh >> /var/log/zxsaas-backup.log 2>&1`.
-   Copy the backups off the server too.
+6. **Backups** (cron as root, `sudo crontab -e`):
+   ```
+   30 2 * * * /bin/bash /srv/docker/zeronix-saas/production/saas-backup.sh >> /var/log/zxsaas-backup.log 2>&1
+   0 4 1 * *  /bin/bash /srv/docker/zeronix-saas/production/saas-restore-test.sh --offsite >> /var/log/zxsaas-restore-test.log 2>&1
+   ```
+   Nightly backup with its encrypted off-server copy (below); a restore test on the 1st of every month.
+
+## Platform mailbox (no-reply@zeronixos.online)
+
+Invitations, "Forgot password?", trial requests and payment reminders are emailed from the platform's own mailbox.
+Without it nothing is emailed: invitation links are shown to copy, and "Forgot password?" is hidden.
+
+1. Add zeronixos.online to the email host (Hostinger, like zeronix.ae) and create `no-reply@zeronixos.online`.
+2. Add the DNS records the email host lists (MX, SPF, DKIM, DMARC) at Spaceship, or the emails land in spam.
+3. In `.env.saas`: `PLATFORM_SMTP_HOST=smtp.hostinger.com`, `PLATFORM_SMTP_PORT=465`,
+   `PLATFORM_SMTP_USER=no-reply@zeronixos.online`, `PLATFORM_SMTP_PASS=...`; optionally `PLATFORM_NOTIFY_EMAIL`
+   (where new trial requests and unpaid notices go; default: the platform admins) and `PLATFORM_SUPPORT_EMAIL`.
+4. `sudo bash production/saas-deploy.sh`, then try "Forgot password?" with your own test account.
+
+## Billing (manual invoices)
+
+New organisations get a 30-day trial. In the console (organisation › Billing):
+- **Record payment** when it arrives (1, 3, 6 or 12 months, with the invoice number): "paid until" moves on, counted
+  from the later of today and the current end, and a company paused for being unpaid is active again.
+- **Plan, dates, price** can be set by hand. Free = never ends (no reminders).
+
+The billing job reminds a company's admins 7, 3 and 1 days before the date (bell and email) and once after it; it
+pauses the company 7 days after an unpaid date and tells the platform. Admins also see a notice across the top in the
+last week, and their plan in Admin. Invoices come from Zeronix's own Accounts (zeronixos.online).
+
+## Trial requests
+
+"Request a free trial" on the sign-in page. Requests appear on the console's home page: **Review and approve** fills
+New organisation from the request; creating it marks the request approved and emails the invitation. **Decline** keeps
+a private reason and emails nothing.
+
+## Closing a company
+
+Organisation › Close the company:
+1. **Download all its data** (ZIP: every record as CSV, every file).
+2. Pause it (Pause card), type its name, **Schedule deletion in 30 days**. It can be cancelled until then.
+3. On or after that day, **Delete for good now**: every row and file goes. The platform's audit trail keeps the record.
+
+A company nobody ever joined can be deleted at once. A company's admin can download its own data any time in
+Admin › Settings › Your data.
+
+## Off-server backups (OVH Object Storage)
+
+Each nightly backup is encrypted on the server (AES-256, `OFFSITE_PASSPHRASE`) and streamed to Object Storage by a
+throwaway rclone container (`production/saas-offsite.sh`). Copies older than 30 days are removed from the bucket.
+1. OVH control panel › Public Cloud › Object Storage: create a container (bucket) such as `zeronix-saas-backups`, in
+   a region near the server (e.g. GRA); then Users & Roles: an S3 user with access to it, and its S3 access key.
+2. In `.env.saas` (after `--add-missing`): `OFFSITE_S3_ENDPOINT=https://s3.gra.io.cloud.ovh.net`,
+   `OFFSITE_S3_REGION=gra`, `OFFSITE_S3_BUCKET=zeronix-saas-backups`, `OFFSITE_S3_ACCESS_KEY=...`,
+   `OFFSITE_S3_SECRET_KEY=...`. Keep a copy of `OFFSITE_PASSPHRASE` with `DATA_KEY`, off the server.
+3. Test: `sudo bash production/saas-backup.sh` (ends with "off-server copy: ..."), then
+   `sudo bash production/saas-restore-test.sh --offsite` (ends with "RESTORE TEST OK").
+
+To restore for real from a copy: `rclone cat` it (see saas-offsite.sh), decrypt with
+`openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:OFFSITE_PASSPHRASE`, and `pg_restore` it.
 
 ## Every deploy
 
@@ -106,7 +166,9 @@ is never switched. Each time `dev` is merged in:
 ## Before taking money from customers
 
 - Legal: approve the terms and privacy text (`src/content/legal.ts`, `approved: true`), the operator name and the
-  support email.
+  support email. The terms should state the plans, prices and the 7-day pause after an unpaid date.
 - Security: an external penetration test.
-- Operations: a timed restore drill from a backup, and off-server backup copies.
-- Billing and self sign-up are not built (invite only).
+- Operations: the platform mailbox, the off-server bucket and both cron lines set up (above), and one restore test run
+  by hand and timed.
+- Built: billing by manual invoice, trial requests (approved by hand), data download, closing a company.
+  Not built: card payments, open self sign-up.
