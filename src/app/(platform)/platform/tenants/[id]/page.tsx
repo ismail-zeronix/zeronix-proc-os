@@ -7,7 +7,7 @@ import { billingState } from "@/lib/billing";
 import { dubaiToday } from "@/lib/dates";
 import { requirePlatform } from "@/platform/session";
 import { getTenant } from "@/platform/tenants";
-import { BillingBox, EnterBox, InviteBox, PlanBox, StatusBox } from "./tenant-controls";
+import { BillingBox, CloseBox, EnterBox, InviteBox, PlanBox, StatusBox } from "./tenant-controls";
 
 const when = (d: Date | string | null) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dubai" }) : "-");
 
@@ -45,6 +45,16 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
         <EnterBox orgId={org.id} active={org.status === "active"} />
         <StatusBox orgId={org.id} status={org.status} />
         <PlanBox orgId={org.id} apps={apps} enabled={org.enabledApps} userLimit={org.userLimit} />
+        {org.id !== 1 && (
+          <CloseBox
+            orgId={org.id}
+            name={org.name}
+            paused={org.status !== "active"}
+            deleteAfter={org.deleteAfter}
+            due={!!org.deleteAfter && org.deleteAfter <= dubaiToday()}
+            nobodyJoined={t.people.length === 0}
+          />
+        )}
       </div>
       <Card>
         <CardHeader>

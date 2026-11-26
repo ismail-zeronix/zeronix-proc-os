@@ -9,6 +9,8 @@ const ALLOWED: readonly RegExp[] = [
   /^\/api\/quotes\/\d+\/pdf$/,
   /^\/api\/projects\/proposals\/\d+\/pdf(\?[\w=&%.+~-]*)?$/,
   /^\/api\/export(\?[\w=&%.,+~-]*)?$/,
+  // "Download all our data" (SaaS install, Admin › Settings › Your data)
+  /^\/api\/data-export$/,
 ];
 
 /** Only our own download addresses: the worker opens this as the person who asked, so it must never be anything else. */

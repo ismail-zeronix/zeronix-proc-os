@@ -229,6 +229,46 @@ describe.skipIf(!live)("the platform console (needs the test database)", () => {
     await setStatusAction(orgId, "active", "test over");
   });
 
+  it("closes an organisation: paused, scheduled, then deleted for good; the platform's record stays", async () => {
+    const A = await import("@/app/(platform)/platform/actions");
+    const name = `${tag} Closing Co`;
+    const made = await A.createTenantAction({ name, adminName: "Zaid", adminEmail: `${tag.toLowerCase()}-close@example.test` });
+    if (!made.ok) throw new Error(made.error);
+    const cid = made.id;
+    // someone joined and worked in it, so it cannot be deleted at once
+    const { acceptInvite } = await import("@/lib/invites");
+    await acceptInvite(made.inviteUrl.split("/invite/")[1], { name: "Zaid", password: "zaid-password" });
+    await adminQuery("INSERT INTO companies (organization_id, name, name_norm) VALUES ($1, 'Their customer', 'theircustomer')", [cid]);
+
+    expect(await A.scheduleDeletionAction(cid, name, "leaving")).toMatchObject({ ok: false, error: expect.stringMatching(/Pause the company first/) });
+    expect(await A.setStatusAction(cid, "suspended", "closing")).toEqual({ ok: true });
+    expect(await A.scheduleDeletionAction(cid, "Some other company", "leaving")).toMatchObject({ ok: false, error: expect.stringMatching(/Type the company's name/) });
+    expect(await A.scheduleDeletionAction(cid, name.toLowerCase(), "leaving")).toMatchObject({ ok: true });
+    expect(await A.deleteTenantAction(cid, name)).toMatchObject({ ok: false, error: expect.stringMatching(/deletion date has not come/) });
+    expect(await A.cancelDeletionAction(cid)).toEqual({ ok: true });
+    expect(await A.scheduleDeletionAction(cid, name, "leaving after all")).toMatchObject({ ok: true });
+    await adminQuery("UPDATE organizations SET delete_after = current_date - 1 WHERE id = $1", [cid]);
+    await expect(A.deleteTenantAction(cid, name)).rejects.toThrow(/redirect:\/platform/);
+
+    const [left] = await adminQuery<Record<string, number>>(
+      `SELECT (SELECT count(*)::int FROM organizations WHERE id = $1) AS orgs, (SELECT count(*)::int FROM users WHERE organization_id = $1) AS users,
+              (SELECT count(*)::int FROM companies WHERE organization_id = $1) AS companies, (SELECT count(*)::int FROM brand_profile WHERE organization_id = $1) AS brand,
+              (SELECT count(*)::int FROM invites WHERE organization_id = $1) AS invites`,
+      [cid],
+    );
+    expect(left).toEqual({ orgs: 0, users: 0, companies: 0, brand: 0, invites: 0 });
+    const trail = await adminQuery<{ action: string; organization_id: number | null }>("SELECT action, organization_id FROM platform_audit_log WHERE summary LIKE $1 ORDER BY id", [`${name}%`]);
+    expect(trail.map((t) => t.action)).toEqual(expect.arrayContaining(["tenant.create", "tenant.close", "tenant.close_cancel", "tenant.delete"]));
+    expect(trail.every((t) => t.organization_id === null)).toBe(true);
+    // the other organisation is untouched, and the app's own role can never call the function
+    expect(await adminQuery("SELECT count(*)::int AS n FROM organizations WHERE id = $1", [orgId])).toEqual([{ n: 1 }]);
+    const err = (await db
+      .execute(sql`SELECT platform_delete_org(${orgId})`)
+      .then(() => null)
+      .catch((e: unknown) => e)) as { code?: string; cause?: { code?: string } } | null;
+    expect(err?.cause?.code ?? err?.code).toBe("42501");
+  });
+
   it("the console refuses anyone without a platform sign-in", async () => {
     jar.clear();
     const { createTenantAction } = await import("@/app/(platform)/platform/actions");

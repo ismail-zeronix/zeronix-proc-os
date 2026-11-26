@@ -8,8 +8,115 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { enterAction, inviteAction, recordPaymentAction, setBillingAction, setPlanAction, setStatusAction } from "../../actions";
+import { cancelDeletionAction, deleteTenantAction, enterAction, inviteAction, recordPaymentAction, scheduleDeletionAction, setBillingAction, setPlanAction, setStatusAction } from "../../actions";
 import { InviteLink } from "../../invite-link";
+
+/**
+ * Closing the company: its data as a ZIP first, then (paused) a deletion 30 days ahead that can be cancelled, then the
+ * final delete on or after that day. A company nobody ever joined can be deleted at once.
+ */
+export function CloseBox({
+  orgId,
+  name,
+  paused,
+  deleteAfter,
+  due,
+  nobodyJoined,
+}: {
+  orgId: number;
+  name: string;
+  paused: boolean;
+  deleteAfter: string | null;
+  /** deleteAfter has come */
+  due: boolean;
+  nobodyJoined: boolean;
+}) {
+  const [typed, setTyped] = useState("");
+  const [reason, setReason] = useState("");
+  const [pending, start] = useTransition();
+  const canDelete = paused && (due || nobodyJoined);
+  const nameOk = typed.trim().toLowerCase() === name.trim().toLowerCase();
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader>
+        <CardTitle>Close the company</CardTitle>
+        <CardDescription>
+          Download its data first. Then, with the company paused, schedule the deletion: 30 days later every record and file is deleted for good with the final button. Until then it can
+          be cancelled.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm">
+        <a href={`/platform/tenants/${orgId}/export`} className="w-fit font-medium underline">
+          Download all its data (ZIP)
+        </a>
+        {!paused ? (
+          <p className="text-muted-foreground">Pause the company first (the Pause card).</p>
+        ) : (
+          <>
+            {deleteAfter && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-destructive">Deletion scheduled from {deleteAfter}.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  pending={pending}
+                  onClick={() =>
+                    start(async () => {
+                      const r = await cancelDeletionAction(orgId);
+                      if (!r.ok) return void toast.error(r.error);
+                      toast.success("Deletion cancelled.");
+                    })
+                  }
+                >
+                  Cancel the deletion
+                </Button>
+              </div>
+            )}
+            <Input placeholder={`Type the company's name to confirm: ${name}`} value={typed} onChange={(e) => setTyped(e.target.value)} />
+            {!deleteAfter && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input className="max-w-sm" placeholder="Why (recorded)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={!nameOk || reason.trim().length < 3}
+                  pending={pending}
+                  onClick={() =>
+                    start(async () => {
+                      const r = await scheduleDeletionAction(orgId, typed, reason);
+                      if (!r.ok) return void toast.error(r.error);
+                      setTyped("");
+                      toast.success(`Deletion scheduled from ${r.deleteAfter}.`);
+                    })
+                  }
+                >
+                  Schedule deletion in 30 days
+                </Button>
+              </div>
+            )}
+            {canDelete && (
+              <Button
+                variant="destructive"
+                className="w-fit"
+                disabled={!nameOk}
+                pending={pending}
+                onClick={() =>
+                  start(async () => {
+                    const r = await deleteTenantAction(orgId, typed);
+                    if (r && !r.ok) toast.error(r.error);
+                  })
+                }
+              >
+                Delete for good now
+              </Button>
+            )}
+            {canDelete && <p className="text-xs text-destructive">{nobodyJoined && !due ? "Nobody ever joined this company, so it can be deleted now." : "The 30 days are over."} This cannot be undone.</p>}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 /** Look inside the organisation: read only by default; changes need a reason the company will see. */
 export function EnterBox({ orgId, active }: { orgId: number; active: boolean }) {

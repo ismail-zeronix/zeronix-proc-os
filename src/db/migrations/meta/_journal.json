@@ -547,6 +547,13 @@
       "when": 1795697788034,
       "tag": "0077_trial_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795698428370,
+      "tag": "0078_close_organisation",
+      "breakpoints": true
     }
   ]
 }

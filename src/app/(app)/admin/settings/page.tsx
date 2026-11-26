@@ -1,7 +1,9 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { Bell, Building2, Clock, FolderKanban, Receipt, Scale, Target } from "lucide-react";
+import { Bell, Building2, Clock, Database, Download, FolderKanban, Receipt, Scale, Target } from "lucide-react";
+import { ExportButton } from "@/components/export-button";
 import { PageToolbar } from "@/components/page-toolbar";
+import { supportEmail } from "@/lib/billing";
 import { UrlTabs } from "@/components/url-tabs";
 import { requireApp } from "@/lib/auth/session";
 import { getBrand } from "@/lib/brand";
@@ -89,6 +91,40 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
             icon: <Building2 />,
             content: <BrandCard brand={brand} version={version} sample={{ name: me.name, email: me.email }} zeronixPreset={zeronix} />,
           },
+          // the SaaS install: an organisation's own copy of everything, and how to close the account
+          ...(zeronix
+            ? []
+            : [
+                {
+                  key: "data",
+                  label: "Your data",
+                  icon: <Database />,
+                  content: (
+                    <div className="grid max-w-2xl gap-3 rounded-lg border bg-card px-3 py-3 text-sm">
+                      <div className="grid gap-1">
+                        <h3 className="font-medium">Download all your data</h3>
+                        <p className="text-muted-foreground">
+                          One ZIP file: every record as a spreadsheet (CSV) and every uploaded file. Passwords and sign-in keys are never included. Large accounts take a minute;
+                          the file downloads by itself when it is ready.
+                        </p>
+                      </div>
+                      <ExportButton url="/api/data-export" label="All your data (ZIP)" className="w-fit" size="sm">
+                        <Download /> Download all data
+                      </ExportButton>
+                      <div className="grid gap-1 border-t pt-3">
+                        <h3 className="font-medium">Closing your account</h3>
+                        <p className="text-muted-foreground">
+                          Write to{" "}
+                          <a href={`mailto:${supportEmail()}`} className="underline">
+                            {supportEmail()}
+                          </a>
+                          . We pause the account first, and delete all its data 30 days later. Download your data before you write: nobody can sign in once it is paused.
+                        </p>
+                      </div>
+                    </div>
+                  ),
+                },
+              ]),
         ]}
       />
     </div>

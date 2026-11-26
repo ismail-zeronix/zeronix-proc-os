@@ -63,6 +63,11 @@ export const organizations = pgTable("organizations", {
   pausedReason: text("paused_reason").notNull().default(""),
   /** The last reminder sent (lib/billing.ts reminderFor), so each one goes once. */
   billingReminder: text("billing_reminder").notNull().default(""),
+  /**
+   * Closing the organisation (platform console): the day from which its data may be deleted for good. Set 30 days
+   * ahead on a paused organisation; the console then offers the final delete (platform_delete_org()). Null = staying.
+   */
+  deleteAfter: date("delete_after"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, () => [

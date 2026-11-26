@@ -37,6 +37,8 @@ export function appRoleSql(role: string, password: string, database: string): st
     `REVOKE INSERT, UPDATE, DELETE ON platform_audit_log FROM ${r}`,
     // trial requests belong to no organisation: the public form adds them through app_trial_request() only
     `REVOKE ALL ON trial_requests FROM ${r}`,
+    // closing an organisation for good is the platform console's alone
+    `REVOKE EXECUTE ON FUNCTION platform_delete_org(integer) FROM ${r}`,
     // the migration table is the owner's alone
     `REVOKE ALL ON ALL TABLES IN SCHEMA drizzle FROM ${r}`,
   ];

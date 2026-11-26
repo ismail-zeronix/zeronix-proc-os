@@ -7,6 +7,7 @@ import { UserError } from "@/lib/user-error";
 import { assertPlatform } from "@/platform/session";
 import { createTenant, enterTenant, newInvite, recordPayment, setTenantBilling, setTenantPlan, setTenantStatus } from "@/platform/tenants";
 import { declineTrialRequest, markTrialApproved } from "@/platform/trials";
+import { cancelDeletion, deleteTenantNow, scheduleDeletion } from "@/platform/close";
 
 /** What a console form gets back: production builds hide thrown messages, so they come back as `error`. */
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -47,6 +48,37 @@ export async function createTenantAction(input: z.input<typeof newTenantSchema>)
     revalidatePath("/platform");
     return r;
   });
+}
+
+export async function scheduleDeletionAction(orgId: number, typedName: string, reason: string) {
+  return run(async () => {
+    const admin = await assertPlatform();
+    const r = await scheduleDeletion(admin, id.parse(orgId), z.string().max(200).parse(typedName), z.string().max(500).parse(reason));
+    revalidatePath(`/platform/tenants/${orgId}`);
+    return r;
+  });
+}
+
+export async function cancelDeletionAction(orgId: number) {
+  return run(async () => {
+    const admin = await assertPlatform();
+    await cancelDeletion(admin, id.parse(orgId));
+    revalidatePath(`/platform/tenants/${orgId}`);
+    return {};
+  });
+}
+
+/** Deletes the organisation for good; on success the browser goes back to the list. */
+export async function deleteTenantAction(orgId: number, typedName: string) {
+  const r = await run(async () => {
+    const admin = await assertPlatform();
+    return deleteTenantNow(admin, id.parse(orgId), z.string().max(200).parse(typedName));
+  });
+  if (r.ok) {
+    revalidatePath("/platform");
+    redirect("/platform");
+  }
+  return r;
 }
 
 export async function declineTrialAction(requestId: number, reason: string) {
