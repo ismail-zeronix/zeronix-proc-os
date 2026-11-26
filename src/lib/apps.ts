@@ -239,6 +239,9 @@ export function appOfPath(path: string): AppDef | undefined {
  */
 export const TENANT_CORE_APPS: AppKey[] = ["crm", "sales", "accounts", "projects", "tasks", "files", "chat"];
 
+/** Tile text in the SaaS install, where an app's Zeronix-only parts are off (Chat has no website chats, Admin no Claude). */
+export const TENANT_BLURBS: Partial<Record<string, string>> = { chat: "Team chats", admin: "Users and settings" };
+
 /**
  * Which of a person's apps their organisation's plan allows. `orgApps` is organizations.enabled_apps (null = no list
  * saved). On Zeronix's own install null means every app; in the SaaS install (`zeronix` false) the plan can never go

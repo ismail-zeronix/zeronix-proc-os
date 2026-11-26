@@ -5,7 +5,7 @@ import { MyDaySection, NowLine } from "./my-day";
 import { AppTile } from "@/components/app-tile";
 import { accountsBadges } from "@/lib/accounts-data";
 import { listCounts } from "@/lib/alerts";
-import { visibleApps } from "@/lib/apps";
+import { TENANT_BLURBS, visibleApps } from "@/lib/apps";
 import { requireAccess } from "@/lib/auth/session";
 import { zeronixFeatures } from "@/lib/edition";
 import { dubaiDateLabel, dubaiGreeting } from "@/lib/home";
@@ -32,7 +32,8 @@ export const metadata = { title: "Home · Zeronix" };
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { user, apps, seesAll, finance } = await requireAccess();
-  const tiles = visibleApps({ role: user.role, apps });
+  // the SaaS install words two tiles without their Zeronix-only parts (lib/apps.ts TENANT_BLURBS)
+  const tiles = visibleApps({ role: user.role, apps }).map((a) => (zeronixFeatures() ? a : { ...a, blurb: TENANT_BLURBS[a.key] ?? a.blurb }));
   const hasProcurement = apps.includes("procurement");
   const hasSales = apps.includes("crm");
   const hasTasks = apps.includes("tasks");
