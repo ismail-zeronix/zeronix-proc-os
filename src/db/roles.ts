@@ -35,6 +35,8 @@ export function appRoleSql(role: string, password: string, database: string): st
     // platform admins are the platform role's alone; tenants may read their support visits, never change them
     `REVOKE ALL ON platform_admins FROM ${r}`,
     `REVOKE INSERT, UPDATE, DELETE ON platform_audit_log FROM ${r}`,
+    // trial requests belong to no organisation: the public form adds them through app_trial_request() only
+    `REVOKE ALL ON trial_requests FROM ${r}`,
     // the migration table is the owner's alone
     `REVOKE ALL ON ALL TABLES IN SCHEMA drizzle FROM ${r}`,
   ];

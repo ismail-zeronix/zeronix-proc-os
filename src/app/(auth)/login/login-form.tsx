@@ -57,14 +57,23 @@ export function LoginForm({
           </Button>
         </form>
         {showLegal && (
-          <p className="mt-4 flex gap-3 text-xs text-muted-foreground">
-            <a href="/legal/terms" className="hover:underline">
-              Terms
-            </a>
-            <a href="/legal/privacy" className="hover:underline">
-              Privacy
-            </a>
-          </p>
+          <>
+            {/* the SaaS install: new companies ask for a trial (the platform console approves it) */}
+            <p className="mt-4 text-sm">
+              New to ZeronixOS?{" "}
+              <a href="/request-trial" className="font-medium hover:underline">
+                Request a free trial
+              </a>
+            </p>
+            <p className="mt-3 flex gap-3 text-xs text-muted-foreground">
+              <a href="/legal/terms" className="hover:underline">
+                Terms
+              </a>
+              <a href="/legal/privacy" className="hover:underline">
+                Privacy
+              </a>
+            </p>
+          </>
         )}
       </CardContent>
     </Card>

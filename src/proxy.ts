@@ -19,6 +19,8 @@ export async function proxy(req: NextRequest) {
   if (pathname.startsWith("/invite/")) return NextResponse.next();
   // "Forgot password?" and the emailed link to choose a new one are used by someone who cannot sign in
   if (pathname === "/forgot-password" || pathname.startsWith("/reset-password/")) return NextResponse.next();
+  // a company asking for a free trial has no account yet (the page exists in the SaaS install only)
+  if (pathname === "/request-trial") return NextResponse.next();
   // the terms and privacy notice are read before signing up or in
   if (pathname.startsWith("/legal/")) return NextResponse.next();
   // the platform console has its own sign-in (password + authenticator code), apart from every organisation's

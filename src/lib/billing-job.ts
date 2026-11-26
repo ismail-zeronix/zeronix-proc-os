@@ -1,10 +1,11 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { billingState, dayLabel, reminderFor, shouldPause, supportEmail } from "@/lib/billing";
 import { publicBaseUrl } from "@/lib/invites";
 import { notify } from "@/lib/notifications";
 import { sendPlatformMail } from "@/lib/platform-mail";
+import { notifyPlatform } from "@/lib/platform-notify";
 
 /**
  * The billing job's work for one organisation (run inside runAsOrg by worker/billing.ts, so it reads and changes only
@@ -47,7 +48,11 @@ export async function checkBilling(today: string): Promise<"paused" | "reminded"
         ],
       });
     }
-    await notifyPlatform(`${org.name} was paused (unpaid)`, [`${org.name} (#${org.id}): ${what} ended ${dayLabel(st.endsOn!)}, unpaid past the grace days. It is paused now.`, "Recording a payment in the console reactivates it."]);
+    await notifyPlatform(
+      `${org.name} was paused (unpaid)`,
+      [`${org.name} (#${org.id}): ${what} ended ${dayLabel(st.endsOn!)}, unpaid past the grace days. It is paused now.`, "Recording a payment in the console reactivates it."],
+      `/platform/tenants/${org.id}`,
+    );
     return "paused";
   }
 
@@ -66,20 +71,6 @@ export async function checkBilling(today: string): Promise<"paused" | "reminded"
   await notify({ userIds: admins.map((a) => a.id), kind: "system", rule: "billing", priority: r.kind === "overdue" ? "high" : "normal", title, body: lines.join(" "), link: "/admin", key: `billing:${r.key}` });
   const base = await publicBaseUrl();
   for (const a of admins) await sendPlatformMail({ to: a.email, subject: title, lines: [`Hello ${a.name.trim().split(/\s+/)[0] || ""},`.replace(" ,", ","), ...lines], button: { label: "Open ZeronixOS", url: `${base}/admin` } });
-  if (r.kind === "overdue") await notifyPlatform(`${org.name}: unpaid since ${dayLabel(st.endsOn!)}`, [`${org.name} (#${org.id}): ${what} ended ${dayLabel(st.endsOn!)}. It pauses on ${dayLabel(st.pauseOn!)} unless a payment is recorded.`]);
+  if (r.kind === "overdue") await notifyPlatform(`${org.name}: unpaid since ${dayLabel(st.endsOn!)}`, [`${org.name} (#${org.id}): ${what} ended ${dayLabel(st.endsOn!)}. It pauses on ${dayLabel(st.pauseOn!)} unless a payment is recorded.`], `/platform/tenants/${org.id}`);
   return "reminded";
-}
-
-/** Emails the platform's own people: PLATFORM_NOTIFY_EMAIL (comma separated), else every active platform admin. */
-export async function notifyPlatform(subject: string, lines: string[]): Promise<void> {
-  let to = (process.env.PLATFORM_NOTIFY_EMAIL ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.includes("@"));
-  if (!to.length) {
-    const r = await db.execute<{ email: string }>(sql`SELECT app_platform_notify_emails() AS email`);
-    to = r.rows.map((x) => x.email);
-  }
-  const base = await publicBaseUrl();
-  for (const address of to) await sendPlatformMail({ to: address, subject: `[ZeronixOS platform] ${subject}`, lines, button: { label: "Open the platform console", url: `${base}/platform` } });
 }

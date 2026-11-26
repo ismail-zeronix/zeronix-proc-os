@@ -2637,6 +2637,32 @@ export const invites = pgTable(
 );
 
 /**
+ * A company asking for a free trial on the SaaS sign-in page (/request-trial). It belongs to no organisation yet: only
+ * the platform console reads it (zx_platform); the public form adds one through app_trial_request(), and the app's
+ * role has no rights on the table. Approving creates the organisation (orgId) with the contact as its first admin.
+ */
+export const trialRequests = pgTable(
+  "trial_requests",
+  {
+    id: serial("id").primaryKey(),
+    company: text("company").notNull(),
+    contactName: text("contact_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull().default(""),
+    teamSize: text("team_size").notNull().default(""),
+    message: text("message").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    status: text("status", { enum: ["new", "approved", "declined"] }).notNull().default("new"),
+    orgId: integer("org_id").references(() => organizations.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: integer("decided_by").references(() => platformAdmins.id, { onDelete: "set null" }),
+    declineReason: text("decline_reason").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("trial_requests_status_idx").on(t.status, t.createdAt)],
+);
+
+/**
  * A "forgot password" link (/reset-password/<token>), emailed from the platform mailbox (lib/platform-mail.ts). Works
  * once, for an hour. Only a hash of the token is kept. Opened through app_reset_lookup(), since the person following the
  * link is not signed in.

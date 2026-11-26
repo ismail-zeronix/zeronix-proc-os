@@ -6,6 +6,7 @@ import { z } from "zod";
 import { UserError } from "@/lib/user-error";
 import { assertPlatform } from "@/platform/session";
 import { createTenant, enterTenant, newInvite, recordPayment, setTenantBilling, setTenantPlan, setTenantStatus } from "@/platform/tenants";
+import { declineTrialRequest, markTrialApproved } from "@/platform/trials";
 
 /** What a console form gets back: production builds hide thrown messages, so they come back as `error`. */
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -31,6 +32,8 @@ const newTenantSchema = z.object({
   adminName: z.string().trim().min(2, "Enter the first admin's name").max(120),
   adminEmail: z.string().trim().toLowerCase().email("Enter the first admin's email"),
   userLimit: z.number().int().min(1).max(10_000).nullable().default(null),
+  /** The trial request it was made from (the form was filled from it), marked approved once the organisation exists. */
+  requestId: z.number().int().positive().nullable().default(null),
 });
 
 export async function createTenantAction(input: z.input<typeof newTenantSchema>) {
@@ -38,9 +41,20 @@ export async function createTenantAction(input: z.input<typeof newTenantSchema>)
     const admin = await assertPlatform();
     const d = newTenantSchema.safeParse(input);
     if (!d.success) throw new UserError(d.error.issues[0]?.message ?? "Check the form.");
-    const r = await createTenant(admin, d.data);
+    const { requestId, ...tenant } = d.data;
+    const r = await createTenant(admin, tenant);
+    if (requestId) await markTrialApproved(admin, requestId, r.id);
     revalidatePath("/platform");
     return r;
+  });
+}
+
+export async function declineTrialAction(requestId: number, reason: string) {
+  return run(async () => {
+    const admin = await assertPlatform();
+    await declineTrialRequest(admin, id.parse(requestId), z.string().max(300).parse(reason));
+    revalidatePath("/platform");
+    return {};
   });
 }
 

@@ -6,16 +6,44 @@ import { billingState } from "@/lib/billing";
 import { dubaiToday } from "@/lib/dates";
 import { requirePlatform } from "@/platform/session";
 import { listTenants, platformHealth } from "@/platform/tenants";
+import { listTrialRequests } from "@/platform/trials";
+import { TrialRequests } from "./trial-requests";
 
 const size = (b: number) => (b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 const day = (d: Date | string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dubai" }) : "never");
 
 export default async function PlatformHome() {
   await requirePlatform();
-  const [tenants, health] = await Promise.all([listTenants(), platformHealth()]);
+  const [tenants, health, trials] = await Promise.all([listTenants(), platformHealth(), listTrialRequests()]);
   const today = dubaiToday();
+  const openTrials = trials.filter((t) => t.status === "new").length;
   return (
     <div className="grid gap-4">
+      {trials.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Trial requests{openTrials ? ` (${openTrials} new)` : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TrialRequests
+              rows={trials.slice(0, openTrials ? Math.max(openTrials, 5) : 5).map((t) => ({
+                id: t.id,
+                company: t.company,
+                contactName: t.contactName,
+                email: t.email,
+                phone: t.phone,
+                teamSize: t.teamSize,
+                message: t.message,
+                status: t.status,
+                orgId: t.orgId,
+                createdAt: t.createdAt.toISOString(),
+              }))}
+            />
+          </CardContent>
+        </Card>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           ["Organisations", `${health.orgs}${health.paused ? ` (${health.paused} paused)` : ""}`],

@@ -159,6 +159,21 @@ describe.skipIf(!live)("the platform console (needs the test database)", () => {
     expect(await setBillingAction(orgId, { plan: "trial", trialEndsOn: null, paidUntil: null, priceMonthly: null, note: "" })).toEqual({ ok: true });
   });
 
+  it("turns a trial request into a company, or declines it", async () => {
+    const { submitTrialRequest } = await import("@/lib/trial-requests");
+    const { createTenantAction, declineTrialAction } = await import("@/app/(platform)/platform/actions");
+    const reqEmail = `${tag.toLowerCase()}-req@example.test`;
+    const a = await submitTrialRequest({ company: `${tag} Request Co`, contactName: "Sara Ali", email: reqEmail, phone: "", teamSize: "6-20", message: "" }, "10.1.1.1");
+    expect(a.isNew).toBe(true);
+    const r = await createTenantAction({ name: `${tag} Request Co`, adminName: "Sara Ali", adminEmail: reqEmail, requestId: a.id });
+    if (!r.ok) throw new Error(r.error);
+    expect(await adminQuery("SELECT status, org_id, decided_by FROM trial_requests WHERE id = $1", [a.id])).toEqual([{ status: "approved", org_id: r.id, decided_by: adminId }]);
+    const b = await submitTrialRequest({ company: `${tag} Spam Co`, contactName: "X Y", email: `${tag.toLowerCase()}-spam@example.test`, phone: "", teamSize: "", message: "" }, "10.1.1.1");
+    expect(await declineTrialAction(b.id, "not a real company")).toEqual({ ok: true });
+    expect(await adminQuery("SELECT status, decline_reason FROM trial_requests WHERE id = $1", [b.id])).toEqual([{ status: "declined", decline_reason: "not a real company" }]);
+    expect(await declineTrialAction(b.id, "again")).toMatchObject({ ok: false });
+  });
+
   it("enters read only: the banner's flag is set, and neither the app nor the database accepts a change", async () => {
     const { enterAction } = await import("@/app/(platform)/platform/actions");
     await expect(enterAction(orgId, true, "")).rejects.toThrow(/redirect:\//);
