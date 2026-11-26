@@ -30,7 +30,14 @@ git diff --quiet && git diff --cached --quiet || die "uncommitted changes in $RO
 "${COMPOSE[@]}" config --quiet || die "docker-compose.saas.yml or .env.saas is invalid"
 
 log "Updating code from origin/$BRANCH"
-git pull --ff-only origin "$BRANCH"
+# as the checkout's owner (ubuntu), even under sudo: a pull as root leaves root-owned files, and the next pull as ubuntu
+# then fails ("cannot open .git/FETCH_HEAD: Permission denied")
+OWNER="$(stat -c %U "$ROOT/.git")"
+if [ "$(id -u)" = "0" ] && [ "$OWNER" != "root" ]; then
+  sudo -u "$OWNER" git -C "$ROOT" pull --ff-only origin "$BRANCH"
+else
+  git pull --ff-only origin "$BRANCH"
+fi
 TAG="$(git rev-parse --short HEAD)"
 echo "deploying commit $TAG"
 
