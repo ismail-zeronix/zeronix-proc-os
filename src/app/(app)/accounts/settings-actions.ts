@@ -13,6 +13,7 @@ import { ledgerInUse } from "@/lib/ledger/documents";
 import { MAPPABLE_KEYS, paymentMethodOf } from "@/lib/ledger/settings-rules";
 import { ensureLedger } from "@/lib/ledger/setup";
 import { currentOrgId, withOrg } from "@/lib/org";
+import { configChanged } from "@/lib/org-config";
 import { longDay } from "@/lib/quotation";
 import { type DocStyles, normalizeDocStyle } from "@/lib/doc-style";
 import { trnProblem } from "@/lib/sales";
@@ -50,6 +51,7 @@ export async function saveVatRegistration(input: z.input<typeof vatSchema>) {
     const [org] = await tx.select({ emirate: schema.organizations.emirate }).from(schema.organizations).where(eq(schema.organizations.id, orgId));
     const [s] = await tx.select({ months: schema.accountingSettings.vatPeriodMonths, start: schema.accountingSettings.vatPeriodStartMonth }).from(schema.accountingSettings).where(eq(schema.accountingSettings.organizationId, orgId));
     await tx.update(schema.organizations).set({ emirate: d.emirate, updatedAt: new Date() }).where(eq(schema.organizations.id, orgId));
+    await configChanged(orgId, "org", tx);
     await tx.update(schema.accountingSettings).set({ vatPeriodMonths: d.vatPeriodMonths, vatPeriodStartMonth: d.vatPeriodStartMonth, updatedAt: new Date(), updatedBy: me.id }).where(eq(schema.accountingSettings.organizationId, orgId));
     await audit(tx, {
       userId: me.id,
@@ -64,6 +66,26 @@ export async function saveVatRegistration(input: z.input<typeof vatSchema>) {
   refresh();
 }
 
+const vatPeriodSchema = z.object({
+  vatPeriodMonths: z.union([z.literal(1), z.literal(3)]),
+  vatPeriodStartMonth: z.number().int().min(1).max(12),
+});
+
+/** How often VAT is filed and the month the first period starts (the TRN and emirate are set in Admin › Settings). */
+export async function saveVatPeriod(input: z.input<typeof vatPeriodSchema>) {
+  const me = await assertAccountant();
+  const d = parseInput(vatPeriodSchema, input);
+  const orgId = await currentOrgId();
+  await withOrg(orgId, async (tx) => {
+    await ensureLedger(tx, orgId);
+    const [s] = await tx.select({ months: schema.accountingSettings.vatPeriodMonths, start: schema.accountingSettings.vatPeriodStartMonth }).from(schema.accountingSettings).where(eq(schema.accountingSettings.organizationId, orgId));
+    if (s?.months === d.vatPeriodMonths && s?.start === d.vatPeriodStartMonth) return;
+    await tx.update(schema.accountingSettings).set({ vatPeriodMonths: d.vatPeriodMonths, vatPeriodStartMonth: d.vatPeriodStartMonth, updatedAt: new Date(), updatedBy: me.id }).where(eq(schema.accountingSettings.organizationId, orgId));
+    await audit(tx, { userId: me.id, action: "settings.vat_period", entity: "settings", summary: "VAT period changed", before: { vatPeriodMonths: s?.months, vatPeriodStartMonth: s?.start }, after: d });
+  });
+  refresh();
+}
+
 /** The month the financial year starts. Fixed once the ledger holds anything: entries are numbered and reported by it. */
 export async function saveFiscalYear(startMonth: number) {
   const me = await assertAccountant();
@@ -74,6 +96,7 @@ export async function saveFiscalYear(startMonth: number) {
     if (org?.m === m) return;
     if (await ledgerInUse(tx, orgId)) throw new UserError("The financial year cannot change once the ledger holds entries: they are numbered and reported by it.");
     await tx.update(schema.organizations).set({ fiscalYearStartMonth: m, updatedAt: new Date() }).where(eq(schema.organizations.id, orgId));
+    await configChanged(orgId, "org", tx);
     await audit(tx, { userId: me.id, action: "settings.fiscal_year", entity: "settings", summary: `Financial year now starts in month ${m}`, before: { fiscalYearStartMonth: org?.m }, after: { fiscalYearStartMonth: m } });
   });
   refresh();

@@ -229,8 +229,8 @@ export const SALES_GUIDE: Article[] = [
           rows: [
             ["Pencil", "Edit the PO number and date, credit terms, delivery address and notes"],
             ["Proforma", "Prints a proforma invoice, for customers who pay before delivery"],
-            ["Mark delivered", "The goods went out: delivery date, who received them, where. The delivery note gets its ZDN number"],
-            ["Delivery note", "After delivery: print it for the customer to sign"],
+            ["Mark delivered", "Optional, before or after the invoice: delivery date, who received them, where. The delivery note gets its ZDN number"],
+            ["Delivery note", "Once marked delivered: print it for the customer to sign"],
             ["Cancel (circle)", "Cancels the order, with a reason"],
           ],
         },

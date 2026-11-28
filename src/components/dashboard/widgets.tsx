@@ -256,9 +256,9 @@ const WIDGETS: Record<string, Render> = {
     );
   },
   "to-invoice": async (c) => {
-    const orders = (await listOrders(financeViewerOf(c.access))).filter((o) => o.status === "delivered");
+    const orders = (await listOrders(financeViewerOf(c.access))).filter((o) => o.status === "open" || o.status === "delivered");
     return (
-      <ListCard title="Ready to invoice" hint="Delivered sales orders" href="/accounts/to-invoice" count={orders.length} empty="Nothing waiting for an invoice.">
+      <ListCard title="Ready to invoice" hint="Sales orders with no invoice yet" href="/accounts/to-invoice" count={orders.length} empty="Nothing waiting for an invoice.">
         {orders.slice(0, 7).map((o) => (
           <Row key={o.id} href={`/accounts/orders/${o.id}`} title={o.companyName} sub={`${o.number}${o.deliveredOn ? ` · delivered ${longDay(o.deliveredOn)}` : ""}`} right={money(o.total)} />
         ))}

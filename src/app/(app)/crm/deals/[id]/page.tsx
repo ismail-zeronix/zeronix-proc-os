@@ -185,7 +185,7 @@ export default async function DealPage({ params, searchParams }: PageProps<"/crm
             </span>
           ))}
         {orders.map((o) => (
-          <AppLink key={o.id} href={`/sales/orders/${o.id}`} className="inline-flex items-center gap-1.5 hover:text-foreground" title="Sales order">
+          <AppLink key={o.id} href={`/sales/orders/${o.id}`} can={apps.includes("sales")} className="inline-flex items-center gap-1.5 hover:text-foreground" title="Sales order">
             <span className="font-mono font-medium text-foreground hover:underline">{o.number}</span>
             <OrderStatusBadge status={o.status} />
             {o.invoice && <InvoiceStateBadge state={o.invoice.state} />}

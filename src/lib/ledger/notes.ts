@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { schema } from "@/db";
 import { audit } from "@/lib/audit";
 import { nextSeq } from "@/lib/doc-numbers";
@@ -23,6 +23,10 @@ export interface NoteLineInput {
   qty: number;
   /** Per unit, before VAT: the line's own price, or less for a price reduction. */
   unitPrice: number;
+  /** Stock items: units coming back (credit note; default: the note's quantity when goods come back). */
+  qtyBack?: number | null;
+  /** Stock items with serial numbers: which serials come back or go back. */
+  serials?: string[];
 }
 
 type Invoice = typeof schema.invoices.$inferSelect;
@@ -100,7 +104,21 @@ export async function writeCreditNote(tx: Tx, orgId: number, userId: number, inv
   // a note cancelling a whole untouched invoice sends every cost back; otherwise only what is said to be coming back
   const goodsCost = d.goodsBack ? (d.goodsCost != null ? round2(d.goodsCost) : cleared && !earlier.length ? null : await soldCostOf(tx, orgId, inv.id)) : null;
   const [cn] = await tx.insert(n).values({ year, seq, number, invoiceId: inv.id, issueDate: d.date, eventDate: d.eventDate ?? d.date, reason: d.reason, subtotal, vatAmount: vat, total, goodsBack: d.goodsBack, goodsCost, createdBy: userId }).returning({ id: n.id });
-  await tx.insert(cItems).values(lines.map((l, position) => ({ organizationId: orgId, creditNoteId: cn.id, invoiceItemId: l.item.id, position, description: l.item.description, qty: l.qty, unitPrice: l.unitPrice, lineKind: l.item.lineKind, taxCode: l.item.taxCode })));
+  // stock items coming back: on a note cancelling the rest, every unit not yet back (and its serials); otherwise what the
+  // line says. The stock engine (lib/ledger/stock-docs.ts) caps it at what the invoice line really sold.
+  const before = await tx.select({ line: cItems.invoiceItemId, qtyBack: cItems.qtyBack, serials: cItems.serials }).from(cItems).innerJoin(n, eq(n.id, cItems.creditNoteId)).where(eq(n.invoiceId, inv.id));
+  const backOf = (l: (typeof lines)[number], input: NoteLineInput | undefined) => {
+    if (!d.goodsBack || l.item.itemId == null) return { qtyBack: null, serials: [] as string[] };
+    const done = before.filter((b) => b.line === l.item.id);
+    if (!d.lines) {
+      const gone = new Set(done.flatMap((b) => b.serials));
+      return { qtyBack: round2(l.item.qty - done.reduce((s, b) => s + (b.qtyBack ?? 0), 0)), serials: l.item.serials.filter((s) => !gone.has(s)) };
+    }
+    return { qtyBack: input?.qtyBack ?? l.qty, serials: input?.serials ?? [] };
+  };
+  await tx.insert(cItems).values(
+    lines.map((l, position) => ({ organizationId: orgId, creditNoteId: cn.id, invoiceItemId: l.item.id, position, description: l.item.description, qty: l.qty, unitPrice: l.unitPrice, lineKind: l.item.lineKind, taxCode: l.item.taxCode, itemId: l.item.itemId, ...backOf(l, d.lines?.find((x) => x.itemId === l.item.id)) })),
+  );
   await tx
     .update(schema.invoices)
     .set({ creditedNet: round2(inv.creditedNet + subtotal), creditedTotal: round2(inv.creditedTotal + total), ...(cleared ? { status: "cancelled" } : {}) })
@@ -110,7 +128,8 @@ export async function writeCreditNote(tx: Tx, orgId: number, userId: number, inv
   const toAdvance = await releaseCustomerMoney(tx, orgId, userId, inv, round2(inv.total - inv.creditedTotal - total), d.date, number);
 
   if (cleared) {
-    if (inv.orderId) await tx.update(schema.salesOrders).set({ status: "delivered" }).where(eq(schema.salesOrders.id, inv.orderId));
+    // back to where it was before the invoice: Delivered if it has a delivery note, otherwise Confirmed
+    if (inv.orderId) await tx.update(schema.salesOrders).set({ status: sql`CASE WHEN ${schema.salesOrders.dnNumber} IS NULL THEN 'open' ELSE 'delivered' END` }).where(eq(schema.salesOrders.id, inv.orderId));
     await tx.delete(schema.tasks).where(and(eq(schema.tasks.status, "open"), eq(schema.tasks.title, collectTitle(inv.number))));
   } else if (round2(inv.total - inv.creditedTotal - total) <= (await paidOn(tx, inv.id))) {
     await tx.update(schema.tasks).set({ status: "done", doneAt: new Date() }).where(and(eq(schema.tasks.status, "open"), eq(schema.tasks.title, collectTitle(inv.number))));
@@ -157,7 +176,7 @@ export interface DebitNoteResult {
 }
 
 /** Writes a supplier debit note and posts it. What was already paid beyond the new value of the bill becomes an advance with the supplier. */
-export async function writeDebitNote(tx: Tx, orgId: number, userId: number, b: Bill, d: { date: string; reason: string; supplierRef: string; lines: NoteLineInput[] }): Promise<DebitNoteResult> {
+export async function writeDebitNote(tx: Tx, orgId: number, userId: number, b: Bill, d: { date: string; reason: string; supplierRef: string; lines: NoteLineInput[]; /** Stock items go back to the supplier (they leave stock); false: only the price came down. */ goodsBack?: boolean }): Promise<DebitNoteResult> {
   const items = (await tx.select().from(schema.billItems).where(eq(schema.billItems.billId, b.id)).orderBy(asc(schema.billItems.position), asc(schema.billItems.id))).map((i) => ({ ...i, net: lineCost(i) }));
   const n = schema.debitNotes;
   const cItems = schema.debitNoteItems;
@@ -184,8 +203,8 @@ export async function writeDebitNote(tx: Tx, orgId: number, userId: number, b: B
   const year = Number(d.date.slice(0, 4));
   const seq = await nextSeq(tx, "debit", n, n.year, n.seq, year);
   const number = yearNumber("ZDB", year, seq);
-  const [dn] = await tx.insert(n).values({ organizationId: orgId, year, seq, number, billId: b.id, issueDate: d.date, reason: d.reason, supplierRef: d.supplierRef, subtotal, vatAmount: vat, total, createdBy: userId }).returning({ id: n.id });
-  await tx.insert(cItems).values(lines.map((l, position) => ({ organizationId: orgId, debitNoteId: dn.id, billItemId: l.item.id, position, description: l.item.description, qty: l.qty, unitCost: l.unitCost, taxCode: l.item.taxCode })));
+  const [dn] = await tx.insert(n).values({ organizationId: orgId, year, seq, number, billId: b.id, issueDate: d.date, reason: d.reason, supplierRef: d.supplierRef, goodsBack: !!d.goodsBack, subtotal, vatAmount: vat, total, createdBy: userId }).returning({ id: n.id });
+  await tx.insert(cItems).values(lines.map((l, position) => ({ organizationId: orgId, debitNoteId: dn.id, billItemId: l.item.id, position, description: l.item.description, qty: l.qty, unitCost: l.unitCost, taxCode: l.item.taxCode, itemId: l.item.itemId, serials: d.goodsBack ? (d.lines.find((x) => x.itemId === l.item.id)?.serials ?? []) : [] })));
   await tx.update(schema.bills).set({ creditedNet: round2(b.creditedNet + subtotal), creditedTotal: round2(b.creditedTotal + total) }).where(eq(schema.bills.id, b.id));
   await postDebitNoteDoc(tx, orgId, dn.id, userId);
   const toAdvance = await releaseSupplierMoney(tx, orgId, userId, b, round2(b.total - b.creditedTotal - total), d.date, number);

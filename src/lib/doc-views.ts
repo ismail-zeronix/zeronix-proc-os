@@ -10,7 +10,9 @@ import { bankFor } from "@/lib/seller";
 type Order = NonNullable<Awaited<ReturnType<typeof getOrder>>>;
 type Invoice = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
 
-const items = (rows: { id: number; description: string; qty: number; unitPrice: number; taxCode?: string }[]) => rows.map((i) => ({ id: i.id, description: i.description, qty: i.qty, unitPrice: i.unitPrice, taxCode: i.taxCode }));
+/** Document lines; the serial numbers sold or delivered on a line are printed under its description. */
+const items = (rows: { id: number; description: string; qty: number; unitPrice: number; taxCode?: string; serials?: string[] }[]) =>
+  rows.map((i) => ({ id: i.id, description: i.serials?.length ? `${i.description}\nS/N: ${i.serials.join(", ")}` : i.description, qty: i.qty, unitPrice: i.unitPrice, taxCode: i.taxCode }));
 
 function customerLines(o: Order): string[] {
   return [

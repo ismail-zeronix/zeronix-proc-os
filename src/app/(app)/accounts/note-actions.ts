@@ -21,6 +21,9 @@ const line = z.object({
   itemId: z.number().int().positive(),
   qty: z.number().min(0).max(1e7).transform(toQty2),
   unitPrice: z.number().min(0).max(1e10).transform(toFils),
+  /** Stock items: units coming back (credit note) and their serial numbers. */
+  qtyBack: z.number().min(0).max(1e7).transform(toQty2).nullable().optional(),
+  serials: z.array(z.string().trim().min(1).max(80)).max(1000).optional(),
 });
 
 const creditSchema = z.object({
@@ -68,6 +71,8 @@ const debitSchema = z.object({
   issueDate: dayString("Pick a valid date"),
   reason: z.string().trim().min(3, "Say why the debit note is issued").max(300),
   supplierRef: z.string().trim().max(60).default(""),
+  /** Stock items on it go back to the supplier (they leave stock); false: only the price came down. */
+  goodsBack: z.boolean().default(false),
   lines: z.array(line).min(1, "Pick at least one line").max(200),
 });
 export type DebitNoteInput = z.input<typeof debitSchema>;
@@ -87,7 +92,7 @@ export async function createDebitNote(billId: number, input: DebitNoteInput) {
     if (b.kind === "opening") throw new UserError("This is an opening balance from Zoho: its debit note belongs there.");
     if (d.issueDate < b.billDate) throw new UserError("The debit note cannot be dated before the bill.");
     await assertInLedgerPeriod(tx, orgId, d.issueDate);
-    const note = await writeDebitNote(tx, orgId, me.id, b, { date: d.issueDate, reason: d.reason, supplierRef: d.supplierRef, lines: d.lines });
+    const note = await writeDebitNote(tx, orgId, me.id, b, { date: d.issueDate, reason: d.reason, supplierRef: d.supplierRef, goodsBack: d.goodsBack, lines: d.lines });
     await audit(tx, { userId: me.id, action: "debit_note.create", entity: "bill", entityId: b.id, summary: `${note.number} on ${b.number}, ${money(note.total)}: ${d.reason}`, after: { number: note.number, subtotal: note.subtotal, vat: note.vat, total: note.total, toAdvance: note.toAdvance } });
     return { ...note, supplierId: b.supplierId };
   });

@@ -13,7 +13,7 @@ import { parseInput, UserError } from "@/lib/user-error";
 const n = z.number().int("Whole numbers only").min(0, "A target cannot be below zero").max(1000, "That target is too high");
 const teamSchema = z.object({ callsDay: n, prospectsDay: n, leadsWeek: n, quotesWeek: n });
 
-/** Admin › Settings › Sales targets: the team default everyone on the routine starts from. */
+/** CRM › Settings › Targets and check-ins: the team default everyone on the routine starts from. */
 export async function saveTeamTargets(input: Targets & { checkinMinutes: number }) {
   const me = await requireAdmin();
   const { checkinMinutes, ...targets } = input;

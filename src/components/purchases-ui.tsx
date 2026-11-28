@@ -13,6 +13,7 @@ import {
   voidSupplierPayment,
 } from "@/app/(app)/accounts/purchase-actions";
 import { AccountPicker, pickedAccount, type BankOption } from "@/components/account-picker";
+import { ItemChip, ItemPickButton, SerialsField, serialList, type PickedItem } from "@/components/item-picker";
 import { NewSupplierDialog } from "@/components/party-pickers";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -153,7 +154,7 @@ function SupplierSelect({ id, value, onChange, suppliers, allowNone }: { id: str
   );
 }
 
-type Line = { description: string; qty: string; unitCost: string; taxCode: string };
+type Line = { description: string; qty: string; unitCost: string; taxCode: string; itemId?: number | null; itemSku?: string | null; trackSerials?: boolean; serials?: string };
 type PurchaseCode = (typeof PURCHASE_TAX_CODES)[number];
 const TAX_OPTIONS = taxCodeOptions(PURCHASE_TAX_CODES);
 
@@ -170,7 +171,7 @@ function TaxCodeSelect({ value, onChange, id }: { value: string; onChange: (v: s
 }
 
 /** The new-bill page: who, their invoice number, dates, the lines, VAT, and the sale it was bought for. */
-export function BillForm({ suppliers, orders, invoices, preset }: { suppliers: SupplierOption[]; orders: OrderOption[]; invoices: OrderOption[]; preset: { orderId?: number; invoiceId?: number; supplierId?: number; kind?: "bill" | "opening" } }) {
+export function BillForm({ suppliers, orders, invoices, preset }: { suppliers: SupplierOption[]; orders: OrderOption[]; invoices: OrderOption[]; preset: { orderId?: number; invoiceId?: number; supplierId?: number; kind?: "bill" | "opening"; /** What a new bill starts as: goods for a trader, services for a service provider. */ category?: string } }) {
   const [pending, run, router] = useRun();
   const today = dubaiToday();
   const [kind, setKind] = useState<"bill" | "opening">(preset.kind ?? "bill");
@@ -179,15 +180,22 @@ export function BillForm({ suppliers, orders, invoices, preset }: { suppliers: S
   const [billDate, setBillDate] = useState(today);
   const [termsDays, setTermsDays] = useState(suppliers.find((s) => s.id === preset.supplierId)?.termsDays ?? 30);
   const [sale, setSale] = useState(preset.orderId ? `o${preset.orderId}` : preset.invoiceId ? `i${preset.invoiceId}` : "");
-  const [category, setCategory] = useState("cogs");
+  const [category, setCategory] = useState(preset.orderId || preset.invoiceId ? "cogs" : (preset.category ?? "cogs"));
   const [vatOverride, setVatOverride] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([{ description: "", qty: "1", unitCost: "", taxCode: "SR" }]);
   const opening = kind === "opening";
-  const parsed = lines.map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitCost: num(l.unitCost), taxCode: (opening ? "OS" : l.taxCode) as PurchaseCode })).filter((l) => l.description && l.qty > 0);
+  const parsed = lines
+    .map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitCost: num(l.unitCost), taxCode: (opening ? "OS" : l.taxCode) as PurchaseCode, itemId: opening ? null : (l.itemId ?? null), serials: !opening && l.itemId && l.trackSerials ? serialList(l.serials ?? "") : [] }))
+    .filter((l) => l.description && l.qty > 0);
   const t = billTax(parsed, !opening && vatOverride.trim() ? num(vatOverride) : null);
   const charged = parsed.some((l) => l.taxCode === "SR");
   const set = (i: number, k: keyof Line, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  // a line from the item list: its name, last purchase price and VAT code; goods make it a goods bill
+  const pickItem = (i: number, it: PickedItem) => {
+    setLines(lines.map((l, j) => (j === i ? { ...l, description: it.name, unitCost: it.purchasePrice != null ? String(it.purchasePrice) : l.unitCost, taxCode: it.taxCode, itemId: it.id, itemSku: it.sku, trackSerials: it.trackSerials, serials: "" } : l)));
+    if (it.kind === "goods") setCategory("cogs");
+  };
   const can = !!supplierId && parsed.length > 0 && t.total > 0 && (opening || !!supplierRef.trim());
 
   return (
@@ -284,7 +292,18 @@ export function BillForm({ suppliers, orders, invoices, preset }: { suppliers: S
         </div>
         {lines.map((l, i) => (
           <div key={i} className={`grid items-center gap-2 ${opening ? "grid-cols-[minmax(0,1fr)_4rem_6rem_2rem] sm:grid-cols-[minmax(0,1fr)_5rem_8rem_8rem_2rem]" : "grid-cols-[minmax(0,1fr)_4rem_6rem_2rem] sm:grid-cols-[minmax(0,1fr)_12rem_5rem_8rem_8rem_2rem]"}`}>
-            <Input aria-label="Description" value={l.description} onChange={(e) => set(i, "description", e.target.value)} placeholder={opening ? `Opening balance ${supplierRef}`.trim() : "e.g. Lenovo E14 laptops"} />
+            <div className="grid min-w-0 gap-0.5">
+              <div className="flex items-center gap-1">
+                {!opening && <ItemPickButton onPick={(it) => pickItem(i, it)} />}
+                <Input aria-label="Description" value={l.description} onChange={(e) => set(i, "description", e.target.value)} placeholder={opening ? `Opening balance ${supplierRef}`.trim() : "e.g. Lenovo E14 laptops"} />
+              </div>
+              {!opening && l.itemSku && (
+                <span className="px-1">
+                  <ItemChip sku={l.itemSku} onClear={() => setLines(lines.map((x, j) => (j === i ? { ...x, itemId: null, itemSku: null, trackSerials: false, serials: "" } : x)))} />
+                </span>
+              )}
+              {!opening && l.itemId && l.trackSerials && <SerialsField qty={num(l.qty)} value={l.serials ?? ""} onChange={(v) => set(i, "serials", v)} label="Serial numbers received" />}
+            </div>
             {!opening && (
               <span className="col-span-4 row-start-2 sm:col-span-1 sm:row-start-auto">
                 <TaxCodeSelect value={l.taxCode} onChange={(v) => set(i, "taxCode", v)} />

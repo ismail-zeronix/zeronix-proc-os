@@ -19,10 +19,25 @@ export interface Viewer {
   seesAll: boolean;
 }
 
-export const viewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll: a.seesAll });
+/**
+ * One Viewer object per Access (that is, per request), so loaders cached per request (getDeal, getCompany...) are read
+ * once when a page and its title both ask for the same record.
+ */
+const viewers = new WeakMap<Access, Viewer>();
+const financeViewers = new WeakMap<Access, Viewer>();
+
+export const viewerOf = (a: Access): Viewer => {
+  let v = viewers.get(a);
+  if (!v) viewers.set(a, (v = { id: a.user.id, seesAll: a.seesAll }));
+  return v;
+};
 
 /** Accounts at the finance level works on every order and invoice, so it sees all of them and their files, whoever the deal belongs to. */
-export const financeViewerOf = (a: Access): Viewer => ({ id: a.user.id, seesAll: a.seesAll || a.finance });
+export const financeViewerOf = (a: Access): Viewer => {
+  let v = financeViewers.get(a);
+  if (!v) financeViewers.set(a, (v = { id: a.user.id, seesAll: a.seesAll || a.finance }));
+  return v;
+};
 
 /** The signed-in person as a Viewer (for server actions and route handlers). `finance`: Accounts at the finance level sees every record. */
 export async function currentViewer(finance = false): Promise<Viewer> {

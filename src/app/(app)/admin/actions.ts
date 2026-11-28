@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -14,6 +14,10 @@ import { parseLogoDataUrl } from "@/lib/logo";
 import { type BrandStyle, normalizeStyle, safeColor } from "@/lib/signature";
 import { setSalary } from "@/lib/payroll-write";
 import { getSettings, setSetting } from "@/lib/settings";
+import { currentOrgId, setTxOrg } from "@/lib/org";
+import { brandChanged } from "@/lib/brand";
+import { configChanged } from "@/lib/org-config";
+import { trnProblem } from "@/lib/sales";
 import { parseInput, UserError } from "@/lib/user-error";
 
 const userSchema = z.object({
@@ -120,6 +124,7 @@ export async function saveBrand(input: z.input<typeof brandSchema> & { logo?: st
     .insert(schema.brandProfile)
     .values({ id: 1, ...set })
     .onConflictDoUpdate({ target: schema.brandProfile.id, set });
+  await brandChanged();
   revalidatePath("/admin", "layout");
   revalidatePath("/account");
   revalidatePath("/mail", "layout");
@@ -149,7 +154,7 @@ const quoteSettingsSchema = z.object({
 });
 
 /**
- * Defaults a new quote starts with (Accounts › Settings › Documents › Quote defaults). Quotes already made keep their
+ * Defaults a new quote starts with (Sales › Settings › Quote defaults). Quotes already made keep their
  * own values. Our TRN is not here: it is saved, and checked, under VAT registration.
  */
 export async function saveQuoteSettings(input: z.input<typeof quoteSettingsSchema>) {
@@ -221,4 +226,61 @@ export async function requeueStuckLists() {
     .where(eq(schema.priceLists.status, "parsing"));
   revalidatePath("/admin", "layout");
   revalidatePath("/procurement/price-lists");
+}
+
+/**
+ * What the company does: a trader (goods with stock, serial numbers, the Inventory app) or a service provider (a plain
+ * list of services). A trader with stock cannot become a service provider until that stock is zero.
+ */
+export async function setBusinessType(type: "trader" | "services") {
+  const me = await requireAdmin();
+  const t = parseInput(z.enum(["trader", "services"]), type);
+  const orgId = await currentOrgId();
+  await db.transaction(async (tx) => {
+    await setTxOrg(tx, orgId);
+    const [org] = await tx.select({ businessType: schema.organizations.businessType }).from(schema.organizations).where(eq(schema.organizations.id, orgId)).for("update");
+    if (!org) throw new UserError("This company no longer exists.");
+    if (org.businessType === t) return;
+    if (t === "services") {
+      const [held] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.items)
+        .where(and(eq(schema.items.organizationId, orgId), or(ne(schema.items.onHand, 0), ne(schema.items.stockValue, 0))));
+      if (held.n > 0) throw new UserError(`${held.n} item${held.n === 1 ? " still has" : "s still have"} stock. Bring the stock to zero in Inventory first, then switch to service provider.`);
+    }
+    await tx.update(schema.organizations).set({ businessType: t, updatedAt: new Date() }).where(eq(schema.organizations.id, orgId));
+    await configChanged(orgId, "org", tx);
+    await audit(tx, { userId: me.id, orgId, action: "org.business_type", entity: "organization", entityId: orgId, summary: `Business type set to ${t === "trader" ? "trader" : "service provider"}`, before: { businessType: org.businessType }, after: { businessType: t } });
+  });
+  revalidatePath("/", "layout");
+}
+
+const taxRegSchema = z.object({
+  trn: z.string().trim().max(30),
+  emirate: z.string().trim().min(1, "Pick the emirate").max(40),
+});
+
+/**
+ * Our tax registration: the TRN printed on quotes and tax invoices, and the emirate of the business. Company-wide, so it
+ * lives in Admin › Settings (a company may use Sales without Accounts). Empty clears it.
+ */
+export async function saveTaxRegistration(input: z.input<typeof taxRegSchema>) {
+  const me = await requireAdmin();
+  const d = parseInput(taxRegSchema, input);
+  const bad = d.trn ? trnProblem(d.trn) : null;
+  if (bad) throw new UserError(bad);
+  const orgId = await currentOrgId();
+  const before = await getSettings();
+  await db.transaction(async (tx) => {
+    await setTxOrg(tx, orgId);
+    const [org] = await tx.select({ emirate: schema.organizations.emirate }).from(schema.organizations).where(eq(schema.organizations.id, orgId));
+    if (org?.emirate === d.emirate && before.quote_trn === d.trn) return;
+    if (org?.emirate !== d.emirate) {
+      await tx.update(schema.organizations).set({ emirate: d.emirate, updatedAt: new Date() }).where(eq(schema.organizations.id, orgId));
+      await configChanged(orgId, "org", tx);
+    }
+    await audit(tx, { userId: me.id, orgId, action: "settings.tax_registration", entity: "settings", summary: before.quote_trn === d.trn ? "Emirate changed" : "Our TRN changed", before: { trn: before.quote_trn, emirate: org?.emirate }, after: d });
+  });
+  if (before.quote_trn !== d.trn) await setSetting("quote_trn", d.trn);
+  revalidatePath("/", "layout");
 }

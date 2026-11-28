@@ -293,7 +293,7 @@ export function checkDoc(doc: DraftDoc, ctx: DocContext): DocCheck {
     if (!codes.includes(l.taxCode)) errors.push(`Line ${n}: VAT code ${l.taxCode} cannot be used on ${doc.kind === "invoice" ? "an invoice" : "a bill"}.`);
   });
   if (doc.lines.length && !(tax.total > 0)) errors.push("The total must be above zero.");
-  if (doc.kind === "invoice" && !ctx.hasOurTrn) errors.push("Our TRN is not set (Accounts › Settings › VAT registration): a tax invoice needs it.");
+  if (doc.kind === "invoice" && !ctx.hasOurTrn) errors.push("Our TRN is not set (Admin › Settings › Company & branding): a tax invoice needs it.");
   const difference = doc.csvTotal == null ? null : round2(tax.total - doc.csvTotal);
   if (difference != null && Math.abs(difference) > 0.005 && !doc.acceptDiff) errors.push(`Total ${tax.total.toFixed(2)} differs from the file's ${doc.csvTotal!.toFixed(2)} by ${Math.abs(difference).toFixed(2)}. Fix the lines or accept the difference.`);
   if (doc.kind === "invoice" && !doc.address.trim()) warnings.push("No billing address in the file.");

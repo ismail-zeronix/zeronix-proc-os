@@ -5,6 +5,8 @@ import { db, schema } from "@/db";
 import { nextInvoiceNumber } from "@/lib/accounts-data";
 import { requireFinance } from "@/lib/auth/session";
 import { financeViewerOf } from "@/lib/auth/visibility";
+import { lineStockOf, stockStartOf } from "@/lib/inventory/data";
+import { currentOrgId } from "@/lib/org";
 import { invoiceOfQuote, orderOfQuote } from "@/lib/orders-data";
 import { projectOfDeal } from "@/lib/projects-data";
 import { getQuote, quoteDefaults, quoteLines } from "@/lib/quotes-data";
@@ -32,12 +34,15 @@ export default async function NewInvoicePage({ searchParams }: PageProps<"/accou
   const [company] = companyId ? await db.select({ id: schema.companies.id, name: schema.companies.name, address: schema.companies.address, emirate: schema.companies.emirate, trn: schema.companies.trn }).from(schema.companies).where(eq(schema.companies.id, companyId)) : [];
   if (companyId && !company) notFound();
   const [lines, project] = q ? await Promise.all([quoteLines(q.id), q.dealId ? projectOfDeal(q.dealId) : Promise.resolve(null)]) : [[], null];
-  const lineKind: "product" | "service" = project ? "service" : "product";
+  const lineKind: "product" | "service" = project || !access.trader ? "service" : "product";
+  const orgId = await currentOrgId();
+  const [stockStart, stock] = access.trader ? await Promise.all([stockStartOf(orgId), lineStockOf(orgId, lines.map((l) => l.itemId))]) : [null, new Map()];
 
   return (
     <InvoiceForm
       nextNumber={nextNumber}
       ourTrn={ourTrn}
+      stockStart={stockStart}
       initial={{
         company: company ? { id: company.id, name: company.name } : null,
         address: company ? company.address || (company.emirate ? `${company.emirate}, United Arab Emirates` : "") : "",
@@ -45,7 +50,8 @@ export default async function NewInvoicePage({ searchParams }: PageProps<"/accou
         quote: q ? { id: q.id, number: q.number } : null,
         termsDays: q?.termsDays ?? Math.max(0, Math.floor(Number(termsSetting)) || 0),
         vatPct: q?.vatPct ?? defaults.vatPct,
-        lines: lines.map((l) => ({ description: l.description, qty: l.qty, unitPrice: l.unitPrice, lineKind })),
+        lineKind,
+        lines: lines.map((l) => ({ description: l.description, qty: l.qty, unitPrice: l.unitPrice, lineKind, itemId: l.itemId, itemSku: l.itemSku, stock: l.itemId ? (stock.get(l.itemId) ?? null) : null })),
       }}
     />
   );

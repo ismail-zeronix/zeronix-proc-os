@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { bellKey, onLiveNotification } from "@/components/notifications/data";
 import { previewOf } from "@/lib/chat/text";
 import { alertFor } from "./alerts";
+import { firstFromBoot } from "./boot";
 import { handleWebEvent } from "./web-data";
 import type { ChannelSummary, ChatEvent, ChatMessage, ChatUser, OpenGroup, PresenceStatus, Reaction } from "@/lib/chat/types";
 
@@ -30,6 +31,9 @@ export interface Teammate extends ChatUser {
 export type Presence = Record<number, PresenceStatus>;
 export const isOn = (p: Presence, id: number) => !!p[id] && p[id] !== "offline";
 
+/** Waiting longer than this for the stream lock means another tab held it (a takeover), not a page load. */
+const TAKEOVER_MS = 1500;
+
 export const chatKeys = {
   all: ["chat"] as const,
   channels: ["chat", "channels"] as const,
@@ -52,17 +56,20 @@ export const fetchThread = (rootId: number) => getJson<ThreadData>(`/api/chat/me
 export function useChannels() {
   return useQuery({
     queryKey: chatKeys.channels,
-    queryFn: () => getJson<{ channels: ChannelSummary[] }>("/api/chat/channels").then((r) => r.channels),
+    queryFn: () => firstFromBoot("channels", () => getJson<{ channels: ChannelSummary[] }>("/api/chat/channels").then((r) => r.channels)),
     staleTime: Infinity, // the live stream keeps it current
   });
 }
 
+/** Teammates and how they show; the first read comes with the widget's start-up request. */
+export const teammatesQuery = {
+  queryKey: chatKeys.users,
+  queryFn: () => firstFromBoot("users", () => getJson<{ users: Teammate[]; presence: Presence }>("/api/chat/users")),
+  staleTime: 5 * 60_000,
+};
+
 export function useTeammates() {
-  return useQuery({
-    queryKey: chatKeys.users,
-    queryFn: () => getJson<{ users: Teammate[]; presence: Presence }>("/api/chat/users"),
-    staleTime: 5 * 60_000,
-  });
+  return useQuery(teammatesQuery);
 }
 
 export function useOpenGroups() {
@@ -280,14 +287,16 @@ export function useChatStream(me: number) {
       };
     };
     if (typeof navigator !== "undefined" && navigator.locks) {
+      const asked = Date.now();
       void navigator.locks.request(
         `zp-chat-stream-${me}`,
         () =>
           new Promise<void>((resolve) => {
             if (stopped) return resolve();
             release = resolve;
-            // taking over from a tab that closed: events may have been missed in between
-            if (qc.getQueryData(chatKeys.channels)) handle({ t: "resync" });
+            // taking over from another tab that closed (we had to wait): events may have been missed in between. A page
+            // load gets the lock at once and has just read everything, so it does not read it all again.
+            if (Date.now() - asked > TAKEOVER_MS && qc.getQueryData(chatKeys.channels)) handle({ t: "resync" });
             openStream();
           }),
       );

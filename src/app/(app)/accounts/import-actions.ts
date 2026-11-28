@@ -137,7 +137,7 @@ function refresh() {
 export async function importInvoice(input: ImportInvoiceActionInput) {
   const me = await assertFinance();
   const d = parseInput(invoiceSchema, input);
-  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Accounts › Settings › VAT registration first: a tax invoice must show it.");
+  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Admin › Settings › Company & branding first: a tax invoice must show it.");
   const orgId = await currentOrgId();
   const r = await db.transaction(async (tx) => {
     await setTxOrg(tx, orgId);

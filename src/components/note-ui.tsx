@@ -25,6 +25,35 @@ export interface NoteLine {
   /** Value still left to give back, before VAT. */
   left: number;
   isProduct: boolean;
+  /** The line moved item stock (sold from stock, or came into stock): its serial numbers that can still go back. */
+  stock?: { trackSerials: boolean; serials: string[] } | null;
+}
+
+/** The serial numbers going back on one line: tap the ones in the parcel. */
+function SerialPick({ all, picked, need, onChange }: { all: string[]; picked: string[]; need: number; onChange: (s: string[]) => void }) {
+  return (
+    <div className="grid gap-1">
+      <div className="flex flex-wrap gap-1">
+        {all.map((s) => {
+          const on = picked.includes(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? picked.filter((x) => x !== s) : [...picked, s])}
+              className={`rounded border px-1.5 py-0.5 font-mono text-xs ${on ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+      <span className={`text-xs ${picked.length === need ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+        {picked.length} of {need} serial number{need === 1 ? "" : "s"} picked
+      </span>
+    </div>
+  );
 }
 
 const num = (s: string) => {
@@ -65,6 +94,7 @@ export function NoteDialog(p: {
   const [goodsBack, setGoodsBack] = useState(false);
   const [costTyped, setCostTyped] = useState("");
   const [entries, setEntries] = useState<Record<number, { qty: string; price: string }>>({});
+  const [serialsBack, setSerialsBack] = useState<Record<number, string[]>>({});
   const open_lines = p.lines.filter((l) => l.left > 0);
   const entry = (l: NoteLine) => entries[l.id] ?? { qty: "", price: String(l.unitPrice) };
   const set = (id: number, patch: Partial<{ qty: string; price: string }>, l: NoteLine) => setEntries({ ...entries, [id]: { ...entry(l), ...patch } });
@@ -76,21 +106,28 @@ export function NoteDialog(p: {
   const vat = noteVat(parts, { standardNet, vat: p.vatLeft });
   const total = round2(net + vat);
   const toAdvance = round2(Math.max(0, p.paid - (p.valueLeft - total)));
-  const productNetLeft = open_lines.filter((l) => l.isProduct).reduce((s, l) => s + l.left, 0);
-  const productNet = round2(picked.filter((x) => x.l.isProduct).reduce((s, x) => s + lineTotal({ qty: x.qty, unitPrice: x.price }), 0));
-  const canBack = customer && (p.soldCost ?? 0) > 0 && productNet > 0;
+  // goods costed by their bill (not item stock): their cost coming back is typed, or suggested from what they cost
+  const byBill = (l: NoteLine) => l.isProduct && !l.stock;
+  const productNetLeft = open_lines.filter(byBill).reduce((s, l) => s + l.left, 0);
+  const productNet = round2(picked.filter((x) => byBill(x.l)).reduce((s, x) => s + lineTotal({ qty: x.qty, unitPrice: x.price }), 0));
+  const costBack = customer && (p.soldCost ?? 0) > 0 && productNet > 0;
+  // stock items picked: their units come back into stock (credit note) or go back to the supplier (debit note) at their own cost
+  const stockPicked = picked.filter((x) => x.l.stock);
+  const canBack = costBack || stockPicked.length > 0;
   const suggested = productNetLeft > 0 ? round2(((p.soldCost ?? 0) * productNet) / productNetLeft) : 0;
   const cost = costTyped.trim() ? num(costTyped) : suggested;
   const lateBy = customer && eventDate && date ? daysBetween(eventDate, date) : 0;
-  const can = picked.length > 0 && !over && reason.trim().length >= 3 && !!date && (!customer || (!!eventDate && lateBy >= 0));
+  const serialsMissing = goodsBack && stockPicked.some((x) => x.l.stock?.trackSerials && (serialsBack[x.l.id] ?? []).length !== x.qty);
+  const can = picked.length > 0 && !over && !serialsMissing && reason.trim().length >= 3 && !!date && (!customer || (!!eventDate && lateBy >= 0));
 
   const save = () =>
     start(async () => {
       try {
-        const lines = picked.map((x) => ({ itemId: x.l.id, qty: x.qty, unitPrice: x.price }));
+        const back = goodsBack && canBack;
+        const lines = picked.map((x) => ({ itemId: x.l.id, qty: x.qty, unitPrice: x.price, ...(back && x.l.stock ? { qtyBack: x.qty, serials: x.l.stock.trackSerials ? (serialsBack[x.l.id] ?? []) : [] } : {}) }));
         const r = customer
-          ? await createCreditNote(p.documentId, { issueDate: date, eventDate, reason, goodsBack: goodsBack && canBack, goodsCost: goodsBack && canBack ? cost : null, lines })
-          : await createDebitNote(p.documentId, { issueDate: date, reason, supplierRef, lines });
+          ? await createCreditNote(p.documentId, { issueDate: date, eventDate, reason, goodsBack: back, goodsCost: back ? (costBack ? cost : 0) : null, lines })
+          : await createDebitNote(p.documentId, { issueDate: date, reason, supplierRef, goodsBack: back, lines });
         toast.success(`${customer ? "Credit" : "Debit"} note ${r.number} saved${r.toAdvance > 0 ? `. ${money(r.toAdvance)} already paid is now an advance` : ""}`);
         setOpen(false);
         // so a reload does not open it again
@@ -108,6 +145,7 @@ export function NoteDialog(p: {
         setOpen(o);
         if (o) {
           setEntries({});
+          setSerialsBack({});
           setReason("");
           setSupplierRef("");
           setGoodsBack(false);
@@ -189,11 +227,26 @@ export function NoteDialog(p: {
             <label className="flex items-start gap-2 text-sm">
               <Checkbox className="mt-0.5" checked={goodsBack} onCheckedChange={(v) => setGoodsBack(!!v)} />
               <span className="grid leading-tight">
-                The goods are coming back
-                <span className="text-xs text-muted-foreground">Their cost returns to stock. Leave it off for a price reduction, or when the customer keeps them.</span>
+                {customer ? "The goods are coming back" : "The goods go back to the supplier"}
+                <span className="text-xs text-muted-foreground">
+                  {customer ? "Their cost returns to stock. Leave it off for a price reduction, or when the customer keeps them." : "Stock items leave stock. Leave it off when only the price came down."}
+                </span>
               </span>
             </label>
-            {goodsBack && (
+            {goodsBack &&
+              stockPicked
+                .filter((x) => x.l.stock?.trackSerials)
+                .map((x) => (
+                  <div key={x.l.id} className="grid gap-1">
+                    <span className="truncate text-sm font-medium">{x.l.description.split("\n")[0]}</span>
+                    {x.l.stock!.serials.length ? (
+                      <SerialPick all={x.l.stock!.serials} picked={serialsBack[x.l.id] ?? []} need={x.qty} onChange={(s) => setSerialsBack({ ...serialsBack, [x.l.id]: s })} />
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">No serial numbers are left on this line to send back.</span>
+                    )}
+                  </div>
+                ))}
+            {goodsBack && costBack && (
               <div className="grid max-w-56 gap-1.5">
                 <Label htmlFor="n-cost">What those goods cost us</Label>
                 <Input id="n-cost" inputMode="decimal" className="text-right" value={costTyped} onChange={(e) => setCostTyped(e.target.value)} placeholder={String(suggested)} />

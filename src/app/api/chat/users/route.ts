@@ -1,8 +1,7 @@
-import { and, asc, eq, ne } from "drizzle-orm";
 import { type NextRequest } from "next/server";
-import { db, schema } from "@/db";
 import { loadAccess } from "@/lib/auth/session";
 import { parseRef, whoCanSee } from "@/lib/chat/cards";
+import { listTeammates } from "@/lib/chat/channels";
 import { presenceMap } from "@/lib/chat/presence";
 
 /**
@@ -12,11 +11,7 @@ import { presenceMap } from "@/lib/chat/presence";
 export async function GET(req: NextRequest) {
   const access = await loadAccess();
   if (!access) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const users = await db
-    .select({ id: schema.users.id, name: schema.users.name, jobTitle: schema.users.jobTitle })
-    .from(schema.users)
-    .where(and(eq(schema.users.isActive, true), ne(schema.users.id, access.user.id)))
-    .orderBy(asc(schema.users.name));
+  const users = await listTeammates(access.user.id);
   const record = parseRef(req.nextUrl.searchParams.get("record") ?? "");
   const canSee = record ? [...(await whoCanSee(record, users.map((u) => u.id)))] : undefined;
   return Response.json({ users, presence: await presenceMap(), canSee });

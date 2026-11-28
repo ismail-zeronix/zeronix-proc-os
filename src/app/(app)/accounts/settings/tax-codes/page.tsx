@@ -19,7 +19,7 @@ export default async function TaxCodesPage() {
 
   return (
     <div className="grid gap-3">
-      <PageToolbar title="Tax codes" meta={`${regime.label} · ${regime.taxIdLabel} ${org.taxRegNo || "not set (Settings › VAT registration)"}`} />
+      <PageToolbar title="Tax codes" meta={`${regime.label} · ${regime.taxIdLabel} ${org.taxRegNo || "not set (Admin › Settings › Company & branding)"}`} />
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table cards>
           <TableHeader>

@@ -19,6 +19,8 @@ import { fromMinor, sumMinor, toMinor } from "@/lib/money";
 import { money, round2 } from "@/lib/quotation";
 import { assertInLedgerPeriod, assertOpeningDate, assertOpeningOpen, pickPaymentAccount, postBillDoc, postSupplierAllocationDoc, postSupplierAllocationRemoved, postSupplierPaymentDoc, reverseDocument, reverseSupplierPayment } from "@/lib/ledger/documents";
 import { currentOrgId, setTxOrg } from "@/lib/org";
+import { lineItems } from "@/lib/items-check";
+import { voidBillStock } from "@/lib/ledger/stock-docs";
 import type { Tx } from "@/lib/tx";
 import { parseInput, UserError } from "@/lib/user-error";
 
@@ -39,6 +41,10 @@ const lineSchema = z.object({
   unitCost: z.number().min(0, "Cost cannot be below zero").max(1e10).transform(toFils),
   /** VAT code of the line; left out, what the bill's rate means. */
   taxCode: z.enum(PURCHASE_TAX_CODES).optional(),
+  /** The item it was picked from (Items), if any. */
+  itemId: z.number().int().positive().nullable().optional(),
+  /** Serial numbers received on this line (items with serials). */
+  serials: z.array(z.string().trim().min(1).max(80)).max(1000).default([]),
 });
 
 const billSchema = z.object({
@@ -63,13 +69,14 @@ export type BillInput = z.input<typeof billSchema>;
 async function insertBill(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   v: Omit<typeof schema.bills.$inferInsert, "year" | "seq" | "number">,
-  lines: (z.infer<typeof lineSchema> & { taxCode: string })[],
+  lines: (Omit<z.infer<typeof lineSchema>, "itemId" | "serials"> & { taxCode: string; itemId?: number | null; serials?: string[] })[],
 ) {
   const year = Number(v.billDate.slice(0, 4));
   const seq = await nextSeq(tx, "bill", schema.bills, schema.bills.year, schema.bills.seq, year);
   const number = yearNumber("ZBL", year, seq);
   const [b] = await tx.insert(schema.bills).values({ ...v, year, seq, number }).returning({ id: schema.bills.id });
-  await tx.insert(schema.billItems).values(lines.map((l, i) => ({ billId: b.id, position: i, description: l.description, qty: l.qty, unitCost: round2(l.unitCost), taxCode: l.taxCode })));
+  await lineItems(tx, lines.map((l) => l.itemId), v.organizationId ?? undefined);
+  await tx.insert(schema.billItems).values(lines.map((l, i) => ({ billId: b.id, position: i, description: l.description, qty: l.qty, unitCost: round2(l.unitCost), taxCode: l.taxCode, itemId: l.itemId ?? null, serials: l.itemId ? (l.serials ?? []) : [] })));
   return { id: b.id, number };
 }
 
@@ -483,6 +490,8 @@ export async function voidBill(billId: number, reason: string) {
       await tx.update(schema.supplierPayments).set({ voidedAt: now, voidReason: `Expense ${b.number} voided: ${why}` }).where(inArray(schema.supplierPayments.id, live.map((x) => x.paymentId)));
       await tx.update(a).set({ voidedAt: now }).where(and(eq(a.billId, billId), isNull(a.voidedAt)));
     }
+    // its stock items leave stock again first (refused when they have moved since: then a debit note is the way)
+    await voidBillStock(tx, orgId, b, `${b.number} voided: ${why}`, me.id);
     await tx.update(schema.bills).set({ status: "void", voidedAt: new Date(), voidReason: why }).where(eq(schema.bills.id, billId));
     await reverseDocument(tx, orgId, b.kind === "expense" ? "expense" : "bill", billId, `${b.number} voided: ${why}`, me.id);
     await audit(tx, {

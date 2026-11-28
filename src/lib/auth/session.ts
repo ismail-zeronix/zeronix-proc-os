@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { allowedApps, type AppKey } from "@/lib/apps";
+import { allowedApps, appsForBusiness, type AppKey, type BusinessType } from "@/lib/apps";
 import { dubaiToday } from "@/lib/dates";
 import { SESSION_COOKIE, verifySession, type SessionUser } from "./token";
 import { UserError } from "@/lib/user-error";
@@ -45,6 +45,9 @@ export interface Access {
   finance: boolean;
   /** Accountant work on top of Accounts: journals, chart of accounts, reconciliation, VAT filing, lock date. Admins always. */
   accountant: boolean;
+  /** What the company does (organizations.business_type); null until it is set. Only a trader has stock and the Inventory app. */
+  businessType: BusinessType | null;
+  trader: boolean;
 }
 
 /** The signed-in user's current role and apps, read from the database once per request. Null = not signed in or deactivated. */
@@ -61,21 +64,25 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       dataScope: schema.users.dataScope,
       isAccountant: schema.users.isAccountant,
       sessionVersion: schema.users.sessionVersion,
+      businessType: schema.organizations.businessType,
     })
     .from(schema.users)
+    .leftJoin(schema.organizations, eq(schema.organizations.id, schema.users.organizationId))
     .where(eq(schema.users.id, session.id))
     .limit(1);
   if (!row || !row.isActive) return null;
   // the password changed, or "Sign out everywhere": this cookie is from before, so it no longer opens anything
   if (row.sessionVersion !== session.sv) return null;
   const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv };
-  const apps = allowedApps({ role: row.role, apps: row.apps });
+  const apps = appsForBusiness(allowedApps({ role: row.role, apps: row.apps }), row.businessType);
   return {
     user,
     apps,
     seesAll: row.role === "admin" || row.dataScope === "all",
     finance: apps.includes("accounts"),
     accountant: row.role === "admin" || (apps.includes("accounts") && row.isAccountant),
+    businessType: row.businessType ?? null,
+    trader: row.businessType === "trader",
   };
 });
 

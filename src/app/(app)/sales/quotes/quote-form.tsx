@@ -18,11 +18,12 @@ import { marginOf, money, sellPrice, totals } from "@/lib/quotation";
 import { salesBaseOf } from "@/lib/sales-base";
 import { customerChoices, offerLine, saveQuote } from "../quote-actions";
 import { FindPrice } from "./new/find-price";
+import { ItemChip, ItemPickButton, type PickedItem } from "@/components/item-picker";
 import { errorText } from "@/lib/user-error";
 
 type Co = { id: number; name: string };
 type Choices = Awaited<ReturnType<typeof customerChoices>>;
-type Line = { key: number; description: string; qty: string; cost: string; margin: string; price: string; supplierName: string };
+type Line = { key: number; description: string; qty: string; cost: string; margin: string; price: string; supplierName: string; itemId: number | null; itemSku: string | null };
 
 export interface QuoteFormValues {
   id: number | null;
@@ -36,7 +37,7 @@ export interface QuoteFormValues {
   vatPct: number;
   terms: string;
   notes: string;
-  lines: { description: string; qty: number; costAed: number | null; unitPriceAed: number; supplierName: string }[];
+  lines: { description: string; qty: number; costAed: number | null; unitPriceAed: number; supplierName: string; itemId?: number | null; itemSku?: string | null }[];
 }
 
 const num = (s: string): number | null => {
@@ -96,6 +97,8 @@ export function QuoteForm({
       margin: show(marginOf(l.costAed, l.unitPriceAed)),
       price: String(l.unitPriceAed),
       supplierName: l.supplierName,
+      itemId: l.itemId ?? null,
+      itemSku: l.itemSku ?? null,
     })),
   );
 
@@ -147,10 +150,17 @@ export function QuoteForm({
     const m = p != null ? marginOf(num(l.cost), p) : null;
     setLine(l.key, m != null ? { price: v, margin: String(m) } : { price: v });
   };
-  const addBlank = () => setLines((ls) => [...ls, { key: nextKey++, description: "", qty: "1", cost: "", margin: "", price: "", supplierName: "" }]);
+  const addBlank = () => setLines((ls) => [...ls, { key: nextKey++, description: "", qty: "1", cost: "", margin: "", price: "", supplierName: "", itemId: null, itemSku: null }]);
+  /** A line from the item list: its name (and specs), its selling price and, for the accounts team, its cost. */
+  const fromItem = (it: PickedItem): Omit<Line, "key" | "qty"> => {
+    const cost = it.purchasePrice;
+    const price = it.salePrice ?? (cost != null ? sellPrice(cost, defaultMargin) : null);
+    return { description: it.description ? `${it.name}, ${it.description}` : it.name, cost: show(cost), margin: show(cost != null && price != null ? marginOf(cost, price) : null), price: show(price), supplierName: "", itemId: it.id, itemSku: it.sku };
+  };
+  const addItemLine = (it: PickedItem) => setLines((ls) => [...ls.filter((x) => x.description.trim() || x.price.trim()), { key: nextKey++, qty: "1", ...fromItem(it) }]);
 
   const priced = lines
-    .map((l) => ({ description: l.description.trim(), qty: Math.max(1, Math.round(num(l.qty) ?? 1)), costAed: num(l.cost), unitPriceAed: num(l.price) ?? 0, supplierName: l.supplierName }))
+    .map((l) => ({ description: l.description.trim(), qty: Math.max(1, Math.round(num(l.qty) ?? 1)), costAed: num(l.cost), unitPriceAed: num(l.price) ?? 0, supplierName: l.supplierName, itemId: l.itemId }))
     .filter((l) => l.description);
   const t = totals(priced.map((l) => ({ qty: l.qty, unitPrice: l.unitPriceAed, cost: l.costAed })), vatPct);
   const profitPct = t.profit != null && t.soldWithCost > 0 ? Math.round((t.profit / t.soldWithCost) * 1000) / 10 : null;
@@ -379,6 +389,10 @@ export function QuoteForm({
           <section className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card" aria-label="Lines">
             <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
               <h2 className="mr-auto text-sm font-medium">Items</h2>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ItemPickButton onPick={addItemLine} label="Add a line from the item list" />
+                <span className="hidden sm:inline">From items</span>
+              </span>
               {canFindPrice && lines.length > 0 && (
                 <FindPrice
                   defaultMargin={defaultMargin}
@@ -387,7 +401,7 @@ export function QuoteForm({
                     const l = await offerLine(offerId, qty, marginPct);
                     setLines((ls) => [
                       ...ls.filter((x) => x.description.trim() || x.price.trim()),
-                      { key: nextKey++, description: l.description, qty: String(l.qty), cost: String(l.costAed), margin: show(marginOf(l.costAed, l.unitPriceAed)), price: String(l.unitPriceAed), supplierName: l.supplierName },
+                      { key: nextKey++, description: l.description, qty: String(l.qty), cost: String(l.costAed), margin: show(marginOf(l.costAed, l.unitPriceAed)), price: String(l.unitPriceAed), supplierName: l.supplierName, itemId: null, itemSku: null },
                     ]);
                   }}
                 />
@@ -410,8 +424,16 @@ export function QuoteForm({
                   <div key={l.key} className={`grid grid-cols-4 items-start gap-x-2 gap-y-1 px-3 py-1.5 hover:bg-muted/20 ${cols}`}>
                     <span className="hidden pt-2 text-xs text-muted-foreground tabular-nums sm:block">{i + 1}</span>
                     <div className="col-span-4 sm:col-span-1">
-                      <Input aria-label="Description" value={l.description} onChange={(e) => setLine(l.key, { description: e.target.value })} placeholder="What are we selling?" />
-                      {l.supplierName && <div className="mt-0.5 px-1 text-[11px] text-muted-foreground">from {l.supplierName}</div>}
+                      <div className="flex items-center gap-1">
+                        <ItemPickButton onPick={(it) => setLine(l.key, fromItem(it))} />
+                        <Input aria-label="Description" value={l.description} onChange={(e) => setLine(l.key, { description: e.target.value })} placeholder="What are we selling?" />
+                      </div>
+                      {(l.supplierName || l.itemSku) && (
+                        <div className="mt-0.5 flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+                          {l.itemSku && <ItemChip sku={l.itemSku} onClear={() => setLine(l.key, { itemId: null, itemSku: null })} />}
+                          {l.supplierName && <span>from {l.supplierName}</span>}
+                        </div>
+                      )}
                     </div>
                     <Input aria-label="Quantity" inputMode="numeric" className="text-right" value={l.qty} onChange={(e) => setLine(l.key, { qty: e.target.value })} />
                     <Input aria-label="Unit cost (AED)" inputMode="decimal" className="text-right" placeholder="cost" value={l.cost} onChange={(e) => onCost(l, e.target.value)} />
@@ -439,7 +461,7 @@ export function QuoteForm({
                       initialQuery=""
                       onAdd={async (offerId, qty, marginPct) => {
                         const l = await offerLine(offerId, qty, marginPct);
-                        setLines((ls) => [...ls, { key: nextKey++, description: l.description, qty: String(l.qty), cost: String(l.costAed), margin: show(marginOf(l.costAed, l.unitPriceAed)), price: String(l.unitPriceAed), supplierName: l.supplierName }]);
+                        setLines((ls) => [...ls, { key: nextKey++, description: l.description, qty: String(l.qty), cost: String(l.costAed), margin: show(marginOf(l.costAed, l.unitPriceAed)), price: String(l.unitPriceAed), supplierName: l.supplierName, itemId: null, itemSku: null }]);
                       }}
                     />
                   )}

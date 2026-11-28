@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, schema } from "@/db";
@@ -170,7 +171,9 @@ export async function resolveFor(userIds: number[], rule: string, record: { type
 }
 
 /** The bell: open lines (not resolved, not snoozed), most urgent first, and the unread count. */
-export async function bellFor(userId: number): Promise<BellData> {
+export const bellFor = cache(bellForUncached);
+
+async function bellForUncached(userId: number): Promise<BellData> {
   const open = and(eq(n.userId, userId), isNull(n.resolvedAt), awake());
   const [items, [counts]] = await Promise.all([
     views(open, 60),

@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
 import { getBrandRow } from "@/lib/brand";
+import { orgCached } from "@/lib/org-config";
 import { getSetting } from "@/lib/settings";
 import type { Tx } from "@/lib/tx";
 
@@ -43,7 +44,7 @@ export interface OrgProfile {
   emirate: string;
   fiscalYearStartMonth: number;
   timezone: string;
-  /** TRN in the UAE, GSTIN in India. Zeronix keeps it in Accounts › Settings › VAT registration (quote_trn). */
+  /** TRN in the UAE, GSTIN in India. Set in Admin › Settings › Company & branding (setting quote_trn). */
   taxRegNo: string;
   tradeLicense: string;
 }
@@ -53,7 +54,8 @@ export interface OrgProfile {
  * documents read them (settings, brand profile), so there is one copy of each; they move onto the organisation in Phase T.
  */
 export const orgProfile = cache(async (orgId: number = DEFAULT_ORG_ID): Promise<OrgProfile> => {
-  const [org] = await db.select().from(schema.organizations).where(eq(schema.organizations.id, orgId)).limit(1);
+  // the organisation row is kept between requests (lib/org-config.ts); its writers call configChanged(orgId, "org")
+  const org = await orgCached(orgId, "org", async () => (await db.select().from(schema.organizations).where(eq(schema.organizations.id, orgId)).limit(1))[0] ?? null);
   if (!org) throw new Error(`Organisation ${orgId} not found`);
   const [trn, brand] = orgId === DEFAULT_ORG_ID ? await Promise.all([getSetting("quote_trn"), getBrandRow()]) : ["", null];
   return {

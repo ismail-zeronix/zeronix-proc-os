@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, asc, desc, eq, gte, isNull, sql, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { ownersJson, type Owner } from "@/lib/company-owners";
@@ -106,7 +107,9 @@ export type PaidDocument = {
 };
 
 /** The invoice page: invoice, lines, money set against it (also voided or taken off), the credit note if cancelled, and the order. */
-export async function getInvoice(id: number) {
+export const getInvoice = cache(getInvoiceUncached);
+
+async function getInvoiceUncached(id: number) {
   const [inv] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, id));
   if (!inv) return null;
   const [items, pays, creditRows, creditItems, [order], [company], author] = await Promise.all([
@@ -369,13 +372,26 @@ export async function nextInvoiceNumber(): Promise<string> {
   return invoiceNumber(s.invoice_prefix, Math.max(1, Math.floor(Number(s.invoice_next_number)) || 1), Math.floor(Number(s.invoice_digits)) || 5);
 }
 
-/** Numbers for the Accounts sidebar badges. */
-export async function accountsBadges() {
-  const [inv, [toInvoice]] = await Promise.all([
-    listInvoices(),
-    db.select({ n: sql<number>`count(*)::int` }).from(schema.salesOrders).where(eq(schema.salesOrders.status, "delivered")),
-  ]);
-  return { overdue: inv.filter((i) => i.state.key === "overdue").length, toInvoice: toInvoice.n };
+/**
+ * Numbers for the Accounts sidebar badges, in one query: orders to invoice, overdue invoices, and bills overdue or due
+ * within a week. Same rules as invoiceState() and billState() (balance = total - credited - paid, both rounded to fils),
+ * checked against them in tests/accounts-badges.test.ts.
+ */
+export async function accountsBadges(): Promise<{ toInvoice: number; overdue: number; billsDue: number }> {
+  const today = dubaiToday();
+  const res = await db.execute(sql`
+    SELECT
+      (SELECT count(*)::int FROM sales_orders WHERE status IN ('open', 'delivered')) AS "toInvoice",
+      (SELECT count(*)::int FROM invoices i
+        WHERE i.status <> 'cancelled' AND i.due_date < ${today}::date
+          AND round(i.total - i.credited_total - round(coalesce((SELECT sum(a.amount) FROM payment_allocations a
+                WHERE a.invoice_id = i.id AND a.voided_at IS NULL), 0), 2), 2) > 0) AS overdue,
+      (SELECT count(*)::int FROM bills b
+        WHERE b.kind IN ('bill', 'opening') AND b.status <> 'void' AND b.due_date <= ${today}::date + 7
+          AND round(b.total - b.credited_total - round(coalesce((SELECT sum(a.amount) FROM supplier_payment_allocations a
+                WHERE a.bill_id = b.id AND a.voided_at IS NULL), 0), 2), 2) > 0) AS "billsDue"`);
+  const r = res.rows[0] as { toInvoice: number; overdue: number; billsDue: number };
+  return { toInvoice: Number(r.toInvoice), overdue: Number(r.overdue), billsDue: Number(r.billsDue) };
 }
 
 export interface CustomerRow {

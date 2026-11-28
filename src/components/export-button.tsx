@@ -25,6 +25,29 @@ const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 
+/**
+ * Set in this browser while a file it asked for may still be on its way, so a page load only asks the server when there
+ * is something to pick up (every other page load skips the request).
+ */
+const PENDING_KEY = "zx-exports-pending";
+const pending = {
+  get: () => {
+    try {
+      return localStorage.getItem(PENDING_KEY) === "1";
+    } catch {
+      return true;
+    }
+  },
+  set: (on: boolean) => {
+    try {
+      if (on) localStorage.setItem(PENDING_KEY, "1");
+      else localStorage.removeItem(PENDING_KEY);
+    } catch {
+      /* private mode: we simply ask every time */
+    }
+  },
+};
+
 const emit = () => listeners.forEach((l) => l());
 const setBusy = (next: Set<string>) => {
   busy = next;
@@ -82,6 +105,7 @@ async function check() {
   if (jobs) {
     await Promise.all(jobs.filter((j) => j.status === "done" || j.status === "failed").map(finish));
     setBusy(new Set(jobs.filter((j) => j.status === "queued" || j.status === "running").map((j) => j.url)));
+    if (!busy.size) pending.set(false);
   }
   if (!jobs || busy.size) timer = setTimeout(check, POLL_MS);
 }
@@ -90,7 +114,7 @@ async function check() {
 function load() {
   if (loaded) return;
   loaded = true;
-  void check();
+  if (pending.get()) void check();
 }
 
 /** Asks for a file: the answer comes back at once, and the file follows. */
@@ -98,6 +122,7 @@ export async function startExport(url: string, label: string) {
   loaded = true;
   if (busy.has(url)) return;
   setBusy(new Set(busy).add(url));
+  pending.set(true);
   try {
     const res = await fetch("/api/exports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, label }) });
     const r = await res.json().catch(() => ({}));

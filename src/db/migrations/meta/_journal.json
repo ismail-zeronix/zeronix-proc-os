@@ -505,6 +505,27 @@
       "when": 1795602065416,
       "tag": "0071_outreach_access",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795806618817,
+      "tag": "0072_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795808482721,
+      "tag": "0073_inventory_stock",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795822424098,
+      "tag": "0074_industry",
+      "breakpoints": true
     }
   ]
 }

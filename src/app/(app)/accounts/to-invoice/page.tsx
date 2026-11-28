@@ -19,7 +19,10 @@ export const metadata = { title: "To invoice · Zeronix Accounts" };
 
 const PATH = "/accounts/to-invoice";
 
-/** Delivered orders waiting for their tax invoice, oldest delivery first. */
+/**
+ * Orders waiting for their tax invoice, delivered or not (the delivery note is optional): oldest first, by delivery date or
+ * by order date when there is no delivery note.
+ */
 export default async function ToInvoicePage({ searchParams }: PageProps<"/accounts/to-invoice">) {
   const { user } = await requireFinance();
   const sp = await searchParams;
@@ -30,7 +33,11 @@ export default async function ToInvoicePage({ searchParams }: PageProps<"/accoun
     nextInvoiceNumber(),
     getSetting("quote_trn"),
   ]);
-  const delivered = sortRows(orders.filter((o) => o.status === "delivered"), { delivered: (o) => o.deliveredOn, customer: (o) => o.companyName, total: (o) => o.total }, list);
+  const delivered = sortRows(
+    orders.filter((o) => o.status === "open" || o.status === "delivered"),
+    { delivered: (o) => o.deliveredOn ?? o.createdAt.toISOString().slice(0, 10), customer: (o) => o.companyName, total: (o) => o.total },
+    list,
+  );
   const rows = pageOf(delivered, list);
   const details = rows.length
     ? await db
@@ -42,14 +49,14 @@ export default async function ToInvoicePage({ searchParams }: PageProps<"/accoun
   const head = (label: string, col: string, align?: "right") => <SortHead label={label} col={col} path={PATH} sp={sp} list={list} align={align} />;
   return (
     <div className={LIST_PAGE}>
-      <PageToolbar title="To invoice" meta={`${delivered.length} delivered order${delivered.length === 1 ? "" : "s"} · next invoice ${nextNumber}`} />
+      <PageToolbar title="To invoice" meta={`${delivered.length} order${delivered.length === 1 ? "" : "s"} to invoice · next invoice ${nextNumber}`} />
       <DataTable
         noun="sales order"
         total={delivered.length}
         acrossPages={false}
         actions={<ExportActions list="orders" />}
         pager={<ListPager path={PATH} sp={sp} list={list} total={delivered.length} />}
-        empty="Nothing to invoice. Sales orders show here once they are marked delivered."
+        empty="Nothing to invoice. Confirmed sales orders show here until their invoice is issued."
         columns={[
           { label: "Sales order" },
           { label: head("Customer", "customer") },

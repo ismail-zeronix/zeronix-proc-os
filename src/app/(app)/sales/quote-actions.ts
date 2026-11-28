@@ -19,6 +19,7 @@ import { audit } from "@/lib/audit";
 import { snapshotForQuote } from "@/lib/proposals-data";
 import { quoteDefaults } from "@/lib/quotes-data";
 import { stageLabel } from "@/lib/sales";
+import { lineItems } from "@/lib/items-check";
 import { parseInput, UserError } from "@/lib/user-error";
 
 const price = z.number().min(0).max(1e9).transform(toFils);
@@ -36,6 +37,8 @@ const itemSchema = z.object({
   /** Our cost per unit in AED, when known. */
   costAed: price.nullable().optional(),
   unitPriceAed: price,
+  /** The item it was picked from (Items), if any. */
+  itemId: z.number().int().positive().nullable().optional(),
 });
 export type ItemInput = z.input<typeof itemSchema>;
 
@@ -62,10 +65,12 @@ export async function addItem(dealId: number, input: ItemInput) {
   await assertDeal(dealId, true);
   const d = parseItem(input);
   await dealExists(dealId);
+  await lineItems(db, [d.itemId]);
   await db.insert(schema.dealItems).values({
     dealId,
     position: await nextPosition(dealId),
     description: d.description,
+    itemId: d.itemId ?? null,
     qty: d.qty,
     costAed: d.costAed ?? null,
     marginPct: marginOf(d.costAed, d.unitPriceAed),
@@ -127,8 +132,9 @@ export async function updateItem(itemId: number, input: ItemInput) {
   await assertApp("sales");
   await assertDealOf("deal_items", itemId, true);
   const d = parseItem(input);
+  await lineItems(db, [d.itemId]);
   const [row] = await db.update(schema.dealItems)
-    .set({ description: d.description, qty: d.qty, costAed: d.costAed ?? null, marginPct: marginOf(d.costAed, d.unitPriceAed), unitPriceAed: d.unitPriceAed })
+    .set({ description: d.description, qty: d.qty, costAed: d.costAed ?? null, marginPct: marginOf(d.costAed, d.unitPriceAed), unitPriceAed: d.unitPriceAed, ...(d.itemId !== undefined ? { itemId: d.itemId } : {}) })
     .where(eq(schema.dealItems.id, itemId))
     .returning({ dealId: schema.dealItems.dealId });
   if (row) refresh(row.dealId);
@@ -245,7 +251,7 @@ export async function createQuote(dealId: number, input: z.input<typeof quoteInp
         createdBy: me.id,
       })
       .returning({ id: schema.quotes.id });
-    await tx.insert(schema.quoteItems).values(items.map((i, position) => ({ quoteId: quote.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPriceAed, section: i.section, unit: i.unit, costAed: i.costAed, supplierName: i.supplierName })));
+    await tx.insert(schema.quoteItems).values(items.map((i, position) => ({ quoteId: quote.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPriceAed, section: i.section, unit: i.unit, costAed: i.costAed, supplierName: i.supplierName, itemId: i.itemId })));
     // a project quote carries its proposal, frozen as it is now (the quote print, PDF and email show it)
     await snapshotForQuote(tx, dealId, { id: quote.id, number, vatPct, validUntil }, me.id);
     // the deal is now worth what we quoted (before VAT)
@@ -288,7 +294,7 @@ export async function reviseQuote(quoteId: number) {
     const validUntil = addDays(dubaiToday(), deal.kind === "project" ? PROJECT_VALID_DAYS : defaults.validDays);
 
     await tx.delete(schema.quoteItems).where(eq(schema.quoteItems.quoteId, quoteId));
-    await tx.insert(schema.quoteItems).values(items.map((i, position) => ({ quoteId, position, description: i.description, qty: i.qty, unitPrice: i.unitPriceAed, section: i.section, unit: i.unit, costAed: i.costAed, supplierName: i.supplierName })));
+    await tx.insert(schema.quoteItems).values(items.map((i, position) => ({ quoteId, position, description: i.description, qty: i.qty, unitPrice: i.unitPriceAed, section: i.section, unit: i.unit, costAed: i.costAed, supplierName: i.supplierName, itemId: i.itemId })));
     await snapshotForQuote(tx, dealId, { id: quoteId, number: q.number, vatPct: q.vatPct, validUntil }, me.id);
     await tx
       .update(schema.quotes)
@@ -431,6 +437,8 @@ const lineSchema = z.object({
   costAed: price.nullable().optional(),
   unitPriceAed: z.number().positive("Every line needs a selling price").max(1e9).transform(toFils),
   supplierName: z.string().trim().max(160).default(""),
+  /** The item it was picked from (Items), if any. */
+  itemId: z.number().int().positive().nullable().optional(),
 });
 
 const saveSchema = z.object({
@@ -516,7 +524,8 @@ export async function saveQuote(quoteId: number | null, input: SaveQuoteInput) {
         .returning({ id: schema.quotes.id });
       id = q.id;
     }
-    await tx.insert(schema.quoteItems).values(d.lines.map((l, position) => ({ quoteId: id!, position, description: l.description, qty: l.qty, unitPrice: l.unitPriceAed, costAed: l.costAed ?? null, supplierName: l.supplierName })));
+    await lineItems(tx, d.lines.map((l) => l.itemId));
+    await tx.insert(schema.quoteItems).values(d.lines.map((l, position) => ({ quoteId: id!, position, description: l.description, qty: l.qty, unitPrice: l.unitPriceAed, costAed: l.costAed ?? null, supplierName: l.supplierName, itemId: l.itemId ?? null })));
     // the deal is now worth what we quoted (before VAT)
     if (dealId) await tx.update(schema.deals).set({ valueAed: t.subtotal }).where(eq(schema.deals.id, dealId));
     await tx.insert(schema.activities).values({

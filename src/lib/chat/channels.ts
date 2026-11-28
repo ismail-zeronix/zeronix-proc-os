@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Access } from "@/lib/auth/session";
 import { canSeeDeal, viewerOf } from "@/lib/auth/visibility";
@@ -392,4 +392,13 @@ export async function channelSummary(channelId: number, userId: number): Promise
     unread: 0,
     muted: false,
   };
+}
+
+/** Active teammates to start a chat with or mention (everyone but me), by name. */
+export async function listTeammates(me: number): Promise<{ id: number; name: string; jobTitle: string }[]> {
+  return db
+    .select({ id: schema.users.id, name: schema.users.name, jobTitle: schema.users.jobTitle })
+    .from(schema.users)
+    .where(and(eq(schema.users.isActive, true), ne(schema.users.id, me)))
+    .orderBy(asc(schema.users.name));
 }
