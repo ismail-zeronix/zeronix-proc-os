@@ -11,11 +11,13 @@ async function readBrandRow() {
   return row ?? null;
 }
 
-/** Company branding for email signatures (defaults until an admin saves it). Kept between requests (lib/org-config.ts). */
-export const getBrandRow = cache(async () => {
-  const orgId = await configOrg();
-  return orgId ? orgCached(orgId, "brand", readBrandRow) : readBrandRow();
-});
+/** One organisation's brand row, kept between requests (lib/org-config.ts) and per request by organisation. */
+const brandRowOf = cache(async (orgId: number | null) => (orgId ? orgCached(orgId, "brand", readBrandRow) : readBrandRow()));
+
+/** Company branding for email signatures (defaults until an admin saves it), of the organisation the work is for. */
+export async function getBrandRow() {
+  return brandRowOf(await configOrg());
+}
 
 /** Call after saving the brand profile (with `tx`, inside that transaction). */
 export async function brandChanged(tx?: Parameters<typeof configChanged>[2]): Promise<void> {

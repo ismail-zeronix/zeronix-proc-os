@@ -79,11 +79,13 @@ async function readSettings(): Promise<Record<SettingKey, string>> {
   return out;
 }
 
-/** Every setting of the company, defaults filled in. Kept between requests (lib/org-config.ts); never change the object. */
-const settingsMap = cache(async (): Promise<Readonly<Record<SettingKey, string>>> => {
-  const orgId = await configOrg();
-  return orgId ? (await orgConfig()).orgCached(orgId, "settings", readSettings) : readSettings();
-});
+/**
+ * Every setting of the company, defaults filled in. Kept between requests (lib/org-config.ts); never change the object.
+ * Keyed by the organisation even within a request: work inside runAsOrg() (the platform console, jobs) reads another
+ * organisation than the signed-in user's, and the rows it reads are that organisation's (row-level security).
+ */
+const settingsOf = cache(async (orgId: number | null): Promise<Readonly<Record<SettingKey, string>>> => (orgId ? (await orgConfig()).orgCached(orgId, "settings", readSettings) : readSettings()));
+const settingsMap = async () => settingsOf(await configOrg());
 
 export async function getSetting(key: SettingKey): Promise<string> {
   return (await settingsMap())[key];
