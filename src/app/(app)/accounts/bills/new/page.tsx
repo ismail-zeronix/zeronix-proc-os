@@ -7,7 +7,7 @@ export const metadata = { title: "New bill · Zeronix Accounts" };
 
 /** A supplier's invoice to pay later, or (`?kind=opening`) one still unpaid from before the portal. `?order=` or `?invoice=` links it to a sale, `?supplier=` picks who. */
 export default async function NewBillPage({ searchParams }: PageProps<"/accounts/bills/new">) {
-  await requireFinance();
+  const access = await requireFinance();
   const sp = await searchParams;
   const orderId = Number(sp.order) || undefined;
   const invoiceId = Number(sp.invoice) || undefined;
@@ -21,7 +21,7 @@ export default async function NewBillPage({ searchParams }: PageProps<"/accounts
         <span className="text-xs text-muted-foreground">Prices before VAT, as on the supplier&apos;s invoice.</span>
       </div>
       <section className="rounded-xl border bg-card p-3 sm:p-4">
-        <BillForm suppliers={suppliers} orders={orders} invoices={invoices} preset={{ orderId, invoiceId, supplierId, kind: sp.kind === "opening" ? "opening" : "bill" }} />
+        <BillForm suppliers={suppliers} orders={orders} invoices={invoices} preset={{ orderId, invoiceId, supplierId, kind: sp.kind === "opening" ? "opening" : "bill", category: access.trader ? "cogs" : "services" }} />
       </section>
     </div>
   );

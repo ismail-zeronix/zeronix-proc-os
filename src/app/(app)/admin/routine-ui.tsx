@@ -27,7 +27,7 @@ function useSave() {
 
 const unit = (per: "day" | "week") => (per === "day" ? "a day" : "a week");
 
-/** Admin › Settings › Sales targets: the team default. */
+/** CRM › Settings › Targets and check-ins: the team default. */
 export function TeamTargetsCard({ targets, checkinMinutes }: { targets: Targets; checkinMinutes: number }) {
   const [every, setEvery] = useState(String(checkinMinutes));
   const [f, setF] = useState<Record<TargetKey, string>>(() => Object.fromEntries(TARGET_FIELDS.map((t) => [t.key, String(targets[t.key])])) as Record<TargetKey, string>);
@@ -117,7 +117,7 @@ export function UserTargetsCard({ userId, team, own, eligible }: { userId: numbe
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">Leave a box empty to use the team target (Admin › Settings › Sales targets).</p>
+      <p className="text-xs text-muted-foreground">Leave a box empty to use the team target (CRM › Settings › Targets and check-ins).</p>
       <div>
         <Button
           pending={pending}

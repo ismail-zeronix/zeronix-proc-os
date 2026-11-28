@@ -50,7 +50,7 @@ describe("Sales became CRM, money moved to Accounts", () => {
   });
 
   it("splits the work: Sales has an overview, customers, quotes and sales orders; Accounts has the money", () => {
-    expect(navFor("sales").flatMap((g) => g.items.map((i) => i.href))).toEqual(["/sales", "/sales/customers", "/sales/quotes", "/sales/orders"]);
+    expect(navFor("sales").flatMap((g) => g.items.map((i) => i.href))).toEqual(["/sales", "/sales/customers", "/sales/quotes", "/sales/orders", "/sales/items"]);
     const money = navFor("accounts").flatMap((g) => g.items.map((i) => i.href));
     expect(money).toEqual(expect.arrayContaining(["/accounts", "/accounts/to-invoice", "/accounts/invoices", "/accounts/payments", "/accounts/bills", "/accounts/reports"]));
     expect(money.some((h) => h.startsWith("/sales"))).toBe(false);

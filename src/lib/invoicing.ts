@@ -95,8 +95,8 @@ export function checkPaymentAmount(amount: number, balance: number): string | nu
 }
 
 export const ORDER_STATUSES = [
-  { key: "open", label: "Confirmed", hint: "Ordered by the customer, not delivered yet" },
-  { key: "delivered", label: "Delivered", hint: "Goods handed over, invoice next" },
+  { key: "open", label: "Confirmed", hint: "Ordered by the customer: invoice it, the delivery note is optional" },
+  { key: "delivered", label: "Delivered", hint: "Goods handed over with a delivery note, invoice next" },
   { key: "invoiced", label: "Invoiced", hint: "Tax invoice issued" },
   { key: "cancelled", label: "Cancelled", hint: "Will not go ahead" },
 ] as const;

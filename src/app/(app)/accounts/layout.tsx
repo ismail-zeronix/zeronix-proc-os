@@ -1,13 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { accountsBadges } from "@/lib/accounts-data";
 import { requireApp } from "@/lib/auth/session";
-import { billsDueCount } from "@/lib/purchases-data";
 
 export default async function AccountsLayout({ children }: LayoutProps<"/accounts">) {
   const access = await requireApp("accounts");
-  const [badges, billsDue] = await Promise.all([accountsBadges(), billsDueCount()]);
+  const badges = await accountsBadges();
   return (
-    <AppShell app="accounts" badges={{ ...badges, billsDue }} perms={{ accountant: access.accountant }}>
+    <AppShell app="accounts" badges={badges} perms={{ accountant: access.accountant }}>
       {children}
     </AppShell>
   );

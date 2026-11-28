@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { requireFinance } from "@/lib/auth/session";
 import { LedgerEntries } from "@/components/ledger-entries";
 import { methodLabel, termsLabel } from "@/lib/invoicing";
+import { noteStockLines, type NoteStock } from "@/lib/inventory/data";
 import { bankAccountOptions } from "@/lib/ledger/data";
 import { currentOrgId } from "@/lib/org";
 import { billKindLabel, categoryLabel, lineCost } from "@/lib/purchases";
@@ -34,7 +35,8 @@ export default async function BillPage({ params, searchParams }: PageProps<"/acc
   if (!b) notFound();
   const expense = b.kind === "expense";
   const live = b.payments.filter((p) => !p.voidedAt);
-  const accounts = await bankAccountOptions(await currentOrgId());
+  const orgId = await currentOrgId();
+  const [accounts, noteStock] = await Promise.all([bankAccountOptions(orgId), access.trader && b.kind === "bill" ? noteStockLines(orgId, "bill", b.id) : Promise.resolve({} as Record<number, NoteStock>)]);
   const selfAssessed = docTax(b.items.map((l) => ({ net: lineCost(l), code: l.taxCode }))).selfAssessed;
   const advances = !expense && b.status !== "void" && (b.state.balance > 0 || b.debitNotes.length > 0) && b.supplierId ? await supplierAdvances(b.supplierId) : [];
 
@@ -64,7 +66,7 @@ export default async function BillPage({ params, searchParams }: PageProps<"/acc
             documentId={b.id}
             number={b.number}
             documentDate={b.billDate}
-            lines={b.lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, unitPrice: l.unitCost, taxCode: l.taxCode, left: l.left, isProduct: true }))}
+            lines={b.lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, unitPrice: l.unitCost, taxCode: l.taxCode, left: l.left, isProduct: true, stock: noteStock[l.id] ?? null }))}
             vatLeft={round2(b.vatAmount - b.debitNotes.reduce((n, d) => n + d.vatAmount, 0))}
             valueLeft={round2(b.total - b.creditedTotal)}
             paid={b.state.paid}

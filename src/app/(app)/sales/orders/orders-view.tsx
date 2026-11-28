@@ -22,25 +22,26 @@ import { param, type SalesBase } from "@/lib/sales-base";
 import { getSetting } from "@/lib/settings";
 
 const VIEWS = [
-  { key: "open", label: "To deliver", match: (s: string) => s === "open" },
-  { key: "delivered", label: "To invoice", match: (s: string) => s === "delivered" },
+  // the delivery note is optional, so every confirmed order is waiting for its invoice, delivered or not
+  { key: "delivered", label: "To invoice", match: (s: string) => s === "open" || s === "delivered" },
   { key: "invoiced", label: "Invoiced", match: (s: string) => s === "invoiced" },
   { key: "all", label: "All", match: () => true },
 ] as const;
 
 /**
- * Sales orders made from accepted quotes: what to deliver, what to invoice, and what customers still owe. On "To invoice"
- * the accounts team issues the tax invoice straight from the list (oldest delivery first).
+ * Sales orders made from accepted quotes: what to invoice and what customers still owe. On "To invoice" the accounts team
+ * issues the tax invoice straight from the list (oldest first: by delivery date, or order date when not delivered).
  */
 export async function OrdersView({ access, base, searchParams }: { access: Access; base: SalesBase; searchParams: Record<string, string | string[] | undefined> }) {
-  const v = param(searchParams.view);
-  const view = VIEWS.find((x) => x.key === v) ?? VIEWS[3];
+  // ?view=open is the old "To deliver" view: it is part of "To invoice" now
+  const v = param(searchParams.view) === "open" ? "delivered" : param(searchParams.view);
+  const view = VIEWS.find((x) => x.key === v) ?? VIEWS[2];
   const all = await listOrders(financeViewerOf(access));
   const toInvoice = view.key === "delivered";
   const path = `${base}/orders`;
   const list = readList(searchParams, ["date", "customer", "total", "delivered"], toInvoice ? { sort: "delivered", dir: "asc" } : { sort: "date", dir: "desc" });
   const rows = all.filter((o) => view.match(o.status));
-  const shown = pageOf(sortRows(rows, { date: (o) => o.createdAt.toISOString(), customer: (o) => o.companyName, total: (o) => o.total, delivered: (o) => o.deliveredOn }, list), list);
+  const shown = pageOf(sortRows(rows, { date: (o) => o.createdAt.toISOString(), customer: (o) => o.companyName, total: (o) => o.total, delivered: (o) => o.deliveredOn ?? o.createdAt.toISOString().slice(0, 10) }, list), list);
   const head = (label: string, col: string, align?: "right") => <SortHead label={label} col={col} path={path} sp={searchParams} list={list} align={align} />;
   const today = dubaiToday();
   const count = (k: string) => all.filter((o) => VIEWS.find((x) => x.key === k)!.match(o.status)).length;
@@ -76,7 +77,7 @@ export async function OrdersView({ access, base, searchParams }: { access: Acces
         selectable={access.finance}
         actions={<ExportActions list="orders" />}
         pager={<ListPager path={path} sp={searchParams} list={list} total={rows.length} />}
-        empty={!all.length ? "No sales orders yet. Open an accepted quote and press Convert to sales order." : toInvoice ? "Nothing to invoice. Sales orders show here once they are marked delivered." : "Nothing in this view."}
+        empty={!all.length ? "No sales orders yet. Open an accepted quote and press Convert to sales order." : toInvoice ? "Nothing to invoice. Confirmed sales orders show here until their invoice is issued." : "Nothing in this view."}
         columns={[
           { label: head("Sales order", "date") },
           { label: head("Customer", "customer") },

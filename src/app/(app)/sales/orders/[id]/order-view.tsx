@@ -30,9 +30,11 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
   const tab = param(searchParams.tab);
   const canAccounts = access.finance;
   const canFiles = apps.includes("files");
+  // the delivery note is optional: an order is ready to invoice as soon as it is confirmed
+  const toInvoice = o.status === "open" || o.status === "delivered";
   const [files, nextNumber, ourTrn, costs] = await Promise.all([
     canFiles ? listFiles(financeViewerOf(access), { relatedType: "order", relatedId: o.id, finance: access.finance }) : Promise.resolve([]),
-    canAccounts && o.status === "delivered" ? nextInvoiceNumber() : Promise.resolve(""),
+    canAccounts && toInvoice ? nextInvoiceNumber() : Promise.resolve(""),
     getSetting("quote_trn"),
     // what it really cost, from the supplier bills bought for it (the accounts team only)
     canAccounts ? orderCosts(o.id) : Promise.resolve(null),
@@ -77,8 +79,8 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
             <Receipt /> Invoice
           </Button>
         )}
-        {o.status === "open" && <MarkDeliveredDialog orderId={o.id} deliveryAddress={o.deliveryAddress} />}
-        {o.status === "delivered" && canAccounts && (
+        {!o.dnNumber && o.status !== "cancelled" && <MarkDeliveredDialog orderId={o.id} deliveryAddress={o.deliveryAddress} />}
+        {toInvoice && canAccounts && (
           <IssueInvoiceDialog
             orderId={o.id}
             orderNumber={o.number}
@@ -91,7 +93,7 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
             ourTrn={ourTrn}
           />
         )}
-        {(o.status === "open" || o.status === "delivered") && <CancelOrderButton orderId={o.id} number={o.number} bills={costs?.bills.length ?? 0} />}
+        {toInvoice && <CancelOrderButton orderId={o.id} number={o.number} bills={costs?.bills.length ?? 0} />}
       </div>
 
       {o.status === "cancelled" && (
@@ -99,8 +101,8 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
           Cancelled{o.cancelledAt ? ` on ${longDay(o.cancelledAt.toISOString().slice(0, 10))}` : ""}: {o.cancelReason}
         </p>
       )}
-      {o.status === "delivered" && !canAccounts && (
-        <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">Delivered. The tax invoice is made in Accounts; ask whoever handles invoices.</p>
+      {toInvoice && !canAccounts && (
+        <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{o.status === "delivered" ? "Delivered. " : ""}The tax invoice is made in Accounts; ask whoever handles invoices.</p>
       )}
 
       <StatStrip
@@ -110,12 +112,12 @@ export async function OrderView({ access, base, id, searchParams }: { access: Ac
           {
             label: "Delivery",
             value: o.dnNumber ?? "Not yet",
-            hint: o.deliveredOn ? `${longDay(o.deliveredOn)}${o.receivedBy ? ` · ${o.receivedBy}` : ""}` : "Mark delivered when the goods go out",
+            hint: o.deliveredOn ? `${longDay(o.deliveredOn)}${o.receivedBy ? ` · ${o.receivedBy}` : ""}` : "Optional: mark delivered when the goods go out",
           },
           {
             label: "Invoice",
             value: active ? active.number : "Not yet",
-            hint: active ? `${active.state.label}${active.state.balance > 0 ? ` · owed ${money(active.state.balance)}` : ""}` : o.status === "delivered" ? "Ready to invoice" : "After delivery",
+            hint: active ? `${active.state.label}${active.state.balance > 0 ? ` · owed ${money(active.state.balance)}` : ""}` : toInvoice ? "Ready to invoice" : "-",
           },
         ]}
       />

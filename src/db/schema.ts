@@ -43,6 +43,13 @@ export const organizations = pgTable("organizations", {
   fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(1),
   timezone: text("timezone").notNull().default("Asia/Dubai"),
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  /**
+   * Trader (sells goods: items with stock, serials, the Inventory app) or service provider (a plain list of services).
+   * Asked when the company is set up; empty until then. Zeronix is a trader.
+   */
+  businessType: text("business_type", { enum: ["trader", "services"] }),
+  /** The industry picked at set-up (lib/industries.ts): a starting template only, kept for reference. Nothing branches on it. */
+  industry: text("industry"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -305,6 +312,215 @@ export const offers = pgTable(
     index("offers_supplier_idx").on(t.supplierId, t.receivedAt),
     index("offers_search_trgm").using("gin", t.searchNorm.op("gin_trgm_ops")),
   ],
+);
+
+/**
+ * Item categories: one flat list per organisation that groups items in lists, filters and reports. They never decide a
+ * ledger account. A category presets what a new item in it is like (kind, unit, VAT code, stock and serial tracking).
+ */
+export const itemCategories = pgTable(
+  "item_categories",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    name: text("name").notNull(),
+    sort: integer("sort").notNull().default(0),
+    kind: text("kind", { enum: ["goods", "service"] }).notNull().default("goods"),
+    unit: text("unit").notNull().default(""),
+    taxCode: text("tax_code").notNull().default("SR"),
+    trackStock: boolean("track_stock").notNull().default(false),
+    trackSerials: boolean("track_serials").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("item_categories_name_uq").on(t.organizationId, sql`lower(${t.name})`), orgPolicy()],
+);
+
+/**
+ * What a company sells or buys again and again: goods (a trader's stock items, optionally tracked by quantity and serial
+ * number) or services. Document lines may point at an item (item_id); a line typed by hand still works as before.
+ * on_hand / stock_value / avg_cost are kept by the stock engine (lib/inventory) and only change with a stock move.
+ */
+export const items = pgTable(
+  "items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    /** Our code for it; ITM-00001 when left blank. Unique per organisation, whatever the case. */
+    sku: text("sku").notNull(),
+    name: text("name").notNull(),
+    /** Shown on quotes and invoices under the name. */
+    description: text("description").notNull().default(""),
+    categoryId: integer("category_id").references(() => itemCategories.id, { onDelete: "set null" }),
+    brand: text("brand").notNull().default(""),
+    partNumber: text("part_number").notNull().default(""),
+    /** The part number without spaces, dashes or case (lib/items.ts partNorm), to match documents and supplier lines. */
+    partNorm: text("part_norm").notNull().default(""),
+    /** pcs, hour, day, job... (lib/items.ts UNITS). */
+    unit: text("unit").notNull().default("pcs"),
+    kind: text("kind", { enum: ["goods", "service"] }).notNull().default("goods"),
+    trackStock: boolean("track_stock").notNull().default(false),
+    trackSerials: boolean("track_serials").notNull().default(false),
+    /** Selling and buying price per unit in AED, before VAT; only a suggestion for new lines. */
+    salePrice: numeric("sale_price", { precision: 14, scale: 2, mode: "number" }),
+    purchasePrice: numeric("purchase_price", { precision: 14, scale: 2, mode: "number" }),
+    taxCode: text("tax_code").notNull().default("SR"),
+    /** Warn when what is available falls below this. Empty = no warning. */
+    reorderLevel: numeric("reorder_level", { precision: 12, scale: 2, mode: "number" }),
+    onHand: numeric("on_hand", { precision: 12, scale: 2, mode: "number" }).notNull().default(0),
+    stockValue: numeric("stock_value", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    avgCost: numeric("avg_cost", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
+    /** Zeronix: the Procurement catalogue product it is, for supplier prices. */
+    productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes").notNull().default(""),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("items_sku_uq").on(t.organizationId, sql`lower(${t.sku})`),
+    index("items_category_idx").on(t.organizationId, t.categoryId),
+    index("items_part_norm_idx").on(t.organizationId, t.partNorm),
+    index("items_name_trgm").using("gin", t.name.op("gin_trgm_ops")),
+    check("items_service_no_stock", sql`${t.kind} = 'goods' OR (${t.trackStock} = false AND ${t.trackSerials} = false)`),
+    check("items_serials_need_stock", sql`${t.trackSerials} = false OR ${t.trackStock} = true`),
+    orgPolicy(),
+  ],
+);
+
+/**
+ * The stock ledger: every unit in or out of a tracked item, written in the transaction that saves its document (bill,
+ * invoice, credit or debit note, adjustment) together with its journal entry. Rows are never changed, except a sale's
+ * uncosted_qty going down as later stock gives those units a cost; a voided document writes "void" rows. Average cost is
+ * worked out in saving order (id), and each row keeps the value it moved, so the sum of values on any date is the
+ * stock account (1330) on that date.
+ */
+export const stockMoves = pgTable(
+  "stock_moves",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id),
+    date: date("date").notNull(),
+    /** opening, purchase, sale, sale_return, purchase_return, adjust_in, adjust_out, settle, void (lib/inventory/costing.ts). */
+    kind: text("kind").notNull(),
+    /** Units: + in, − out; 0 on a settle row (it only gives earlier units their cost). */
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4, mode: "number" }).notNull().default(0),
+    /** Value in AED: + into stock, − out of it. */
+    value: numeric("value", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceId: integer("source_id").notNull(),
+    /** The document line (bill_items, invoice_items, credit_note_items, debit_note_items, stock_adjustment_lines). */
+    sourceLineId: integer("source_line_id"),
+    entryId: integer("entry_id").references(() => journalEntries.id),
+    /** Sold beyond what was in stock: units still waiting for a cost (the next stock in settles them, oldest first). */
+    uncostedQty: numeric("uncosted_qty", { precision: 12, scale: 2, mode: "number" }).notNull().default(0),
+    /** A settle row: the sale it gave a cost to. */
+    settlesMoveId: integer("settles_move_id").references((): AnyPgColumn => stockMoves.id),
+    /** A return or void: the row it takes back. */
+    returnOfMoveId: integer("return_of_move_id").references((): AnyPgColumn => stockMoves.id),
+    /** The item's stock after this row, in saving order. */
+    qtyAfter: numeric("qty_after", { precision: 12, scale: 2, mode: "number" }).notNull(),
+    valueAfter: numeric("value_after", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("stock_moves_item_idx").on(t.organizationId, t.itemId, t.id),
+    index("stock_moves_source_idx").on(t.organizationId, t.sourceType, t.sourceId),
+    index("stock_moves_date_idx").on(t.organizationId, t.date),
+    index("stock_moves_uncosted_idx").on(t.organizationId, t.itemId).where(sql`${t.uncostedQty} > 0`),
+    uniqueIndex("stock_moves_line_uq").on(t.organizationId, t.sourceType, t.sourceId, t.sourceLineId, t.kind).where(sql`${t.sourceLineId} IS NOT NULL AND ${t.kind} NOT IN ('settle', 'void')`),
+    orgPolicy(),
+  ],
+);
+
+/** One serial number of an item: where it is now (in stock, sold, back with the supplier...) and how it came in. */
+export const stockSerials = pgTable(
+  "stock_serials",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id),
+    serial: text("serial").notNull(),
+    /** Upper case, no spaces: how serials are matched. */
+    serialNorm: text("serial_norm").notNull(),
+    status: text("status", { enum: ["in_stock", "sold", "returned", "written_off"] }).notNull(),
+    /** The move that brought it in; empty when it was sold before it was received. */
+    receivedMoveId: integer("received_move_id").references(() => stockMoves.id),
+    lastMoveId: integer("last_move_id").references(() => stockMoves.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("stock_serials_uq").on(t.organizationId, t.itemId, t.serialNorm), index("stock_serials_norm_idx").on(t.organizationId, t.serialNorm), orgPolicy()],
+);
+
+/** Which serials each move carried: the history behind a warranty lookup. */
+export const stockMoveSerials = pgTable(
+  "stock_move_serials",
+  {
+    organizationId: orgId(),
+    moveId: integer("move_id")
+      .notNull()
+      .references(() => stockMoves.id),
+    serialId: integer("serial_id")
+      .notNull()
+      .references(() => stockSerials.id),
+  },
+  (t) => [primaryKey({ columns: [t.moveId, t.serialId] }), index("stock_move_serials_serial_idx").on(t.serialId), orgPolicy()],
+);
+
+/**
+ * A stock adjustment (SA-2027-0001): the opening count, a stock count, or goods written off. Its value goes against
+ * `offset`: stock adjustments (5150), opening balance equity, or the old Inventory account (1310) when stock starts.
+ */
+export const stockAdjustments = pgTable(
+  "stock_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    number: text("number").notNull(),
+    date: date("date").notNull(),
+    kind: text("kind", { enum: ["opening", "count", "write_off"] }).notNull(),
+    reason: text("reason").notNull().default(""),
+    offset: text("offset", { enum: ["stock_adjustments", "opening_equity", "inventory"] }).notNull().default("stock_adjustments"),
+    status: text("status", { enum: ["posted", "void"] }).notNull().default("posted"),
+    totalValue: numeric("total_value", { precision: 14, scale: 2, mode: "number" }).notNull().default(0),
+    voidReason: text("void_reason"),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("stock_adjustments_number_uq").on(t.organizationId, t.number), orgPolicy()],
+);
+
+export const stockAdjustmentLines = pgTable(
+  "stock_adjustment_lines",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: orgId(),
+    adjustmentId: integer("adjustment_id")
+      .notNull()
+      .references(() => stockAdjustments.id, { onDelete: "cascade" }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id),
+    position: integer("position").notNull().default(0),
+    /** Units added (+) or taken out (−). */
+    qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
+    /** On a count: what was counted (qty is then counted − on hand). */
+    countedQty: numeric("counted_qty", { precision: 12, scale: 2, mode: "number" }),
+    /** Cost per unit of what comes in; empty = the average cost. Units going out always leave at average cost. */
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4, mode: "number" }),
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
+  },
+  (t) => [index("stock_adjustment_lines_adj_idx").on(t.adjustmentId, t.position), orgPolicy()],
 );
 
 export const settings = pgTable("settings", {
@@ -589,6 +805,8 @@ export const dealItems = pgTable(
     qty: integer("qty").notNull().default(1),
     productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
     offerId: integer("offer_id").references(() => offers.id, { onDelete: "set null" }),
+    /** The item it is, when picked from the item list (carried on to the quote, order and invoice). */
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
     /** Who we would buy it from, copied when the price was picked (stays even if the price list is deleted). */
     supplierName: text("supplier_name").notNull().default(""),
     /** Our buying price per unit in AED. Empty when typed by hand without a cost. */
@@ -671,6 +889,7 @@ export const quoteItems = pgTable(
     /** Our cost per unit (AED) and who from, so the quote can be edited with its margin; never printed. */
     costAed: numeric("cost_aed", { precision: 14, scale: 2, mode: "number" }),
     supplierName: text("supplier_name").notNull().default(""),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
   },
   (t) => [index("quote_items_quote_idx").on(t.quoteId, t.position)],
 );
@@ -803,8 +1022,11 @@ export const salesOrderItems = pgTable(
     description: text("description").notNull(),
     qty: integer("qty").notNull(),
     unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull(),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
+    /** Serial numbers picked ahead for the customer (taken over by the invoice). */
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
   },
-  (t) => [index("sales_order_items_order_idx").on(t.orderId, t.position)],
+  (t) => [index("sales_order_items_order_idx").on(t.orderId, t.position), index("sales_order_items_item_idx").on(t.itemId)],
 );
 
 /**
@@ -873,8 +1095,11 @@ export const invoiceItems = pgTable(
     lineKind: text("line_kind", { enum: ["product", "service"] }).notNull().default("product"),
     /** VAT code of this line (lib/tax/ae-vat.ts): decides its rate and the VAT 201 box. */
     taxCode: text("tax_code").notNull().default("SR"),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
+    /** Serial numbers sold on this line (items with serials). */
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
   },
-  (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position)],
+  (t) => [index("invoice_items_invoice_idx").on(t.invoiceId, t.position), index("invoice_items_item_idx").on(t.itemId)],
 );
 
 /** Gives back all or part of an invoice (ZCN-2026-0001). An invoice can have several; when they reach its whole value it is cancelled. */
@@ -922,6 +1147,11 @@ export const creditNoteItems = pgTable(
     unitPrice: numeric("unit_price", { precision: 14, scale: 2, mode: "number" }).notNull(),
     lineKind: text("line_kind", { enum: ["product", "service"] }).notNull().default("product"),
     taxCode: text("tax_code").notNull().default("SR"),
+    /** The item of the invoice line it gives back. */
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
+    /** Units of a stock item coming back into stock (empty: none, the customer keeps them or it is only a price). */
+    qtyBack: numeric("qty_back", { precision: 12, scale: 2, mode: "number" }),
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [index("credit_note_items_note_idx").on(t.creditNoteId, t.position), index("credit_note_items_item_idx").on(t.invoiceItemId), orgPolicy()],
 );
@@ -1054,8 +1284,11 @@ export const billItems = pgTable(
     unitCost: numeric("unit_cost", { precision: 14, scale: 2, mode: "number" }).notNull(),
     /** VAT code of this line (lib/tax/ae-vat.ts). */
     taxCode: text("tax_code").notNull().default("SR"),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
+    /** Serial numbers received on this line (items with serials). */
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
   },
-  (t) => [index("bill_items_bill_idx").on(t.billId, t.position)],
+  (t) => [index("bill_items_bill_idx").on(t.billId, t.position), index("bill_items_item_idx").on(t.itemId)],
 );
 
 /**
@@ -1103,6 +1336,8 @@ export const debitNotes = pgTable(
     reason: text("reason").notNull(),
     /** The credit note number on the supplier's own document, if they sent one. */
     supplierRef: text("supplier_ref").notNull().default(""),
+    /** The goods on its item lines go back to the supplier: they leave stock. False: only the price came down. */
+    goodsBack: boolean("goods_back").notNull().default(false),
     subtotal: numeric("subtotal", { precision: 14, scale: 2, mode: "number" }).notNull(),
     vatAmount: numeric("vat_amount", { precision: 14, scale: 2, mode: "number" }).notNull(),
     total: numeric("total", { precision: 14, scale: 2, mode: "number" }).notNull(),
@@ -1126,6 +1361,9 @@ export const debitNoteItems = pgTable(
     qty: numeric("qty", { precision: 12, scale: 2, mode: "number" }).notNull(),
     unitCost: numeric("unit_cost", { precision: 14, scale: 2, mode: "number" }).notNull(),
     taxCode: text("tax_code").notNull().default("SR"),
+    /** The item of the bill line it sends back or reduces. */
+    itemId: integer("item_id").references(() => items.id, { onDelete: "restrict" }),
+    serials: text("serials").array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [index("debit_note_items_note_idx").on(t.debitNoteId, t.position), index("debit_note_items_item_idx").on(t.billItemId), orgPolicy()],
 );
@@ -2354,6 +2592,10 @@ export const accountingSettings = pgTable(
     openingMap: jsonb("opening_map").$type<Record<string, number>>().notNull().default({}),
     /** Settings › Posting accounts: a system key → the account that posts instead of its usual one. */
     accountMap: jsonb("account_map").$type<Record<string, number>>().notNull().default({}),
+    /** Inventory: the day item stock starts moving with bills and invoices (Inventory › Settings › Start stock). Empty = off. */
+    stockStart: date("stock_start"),
+    /** Selling more than is in stock: allow (stock goes negative, the cost follows when the bill comes) or block the invoice. */
+    negativeStock: text("negative_stock", { enum: ["allow", "block"] }).notNull().default("allow"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
   },

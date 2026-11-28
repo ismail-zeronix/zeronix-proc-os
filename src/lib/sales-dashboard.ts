@@ -65,7 +65,7 @@ export const salesDashboard = cache(async (userId: number, team: boolean, range:
         coalesce(sum(coalesce(o.sold_with_cost, o.subtotal)) FILTER (WHERE o.created_at >= ${curStart} AND o.cost_total IS NOT NULL), 0)::float AS margin_base,
         count(*) FILTER (WHERE o.status = 'open')::int AS deliver_n,
         coalesce(sum(o.subtotal) FILTER (WHERE o.status = 'open'), 0)::float AS deliver_v,
-        count(*) FILTER (WHERE o.status = 'delivered')::int AS invoice_n
+        count(*) FILTER (WHERE o.status IN ('open', 'delivered'))::int AS invoice_n
       FROM sales_orders o WHERE ${live} AND ${oMine}`),
     db.execute<Record<string, number | null>>(sql`
       SELECT

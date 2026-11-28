@@ -63,10 +63,16 @@ export interface PunchState {
 }
 
 /** Cached per request: the layout (punch gate), the header clock and the home switch all ask. */
+/** Users whose sessions from earlier days this process has already closed today (the check runs once a day per user). */
+const staleChecked = new Map<number, string>();
+
 export const punchState = cache(async (userId: number): Promise<PunchState> => {
   const hours = await workHours();
   const today = dubaiToday();
-  await closeStaleSessions(userId, hours, today);
+  if (staleChecked.get(userId) !== today) {
+    await closeStaleSessions(userId, hours, today);
+    staleChecked.set(userId, today);
+  }
   const rows = await db
     .select({ inAt: schema.attendancePunches.inAt, outAt: schema.attendancePunches.outAt })
     .from(schema.attendancePunches)

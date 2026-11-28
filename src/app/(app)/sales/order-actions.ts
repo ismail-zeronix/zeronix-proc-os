@@ -92,7 +92,7 @@ export async function convertQuoteToOrder(quoteId: number, input: ConvertInput) 
         createdBy: me.id,
       })
       .returning({ id: schema.salesOrders.id });
-    await tx.insert(schema.salesOrderItems).values(items.map((i, position) => ({ orderId: order.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPrice })));
+    await tx.insert(schema.salesOrderItems).values(items.map((i, position) => ({ orderId: order.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPrice, itemId: i.itemId })));
 
     // the same acceptance rule as the quote page (lib/quote-accept.ts): other open quotes rejected, deal Won
     const accepted = await acceptQuote(tx, { quoteId, userId: me.id, via: `order ${number}` });
@@ -132,7 +132,11 @@ const deliverSchema = z.object({
   deliveryAddress: z.string().trim().max(500).optional(),
 });
 
-/** Records the delivery and gives the delivery note its number (ZDN-year-0001). The whole order goes in one delivery. */
+/**
+ * Records the delivery and gives the delivery note its number (ZDN-year-0001). The whole order goes in one delivery. The
+ * delivery note is optional: it can be made before the invoice (the order becomes Delivered) or after it (the order stays
+ * Invoiced). It never moves stock; the invoice does.
+ */
 export async function markDelivered(orderId: number, input: z.input<typeof deliverSchema>) {
   const me = await assertAnyApp("sales", "accounts");
   await assertDealOf("sales_orders", orderId, true);
@@ -142,7 +146,17 @@ export async function markDelivered(orderId: number, input: z.input<typeof deliv
   const result = await db.transaction(async (tx) => {
     const [o] = await tx.select().from(schema.salesOrders).where(eq(schema.salesOrders.id, orderId)).for("update");
     if (!o) throw new UserError("That order no longer exists.");
-    if (o.status !== "open") throw new UserError(o.status === "cancelled" ? "This order was cancelled." : `This order was already delivered (${o.dnNumber}).`);
+    if (o.status === "cancelled") throw new UserError("This order was cancelled.");
+    if (o.dnNumber) throw new UserError(`This order was already delivered (${o.dnNumber}).`);
+    if (o.status === "invoiced") {
+      // the invoice took the invoice date as the date of supply, so the goods cannot have gone out before it
+      const [inv] = await tx
+        .select({ number: schema.invoices.number, issueDate: schema.invoices.issueDate })
+        .from(schema.invoices)
+        .where(and(eq(schema.invoices.orderId, orderId), ne(schema.invoices.status, "cancelled")))
+        .limit(1);
+      if (inv && d.deliveredOn < inv.issueDate) throw new UserError(`The delivery date cannot be before invoice ${inv.number} (${inv.issueDate}).`);
+    }
     // the delivery note needs somewhere it went: the order's delivery address, or the customer's address / emirate
     const [c] = await tx.select({ address: schema.companies.address, emirate: schema.companies.emirate }).from(schema.companies).where(eq(schema.companies.id, o.companyId));
     if (!(d.deliveryAddress ?? o.deliveryAddress).trim() && !c?.address.trim() && !c?.emirate.trim()) throw new UserError("Add the delivery address before marking it delivered.");
@@ -151,7 +165,8 @@ export async function markDelivered(orderId: number, input: z.input<typeof deliv
     await tx
       .update(schema.salesOrders)
       .set({
-        status: "delivered",
+        // an invoiced order stays invoiced: the note only records that the goods went out
+        ...(o.status === "open" ? { status: "delivered" as const } : {}),
         dnYear: year,
         dnSeq: seq,
         dnNumber,

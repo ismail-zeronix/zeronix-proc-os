@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, FileText, Handshake, Package, Receipt, Truck } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { teammatesQuery } from "@/components/chat/chat-data";
 import { UserAvatar } from "@/components/user-avatar";
 import { mentionToken, parseMentions, recordToken, tokensToText } from "@/lib/chat/text";
 
@@ -257,9 +258,12 @@ export function MentionTextarea({
  * this deal"), and `blocked(text)` lists the ones mentioned so far, to warn before saving.
  */
 export function useMentionPeople(record?: string, warn = "cannot see this record") {
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["mention-people", record ?? ""],
     queryFn: async () => {
+      // no record to check: the chat widget's teammates list (already loaded with the page) is the same list
+      if (!record) return { users: (await qc.ensureQueryData(teammatesQuery)).users, canSee: undefined };
       const res = await fetch(`/api/chat/users${record ? `?record=${encodeURIComponent(record)}` : ""}`);
       if (!res.ok) return { users: [], canSee: undefined };
       return (await res.json()) as { users: { id: number; name: string; jobTitle: string }[]; canSee?: number[] };

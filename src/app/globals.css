@@ -71,6 +71,7 @@
   /* app tile colour for Projects (the eight series colours are all taken by other apps) */
   --app-projects: #0e8fa3;
   --app-chat: #019297;
+  --app-inventory: #b45f06;
   /* attendance calendar (checked for colour-blind separation; each cell also carries a letter) */
   --att-present: #1baf7a;
   --att-late: #eda100;
@@ -122,6 +123,7 @@
   --series-8: #e66767;
   --app-projects: #1fa3b8;
   --app-chat: #1fb3b8;
+  --app-inventory: #e08a2e;
   --att-present: #199e70;
   --att-late: #c08c00;
   --att-absent: #e34948;

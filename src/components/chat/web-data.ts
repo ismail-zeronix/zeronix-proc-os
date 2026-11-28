@@ -5,6 +5,7 @@ import { create } from "zustand";
 import type { ChatEvent, ChatPrefsView } from "@/lib/chat/types";
 import type { WebChatSummary, WebMessage, WebVisitorInfo } from "@/lib/webchat/types";
 import { chime, prefsKey } from "./alerts";
+import { firstFromBoot } from "./boot";
 
 export interface WebList {
   chats: WebChatSummary[];
@@ -34,7 +35,7 @@ async function getJson<T>(url: string): Promise<T> {
 export function useWebChats() {
   return useQuery({
     queryKey: webKeys.list,
-    queryFn: () => getJson<WebList>("/api/chat/web"),
+    queryFn: () => firstFromBoot("web", () => getJson<WebList>("/api/chat/web")),
     staleTime: Infinity, // the live stream keeps it current
     // a visitor counts as gone a minute after their page closed: re-check now and then so ringing stops for them
     refetchInterval: 60_000,

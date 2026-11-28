@@ -16,6 +16,9 @@ export interface DealItemRow {
   costAed: number | null;
   marginPct: number | null;
   unitPriceAed: number;
+  /** The item it was picked from, and its SKU (shown on the line). */
+  itemId: number | null;
+  itemSku: string | null;
 }
 
 /** The lines of a deal, in the order they were added. */
@@ -31,8 +34,11 @@ export async function dealItemsOf(dealId: number): Promise<DealItemRow[]> {
       costAed: schema.dealItems.costAed,
       marginPct: schema.dealItems.marginPct,
       unitPriceAed: schema.dealItems.unitPriceAed,
+      itemId: schema.dealItems.itemId,
+      itemSku: schema.items.sku,
     })
     .from(schema.dealItems)
+    .leftJoin(schema.items, eq(schema.items.id, schema.dealItems.itemId))
     .where(eq(schema.dealItems.dealId, dealId))
     .orderBy(asc(schema.dealItems.position), asc(schema.dealItems.id));
 }
@@ -156,8 +162,9 @@ export async function quoteDefaults() {
 /** The lines of one quote as they were sent (the frozen copy, not the deal's working lines). */
 export async function quoteLines(quoteId: number) {
   return db
-    .select({ id: schema.quoteItems.id, description: schema.quoteItems.description, qty: schema.quoteItems.qty, unitPrice: schema.quoteItems.unitPrice, section: schema.quoteItems.section, costAed: schema.quoteItems.costAed, supplierName: schema.quoteItems.supplierName })
+    .select({ id: schema.quoteItems.id, description: schema.quoteItems.description, qty: schema.quoteItems.qty, unitPrice: schema.quoteItems.unitPrice, section: schema.quoteItems.section, costAed: schema.quoteItems.costAed, supplierName: schema.quoteItems.supplierName, itemId: schema.quoteItems.itemId, itemSku: schema.items.sku })
     .from(schema.quoteItems)
+    .leftJoin(schema.items, eq(schema.items.id, schema.quoteItems.itemId))
     .where(eq(schema.quoteItems.quoteId, quoteId))
     .orderBy(asc(schema.quoteItems.position));
 }

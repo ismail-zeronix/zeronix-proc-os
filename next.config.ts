@@ -22,6 +22,18 @@ const MOVED_IN_ACCOUNTS = [
   { source: "/accounts/opening", destination: "/accounts/settings/opening" },
 ];
 
+/**
+ * November 2026: settings follow the app they configure (lib/settings/registry.ts). What every printing app shares went to
+ * Admin › Settings, quote and sale defaults to Sales › Settings.
+ */
+const MOVED_SETTINGS = [
+  { source: "/accounts/settings/templates", destination: "/admin/settings/templates" },
+  { source: "/accounts/settings/letterhead", destination: "/admin/settings/letterhead" },
+  { source: "/accounts/settings/numbering", destination: "/admin/settings/numbering" },
+  { source: "/accounts/settings/quotes", destination: "/sales/settings/quotes" },
+  { source: "/accounts/settings/documents", destination: "/sales/settings/terms" },
+];
+
 const nextConfig: NextConfig = {
   // The Docker build sets NEXT_OUTPUT=standalone (small image, `node server.js`). Local `npm run build` / `npm start`
   // stay as they were: standalone output needs symlink rights on Windows and does not run under `next start`.
@@ -34,7 +46,13 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pg", "bcryptjs"],
   // The login gate (proxy.ts) buffers request bodies, 10 MB by default and silently cut off beyond that.
   // Email attachments (15 MB) and Excel price lists (15 MB) need more room.
-  experimental: { proxyClientMaxBodySize: "20mb" },
+  experimental: {
+    proxyClientMaxBodySize: "20mb",
+    // A page visited in the last 30 s opens from the browser's copy instead of asking the server again (back to a list
+    // from a record, tab to tab). Anything saved clears it at once (server actions revalidate), and chat and the bell
+    // stay live over their stream.
+    staleTimes: { dynamic: 30 },
+  },
   /**
    * Security headers on every response. Other websites may not show the portal in a frame (clickjacking); the portal's
    * own frames (mail preview, visitor pages) still work. HSTS is ignored by browsers on plain http, so local development
@@ -63,6 +81,7 @@ const nextConfig: NextConfig = {
       ]),
       ...MOVED_FROM_SALES.map((r) => ({ ...r, permanent: false })),
       ...MOVED_IN_ACCOUNTS.map((r) => ({ ...r, permanent: false })),
+      ...MOVED_SETTINGS.map((r) => ({ ...r, permanent: false })),
     ];
   },
   turbopack: {

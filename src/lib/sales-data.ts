@@ -135,7 +135,9 @@ export async function dealStageStats(v: Viewer, f: Omit<DealFilter, "stages"> = 
 }
 
 /** One deal, or null when it does not exist or the viewer may not see it. */
-export async function getDeal(id: number, v: Viewer) {
+export const getDeal = cache(getDealUncached);
+
+async function getDealUncached(id: number, v: Viewer) {
   const [row] = await dealQuery().where(and(eq(schema.deals.id, id), dealVisible(v, schema.deals.id)));
   if (!row) return null;
   const [full] = await db
@@ -209,7 +211,9 @@ export async function listCompanies(v: Viewer, q?: string, page = 1, pageSize = 
 }
 
 /** One company with its contacts, the deals the viewer may see and their history. Null when hidden from the viewer. */
-export async function getCompany(id: number, v: Viewer) {
+export const getCompany = cache(getCompanyUncached);
+
+async function getCompanyUncached(id: number, v: Viewer) {
   const [company] = await db
     .select({ c: schema.companies, ownerName: sql<string>`coalesce(${owner.name}, '')` })
     .from(schema.companies)

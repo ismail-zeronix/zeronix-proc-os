@@ -37,7 +37,7 @@ export async function EditQuoteView({ access, base, id }: { access: Access; base
           vatPct: q.vatPct,
           terms: q.terms,
           notes: q.notes,
-          lines: lines.map((l) => ({ description: l.description, qty: l.qty, costAed: l.costAed, unitPriceAed: l.unitPrice, supplierName: l.supplierName })),
+          lines: lines.map((l) => ({ description: l.description, qty: l.qty, costAed: l.costAed, unitPriceAed: l.unitPrice, supplierName: l.supplierName, itemId: l.itemId, itemSku: l.itemSku })),
         }}
         initialChoices={choices}
         people={people.some((p) => p.id === owner) ? people : [...people, { id: owner, name: q.createdByName || "Current salesperson" }]}

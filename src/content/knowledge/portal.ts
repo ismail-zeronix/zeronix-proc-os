@@ -85,7 +85,7 @@ export const PORTAL: Article[] = [
             ["2. Customer confirms: Convert to order (PO number, credit terms, delivery address)", "Sales", "The quote page"],
             ["3. Upload the customer's PO / LPO", "Sales", "Order → Files tab"],
             ["4. Proforma invoice, if they pay before delivery", "Sales", "Order → Proforma"],
-            ["5. Goods go out: Mark delivered, print the delivery note for signature", "Sales", "Order page"],
+            ["5. Goods go out: Mark delivered and print the delivery note for signature (optional: an order can be invoiced without one)", "Sales", "Order page"],
             ["6. Upload the signed delivery note", "Sales", "Order → Files tab"],
             ["7. Make invoice: the tax invoice gets its number", "Accounts team", "Accounts → To invoice, or the order page"],
             ["8. Money in: Record payment (cash or bank transfer, full or part)", "Accounts team", "The invoice page"],
@@ -104,7 +104,7 @@ export const PORTAL: Article[] = [
           "Customer statement of account: Sales → Customers → the customer → Statement → Print.",
         ],
       },
-      { tip: "Before the first invoice, an accountant fills in Accounts › Settings: our TRN (VAT registration), bank details (Terms and bank details) and the next invoice number (Document numbers, continuing from Zoho)." },
+      { tip: "Before the first invoice: an admin sets our TRN (Admin › Settings › Company & branding) and the next invoice number (Admin › Settings › Document numbers, continuing from Zoho), and an accountant adds the bank accounts printed on invoices (Accounts › Settings › Bank and cash accounts)." },
     ],
   },
   {

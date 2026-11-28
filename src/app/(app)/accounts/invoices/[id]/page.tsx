@@ -16,6 +16,7 @@ import { LedgerEntries } from "@/components/ledger-entries";
 import { financeViewerOf } from "@/lib/auth/visibility";
 import { invoiceDoc } from "@/lib/doc-views";
 import { bankAccountOptions } from "@/lib/ledger/data";
+import { noteStockLines, type NoteStock } from "@/lib/inventory/data";
 import { soldCostOf } from "@/lib/ledger/documents";
 import { currentOrgId, withOrg } from "@/lib/org";
 import { listFiles } from "@/lib/files-data";
@@ -42,7 +43,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const canFiles = apps.includes("files");
   const opening = inv.kind === "opening";
   const orgId = await currentOrgId();
-  const [brand, doc, files, advances, costs, accounts, soldCost] = await Promise.all([
+  const [brand, doc, files, advances, costs, accounts, soldCost, noteStock] = await Promise.all([
     quoteBrand().then((b) => brandFor(b, inv.sellerSnapshot)),
     invoiceDoc(inv),
     canFiles ? listFiles(financeViewerOf(access), { relatedType: "invoice", relatedId: inv.id, finance: true }) : Promise.resolve([]),
@@ -50,6 +51,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
     opening ? Promise.resolve(null) : inv.orderId ? orderCosts(inv.orderId) : invoiceCosts(inv.id),
     bankAccountOptions(orgId),
     opening ? Promise.resolve(0) : withOrg(orgId, (tx) => soldCostOf(tx, orgId, inv.id)),
+    opening || !access.trader ? Promise.resolve({}) : noteStockLines(orgId, "invoice", inv.id),
   ]);
   const s = inv.state;
   const live = inv.payments.filter((p) => !p.voidedAt);
@@ -78,7 +80,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
             documentId={inv.id}
             number={inv.number}
             documentDate={inv.issueDate}
-            lines={inv.lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, unitPrice: l.unitPrice, taxCode: l.taxCode, left: l.left, isProduct: l.lineKind === "product" }))}
+            lines={inv.lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, unitPrice: l.unitPrice, taxCode: l.taxCode, left: l.left, isProduct: l.lineKind === "product", stock: (noteStock as Record<number, NoteStock>)[l.id] ?? null }))}
             vatLeft={round2(inv.vatAmount - inv.credits.reduce((n, c) => n + c.vatAmount, 0))}
             valueLeft={round2(inv.total - inv.creditedTotal)}
             paid={s.paid}

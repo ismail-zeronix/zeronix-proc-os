@@ -38,7 +38,7 @@ const g = (code: string, name: string, type: AccountType, parent?: string): Temp
 export const AE_TRADING: CoaTemplate = {
   key: "ae-trading",
   label: "UAE trading company",
-  version: 1,
+  version: 2,
   accounts: [
     g("1000", "Assets", "asset"),
     g("1100", "Cash and bank", "asset", "1000"),
@@ -53,6 +53,7 @@ export const AE_TRADING: CoaTemplate = {
     g("1300", "Inventory", "asset", "1000"),
     { code: "1310", name: "Inventory", type: "asset", subtype: "inventory", parent: "1300", systemKey: "inventory", description: "Goods bought and not yet sold (moves to cost of goods sold when invoiced)" },
     { code: "1320", name: "Goods in transit", type: "asset", subtype: "inventory", parent: "1300", systemKey: "goods_in_transit" },
+    { code: "1330", name: "Inventory, stock items", type: "asset", subtype: "inventory", parent: "1300", systemKey: "inventory_items", description: "Items tracked in the Inventory app, at average cost (moves with bills and invoices)" },
     g("1400", "Tax recoverable", "asset", "1000"),
     { code: "1410", name: "VAT input", type: "asset", subtype: "tax", parent: "1400", systemKey: "vat_input", description: "VAT on purchases we reclaim (VAT 201 box 9)" },
     { code: "1420", name: "VAT input, reverse charge", type: "asset", subtype: "tax", parent: "1400", systemKey: "vat_input_rc", description: "VAT we self-assess on imports and foreign services and reclaim (box 10)" },
@@ -98,6 +99,7 @@ export const AE_TRADING: CoaTemplate = {
 
     g("5000", "Cost of sales", "expense"),
     { code: "5100", name: "Cost of goods sold", type: "expense", subtype: "cogs", parent: "5000", systemKey: "cogs" },
+    { code: "5150", name: "Stock adjustments and write-offs", type: "expense", subtype: "cogs", parent: "5000", systemKey: "stock_adjustments", description: "Stock count differences and goods written off" },
     { code: "5200", name: "Project and subcontract costs", type: "expense", subtype: "cogs", parent: "5000", systemKey: "project_costs" },
     { code: "5300", name: "Freight and customs inward", type: "expense", subtype: "cogs", parent: "5000", systemKey: "freight_in" },
 

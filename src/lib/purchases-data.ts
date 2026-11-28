@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql, type SQL, ilike, or } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { dubaiToday } from "@/lib/dates";
@@ -125,7 +126,9 @@ export async function billPage(view: string, l: ListState): Promise<{ rows: Bill
 }
 
 /** One bill with its lines, payments, supplier and the customer order it was bought for. */
-export async function getBill(id: number) {
+export const getBill = cache(getBillUncached);
+
+async function getBillUncached(id: number) {
   const [b] = await db.select().from(schema.bills).where(eq(schema.bills.id, id));
   if (!b) return null;
   const [items, pays, supplier, order, invoice, author] = await Promise.all([

@@ -13,10 +13,19 @@ import {
   Receipt,
   Settings,
   ShoppingCart,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 
 export type Role = "admin" | "sales";
+
+/** What the company does (organizations.business_type): a trader sells goods (with stock), a service provider services. */
+export type BusinessType = "trader" | "services";
+export const BUSINESS_TYPES: readonly { key: BusinessType; label: string; hint: string }[] = [
+  { key: "trader", label: "Trader", hint: "We sell goods (and may sell services too): items with stock, serial numbers and the Inventory app" },
+  { key: "services", label: "Service provider", hint: "We sell services: a simple list of services and rates, no stock" },
+];
+export const businessTypeLabel = (k: string | null | undefined) => BUSINESS_TYPES.find((b) => b.key === k)?.label ?? "Not set";
 
 export interface AppDef {
   key: string;
@@ -144,6 +153,17 @@ export const APPS = [
     color: "var(--series-2)",
   },
   {
+    // traders only (lib/apps.ts appsForBusiness): items with stock on hand, adjustments and serial numbers
+    key: "inventory",
+    label: "Inventory",
+    href: "/inventory",
+    icon: Warehouse,
+    blurb: "Items, stock on hand, serial numbers",
+    defaultFor: ["admin"],
+    status: "live",
+    color: "var(--app-inventory)",
+  },
+  {
     // Outreach (Phase 5 of the sales routine): finding customers, cold calls, cold email and newsletters in one app.
     // The key stays "prospecting" so saved access lists and links keep working. Salesmen work their own prospects.
     key: "prospecting",
@@ -211,10 +231,20 @@ export function allowedApps(user: AccessUser): AppKey[] {
   return APPS.filter((a) => (a.defaultFor as readonly Role[]).includes(user.role)).map((a) => a.key);
 }
 
-/** Apps to show as tiles / in the switcher: live ones the user may open, plus "coming soon" ones for admins only. */
+/** Stock is for traders: a service provider (or a company that has not said yet) has no Inventory app. */
+export function appsForBusiness<K extends string>(apps: readonly K[], type: BusinessType | null | undefined): K[] {
+  return type === "trader" ? [...apps] : apps.filter((a) => a !== "inventory");
+}
+
+/**
+ * Apps to show as tiles / in the switcher: live ones the user may open, plus "coming soon" ones for admins only. When the
+ * list passed in is the request's access (Access.apps), apps it leaves out stay hidden even for admins (e.g. Inventory
+ * for a service provider).
+ */
 export function visibleApps(user: AccessUser): AppDef[] {
   const allowed = new Set<string>(allowedApps(user));
-  return APPS.filter((a) => allowed.has(a.key) && !("inside" in a) && (a.status === "live" || user.role === "admin"));
+  const given = user.apps ? new Set<string>(user.apps) : null;
+  return APPS.filter((a) => allowed.has(a.key) && (!given || given.has(a.key)) && !("inside" in a) && (a.status === "live" || user.role === "admin"));
 }
 
 export const canOpen =(user: AccessUser, key: AppKey) => allowedApps(user).includes(key);

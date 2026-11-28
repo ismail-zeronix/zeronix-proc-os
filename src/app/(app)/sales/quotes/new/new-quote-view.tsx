@@ -72,7 +72,7 @@ export async function NewQuoteView({ access, base, searchParams: sp }: { access:
           terms: defaults.terms,
           notes: "",
           // lines already worked out on the deal (older quotes were built there) carry over
-          lines: dealLines.map((l) => ({ description: l.description, qty: l.qty, costAed: l.costAed, unitPriceAed: l.unitPriceAed, supplierName: l.supplierName })),
+          lines: dealLines.map((l) => ({ description: l.description, qty: l.qty, costAed: l.costAed, unitPriceAed: l.unitPriceAed, supplierName: l.supplierName, itemId: l.itemId, itemSku: l.itemSku })),
         }}
         initialChoices={choices}
         people={people}

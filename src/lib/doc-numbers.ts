@@ -4,7 +4,7 @@ import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { db as Db } from "@/db";
 import { schema } from "@/db";
 import { invoiceNumber } from "@/lib/invoicing";
-import { SETTING_DEFAULTS } from "@/lib/settings";
+import { SETTING_DEFAULTS, settingsChanged } from "@/lib/settings";
 import { UserError } from "@/lib/user-error";
 
 type Tx = Parameters<Parameters<typeof Db.transaction>[0]>[0];
@@ -72,10 +72,12 @@ export async function takeInvoiceNumber(tx: Tx): Promise<string> {
   const digits = Math.floor(Number(await readSetting(tx, "invoice_digits")) || 5);
   const number = invoiceNumber(prefix, next, digits);
   const [taken] = await tx.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.number, number));
-  if (taken) throw new UserError(`Invoice number ${number} is already used. An accountant should set the next invoice number in Accounts › Settings › Document numbers.`);
+  if (taken) throw new UserError(`Invoice number ${number} is already used. An admin sets the next invoice number in Admin › Settings › Document numbers.`);
   await tx
     .insert(schema.settings)
     .values({ key: "invoice_next_number", value: String(next + 1) })
     .onConflictDoUpdate({ target: schema.settings.key, set: { value: String(next + 1), updatedAt: new Date() } });
+  // the Numbering page shows the next number: its cached copy goes when this transaction commits
+  await settingsChanged(tx);
   return number;
 }

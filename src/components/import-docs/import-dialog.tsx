@@ -301,7 +301,7 @@ export function ImportDocsDialog({ kind }: { kind: "invoice" | "bill" }) {
 
         {step === "review" && (
           <div className="grid gap-2">
-            {!ctx.hasOurTrn && inv && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-400">Our TRN is not set, so no invoice can be saved. An accountant adds it in Accounts › Settings › VAT registration.</p>}
+            {!ctx.hasOurTrn && inv && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-400">Our TRN is not set, so no invoice can be saved. An admin adds it in Admin › Settings › Company & branding.</p>}
             <div className="sticky -top-4 z-10 -mx-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b bg-popover px-4 py-2">
               <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
                 <Checkbox
@@ -356,7 +356,7 @@ export function ImportDocsDialog({ kind }: { kind: "invoice" | "bill" }) {
               </span>
             </div>
             {running && <div className="h-1 overflow-hidden rounded bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} /></div>}
-            {inv && highest && !running && <p className="text-xs text-muted-foreground">Highest number saved: {highest}. The series for new invoices is not changed: set the next number in Accounts › Settings › Document numbers if it should continue after it.</p>}
+            {inv && highest && !running && <p className="text-xs text-muted-foreground">Highest number saved: {highest}. The series for new invoices is not changed: set the next number in Admin › Settings › Document numbers if it should continue after it.</p>}
 
             <PartyPanel kind={kind} parties={parties} suppliers={ctx.suppliers} onChoose={choose} />
 
