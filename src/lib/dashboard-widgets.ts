@@ -46,7 +46,7 @@ export const WIDGETS: readonly WidgetDef[] = [
 
   { id: "overdue-list", title: "Overdue invoices", hint: "The most overdue first", group: "Lists", widths: PANEL },
   { id: "bills-list", title: "Bills to pay", hint: "The most urgent first", group: "Lists", widths: PANEL },
-  { id: "to-invoice", title: "Ready to invoice", hint: "Delivered sales orders with no invoice", group: "Lists", widths: PANEL },
+  { id: "to-invoice", title: "Ready to invoice", hint: "Sales orders with no invoice yet", group: "Lists", widths: PANEL },
   { id: "quotes-waiting", title: "Quotes waiting", hint: "Sent, and waiting for an answer", group: "Lists", widths: PANEL },
   { id: "no-cost", title: "Sold without a cost", hint: "Invoices in the period with no supplier bill yet", group: "Lists", widths: PANEL },
   { id: "recent-receipts", title: "Latest money in", hint: "The newest receipts", group: "Lists", widths: PANEL },

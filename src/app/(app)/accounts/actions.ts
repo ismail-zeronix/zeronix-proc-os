@@ -8,7 +8,8 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { customerAdvances, openInvoices } from "@/lib/accounts-data";
 import { audit } from "@/lib/audit";
-import { assertFinance } from "@/lib/auth/session";
+import { assertFinance, loadAccess } from "@/lib/auth/session";
+import { lineStockOf, stockStartOf } from "@/lib/inventory/data";
 import { dubaiToday } from "@/lib/dates";
 import { nextSeq, takeInvoiceNumber } from "@/lib/doc-numbers";
 import { checkPaymentAmount, dueDateFor, invoiceState, methodLabel, termsLabel, yearNumber } from "@/lib/invoicing";
@@ -25,6 +26,7 @@ import { duplicateCompany } from "@/lib/sales-data";
 import { getSetting } from "@/lib/settings";
 import { assertInLedgerPeriod, assertOpeningDate, assertOpeningOpen, pickPaymentAccount, postAllocationDoc, postAllocationRemoved, postInvoiceDoc, postReceiptDoc, reversePayment } from "@/lib/ledger/documents";
 import { currentOrgId, setTxOrg, withOrg } from "@/lib/org";
+import { lineItems } from "@/lib/items-check";
 import type { Tx } from "@/lib/tx";
 import { parseInput, UserError } from "@/lib/user-error";
 
@@ -44,13 +46,42 @@ const issueSchema = z.object({
   issueDate: day,
   termsDays: z.number().int().min(0).max(365),
   customerAddress: z.string().trim().max(500).default(""),
+  /** Serial numbers sold, by order line id (lines of items with serials, once stock has started). */
+  serials: z.record(z.string(), z.array(z.string().trim().min(1).max(80)).max(1000)).default({}),
 });
 export type IssueInput = z.input<typeof issueSchema>;
 
 /**
- * Issues the tax invoice for a delivered order. The number comes from the Admin series, the customer details are copied as
- * they are today, and the lines are copied from the order. A task to collect the money is put on the deal owner's list
- * for the due date.
+ * The stock side of an order's lines, for the Issue invoice dialog: which lines are stock items, what is on hand and
+ * which need serial numbers, and the day stock started (before it, nothing is asked).
+ */
+export async function orderStockLines(orderId: number) {
+  const access = await loadAccess();
+  if (!access?.finance) return { stockStart: null, lines: [] };
+  const orgId = await currentOrgId();
+  const [stockStart, rows] = await Promise.all([
+    stockStartOf(orgId),
+    db
+      .select({ id: schema.salesOrderItems.id, description: schema.salesOrderItems.description, qty: schema.salesOrderItems.qty, itemId: schema.salesOrderItems.itemId, serials: schema.salesOrderItems.serials })
+      .from(schema.salesOrderItems)
+      .where(eq(schema.salesOrderItems.orderId, orderId))
+      .orderBy(asc(schema.salesOrderItems.position), asc(schema.salesOrderItems.id)),
+  ]);
+  const stock = await lineStockOf(orgId, rows.map((r) => r.itemId));
+  return {
+    stockStart,
+    lines: rows.flatMap((r) => {
+      const s = r.itemId ? stock.get(r.itemId) : undefined;
+      return s?.trackStock ? [{ id: r.id, description: r.description, qty: r.qty, serials: r.serials, ...s }] : [];
+    }),
+  };
+}
+
+/**
+ * Issues the tax invoice for an order, delivered or not: the delivery note is optional. The number comes from the Admin
+ * series, the customer details are copied as they are today, and the lines are copied from the order. The date of supply
+ * is the delivery date when the goods went out first, otherwise the invoice date. A task to collect the money is put on
+ * the deal owner's list for the due date.
  */
 export async function issueInvoice(orderId: number, input: IssueInput) {
   const me = await assertFinance();
@@ -58,7 +89,7 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
   const today = dubaiToday();
   if (d.issueDate > today) throw new UserError("The invoice date cannot be in the future.");
   // a UAE tax invoice must carry the seller TRN
-  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Accounts › Settings › VAT registration first: a tax invoice must show it.");
+  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Admin › Settings › Company & branding first: a tax invoice must show it.");
   const orgId = await currentOrgId();
 
   const result = await db.transaction(async (tx) => {
@@ -66,7 +97,6 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
     await assertInLedgerPeriod(tx, orgId, d.issueDate);
     const [o] = await tx.select().from(schema.salesOrders).where(eq(schema.salesOrders.id, orderId)).for("update");
     if (!o) throw new UserError("That order no longer exists.");
-    if (o.status === "open") throw new UserError("Mark the order delivered first: the invoice date of supply is the delivery date.");
     if (o.status === "cancelled") throw new UserError("This order was cancelled.");
     if (o.status === "invoiced") throw new UserError("This order already has an invoice.");
     if (o.deliveredOn && d.issueDate < o.deliveredOn) throw new UserError("The invoice date cannot be before the delivery date.");
@@ -109,7 +139,11 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
     // an order's lines are of one kind: a project deal is services, everything else products
     const [dealKind] = o.dealId ? await tx.select({ kind: schema.deals.kind }).from(schema.deals).where(eq(schema.deals.id, o.dealId)) : [];
     const lineKind: "product" | "service" = dealKind?.kind === "project" ? "service" : "product";
-    await tx.insert(schema.invoiceItems).values(items.map((i, position) => ({ invoiceId: inv.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPrice, lineKind, taxCode: taxCodeForRate(o.vatPct) })));
+    // a line picked from the item list follows its item (goods are product sales, services service sales)
+    const kinds = await lineItems(tx, items.map((i) => i.itemId), orgId);
+    await tx.insert(schema.invoiceItems).values(
+      items.map((i, position) => ({ invoiceId: inv.id, position, description: i.description, qty: i.qty, unitPrice: i.unitPrice, lineKind: (i.itemId && kinds.get(i.itemId)?.lineKind) || lineKind, taxCode: taxCodeForRate(o.vatPct), itemId: i.itemId, serials: i.itemId ? (d.serials[String(i.id)] ?? i.serials) : [] })),
+    );
     await tx.update(schema.salesOrders).set({ status: "invoiced", termsDays: d.termsDays }).where(eq(schema.salesOrders.id, orderId));
     await tx.insert(schema.activities).values({
       type: "note",
@@ -146,8 +180,8 @@ export async function issueInvoice(orderId: number, input: IssueInput) {
 
 /**
  * Cancels an invoice with a credit note for the full amount (ZCN-year-0001). Only an invoice with no payments on it: void
- * the payments first. The order goes back to Delivered, so a corrected invoice can be issued. `goodsBack` says whether the
- * goods are coming back: if so their cost returns to stock, if not it stays a cost.
+ * the payments first. The order goes back to Delivered (Confirmed when it had no delivery note), so a corrected invoice can
+ * be issued. `goodsBack` says whether the goods are coming back: if so their cost returns to stock, if not it stays a cost.
  */
 export async function cancelInvoice(invoiceId: number, reason: string, opts: { goodsBack?: boolean } = {}) {
   const me = await assertFinance();
@@ -451,6 +485,10 @@ const invoiceLineSchema = z.object({
   lineKind: z.enum(["product", "service"]).default("product"),
   /** VAT code of the line; left out, what the invoice's rate means. */
   taxCode: z.enum(SALES_TAX_CODES).optional(),
+  /** The item it was picked from (Items), if any. */
+  itemId: z.number().int().positive().nullable().optional(),
+  /** Serial numbers sold on this line (items with serials). */
+  serials: z.array(z.string().trim().min(1).max(80)).max(1000).default([]),
 });
 
 const directInvoiceSchema = z.object({
@@ -477,7 +515,7 @@ export async function createInvoice(input: DirectInvoiceInput) {
   if (!parsed.success) throw new UserError(parsed.error.issues[0]?.message ?? "Check the invoice.");
   const d = parsed.data;
   if (d.issueDate > dubaiToday()) throw new UserError("The invoice date cannot be in the future.");
-  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Accounts › Settings › VAT registration first: a tax invoice must show it.");
+  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Admin › Settings › Company & branding first: a tax invoice must show it.");
   const coded = d.lines.map((l) => ({ ...l, taxCode: l.taxCode ?? taxCodeForRate(d.vatPct) }));
   const t = docTax(coded.map((l) => ({ net: lineTotal(l), code: l.taxCode })));
   if (t.total <= 0) throw new UserError("The invoice total must be above zero.");
@@ -533,7 +571,11 @@ export async function createInvoice(input: DirectInvoiceInput) {
         createdBy: me.id,
       })
       .returning({ id: schema.invoices.id });
-    await tx.insert(schema.invoiceItems).values(coded.map((l, position) => ({ invoiceId: inv.id, position, description: l.description, qty: l.qty, unitPrice: round2(l.unitPrice), lineKind: l.lineKind, taxCode: l.taxCode })));
+    // a line picked from the item list follows its item (goods are product sales, services service sales)
+    const kinds = await lineItems(tx, coded.map((l) => l.itemId), orgId);
+    await tx.insert(schema.invoiceItems).values(
+      coded.map((l, position) => ({ invoiceId: inv.id, position, description: l.description, qty: l.qty, unitPrice: round2(l.unitPrice), lineKind: (l.itemId && kinds.get(l.itemId)?.lineKind) || l.lineKind, taxCode: l.taxCode, itemId: l.itemId ?? null, serials: l.itemId ? l.serials : [] })),
+    );
     // the same acceptance rule as the quote page (lib/quote-accept.ts): other open quotes rejected, deal Won
     const accepted = quote ? (await acceptQuote(tx, { quoteId: quote.id, userId: me.id, via: `invoice ${number}` })).changed : false;
     await tx.insert(schema.activities).values({

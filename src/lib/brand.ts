@@ -2,13 +2,28 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db, schema } from "@/db";
+import { configChanged, orgCached } from "@/lib/org-config";
+import { configOrg } from "@/lib/settings";
 import { DEFAULT_BRAND, type Brand, normalizeStyle } from "@/lib/signature";
 
-/** Company branding for email signatures (defaults until an admin saves it). Cached per request. */
-export const getBrandRow = cache(async () => {
+async function readBrandRow() {
   const [row] = await db.select().from(schema.brandProfile).where(eq(schema.brandProfile.id, 1));
   return row ?? null;
-});
+}
+
+/** One organisation's brand row, kept between requests (lib/org-config.ts) and per request by organisation. */
+const brandRowOf = cache(async (orgId: number | null) => (orgId ? orgCached(orgId, "brand", readBrandRow) : readBrandRow()));
+
+/** Company branding for email signatures (defaults until an admin saves it), of the organisation the work is for. */
+export async function getBrandRow() {
+  return brandRowOf(await configOrg());
+}
+
+/** Call after saving the brand profile (with `tx`, inside that transaction). */
+export async function brandChanged(tx?: Parameters<typeof configChanged>[2]): Promise<void> {
+  const orgId = await configOrg();
+  if (orgId) await configChanged(orgId, "brand", tx);
+}
 
 export async function getBrand(): Promise<Brand & { version: number }> {
   const row = await getBrandRow();
@@ -58,4 +73,12 @@ export async function getLogo(): Promise<{ mime: string; data: Buffer } | null> 
   const row = await getBrandRow();
   if (!row?.logoB64) return null;
   return { mime: row.logoMime, data: Buffer.from(row.logoB64, "base64") };
+}
+
+/**
+ * Brand images are linked with ?v=<when the brand was saved>, so a link never shows another picture: the browser may
+ * keep it for good. A link without the version is kept an hour.
+ */
+export function brandCacheControl(req: Request): string {
+  return new URL(req.url).searchParams.get("v") ? "private, max-age=31536000, immutable" : "private, max-age=3600";
 }

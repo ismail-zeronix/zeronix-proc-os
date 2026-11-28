@@ -3,7 +3,7 @@ import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { schema } from "@/db";
 import { fromMinor, sumMinor, toMinor } from "@/lib/money";
-import { addDays, lineTotal, longDay } from "@/lib/quotation";
+import { lineTotal, longDay } from "@/lib/quotation";
 import { lineCost } from "@/lib/purchases";
 import { docTax } from "@/lib/tax/doc-tax";
 import type { Tx } from "@/lib/tx";
@@ -12,6 +12,7 @@ import { advanceAppliedLines, advanceReturnedLines, billLines, cogsLines, credit
 import { paymentMethodOf } from "./settings-rules";
 import { ensureLedger } from "./setup";
 import { UserError } from "@/lib/user-error";
+import { postBillStock, postCreditNoteStock, postDebitNoteStock, postInvoiceStock, stockBillLineIds } from "./stock-docs";
 
 /**
  * Posting documents to the ledger. Every money action calls one of these in the transaction that saves the document,
@@ -20,13 +21,9 @@ import { UserError } from "@/lib/user-error";
  * that already has its entry is skipped, so calling twice is harmless.
  */
 
-/** The day the ledger starts, or null while it is not switched on. */
-export async function ledgerStart(tx: Tx, orgId: number): Promise<string | null> {
-  const [s] = await tx.select({ cutover: schema.accountingSettings.cutoverDate }).from(schema.accountingSettings).where(eq(schema.accountingSettings.organizationId, orgId));
-  return s?.cutover ?? null;
-}
-
-export const posts = (start: string | null, date: string) => !!start && date >= start;
+// the period helpers live in ./period (stock-docs uses them too); re-exported here for the many callers
+import { firstOpenDay, inStockOf, ledgerStart, liveEntry, posts } from "./period";
+export { firstOpenDay, inStockOf, ledgerStart, liveEntry, posts } from "./period";
 
 /** The live opening entry (posted from Zoho and not reversed), if any. */
 export async function openingEntry(tx: Tx, orgId: number) {
@@ -76,22 +73,6 @@ export async function ledgerInUse(tx: Tx, orgId: number): Promise<boolean> {
   return !!row;
 }
 
-/** This day, or the first day after the lock date when it is locked. */
-async function firstOpenDay(tx: Tx, orgId: number, day: string): Promise<string> {
-  const [s] = await tx.select({ lockDate: schema.accountingSettings.lockDate }).from(schema.accountingSettings).where(eq(schema.accountingSettings.organizationId, orgId));
-  return s?.lockDate && day <= s.lockDate ? addDays(s.lockDate, 1) : day;
-}
-
-export async function liveEntry(tx: Tx, orgId: number, sourceType: string, sourceId: number, purpose = "post") {
-  const e = schema.journalEntries;
-  const rev = alias(schema.journalEntries, "rev");
-  const [row] = await tx
-    .select({ id: e.id, reversedBy: rev.id })
-    .from(e)
-    .leftJoin(rev, eq(rev.reversalOfId, e.id))
-    .where(and(eq(e.organizationId, orgId), eq(e.sourceType, sourceType), eq(e.sourceId, sourceId), eq(e.purpose, purpose)));
-  return row ?? null;
-}
 
 /** The cash box or bank account a payment uses: the one saved on it, or the default of its method. */
 export async function paymentAccount(tx: Tx, orgId: number, bankAccountId: number | null, method: string): Promise<{ bankAccountId: number; ledgerAccountId: number }> {
@@ -167,6 +148,7 @@ export async function postInvoiceDoc(tx: Tx, orgId: number, invoiceId: number, u
     await postEntry(tx, { orgId, date: inv.issueDate, sourceType: "invoice", sourceId: inv.id, memo: `Invoice ${inv.number} to ${inv.customerName}`, createdBy: userId, lines: invoiceLines(facts) });
   }
   await postInvoiceCogs(tx, orgId, inv, userId);
+  await postInvoiceStock(tx, orgId, inv.id, userId);
 }
 
 type GoodsDoc = Pick<typeof schema.bills.$inferSelect, "id" | "number" | "kind" | "billDate">;
@@ -235,6 +217,8 @@ export async function postCreditNoteDoc(tx: Tx, orgId: number, creditNoteId: num
   }
   // goods kept by the customer stay a cost; goods coming back are stock again until a corrected invoice is issued
   if (!cn.goodsBack) return;
+  // stock items coming back (credit_note_items.qty_back); what follows is for goods typed by hand
+  await postCreditNoteStock(tx, orgId, cn.id, userId);
   // part of a sale: the cost that was typed on the note
   if (cn.goodsCost != null) {
     if (cn.goodsCost > 0 && !(await liveEntry(tx, orgId, "credit_note", cn.id, "goods_back"))) {
@@ -357,20 +341,6 @@ function billParts(lines: { qty: number; unitCost: number; taxCode: string }[], 
   return fitToSubtotal(docTax(lines.map((l) => ({ net: lineCost(l), code: l.taxCode }))).parts.filter((p) => p.net > 0), subtotal);
 }
 
-/** What one bill or expense still has in Inventory. */
-async function inStockOf(tx: Tx, orgId: number, sourceType: string, sourceId: number): Promise<number> {
-  const e = schema.journalEntries;
-  const l = schema.journalLines;
-  const rev = alias(schema.journalEntries, "rev");
-  const [{ inStock }] = await tx
-    .select({ inStock: sql<number>`coalesce(sum(${l.debit} - ${l.credit}), 0)::float` })
-    .from(l)
-    .innerJoin(e, eq(e.id, l.entryId))
-    .innerJoin(schema.ledgerAccounts, eq(schema.ledgerAccounts.id, l.accountId))
-    .leftJoin(rev, eq(rev.reversalOfId, e.id))
-    .where(and(eq(e.organizationId, orgId), eq(e.sourceType, sourceType), eq(e.sourceId, sourceId), isNull(e.reversalOfId), isNull(rev.id), eq(schema.ledgerAccounts.systemKey, "inventory")));
-  return Math.round(inStock * 100) / 100;
-}
 
 /**
  * A debit note, posted under its bill (purpose debit:<id>): what it takes out of Inventory then counts against that bill
@@ -382,8 +352,11 @@ export async function postDebitNoteDoc(tx: Tx, orgId: number, debitNoteId: numbe
   const [b] = await tx.select().from(schema.bills).where(eq(schema.bills.id, d.billId));
   if (!b || !posts(await ledgerStart(tx, orgId), d.issueDate)) return;
   const purpose = `debit:${d.id}`;
-  if (await liveEntry(tx, orgId, "bill", b.id, purpose)) return;
+  if (await liveEntry(tx, orgId, "bill", b.id, purpose)) return postDebitNoteStock(tx, orgId, d.id, userId);
   const items = await tx.select().from(schema.debitNoteItems).where(eq(schema.debitNoteItems.debitNoteId, d.id));
+  // lines whose units are item stock (1330) never take from the bill's Inventory (1310): that is only for goods typed by hand
+  const inItems = await stockBillLineIds(tx, orgId, b.kind === "expense" ? "expense" : "bill", b.id);
+  const handTyped = fromMinor(sumMinor(items.filter((i) => i.billItemId == null || !inItems.has(i.billItemId)).map((i) => toMinor(lineCost(i)))));
   await postEntry(tx, {
     orgId,
     date: d.issueDate,
@@ -402,9 +375,10 @@ export async function postDebitNoteDoc(tx: Tx, orgId: number, debitNoteId: numbe
       parts: billParts(items, d.subtotal),
       vatAmount: d.vatAmount,
       total: d.total,
-      inStock: await inStockOf(tx, orgId, "bill", b.id),
+      inStock: Math.min(await inStockOf(tx, orgId, "bill", b.id), handTyped),
     }),
   });
+  await postDebitNoteStock(tx, orgId, d.id, userId);
 }
 
 /** A supplier bill (or an expense paid on the spot). Opening bills came in with the Zoho balances. */
@@ -413,7 +387,11 @@ export async function postBillDoc(tx: Tx, orgId: number, billId: number, userId:
   if (!b) throw new UserError("That bill no longer exists.");
   if (b.kind === "opening" || !posts(await ledgerStart(tx, orgId), b.billDate)) return;
   const sourceType = b.kind === "expense" ? "expense" : "bill";
-  if (await liveEntry(tx, orgId, sourceType, b.id)) return;
+  if (await liveEntry(tx, orgId, sourceType, b.id)) {
+    // posted before: only what may still be missing (stock items linked later, backfill)
+    await postBillStock(tx, orgId, b.id, userId);
+    return;
+  }
   const facts = {
     number: b.number,
     supplierId: b.supplierId,
@@ -434,10 +412,11 @@ export async function postBillDoc(tx: Tx, orgId: number, billId: number, userId:
       .limit(1);
     const acc = await paymentAccount(tx, orgId, voucher?.bankAccountId ?? null, voucher?.method ?? "cash");
     await postEntry(tx, { orgId, date: b.billDate, sourceType, sourceId: b.id, memo: `Expense ${b.number} paid to ${who}`, createdBy: userId, lines: expenseLines({ ...facts, bankLedgerAccountId: acc.ledgerAccountId }) });
-    await postLateGoods(tx, orgId, b, userId);
-    return;
+  } else {
+    await postEntry(tx, { orgId, date: b.billDate, sourceType, sourceId: b.id, memo: `Bill ${b.number} from ${who}${b.supplierRef ? ` (${b.supplierRef})` : ""}`, createdBy: userId, lines: billLines(facts) });
   }
-  await postEntry(tx, { orgId, date: b.billDate, sourceType, sourceId: b.id, memo: `Bill ${b.number} from ${who}${b.supplierRef ? ` (${b.supplierRef})` : ""}`, createdBy: userId, lines: billLines(facts) });
+  // stock items first, so what moves to cost of goods sold by bill is only the goods typed by hand
+  await postBillStock(tx, orgId, b.id, userId);
   await postLateGoods(tx, orgId, b, userId);
 }
 

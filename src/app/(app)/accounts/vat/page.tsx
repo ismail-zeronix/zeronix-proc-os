@@ -83,7 +83,7 @@ export default async function VatPage({ searchParams }: PageProps<"/accounts/vat
         ]}
       />
 
-      {!emirateKnown(org.emirate) && <Notice>Our emirate is not set, so box 1 cannot be split. Set it in Accounts › Settings › VAT registration.</Notice>}
+      {!emirateKnown(org.emirate) && <Notice>Our emirate is not set, so box 1 cannot be split. Set it in Admin › Settings › Company & branding.</Notice>}
       {live && live.difference !== 0 && <Notice>The VAT accounts differ from this return by {money(live.difference)}: a journal touched a VAT account without a tax code. Correct it before filing.</Notice>}
       {problems.length > 0 && (
         <Notice>

@@ -4,6 +4,7 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { previewOf } from "@/lib/chat/text";
 import type { ChannelSummary, ChatMessage, ChatPrefsView } from "@/lib/chat/types";
+import { firstFromBoot } from "./boot";
 import { useChatStore } from "./chat-store";
 
 export const prefsKey = ["chat", "me"] as const;
@@ -12,11 +13,12 @@ export const prefsKey = ["chat", "me"] as const;
 export function useMyPrefs() {
   return useQuery({
     queryKey: prefsKey,
-    queryFn: async (): Promise<ChatPrefsView> => {
-      const res = await fetch("/api/chat/me");
-      if (!res.ok) throw new Error("Could not load your chat settings.");
-      return res.json();
-    },
+    queryFn: (): Promise<ChatPrefsView> =>
+      firstFromBoot("me", async () => {
+        const res = await fetch("/api/chat/me");
+        if (!res.ok) throw new Error("Could not load your chat settings.");
+        return res.json();
+      }),
     staleTime: Infinity,
   });
 }

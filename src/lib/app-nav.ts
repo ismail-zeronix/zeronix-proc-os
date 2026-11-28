@@ -1,4 +1,4 @@
-import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon, PhoneCall } from "lucide-react";
+import { LayoutTemplate, Megaphone, Percent, ShoppingCart, BadgeCheck, Boxes, FileMinus, Factory, Newspaper, Tags, Ban, BarChart3, ClipboardCheck, ListOrdered, Send, Database, Target, Upload, Globe, Inbox, MessagesSquare, Landmark, ListTree, NotebookPen, TriangleAlert, FolderKanban, Bot, Building2, ClipboardList, FileText, HandCoins, Banknote, History, Kanban, LayoutDashboard, Receipt, ReceiptText, Search, SlidersHorizontal, Sparkles, Truck, Users, UsersRound, SearchCheck, Wallet, type LucideIcon, PhoneCall, Package, ScanBarcode } from "lucide-react";
 import type { AppKey } from "./apps";
 
 export interface NavItem {
@@ -37,7 +37,12 @@ export interface NavPerms {
    * the browser, which cannot read the server's MULTI_TENANT, so the server passes it here.
    */
   zeronix?: boolean;
+  /** Apps whose Settings this person may open (lib/settings/registry.ts): their sidebars show the Settings item. */
+  settingsApps?: AppKey[];
 }
+
+/** The Setup group of an app whose settings live under /‹app›/settings (shown with NavPerms.settingsApps). */
+const setup = (app: AppKey, label = "Settings"): NavGroup => ({ label: "Setup", need: "settingsApps", items: [{ href: `/${app}/settings`, label, icon: SlidersHorizontal }] });
 
 /** Sidebar pages per app. Apps without an entry have no sidebar (single-page apps). */
 export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
@@ -71,6 +76,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       need: "seesAll",
       items: [{ href: "/crm/team", label: "Team", icon: UsersRound, zeronixOnly: true }],
     },
+    setup("crm"),
   ],
   website: [
     {
@@ -135,6 +141,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/projects/list", label: "Projects", icon: FolderKanban, badge: "projOverdue" },
       ],
     },
+    setup("projects"),
   ],
   procurement: [
     {
@@ -147,6 +154,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/procurement/price-lists", label: "Received", icon: History, also: ["/procurement/import"] },
       ],
     },
+    setup("procurement"),
   ],
   sales: [
     {
@@ -156,8 +164,23 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
         { href: "/sales/customers", label: "Customers", icon: UsersRound },
         { href: "/sales/quotes", label: "Quotes", icon: FileText, also: ["/sales/quotes/new"] },
         { href: "/sales/orders", label: "Sales orders", icon: ClipboardList },
+        { href: "/sales/items", label: "Items", icon: Package },
       ],
     },
+    setup("sales"),
+  ],
+  inventory: [
+    {
+      label: "Stock",
+      items: [
+        { href: "/inventory", label: "Overview", icon: LayoutDashboard, exact: true },
+        { href: "/inventory/stock", label: "Stock on hand", icon: Boxes },
+        { href: "/inventory/items", label: "Items", icon: Package },
+        { href: "/inventory/adjustments", label: "Adjustments", icon: ClipboardCheck, also: ["/inventory/adjustments/new"] },
+        { href: "/inventory/serials", label: "Serial numbers", icon: ScanBarcode },
+      ],
+    },
+    setup("inventory"),
   ],
   accounts: [
     {
@@ -169,6 +192,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       label: "Sales",
       items: [
         { href: "/accounts/customers", label: "Customers", icon: UsersRound },
+        { href: "/accounts/items", label: "Items", icon: Package },
         { href: "/accounts/quotes", label: "Quotes", icon: FileText },
         { href: "/accounts/orders", label: "Sales orders", icon: ClipboardList },
         { href: "/accounts/to-invoice", label: "To invoice", icon: Landmark, badge: "toInvoice" },
@@ -206,11 +230,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
       label: "Reports",
       items: [{ href: "/accounts/reports", label: "Reports", icon: BarChart3 }],
     },
-    {
-      label: "Settings",
-      need: "accountant",
-      items: [{ href: "/accounts/settings", label: "Accounts settings", icon: SlidersHorizontal }],
-    },
+    { ...setup("accounts", "Accounts settings"), label: "Settings" },
   ],
   admin: [
     {
@@ -238,7 +258,7 @@ export const APP_NAV: Partial<Record<AppKey, NavGroup[]>> = {
  */
 export function navFor(app: AppKey, perms: NavPerms = {}): NavGroup[] {
   return (APP_NAV[app] ?? [])
-    .filter((g) => !g.need || perms[g.need])
+    .filter((g) => (g.need === "settingsApps" ? !!perms.settingsApps?.includes(app) : !g.need || perms[g.need]))
     .map((g) => (perms.zeronix ? g : { ...g, items: g.items.filter((i) => !i.zeronixOnly) }))
     .filter((g) => g.items.length > 0);
 }
@@ -250,7 +270,7 @@ export const BADGE_LABELS: Record<string, string> = {
   alerts: "new this week",
   inbox: "supplier messages waiting for a check",
   overdue: "invoices overdue",
-  toInvoice: "delivered sales orders waiting for an invoice",
+  toInvoice: "sales orders waiting for an invoice",
   billsDue: "supplier bills due this week or overdue",
   // Projects
   projOverdue: "projects with an overdue task",

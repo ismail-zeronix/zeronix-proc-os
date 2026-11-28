@@ -4,9 +4,10 @@ import { Ban, ClipboardCheck, FileCheck2, Pencil, Receipt, Truck, Undo2, Wallet 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { cancelInvoice, issueInvoice, recordPayment, voidPayment } from "@/app/(app)/accounts/actions";
+import { cancelInvoice, issueInvoice, orderStockLines, recordPayment, voidPayment } from "@/app/(app)/accounts/actions";
 import { cancelOrder, convertQuoteToOrder, markDelivered, updateOrder } from "@/app/(app)/sales/order-actions";
 import { AccountPicker, pickedAccount, type BankOption } from "@/components/account-picker";
+import { SerialsField, serialList } from "@/components/item-picker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -196,7 +197,7 @@ export function EditOrderDialog({ order }: { order: { id: number; customerRef: s
   );
 }
 
-/** Goods handed over: gives the delivery note its number. */
+/** Goods handed over: gives the delivery note its number. Optional, before or after the invoice. */
 export function MarkDeliveredDialog({ orderId, deliveryAddress }: { orderId: number; deliveryAddress: string }) {
   const [open, setOpen] = useState(false);
   const [pending, run] = useRun();
@@ -218,7 +219,7 @@ export function MarkDeliveredDialog({ orderId, deliveryAddress }: { orderId: num
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delivered</DialogTitle>
-          <DialogDescription>The whole sales order goes in one delivery. The delivery note gets its number now; print it for the customer to sign.</DialogDescription>
+          <DialogDescription>Optional: only when the customer needs a delivery note. The whole sales order goes in one delivery; the note gets its number now, print it for the customer to sign.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-[9.5rem_1fr] gap-3">
           <div className="grid gap-1.5">
@@ -265,7 +266,7 @@ export function CancelOrderButton({ orderId, number, bills = 0 }: { orderId: num
   );
 }
 
-/** Accounts: issue the tax invoice for a delivered order. */
+/** Accounts: issue the tax invoice for an order, with or without a delivery note. */
 export function IssueInvoiceDialog({
   orderId,
   orderNumber,
@@ -293,7 +294,13 @@ export function IssueInvoiceDialog({
   // From Accounts the new invoice opens; from a Sales order we stay on the order (the invoice shows on its Invoice tab)
   const inAccounts = usePathname().startsWith("/accounts");
   const [f, setF] = useState({ issueDate: dubaiToday(), termsDays, customerAddress: address });
+  // stock lines of the order (loaded when the dialog opens): serial numbers to pick and shortages to warn about
+  const [stock, setStock] = useState<Awaited<ReturnType<typeof orderStockLines>> | null>(null);
+  const [serials, setSerials] = useState<Record<number, string>>({});
   const due = dueDateFor(f.issueDate || dubaiToday(), f.termsDays);
+  const moves = !!stock?.stockStart && !!f.issueDate && f.issueDate >= stock.stockStart;
+  const serialLines = moves ? (stock?.lines.filter((l) => l.trackSerials) ?? []) : [];
+  const shortLines = moves ? (stock?.lines.filter((l) => l.qty > l.onHand) ?? []) : [];
   return (
     <Dialog
       open={open}
@@ -301,6 +308,14 @@ export function IssueInvoiceDialog({
         // what was owed or left may have changed since the page loaded (a debit note, a payment): start from today's figures
         if (o) {
           setF({ issueDate: dubaiToday(), termsDays, customerAddress: address });
+          setStock(null);
+          setSerials({});
+          orderStockLines(orderId)
+            .then((s) => {
+              setStock(s);
+              setSerials(Object.fromEntries(s.lines.map((l) => [l.id, l.serials.join("\n")])));
+            })
+            .catch(() => setStock({ stockStart: null, lines: [] }));
         }
         setOpen(o);
       }}
@@ -318,7 +333,7 @@ export function IssueInvoiceDialog({
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
             <Label htmlFor="ii-date">Invoice date</Label>
-            <Input id="ii-date" type="date" min={deliveredOn} max={dubaiToday()} value={f.issueDate} onChange={(e) => setF({ ...f, issueDate: e.target.value })} />
+            <Input id="ii-date" type="date" min={deliveredOn || undefined} max={dubaiToday()} value={f.issueDate} onChange={(e) => setF({ ...f, issueDate: e.target.value })} />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="ii-terms">Credit terms</Label>
@@ -334,16 +349,31 @@ export function IssueInvoiceDialog({
         </div>
         {!ourTrn && (
           <p className="rounded-md bg-red-500/10 px-2 py-1.5 text-xs text-red-700 dark:text-red-400">
-            Our TRN is not set. An accountant adds it in Accounts › Settings › VAT registration; a tax invoice must show it.
+            Our TRN is not set. An admin adds it in Admin › Settings › Company & branding; a tax invoice must show it.
           </p>
         )}
         {!customerTrn && <p className="text-xs text-amber-700 dark:text-amber-400">The customer has no TRN saved. Fine if they are not VAT registered; otherwise add it on the company first.</p>}
+        {shortLines.length > 0 && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Not enough in stock: {shortLines.map((l) => `${l.description.split("\n")[0]} (${Math.max(l.onHand, 0)} of ${l.qty} ${l.unit})`).join("; ")}.
+          </p>
+        )}
+        {serialLines.length > 0 && (
+          <div className="grid max-h-64 gap-2 overflow-y-auto">
+            {serialLines.map((l) => (
+              <div key={l.id} className="grid gap-1">
+                <span className="truncate text-sm font-medium">{l.description.split("\n")[0]}</span>
+                <SerialsField qty={l.qty} value={serials[l.id] ?? ""} onChange={(v) => setSerials({ ...serials, [l.id]: v })} label="Serial numbers sold" />
+              </div>
+            ))}
+          </div>
+        )}
         <DialogFooter>
           <Button
-            pending={pending} disabled={!f.issueDate || !ourTrn}
+            pending={pending || (open && !stock)} disabled={!f.issueDate || !ourTrn}
             onClick={() =>
               run(
-                () => issueInvoice(orderId, f),
+                () => issueInvoice(orderId, { ...f, serials: Object.fromEntries(serialLines.map((l) => [String(l.id), serialList(serials[l.id] ?? "")])) }),
                 inAccounts ? "Invoice issued" : "Invoice issued. It is on this sales order's Invoice tab.",
                 (r) => {
                   setOpen(false);

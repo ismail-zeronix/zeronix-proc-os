@@ -11,6 +11,7 @@ import { zeronixFeatures } from "@/lib/edition";
 import { orgProfile } from "@/lib/org";
 import { routineFor } from "@/lib/routine-data";
 import { SupportBanner } from "@/components/support-banner";
+import { mySettingsApps } from "@/lib/settings/access";
 
 /**
  * Every signed-in page. Each app (and the home screen) adds its own header, and a sidebar where it has one. Nothing works
@@ -36,7 +37,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {punchedIn && <ChatWidget me={{ id: user.id, name: user.name, isAdmin: user.role === "admin" }} />}
       {routine && <CheckInPrompt me={user.id} name={user.name} />}
       {children}
-      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} perms={{ accountant, seesAll, outreachFull: seesAll, zeronix: zeronixFeatures() }} />
+      <MobileNav user={{ name: user.name, email: user.email, role: user.role }} apps={apps} visible={visible} punchedIn={punchedIn} perms={{ accountant, seesAll, outreachFull: seesAll, zeronix: zeronixFeatures(), settingsApps: await mySettingsApps() }} />
     </>
   );
 }

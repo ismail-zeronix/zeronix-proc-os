@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { brandChanged } from "@/lib/brand";
 import { assertAccountant } from "@/lib/auth/session";
 import { parseLogoDataUrl } from "@/lib/logo";
 
@@ -37,6 +38,7 @@ export async function saveDocumentBrand(input: z.input<typeof docSchema> & { log
     .insert(schema.brandProfile)
     .values({ id: 1, ...set })
     .onConflictDoUpdate({ target: schema.brandProfile.organizationId, set });
+  await brandChanged();
   revalidatePath("/admin", "layout");
   revalidatePath("/accounts", "layout");
   revalidatePath("/projects", "layout");

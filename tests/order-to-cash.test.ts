@@ -138,12 +138,9 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     await O.cancelOrder(orderId, "Test order only");
   });
 
-  it("invoices only delivered orders, and only for people with Accounts", async () => {
+  it("makes one delivery note per order, and invoices only for people with Accounts", async () => {
     const { quoteId } = await quotedDeal("Gate");
     const o = await O.convertQuoteToOrder(quoteId, { termsDays: 7 });
-    await as(accountant);
-    await expect(A.issueInvoice(o.id, { issueDate: today, termsDays: 7 })).rejects.toThrow(/delivered first/);
-    await as(seller);
     await O.markDelivered(o.id, { deliveredOn: today, receivedBy: "Reception" });
     await expect(O.markDelivered(o.id, { deliveredOn: today })).rejects.toThrow(/already delivered/);
     await expect(A.issueInvoice(o.id, { issueDate: today, termsDays: 7 })).rejects.toThrow(/accounts team/);
@@ -345,5 +342,39 @@ describe.skipIf(!live)("order to cash (needs the dev database)", () => {
     expect(bankFor({ name: "Now", accountName: "", accountNumber: "1", iban: "", swift: "" }, row.snap)).toEqual(row.snap?.bank ?? null);
     await db.update(schema.settings).set({ value: "100000000000003" }).where(eq(schema.settings.key, "quote_trn"));
     await as(seller);
+  });
+
+  it("invoices an order without a delivery note; the note can still be made afterwards", async () => {
+    const { quoteId } = await quotedDeal("NoDn");
+    const o = await O.convertQuoteToOrder(quoteId, { termsDays: 7 });
+    await as(accountant);
+    const inv = await A.issueInvoice(o.id, { issueDate: today, termsDays: 7 });
+    const [row] = await db.select({ supplyDate: schema.invoices.supplyDate }).from(schema.invoices).where(eq(schema.invoices.id, inv.id));
+    // no delivery: the date of supply is the invoice date
+    expect(row.supplyDate).toBe(today);
+    let [order] = await db.select({ status: schema.salesOrders.status, dn: schema.salesOrders.dnNumber }).from(schema.salesOrders).where(eq(schema.salesOrders.id, o.id));
+    expect(order).toEqual({ status: "invoiced", dn: null });
+    await as(seller);
+    // the goods cannot have gone out before the invoice that took its date as the date of supply
+    const { addDays } = await import("@/lib/quotation");
+    await expect(O.markDelivered(o.id, { deliveredOn: addDays(today, -1) })).rejects.toThrow(/cannot be before invoice/);
+    const dn = await O.markDelivered(o.id, { deliveredOn: today, receivedBy: "Reception" });
+    expect(dn.dnNumber).toMatch(/^ZDN-\d{4}-\d{4,}$/);
+    [order] = await db.select({ status: schema.salesOrders.status, dn: schema.salesOrders.dnNumber }).from(schema.salesOrders).where(eq(schema.salesOrders.id, o.id));
+    // a delivery note after the invoice keeps the order invoiced
+    expect(order).toEqual({ status: "invoiced", dn: dn.dnNumber });
+    await expect(O.markDelivered(o.id, { deliveredOn: today })).rejects.toThrow(/already delivered/);
+  });
+
+  it("a cancelled invoice sends an order without a delivery note back to Confirmed", async () => {
+    const { quoteId } = await quotedDeal("NoDnCancel");
+    const o = await O.convertQuoteToOrder(quoteId, { termsDays: 7 });
+    await as(accountant);
+    const inv = await A.issueInvoice(o.id, { issueDate: today, termsDays: 7 });
+    await A.cancelInvoice(inv.id, "Wrong prices");
+    const [order] = await db.select({ status: schema.salesOrders.status }).from(schema.salesOrders).where(eq(schema.salesOrders.id, o.id));
+    expect(order.status).toBe("open");
+    await as(seller);
+    await O.cancelOrder(o.id, "Test order only");
   });
 });

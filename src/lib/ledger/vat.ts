@@ -159,7 +159,7 @@ export async function vatCheckReport(p: ReportParams): Promise<Report> {
         columns: [{ label: "Check" }, { label: "Number" }, { label: "Date", kind: "date" }, { label: "Customer or supplier" }, { label: "Amount", kind: "money" }],
         rows: problems.map((x) => [x.check, x.number, x.date, x.who, x.amount]),
         links,
-        note: trn ? "Nothing here stops a filing. Each line is something the FTA could question." : "Our own TRN is not set: Accounts › Settings › VAT registration.",
+        note: trn ? "Nothing here stops a filing. Each line is something the FTA could question." : "Our own TRN is not set: Admin › Settings › Company & branding.",
       },
     ],
   };

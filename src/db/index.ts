@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient, type PoolConfig } from "pg";
 import { resolveScope } from "./org-context";
+import { queryLogger } from "./query-log";
 import * as schema from "./schema";
 
 /**
@@ -68,6 +69,6 @@ if (!globalForDb.pgPool) {
 }
 if (process.env.NODE_ENV !== "production") globalForDb.pgPool = pool;
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle(pool, { schema, logger: queryLogger });
 export { schema };
 export { runAsOrg } from "./org-context";

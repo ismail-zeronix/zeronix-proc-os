@@ -106,7 +106,7 @@ describe.skipIf(!live)("the platform console (needs the test database)", () => {
     inviteToken = r.inviteUrl.split("/invite/")[1];
     const [org] = await adminQuery<{ enabled_apps: string[]; status: string }>("SELECT enabled_apps, status FROM organizations WHERE id = $1", [orgId]);
     expect(org.status).toBe("active");
-    expect(org.enabled_apps).toEqual(["crm", "sales", "accounts", "projects", "tasks", "files", "chat"]);
+    expect(org.enabled_apps).toEqual(["crm", "sales", "accounts", "projects", "inventory", "tasks", "files", "chat"]);
     const [brand] = await adminQuery<{ company: string }>("SELECT company FROM brand_profile WHERE organization_id = $1", [orgId]);
     expect(brand.company).toBe(`${tag} Trading LLC`);
     const [types] = await adminQuery<{ n: number }>("SELECT count(*)::int AS n FROM project_types WHERE organization_id = $1", [orgId]);

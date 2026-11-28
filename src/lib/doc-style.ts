@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 /**
  * The look of the customer documents (quotation, proforma, delivery note, tax invoice, credit / debit note, refund):
  * one of three ready-made templates plus the owner's changes, saved in the `doc_style` setting from
- * Accounts › Settings › Documents › Templates. Only the look: numbers, lines and amounts never depend on it, and every
+ * Admin › Settings › Templates. Only the look: numbers, lines and amounts never depend on it, and every
  * document prints with the current style, also ones issued earlier.
  *
  * Shared by the server (print pages, PDFs) and the browser (the live preview), so nothing here touches the database.

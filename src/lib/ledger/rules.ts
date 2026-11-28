@@ -304,3 +304,54 @@ export function cogsLines(p: { amount: number; billNumber: string; invoiceNumber
     { account: "inventory", credit: p.amount, description, orderId: p.orderId, dealId: p.dealId },
   ];
 }
+
+/* ---------- item stock (Inventory app): 1330 "Inventory, stock items", at average cost ---------- */
+
+type StockDims = { orderId?: number | null; dealId?: number | null };
+
+/**
+ * A bill's lines of stock items go on into item stock: their cost leaves the account the bill put it in (Inventory for
+ * goods, or the category's account) and becomes item stock. No VAT code: the bill's own entry already reported it.
+ */
+export function stockReceiptLines(p: { parts: readonly { amount: number; fromAccount: string }[]; description: string } & StockDims): PostLine[] | null {
+  const dims = { orderId: p.orderId ?? null, dealId: p.dealId ?? null };
+  const byAccount = new Map<string, number>();
+  for (const x of p.parts) byAccount.set(x.fromAccount, (byAccount.get(x.fromAccount) ?? 0) + toMinor(x.amount));
+  const total = sumMinor([...byAccount.values()]);
+  if (total <= 0) return null;
+  return [
+    { account: "inventory_items", debit: fromMinor(total), description: p.description, ...dims },
+    ...[...byAccount.entries()].filter(([, v]) => v > 0).map(([account, v]) => ({ account, credit: fromMinor(v), description: p.description, ...dims })),
+  ];
+}
+
+/**
+ * Item stock leaving at its cost: sold (cost of goods sold), sent back to the supplier, or given a cost later (settle).
+ * `to` is the account the cost goes to; null when there is nothing to post.
+ */
+export function stockOutLines(p: { amount: number; to?: string; description: string } & StockDims): PostLine[] | null {
+  if (!(toMinor(p.amount) > 0)) return null;
+  const dims = { orderId: p.orderId ?? null, dealId: p.dealId ?? null };
+  return [
+    { account: p.to ?? "cogs", debit: p.amount, description: p.description, ...dims },
+    { account: "inventory_items", credit: p.amount, description: p.description, ...dims },
+  ];
+}
+
+/** Items coming back from a customer: their cost leaves cost of goods sold and is stock again. */
+export function stockBackLines(p: { amount: number; description: string } & StockDims): PostLine[] | null {
+  if (!(toMinor(p.amount) > 0)) return null;
+  const dims = { orderId: p.orderId ?? null, dealId: p.dealId ?? null };
+  return [
+    { account: "inventory_items", debit: p.amount, description: p.description, ...dims },
+    { account: "cogs", credit: p.amount, description: p.description, ...dims },
+  ];
+}
+
+/** A stock adjustment: what came in and what went out, against its offset account (stock adjustments, opening equity...). */
+export function stockAdjustLines(p: { valueIn: number; valueOut: number; offset: string; description: string }): PostLine[] | null {
+  const lines: PostLine[] = [];
+  if (toMinor(p.valueIn) > 0) lines.push({ account: "inventory_items", debit: p.valueIn, description: p.description }, { account: p.offset, credit: p.valueIn, description: p.description });
+  if (toMinor(p.valueOut) > 0) lines.push({ account: p.offset, debit: p.valueOut, description: p.description }, { account: "inventory_items", credit: p.valueOut, description: p.description });
+  return lines.length ? lines : null;
+}

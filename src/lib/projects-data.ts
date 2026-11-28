@@ -188,7 +188,9 @@ export async function listProjects(v: Viewer, opts: { memberId?: number; q?: str
 }
 
 /** One project with its site details, or null when it does not exist or the viewer may not see its deal. */
-export async function getProject(id: number, v: Viewer) {
+export const getProject = cache(getProjectUncached);
+
+async function getProjectUncached(id: number, v: Viewer) {
   const [row] = await query().where(and(eq(schema.projects.id, id), eq(schema.deals.kind, "project"), dealVisible(v, schema.projects.dealId)));
   if (!row) return null;
   const [extra] = await db

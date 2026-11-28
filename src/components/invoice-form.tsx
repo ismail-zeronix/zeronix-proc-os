@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createInvoice, customerBilling } from "@/app/(app)/accounts/actions";
 import { BackButton } from "@/components/back-button";
+import { ItemChip, ItemPickButton, SerialsField, serialList, ShortageNote, type PickedItem } from "@/components/item-picker";
 import { CustomerPicker, type PickedCustomer } from "@/components/party-pickers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,9 @@ import { docTax, SALES_TAX_CODES, taxCodeOptions } from "@/lib/tax/doc-tax";
 import { errorText } from "@/lib/user-error";
 
 type LineKind = "product" | "service";
-type Line = { key: number; description: string; lineKind: LineKind; taxCode: string; qty: string; unitPrice: string };
+/** What the form knows of a picked item's stock (serial numbers, shortage warning). */
+export type LineStockInfo = { trackStock: boolean; trackSerials: boolean; onHand: number; unit: string };
+type Line = { key: number; description: string; lineKind: LineKind; taxCode: string; qty: string; unitPrice: string; itemId: number | null; itemSku: string | null; stock?: LineStockInfo | null; serials?: string };
 const TAX_OPTIONS = taxCodeOptions(SALES_TAX_CODES);
 let nextKey = 1;
 
@@ -35,11 +38,13 @@ export interface InvoiceFormValues {
   quote: { id: number; number: string } | null;
   termsDays: number;
   vatPct: number;
-  lines: { description: string; qty: number; unitPrice: number; lineKind: LineKind }[];
+  lines: { description: string; qty: number; unitPrice: number; lineKind: LineKind; itemId?: number | null; itemSku?: string | null; stock?: LineStockInfo | null }[];
+  /** What a new line starts as: products for a trader, services for a service provider. */
+  lineKind?: LineKind;
 }
 
 /** A tax invoice typed directly, or filled in from a quote. No sales order is needed. */
-export function InvoiceForm({ initial, nextNumber, ourTrn }: { initial: InvoiceFormValues; nextNumber: string; /** Without our TRN the invoice cannot be issued. */ ourTrn: string }) {
+export function InvoiceForm({ initial, nextNumber, ourTrn, stockStart = null }: { initial: InvoiceFormValues; nextNumber: string; /** Without our TRN the invoice cannot be issued. */ ourTrn: string; /** From this day invoices take stock: serial numbers and shortages are asked for. */ stockStart?: string | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const today = dubaiToday();
@@ -51,11 +56,28 @@ export function InvoiceForm({ initial, nextNumber, ourTrn }: { initial: InvoiceF
   const [customerRef, setCustomerRef] = useState("");
   const firstCode = initial.vatPct > 0 ? "SR" : "ZR";
   const [lines, setLines] = useState<Line[]>(() =>
-    initial.lines.length ? initial.lines.map((l) => ({ key: nextKey++, description: l.description, lineKind: l.lineKind, taxCode: firstCode, qty: String(l.qty), unitPrice: String(l.unitPrice) })) : [{ key: nextKey++, description: "", lineKind: "product", taxCode: firstCode, qty: "1", unitPrice: "" }],
+    initial.lines.length
+      ? initial.lines.map((l) => ({ key: nextKey++, description: l.description, lineKind: l.lineKind, taxCode: firstCode, qty: String(l.qty), unitPrice: String(l.unitPrice), itemId: l.itemId ?? null, itemSku: l.itemSku ?? null, stock: l.stock ?? null, serials: "" }))
+      : [{ key: nextKey++, description: "", lineKind: initial.lineKind ?? "product", taxCode: firstCode, qty: "1", unitPrice: "", itemId: null, itemSku: null }],
   );
-  const parsed = lines.map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitPrice: num(l.unitPrice), lineKind: l.lineKind, taxCode: l.taxCode as (typeof SALES_TAX_CODES)[number] })).filter((l) => l.description && l.qty > 0);
+  // stock moves with this invoice: its date is on or after the stock start
+  const moves = !!stockStart && !!issueDate && issueDate >= stockStart;
+  const parsed = lines
+    .map((l) => ({ description: l.description.trim(), qty: num(l.qty), unitPrice: num(l.unitPrice), lineKind: l.lineKind, taxCode: l.taxCode as (typeof SALES_TAX_CODES)[number], itemId: l.itemId, serials: moves && l.itemId && l.stock?.trackSerials ? serialList(l.serials ?? "") : [] }))
+    .filter((l) => l.description && l.qty > 0);
   const t = docTax(parsed.map((l) => ({ net: lineTotal(l), code: l.taxCode })));
   const set = (key: number, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  // a line from the item list: name (and specs), price, VAT code, and goods or service
+  const fromItem = (it: PickedItem): Partial<Line> => ({
+    description: it.description ? `${it.name}, ${it.description}` : it.name,
+    unitPrice: it.salePrice != null ? String(it.salePrice) : "",
+    taxCode: (SALES_TAX_CODES as readonly string[]).includes(it.taxCode) ? it.taxCode : firstCode,
+    lineKind: it.kind === "service" ? "service" : "product",
+    itemId: it.id,
+    itemSku: it.sku,
+    stock: { trackStock: it.trackStock, trackSerials: it.trackSerials, onHand: it.onHand, unit: it.unit },
+    serials: "",
+  });
   const can = !!company && !!ourTrn && parsed.length > 0 && t.total > 0 && !!issueDate;
   const pick = (c: PickedCustomer | null) => {
     setCompany(c);
@@ -100,7 +122,7 @@ export function InvoiceForm({ initial, nextNumber, ourTrn }: { initial: InvoiceF
         </Button>
       </div>
 
-      {!ourTrn && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-400">Our TRN is not set. An accountant adds it in Accounts › Settings › VAT registration; a tax invoice must show it.</p>}
+      {!ourTrn && <p className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-400">Our TRN is not set. An admin adds it in Admin › Settings › Company & branding; a tax invoice must show it.</p>}
 
       <div className="grid gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <aside className="grid content-start gap-3 rounded-xl border bg-card p-3" aria-label="Customer and terms">
@@ -163,7 +185,19 @@ export function InvoiceForm({ initial, nextNumber, ourTrn }: { initial: InvoiceF
           </div>
           {lines.map((l) => (
             <div key={l.key} className="grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_8.5rem_4.5rem_7rem_7rem_2rem]">
-              <Input aria-label="Description" value={l.description} onChange={(e) => set(l.key, { description: e.target.value })} placeholder="e.g. Lenovo E14 laptop" maxLength={500} />
+              <div className="grid min-w-0 gap-0.5">
+                <div className="flex items-center gap-1">
+                  <ItemPickButton onPick={(it) => set(l.key, fromItem(it))} />
+                  <Input aria-label="Description" value={l.description} onChange={(e) => set(l.key, { description: e.target.value })} placeholder="e.g. Lenovo E14 laptop" maxLength={500} />
+                </div>
+                {l.itemSku && (
+                  <span className="flex items-center gap-2 px-1">
+                    <ItemChip sku={l.itemSku} onClear={() => set(l.key, { itemId: null, itemSku: null, stock: null, serials: "" })} />
+                    {moves && l.stock?.trackStock && <ShortageNote qty={num(l.qty)} onHand={l.stock.onHand} unit={l.stock.unit} />}
+                  </span>
+                )}
+                {moves && l.itemId && l.stock?.trackSerials && <SerialsField qty={num(l.qty)} value={l.serials ?? ""} onChange={(v) => set(l.key, { serials: v })} label="Serial numbers sold" />}
+              </div>
               <NativeSelect aria-label="Product or service" value={l.lineKind} onChange={(e) => set(l.key, { lineKind: e.target.value as LineKind })}>
                 <NativeSelectOption value="product">Product</NativeSelectOption>
                 <NativeSelectOption value="service">Service</NativeSelectOption>
@@ -183,7 +217,7 @@ export function InvoiceForm({ initial, nextNumber, ourTrn }: { initial: InvoiceF
               </Button>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" className="mt-1 w-fit" onClick={() => setLines((ls) => [...ls, { key: nextKey++, description: "", lineKind: "product", taxCode: ls.at(-1)?.taxCode ?? firstCode, qty: "1", unitPrice: "" }])}>
+          <Button type="button" variant="outline" size="sm" className="mt-1 w-fit" onClick={() => setLines((ls) => [...ls, { key: nextKey++, description: "", lineKind: initial.lineKind ?? "product", taxCode: ls.at(-1)?.taxCode ?? firstCode, qty: "1", unitPrice: "", itemId: null, itemSku: null }])}>
             <Plus /> Line
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">Products and services post to their own sales accounts. Prices are before VAT. Exports outside the GCC are zero-rated.</p>

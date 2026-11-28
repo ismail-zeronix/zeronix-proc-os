@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { openFirstSection } from "@/components/settings-shell";
 
-export default function AccountsSettingsPage() {
-  redirect("/accounts/settings/vat");
+export default async function AccountsSettingsPage() {
+  return openFirstSection("accounts");
 }

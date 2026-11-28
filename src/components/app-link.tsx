@@ -15,9 +15,18 @@ export function AppTag({ app }: { app: AppDef }) {
   );
 }
 
-/** A link that, when it leads into another app (Sales → Accounts), shows that app's tag so the jump is not a surprise. */
-export function AppLink({ href, title, children, ...rest }: React.ComponentProps<typeof Link> & { href: string }) {
+/**
+ * A link that, when it leads into another app (Sales → Accounts), shows that app's tag so the jump is not a surprise.
+ * With `can={false}` (the person, or the company, does not have that app) it is plain text instead of a dead link.
+ */
+export function AppLink({ href, title, children, can = true, ...rest }: React.ComponentProps<typeof Link> & { href: string; can?: boolean }) {
   const here = appOfPath(usePathname());
+  if (!can)
+    return (
+      <span className={rest.className} title={title}>
+        {children}
+      </span>
+    );
   const there = appOfPath(href);
   const other = here && there && here.key !== there.key ? there : undefined;
   return (

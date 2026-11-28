@@ -6,6 +6,7 @@ import { zeronixFeatures } from "@/lib/edition";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { NavPerms } from "@/lib/app-nav";
 import type { AppKey } from "@/lib/apps";
+import { mySettingsApps } from "@/lib/settings/access";
 
 /**
  * The frame of an app that has a sidebar: header, collapsed-by-default sidebar (the choice is remembered in the
@@ -26,10 +27,10 @@ export async function AppShell({
   fill?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, brand] = await Promise.all([(async () => (await cookies()).get("sidebar_state")?.value === "true")(), getBrand()]);
+  const [open, brand, settingsApps] = await Promise.all([(async () => (await cookies()).get("sidebar_state")?.value === "true")(), getBrand(), mySettingsApps()]);
   return (
     <SidebarProvider defaultOpen={open}>
-      <AppSidebar app={app} badges={badges} perms={{ ...perms, zeronix: zeronixFeatures() }} orgName={brand.company} />
+      <AppSidebar app={app} badges={badges} perms={{ ...perms, zeronix: zeronixFeatures(), settingsApps }} orgName={brand.company} />
       <SidebarInset className={fill ? "h-svh overflow-hidden pb-(--mobile-nav-h)" : undefined}>
         <PortalHeader withSidebar />
         {fill ? (

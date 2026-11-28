@@ -1,10 +1,11 @@
 "use client";
 
 import { Lock, LockOpen, Pencil, Plus, Save } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveAccountMap, saveBankAccount, saveDocumentDetails, saveFiscalYear, saveNumbering, saveVatRegistration, setLockDate, type BankAccountInput } from "@/app/(app)/accounts/settings-actions";
+import { saveAccountMap, saveBankAccount, saveDocumentDetails, saveFiscalYear, saveNumbering, saveVatPeriod, setLockDate, type BankAccountInput } from "@/app/(app)/accounts/settings-actions";
 import { TreeNav, type TreeFolder } from "@/components/tree-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,38 +21,9 @@ import { BANK_KIND_LABELS, MONTHS, type BankKind } from "@/lib/ledger/settings-r
 import { longDay, money } from "@/lib/quotation";
 import { errorText } from "@/lib/user-error";
 
-const FOLDERS: TreeFolder[] = [
-  {
-    label: "Company and tax",
-    items: [
-      { key: "/accounts/settings/vat", label: "VAT registration", hint: "TRN, emirate and VAT period", href: "/accounts/settings/vat" },
-      { key: "/accounts/settings/tax-codes", label: "Tax codes", hint: "VAT codes and their return boxes", href: "/accounts/settings/tax-codes" },
-    ],
-  },
-  {
-    label: "Books",
-    items: [
-      { key: "/accounts/settings/books", label: "Financial year and lock date", hint: "When the year starts, and closing past periods", href: "/accounts/settings/books" },
-      { key: "/accounts/settings/opening", label: "Opening balances", hint: "Cut-over date and balances from Zoho", href: "/accounts/settings/opening" },
-    ],
-  },
-  { label: "Bank and cash", items: [{ key: "/accounts/settings/bank", label: "Bank and cash accounts", hint: "Add accounts, pick the default for each method", href: "/accounts/settings/bank" }] },
-  { label: "Default accounts", items: [{ key: "/accounts/settings/default-accounts", label: "Posting accounts", hint: "Where each sales type and expense category posts", href: "/accounts/settings/default-accounts" }] },
-  { label: "Numbering", items: [{ key: "/accounts/settings/numbering", label: "Document numbers", hint: "Invoice series and other documents", href: "/accounts/settings/numbering" }] },
-  {
-    label: "Documents",
-    items: [
-      { key: "/accounts/settings/templates", label: "Templates", hint: "Look of quotes, invoices and notes", href: "/accounts/settings/templates" },
-      { key: "/accounts/settings/letterhead", label: "Letterhead", hint: "Contact lines, signature and stamp", href: "/accounts/settings/letterhead" },
-      { key: "/accounts/settings/quotes", label: "Quote defaults", hint: "Margin, validity, terms and the quote email", href: "/accounts/settings/quotes" },
-      { key: "/accounts/settings/documents", label: "Invoice defaults", hint: "Credit terms a new sale starts with", href: "/accounts/settings/documents" },
-    ],
-  },
-];
-
-/** The settings tree, on the same component as the reports tree. */
-export function SettingsNav() {
-  return <TreeNav label="Accounts settings" storageKey="accounts-settings" current={usePathname()} folders={FOLDERS} />;
+/** A settings tree (lib/settings/registry.ts), on the same component as the reports tree. */
+export function SettingsNav({ label, storageKey, folders }: { label: string; storageKey: string; folders: TreeFolder[] }) {
+  return <TreeNav label={label} storageKey={storageKey} current={usePathname()} folders={folders} />;
 }
 
 function useSave() {
@@ -93,26 +65,33 @@ const MonthSelect = ({ id, value, onChange, disabled }: { id: string; value: num
   </NativeSelect>
 );
 
-export function VatForm({ initial, emirates }: { initial: { trn: string; emirate: string; vatPeriodMonths: number; vatPeriodStartMonth: number }; emirates: { value: string; label: string }[] }) {
+/**
+ * How often VAT is filed. The TRN and emirate it is filed under are company details (Admin › Settings › Company &
+ * branding), shown here for reference.
+ */
+export function VatPeriodForm({ initial, trn, emirate, canEditTrn }: { initial: { vatPeriodMonths: number; vatPeriodStartMonth: number }; trn: string; emirate: string; canEditTrn: boolean }) {
   const [f, setF] = useState(initial);
   const [pending, run] = useSave();
   return (
     <Section title="VAT registration" hint="The TRN prints on every tax invoice, which cannot be issued without it.">
+      <p className="text-sm">
+        {trn ? (
+          <>
+            TRN <span className="font-medium tabular-nums">{trn}</span>
+            {emirate && <span className="text-muted-foreground"> · {emirate}</span>}
+          </>
+        ) : (
+          <span className="text-amber-700 dark:text-amber-400">No TRN yet.</span>
+        )}{" "}
+        {canEditTrn ? (
+          <Link href="/admin/settings/company" className="underline">
+            Change in Admin › Settings › Company & branding
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">An admin sets it in Admin › Settings.</span>
+        )}
+      </p>
       <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <Label htmlFor="v-trn">Our TRN</Label>
-          <Input id="v-trn" value={f.trn} onChange={(e) => setF({ ...f, trn: e.target.value })} inputMode="numeric" maxLength={30} placeholder="15 digits" />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="v-em">Emirate</Label>
-          <NativeSelect id="v-em" value={f.emirate} onChange={(e) => setF({ ...f, emirate: e.target.value })}>
-            {emirates.map((m) => (
-              <NativeSelectOption key={m.value} value={m.value}>
-                {m.label}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
         <div className="grid gap-1.5">
           <Label htmlFor="v-len">VAT return</Label>
           <NativeSelect id="v-len" value={String(f.vatPeriodMonths)} onChange={(e) => setF({ ...f, vatPeriodMonths: Number(e.target.value) })}>
@@ -125,7 +104,7 @@ export function VatForm({ initial, emirates }: { initial: { trn: string; emirate
           <MonthSelect id="v-start" value={f.vatPeriodStartMonth} onChange={(m) => setF({ ...f, vatPeriodStartMonth: m })} />
         </div>
       </div>
-      <Button className="w-fit" size="sm" pending={pending} onClick={() => run(() => saveVatRegistration({ ...f, vatPeriodMonths: f.vatPeriodMonths as 1 | 3 }), "VAT registration saved")}>
+      <Button className="w-fit" size="sm" pending={pending} onClick={() => run(() => saveVatPeriod({ vatPeriodMonths: f.vatPeriodMonths as 1 | 3, vatPeriodStartMonth: f.vatPeriodStartMonth }), "VAT period saved")}>
         <Save /> Save
       </Button>
     </Section>
@@ -444,7 +423,7 @@ export function DocumentDetailsForm({ initial }: { initial: { default_terms_days
   const [f, setF] = useState(initial);
   const [pending, run] = useSave();
   return (
-    <Section title="Invoice defaults" hint="What a new sale starts with. The bank details invoices print come from the default account in Bank and cash accounts.">
+    <Section title="Credit terms" hint="What a new order or invoice starts with; it can be changed on each one.">
       <div className="grid max-w-md gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="d-terms">Default credit terms for new sales</Label>

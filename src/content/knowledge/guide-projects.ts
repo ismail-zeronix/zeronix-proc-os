@@ -72,7 +72,7 @@ export const PROJECTS_GUIDE: Article[] = [
           "The project manager is the deal owner until you pick someone else.",
         ],
       },
-      { tip: "Admins edit the project types, their default BOQ sections and starting checklists in Admin › Settings › Projects." },
+      { tip: "Admins edit the project types, their default BOQ sections and starting checklists in Projects › Settings › Project types." },
     ],
   },
   {

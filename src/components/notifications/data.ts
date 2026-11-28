@@ -18,6 +18,8 @@ export function useBell(initial?: BellData) {
       return res.json();
     },
     initialData: initial,
+    // what the page arrived with is fresh: no second read the moment it mounts
+    staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });

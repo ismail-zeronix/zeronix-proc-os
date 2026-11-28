@@ -38,13 +38,13 @@ export async function fileVatReturn(input: z.input<typeof fileSchema>) {
   if (d.to >= dubaiToday()) throw new UserError("This period has not ended yet. File it once it is over.");
   const orgId = await currentOrgId();
   const org = await orgProfile(orgId);
-  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Accounts › Settings › VAT registration first.");
-  if (!emirateKnown(org.emirate)) throw new UserError("Pick our emirate in Accounts › Settings › VAT registration first: box 1 is reported by emirate.");
+  if (!(await getSetting("quote_trn")).trim()) throw new UserError("Add our TRN in Admin › Settings › Company & branding first.");
+  if (!emirateKnown(org.emirate)) throw new UserError("Pick our emirate in Admin › Settings › Company & branding first: box 1 is reported by emirate.");
   const id = await withOrg(orgId, async (tx) => {
     await ensureLedger(tx, orgId);
     const [s] = await tx.select().from(schema.accountingSettings).where(eq(schema.accountingSettings.organizationId, orgId)).for("update");
     const period = vatPeriodOf(d.from, s.vatPeriodMonths, s.vatPeriodStartMonth);
-    if (period.from !== d.from || period.to !== d.to) throw new UserError("That is not one of our VAT periods. Check the period length in Accounts › Settings › VAT registration.");
+    if (period.from !== d.from || period.to !== d.to) throw new UserError("That is not one of our VAT periods. Check the period length in Accounts › Settings › VAT period.");
     const v = schema.vatReturns;
     const [last] = await tx.select({ end: v.periodEnd }).from(v).where(and(eq(v.organizationId, orgId), isNull(v.undoneAt))).orderBy(desc(v.periodEnd)).limit(1);
     if (last && d.to <= last.end) throw new UserError(`Returns up to ${longDay(last.end)} are already filed.`);

@@ -13,10 +13,19 @@ import {
   Receipt,
   Settings,
   ShoppingCart,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 
 export type Role = "admin" | "sales";
+
+/** What the company does (organizations.business_type): a trader sells goods (with stock), a service provider services. */
+export type BusinessType = "trader" | "services";
+export const BUSINESS_TYPES: readonly { key: BusinessType; label: string; hint: string }[] = [
+  { key: "trader", label: "Trader", hint: "We sell goods (and may sell services too): items with stock, serial numbers and the Inventory app" },
+  { key: "services", label: "Service provider", hint: "We sell services: a simple list of services and rates, no stock" },
+];
+export const businessTypeLabel = (k: string | null | undefined) => BUSINESS_TYPES.find((b) => b.key === k)?.label ?? "Not set";
 
 export interface AppDef {
   key: string;
@@ -144,6 +153,17 @@ export const APPS = [
     color: "var(--series-2)",
   },
   {
+    // traders only (lib/apps.ts appsForBusiness): items with stock on hand, adjustments and serial numbers
+    key: "inventory",
+    label: "Inventory",
+    href: "/inventory",
+    icon: Warehouse,
+    blurb: "Items, stock on hand, serial numbers",
+    defaultFor: ["admin"],
+    status: "live",
+    color: "var(--app-inventory)",
+  },
+  {
     // Outreach (Phase 5 of the sales routine): finding customers, cold calls, cold email and newsletters in one app.
     // The key stays "prospecting" so saved access lists and links keep working. Salesmen work their own prospects.
     key: "prospecting",
@@ -211,6 +231,11 @@ export function allowedApps(user: AccessUser): AppKey[] {
   return APPS.filter((a) => (a.defaultFor as readonly Role[]).includes(user.role)).map((a) => a.key);
 }
 
+/** Stock is for traders: a service provider (or a company that has not said yet) has no Inventory app. */
+export function appsForBusiness<K extends string>(apps: readonly K[], type: BusinessType | null | undefined): K[] {
+  return type === "trader" ? [...apps] : apps.filter((a) => a !== "inventory");
+}
+
 /**
  * The app tiles and menu entries to show. Pass the apps the person may open as loadAccess() resolved them (role,
  * their own list and the organisation's plan): an admin of a SaaS organisation sees only what its plan includes.
@@ -237,7 +262,7 @@ export function appOfPath(path: string): AppDef | undefined {
  * (attendance is part of every account). Procurement, Mail, Knowledge, Outreach, Newsletters and Website are Zeronix's
  * own (lib/edition.ts): the platform console cannot switch them on for an organisation.
  */
-export const TENANT_CORE_APPS: AppKey[] = ["crm", "sales", "accounts", "projects", "tasks", "files", "chat"];
+export const TENANT_CORE_APPS: AppKey[] = ["crm", "sales", "accounts", "projects", "inventory", "tasks", "files", "chat"];
 
 /** Tile text in the SaaS install, where an app's Zeronix-only parts are off (Chat has no website chats, Admin no Claude). */
 export const TENANT_BLURBS: Partial<Record<string, string>> = { chat: "Team chats", admin: "Users and settings" };

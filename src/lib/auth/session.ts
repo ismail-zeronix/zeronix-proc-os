@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { db, schema } from "@/db";
-import { allowedApps, planApps, type AppKey } from "@/lib/apps";
+import { allowedApps, appsForBusiness, planApps, type AppKey, type BusinessType } from "@/lib/apps";
 import { dubaiToday } from "@/lib/dates";
 import { zeronixFeatures } from "@/lib/edition";
 import { PLATFORM_COOKIE, verifyPlatform } from "./platform-token";
@@ -51,6 +51,9 @@ export interface Access {
   accountant: boolean;
   /** A platform admin on a support visit (read only unless they switched changes on); null for the organisation's own people. */
   support: { adminId: number; adminName: string; readOnly: boolean } | null;
+  /** What the company does (organizations.business_type); null until it is set. Only a trader has stock and the Inventory app. */
+  businessType: BusinessType | null;
+  trader: boolean;
 }
 
 /** The signed-in user's current role and apps, read from the database once per request. Null = not signed in or deactivated. */
@@ -70,6 +73,7 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
       organizationId: schema.users.organizationId,
       orgStatus: schema.organizations.status,
       orgApps: schema.organizations.enabledApps,
+      businessType: schema.organizations.businessType,
     })
     .from(schema.users)
     .innerJoin(schema.organizations, eq(schema.organizations.id, schema.users.organizationId))
@@ -91,7 +95,8 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
   }
   const user: SessionUser = { id: session.id, name: row.name, email: row.email, role: row.role, sv: session.sv, org: row.organizationId, support: session.support ?? null };
   // the organisation's plan decides which apps exist at all; Admin always stays for its admins (lib/apps.ts planApps)
-  const apps = planApps(allowedApps({ role: row.role, apps: row.apps }), row.orgApps, zeronixFeatures());
+  // and only a trader has stock (the Inventory app)
+  const apps = appsForBusiness(planApps(allowedApps({ role: row.role, apps: row.apps }), row.orgApps, zeronixFeatures()), row.businessType);
   return {
     user,
     orgId: row.organizationId,
@@ -100,6 +105,8 @@ export const loadAccess = cache(async (): Promise<Access | null> => {
     finance: apps.includes("accounts"),
     accountant: row.role === "admin" || (apps.includes("accounts") && row.isAccountant),
     support,
+    businessType: row.businessType ?? null,
+    trader: row.businessType === "trader",
   };
 });
 

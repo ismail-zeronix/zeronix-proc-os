@@ -5,6 +5,7 @@ import { db, runAsOrg, schema } from "@/db";
 import { resolveOrgId } from "@/db/org-context";
 import { UserError } from "@/lib/user-error";
 import { getBrandRow } from "@/lib/brand";
+import { orgCached } from "@/lib/org-config";
 import { getSetting } from "@/lib/settings";
 import type { Tx } from "@/lib/tx";
 
@@ -51,7 +52,7 @@ export interface OrgProfile {
   emirate: string;
   fiscalYearStartMonth: number;
   timezone: string;
-  /** TRN in the UAE, GSTIN in India. Zeronix keeps it in Accounts › Settings › VAT registration (quote_trn). */
+  /** TRN in the UAE, GSTIN in India. Set in Admin › Settings › Company & branding (setting quote_trn). */
   taxRegNo: string;
   tradeLicense: string;
 }
@@ -62,8 +63,9 @@ export interface OrgProfile {
  */
 export const orgProfile = cache(async (orgId?: number): Promise<OrgProfile> => {
   const id = orgId ?? (await currentOrgId());
+  // the organisation row is kept between requests (lib/org-config.ts); its writers call configChanged(id, "org")
   const [org, trn, brand] = await runAsOrg(id, () =>
-    Promise.all([db.select().from(schema.organizations).where(eq(schema.organizations.id, id)).limit(1).then((r) => r[0]), getSetting("quote_trn"), getBrandRow()]),
+    Promise.all([orgCached(id, "org", async () => (await db.select().from(schema.organizations).where(eq(schema.organizations.id, id)).limit(1))[0] ?? null), getSetting("quote_trn"), getBrandRow()]),
   );
   if (!org) throw new Error(`Organisation ${id} not found`);
   return {

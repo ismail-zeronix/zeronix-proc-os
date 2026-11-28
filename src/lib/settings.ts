@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { db, schema } from "@/db";
+import type { Tx } from "@/lib/tx";
 import { DEFAULT_HOURS } from "@/lib/attendance";
 import { DEFAULT_MARGIN_PCT, DEFAULT_TERMS, DEFAULT_VALID_DAYS, DEFAULT_VAT_PCT } from "@/lib/quotation";
 import { DEFAULT_QUOTE_EMAIL_BODY, DEFAULT_QUOTE_EMAIL_SUBJECT } from "@/lib/quote-email";
@@ -57,16 +58,41 @@ export const SETTING_DEFAULTS = {
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 
-export async function getSetting(key: SettingKey): Promise<string> {
-  const [row] = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1);
-  return row?.value ?? SETTING_DEFAULTS[key];
+// The cache and the organisation are loaded when first used, so modules that only need SETTING_DEFAULTS (parsers,
+// pure helpers and their tests) do not pull server-only code in.
+const orgConfig = () => import("@/lib/org-config");
+
+/** The organisation whose settings these are, or null where there is none (a public page in the SaaS install). */
+export async function configOrg(): Promise<number | null> {
+  try {
+    const { currentOrgId } = await import("@/lib/org");
+    return await currentOrgId();
+  } catch {
+    return null;
+  }
 }
 
-export async function getSettings(): Promise<Record<SettingKey, string>> {
+async function readSettings(): Promise<Record<SettingKey, string>> {
   const rows = await db.select().from(schema.settings);
   const out = { ...SETTING_DEFAULTS } as Record<SettingKey, string>;
   for (const r of rows) if (r.key in out) out[r.key as SettingKey] = r.value;
   return out;
+}
+
+/**
+ * Every setting of the company, defaults filled in. Kept between requests (lib/org-config.ts); never change the object.
+ * Keyed by the organisation even within a request: work inside runAsOrg() (the platform console, jobs) reads another
+ * organisation than the signed-in user's, and the rows it reads are that organisation's (row-level security).
+ */
+const settingsOf = cache(async (orgId: number | null): Promise<Readonly<Record<SettingKey, string>>> => (orgId ? (await orgConfig()).orgCached(orgId, "settings", readSettings) : readSettings()));
+const settingsMap = async () => settingsOf(await configOrg());
+
+export async function getSetting(key: SettingKey): Promise<string> {
+  return (await settingsMap())[key];
+}
+
+export async function getSettings(): Promise<Record<SettingKey, string>> {
+  return { ...(await settingsMap()) };
 }
 
 export async function setSetting(key: SettingKey, value: string) {
@@ -74,4 +100,11 @@ export async function setSetting(key: SettingKey, value: string) {
     .insert(schema.settings)
     .values({ key, value })
     .onConflictDoUpdate({ target: [schema.settings.organizationId, schema.settings.key], set: { value, updatedAt: new Date() } });
+  await settingsChanged();
+}
+
+/** Call after writing the settings table directly (with `tx`, inside that transaction). */
+export async function settingsChanged(tx?: Tx): Promise<void> {
+  const orgId = await configOrg();
+  if (orgId) await (await orgConfig()).configChanged(orgId, "settings", tx);
 }
